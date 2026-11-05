@@ -75,6 +75,10 @@ const createEmptyLineItem = (tempId: number): ServiceVisitFormLineItem => ({
   inspection_result: '',
   inspection_severity: '',
   triggered_by_inspection_id: undefined,
+  is_recall: false,
+  recall_id: null,
+  is_warranty: false,
+  warranty_id: null,
   supplies_used: [],
 })
 
@@ -235,6 +239,10 @@ function ServiceVisitForm({
           inspection_result: item.inspection_result || '',
           inspection_severity: item.inspection_severity || '',
           triggered_by_inspection_id: item.triggered_by_inspection_id ?? undefined,
+          is_recall: item.is_recall,
+          recall_id: item.recall_id ?? null,
+          is_warranty: item.is_warranty,
+          warranty_id: item.warranty_id ?? null,
           // Hydrated from visit.line_items[*].supply_usages once the supplies
           // list loads (see the hydration effect below). supply_usages carries
           // canonical quantities and needs each supply's pinned unit to convert.
@@ -682,6 +690,10 @@ function ServiceVisitForm({
           inspection_result: item.inspection_result || null,
           inspection_severity: item.inspection_severity || null,
           triggered_by_inspection_id: item.triggered_by_inspection_id ?? null,
+          is_recall: item.is_recall,
+          recall_id: item.recall_id,
+          is_warranty: item.is_warranty,
+          warranty_id: item.warranty_id,
           // Always sent, even []: that's how a supply the user removed gets
           // cleared. Leaving the field out would keep the item's old usages.
           supplies_used: mapSuppliesUsedForSubmit(item),
@@ -728,6 +740,10 @@ function ServiceVisitForm({
           inspection_result: item.inspection_result || undefined,
           inspection_severity: item.inspection_severity || undefined,
           triggered_by_inspection_id: item.triggered_by_inspection_id,
+          is_recall: item.is_recall,
+          recall_id: item.recall_id,
+          is_warranty: item.is_warranty,
+          warranty_id: item.warranty_id,
           temp_id: item.tempId,
           supplies_used: mapSuppliesUsedForSubmit(item),
           reminder: item.reminderDraft?.enabled

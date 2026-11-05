@@ -17,6 +17,8 @@ from app.models.service_visit import ServiceVisit
 from app.models.supply import SupplyUsage
 from app.models.user import User
 from app.schemas.service_visit import (
+    LinkedRecall,
+    LinkedWarranty,
     ServiceLineItemCreate,
     ServiceLineItemResponse,
     ServiceLineItemUpdate,
@@ -71,7 +73,8 @@ def drop_stray_links(items: Sequence[ServiceLineItem]) -> None:
 
 def service_visit_full_load_options():
     """Loader options for building a full ServiceVisitResponse: line_items →
-    supply_usages → supply (needed for SupplyUsageResponse.supply_name) + vendor.
+    supply_usages → supply (needed for SupplyUsageResponse.supply_name), each
+    item's recall and warranty (its chip summaries) + vendor.
 
     Required before any read of calculated_total_cost / parts_supplies_cost —
     async SQLAlchemy raises MissingGreenlet on an unloaded relationship rather
@@ -81,6 +84,8 @@ def service_visit_full_load_options():
         selectinload(ServiceVisit.line_items)
         .selectinload(ServiceLineItem.supply_usages)
         .selectinload(SupplyUsage.supply),
+        selectinload(ServiceVisit.line_items).selectinload(ServiceLineItem.recall),
+        selectinload(ServiceVisit.line_items).selectinload(ServiceLineItem.warranty),
         selectinload(ServiceVisit.vendor),
     )
 
@@ -311,6 +316,10 @@ class ServiceVisitService:
                 inspection_result=item_data.inspection_result,
                 inspection_severity=item_data.inspection_severity,
                 triggered_by_inspection_id=None,  # resolved in Pass 2
+                is_recall=item_data.is_recall,
+                recall_id=item_data.recall_id,
+                is_warranty=item_data.is_warranty,
+                warranty_id=item_data.warranty_id,
             )
             self.db.add(line_item)
             await self.db.flush()
@@ -494,6 +503,10 @@ class ServiceVisitService:
                             inspection_result=item_data.inspection_result,
                             inspection_severity=item_data.inspection_severity,
                             triggered_by_inspection_id=None,  # resolved in Pass 2
+                            is_recall=item_data.is_recall,
+                            recall_id=item_data.recall_id,
+                            is_warranty=item_data.is_warranty,
+                            warranty_id=item_data.warranty_id,
                         )
                         self.db.add(line_item)
                         await self.db.flush()
@@ -775,6 +788,10 @@ class ServiceVisitService:
                 inspection_result=item_data.inspection_result,
                 inspection_severity=item_data.inspection_severity,
                 triggered_by_inspection_id=item_data.triggered_by_inspection_id,
+                is_recall=item_data.is_recall,
+                recall_id=item_data.recall_id,
+                is_warranty=item_data.is_warranty,
+                warranty_id=item_data.warranty_id,
             )
             self.db.add(line_item)
             await self.db.flush()
@@ -798,12 +815,15 @@ class ServiceVisitService:
 
             # Reload with supply usages + supply + owning visit eager-loaded so the
             # response can carry supply_usages (to_usage_response reads usage.supply.name
-            # and, for job usages, usage.line_item.visit.date — both must be loaded).
+            # and, for job usages, usage.line_item.visit.date; both must be loaded),
+            # plus the recall and warranty its summaries read.
             reloaded = await self.db.execute(
                 select(ServiceLineItem)
                 .options(
                     selectinload(ServiceLineItem.supply_usages).selectinload(SupplyUsage.supply),
                     joinedload(ServiceLineItem.visit),
+                    selectinload(ServiceLineItem.recall),
+                    selectinload(ServiceLineItem.warranty),
                 )
                 .where(ServiceLineItem.id == line_item.id)
             )
@@ -1022,6 +1042,55 @@ class ServiceVisitService:
                 )
         await self.db.flush()
 
+    def _line_item_to_response(
+        self, item: ServiceLineItem, supply_service: SupplyService | None = None
+    ) -> ServiceLineItemResponse:
+        """Convert a line item to its response, the visit's and the POST's alike.
+
+        Needs supply_usages (with each supply), recall and warranty loaded:
+        async never lazy-loads.
+        """
+        # Reuse SupplyService's usage->response mapping rather than duplicating
+        # it here (it also fills in service_visit_id/service_visit_date via
+        # usage.line_item.visit, back_populates-populated for free by the
+        # line_items/supply_usages eager-load, no extra query).
+        supply_service = supply_service or SupplyService(self.db)
+        recall = item.recall
+        warranty = item.warranty
+        return ServiceLineItemResponse(  # type: ignore[arg-type]
+            id=item.id,
+            visit_id=item.visit_id,
+            description=item.description,
+            category=item.category,
+            maintenance_type=item.maintenance_type,
+            cost=item.cost,
+            notes=item.notes,
+            is_inspection=item.is_inspection,
+            inspection_result=item.inspection_result,
+            inspection_severity=item.inspection_severity,
+            triggered_by_inspection_id=item.triggered_by_inspection_id,
+            is_recall=item.is_recall,
+            recall_id=item.recall_id,
+            is_warranty=item.is_warranty,
+            warranty_id=item.warranty_id,
+            created_at=item.created_at,
+            is_failed_inspection=item.is_failed_inspection,
+            needs_followup=item.needs_followup,
+            supply_usages=[supply_service.to_usage_response(u) for u in item.supply_usages],
+            recall_summary=LinkedRecall(
+                id=recall.id,
+                campaign=recall.nhtsa_campaign_number or recall.external_id,
+                component=recall.component,
+            )
+            if recall is not None
+            else None,
+            warranty_summary=LinkedWarranty(
+                id=warranty.id, warranty_type=warranty.warranty_type, provider=warranty.provider
+            )
+            if warranty is not None
+            else None,
+        )
+
     def _visit_to_response(self, visit: ServiceVisit) -> ServiceVisitResponse:
         """Convert ServiceVisit model to response schema."""
         vendor_summary = None
@@ -1033,31 +1102,9 @@ class ServiceVisitService:
                 state=visit.vendor.state,
             )
 
-        # Reuse SupplyService's usage->response mapping rather than duplicating
-        # it here (it also fills in service_visit_id/service_visit_date via
-        # usage.line_item.visit, both back_populates-populated for free by the
-        # line_items/supply_usages eager-load above — no extra query).
         supply_service = SupplyService(self.db)
-
         line_item_responses = [
-            ServiceLineItemResponse(  # type: ignore[arg-type]
-                id=item.id,
-                visit_id=item.visit_id,
-                description=item.description,
-                category=item.category,
-                maintenance_type=item.maintenance_type,
-                cost=item.cost,
-                notes=item.notes,
-                is_inspection=item.is_inspection,
-                inspection_result=item.inspection_result,
-                inspection_severity=item.inspection_severity,
-                triggered_by_inspection_id=item.triggered_by_inspection_id,
-                created_at=item.created_at,
-                is_failed_inspection=item.is_failed_inspection,
-                needs_followup=item.needs_followup,
-                supply_usages=[supply_service.to_usage_response(u) for u in item.supply_usages],
-            )
-            for item in visit.line_items
+            self._line_item_to_response(item, supply_service) for item in visit.line_items
         ]
 
         return ServiceVisitResponse(  # type: ignore[arg-type]

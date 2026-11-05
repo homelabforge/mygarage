@@ -772,6 +772,7 @@ VOCABULARY_NAMESAKES = (
     "device_status",
     "anchor_kind",
     "wheel_layout",
+    "resolved_via",
 )
 #: Namesakes that carry something else: (model, field) -> what they carry.
 FREE_TEXT_NAMESAKES: dict[tuple[str, str], str] = {
@@ -914,6 +915,15 @@ def test_the_wheel_layout_override_reads_leniently():
     by_name = {model.__name__: model for model in RESPONSE_MODELS}
     info = by_name["VehicleResponse"].model_fields["wheel_layout"]
     assert _vocabulary(info.annotation)
+    assert _reads_leniently(info)
+
+
+def test_the_recall_resolved_via_reads_leniently():
+    """recalls.resolved_via has no CHECK, so it reads leniently (D10): a value
+    a restored backup or a downgrade left there reads as null, i.e. manual."""
+    by_name = {model.__name__: model for model in RESPONSE_MODELS}
+    info = by_name["RecallResponse"].model_fields["resolved_via"]
+    assert _vocabulary(info.annotation) == {"manual", "service_visit"}
     assert _reads_leniently(info)
 
 

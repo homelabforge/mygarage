@@ -13036,6 +13036,42 @@ export interface components {
             token: string;
         };
         /**
+         * LinkedRecall
+         * @description The recall a line item links, enough to label its chip.
+         */
+        LinkedRecall: {
+            /**
+             * Campaign
+             * @description NHTSA campaign number, else the provider's own identifier
+             */
+            campaign?: string | null;
+            /**
+             * Component
+             * @description Component the recall covers
+             */
+            component?: string | null;
+            /** Id */
+            id: number;
+        };
+        /**
+         * LinkedWarranty
+         * @description The warranty a line item links, enough to label its chip.
+         */
+        LinkedWarranty: {
+            /** Id */
+            id: number;
+            /**
+             * Provider
+             * @description Warranty provider name
+             */
+            provider?: string | null;
+            /**
+             * Warranty Type
+             * @description Type of warranty coverage
+             */
+            warranty_type: string;
+        };
+        /**
          * LiveLinkDeviceListResponse
          * @description Schema for device list response.
          */
@@ -15450,6 +15486,27 @@ export interface components {
             vin: string;
         };
         /**
+         * RecallLinkedVisit
+         * @description The service visit whose line item fixed the recall.
+         */
+        RecallLinkedVisit: {
+            /**
+             * Date
+             * Format: date
+             * @description The visit's date, the day the recall was fixed
+             */
+            date: string;
+            /** Line Item Id */
+            line_item_id: number;
+            /**
+             * Vendor Name
+             * @description Where the work was done
+             */
+            vendor_name?: string | null;
+            /** Visit Id */
+            visit_id: number;
+        };
+        /**
          * RecallListResponse
          * @description Schema for list of recalls.
          */
@@ -15502,6 +15559,8 @@ export interface components {
             id: number;
             /** Is Resolved */
             is_resolved: boolean;
+            /** @description The service visit that fixed it, when a line item links it */
+            linked_visit?: components["schemas"]["RecallLinkedVisit"] | null;
             /**
              * Match Confidence
              * @description 0 to 100: how surely the notice concerns this vehicle
@@ -15524,6 +15583,11 @@ export interface components {
             remedy?: string | null;
             /** Resolved At */
             resolved_at?: string | null;
+            /**
+             * Resolved Via
+             * @description manual or service_visit; null on an older row, read as manual
+             */
+            resolved_via?: ("manual" | "service_visit") | null;
             /**
              * Source
              * @description nhtsa, rappelconso or manual
@@ -16254,6 +16318,18 @@ export interface components {
              */
             is_inspection: boolean;
             /**
+             * Is Recall
+             * @description Is this recall work
+             * @default false
+             */
+            is_recall: boolean;
+            /**
+             * Is Warranty
+             * @description Is this warranty work
+             * @default false
+             */
+            is_warranty: boolean;
+            /**
              * Maintenance Type
              * @description Canonical maintenance type code; classified from the description when omitted
              */
@@ -16263,6 +16339,11 @@ export interface components {
              * @description Additional notes
              */
             notes?: string | null;
+            /**
+             * Recall Id
+             * @description The recall this item fixed, when it's in MyGarage (needs is_recall)
+             */
+            recall_id?: number | null;
             /** @description Optional reminder to create after flush */
             reminder?: components["schemas"]["ReminderCreate"] | null;
             /**
@@ -16280,6 +16361,11 @@ export interface components {
              * @description ID of inspection that triggered this repair
              */
             triggered_by_inspection_id?: number | null;
+            /**
+             * Warranty Id
+             * @description The warranty that covered this item, if any (needs is_warranty)
+             */
+            warranty_id?: number | null;
         };
         /**
          * ServiceLineItemResponse
@@ -16343,6 +16429,18 @@ export interface components {
              */
             is_inspection: boolean;
             /**
+             * Is Recall
+             * @description Is this recall work
+             * @default false
+             */
+            is_recall: boolean;
+            /**
+             * Is Warranty
+             * @description Is this warranty work
+             * @default false
+             */
+            is_warranty: boolean;
+            /**
              * Maintenance Type
              * @description Canonical maintenance type code; classified from the description when omitted
              */
@@ -16358,6 +16456,13 @@ export interface components {
              * @description Additional notes
              */
             notes?: string | null;
+            /**
+             * Recall Id
+             * @description The recall this item fixed, when it's in MyGarage (needs is_recall)
+             */
+            recall_id?: number | null;
+            /** @description The linked recall, if any */
+            recall_summary?: components["schemas"]["LinkedRecall"] | null;
             /** Supply Usages */
             supply_usages?: components["schemas"]["SupplyUsageResponse"][];
             /**
@@ -16367,15 +16472,22 @@ export interface components {
             triggered_by_inspection_id?: number | null;
             /** Visit Id */
             visit_id: number;
+            /**
+             * Warranty Id
+             * @description The warranty that covered this item, if any (needs is_warranty)
+             */
+            warranty_id?: number | null;
+            /** @description The linked warranty, if any */
+            warranty_summary?: components["schemas"]["LinkedWarranty"] | null;
         };
         /**
          * ServiceLineItemUpdate
          * @description Line item shape for diff-based visit updates.
          *
          *     An existing item (`id` set) keeps any field the request leaves out. A
-         *     nullable field sent as null is cleared; `is_inspection` takes false, not
-         *     null; `supplies_used` takes [] to remove every usage (null is refused);
-         *     `description` is always required.
+         *     nullable field sent as null is cleared; `is_inspection`, `is_recall` and
+         *     `is_warranty` take false, not null; `supplies_used` takes [] to remove
+         *     every usage (null is refused); `description` is always required.
          *
          *     temp_id: negative int assigned by client for new items so other new items
          *     can reference them via triggered_by_inspection_id before flush.
@@ -16401,10 +16513,22 @@ export interface components {
              * @default false
              */
             is_inspection: boolean;
+            /**
+             * Is Recall
+             * @default false
+             */
+            is_recall: boolean;
+            /**
+             * Is Warranty
+             * @default false
+             */
+            is_warranty: boolean;
             /** Maintenance Type */
             maintenance_type?: string | null;
             /** Notes */
             notes?: string | null;
+            /** Recall Id */
+            recall_id?: number | null;
             reminder?: components["schemas"]["ReminderCreate"] | null;
             /**
              * Supplies Used
@@ -16418,6 +16542,8 @@ export interface components {
             temp_id?: number | null;
             /** Triggered By Inspection Id */
             triggered_by_inspection_id?: number | null;
+            /** Warranty Id */
+            warranty_id?: number | null;
         };
         /**
          * ServiceTypeCostBreakdown
@@ -21685,6 +21811,32 @@ export interface components {
             zip_code?: string | null;
         };
         /**
+         * WarrantyLinkedItem
+         * @description A line item done under the warranty.
+         */
+        WarrantyLinkedItem: {
+            /**
+             * Cost
+             * @description Cost for this line item
+             */
+            cost?: string | null;
+            /**
+             * Date
+             * Format: date
+             * @description The visit's date
+             */
+            date: string;
+            /**
+             * Description
+             * @description Service description
+             */
+            description: string;
+            /** Line Item Id */
+            line_item_id: number;
+            /** Visit Id */
+            visit_id: number;
+        };
+        /**
          * WarrantyRecord
          * @description Schema for warranty record response.
          */
@@ -21706,6 +21858,11 @@ export interface components {
             end_date?: string | null;
             /** Id */
             id: number;
+            /**
+             * Linked Items
+             * @description Line items done under this warranty, by visit date
+             */
+            linked_items?: components["schemas"]["WarrantyLinkedItem"][];
             /**
              * Mileage Limit Km
              * @description Mileage limit in kilometers if applicable

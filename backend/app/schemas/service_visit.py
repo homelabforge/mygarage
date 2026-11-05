@@ -43,6 +43,41 @@ def _blank_ref_is_none(value: object) -> object:
     return value.strip() or None
 
 
+#: Each flag and the optional link it allows (D8).
+_FLAGGED_LINKS = (("is_recall", "recall_id"), ("is_warranty", "warranty_id"))
+
+
+def _require_link_flags(item: BaseModel, flags_sent: set[str] | None) -> None:
+    """A recall or warranty link needs its flag on.
+
+    `flags_sent` is None when an omitted flag means false. Otherwise only a
+    flag the request sent counts, since an omitted one keeps the stored value.
+    """
+    for flag, link in _FLAGGED_LINKS:
+        if getattr(item, link) is None or getattr(item, flag):
+            continue
+        if flags_sent is None or flag in flags_sent:
+            raise ValueError(f"{link} needs {flag} set to true")
+
+
+class LinkedRecall(BaseModel):
+    """The recall a line item links, enough to label its chip."""
+
+    id: int
+    campaign: str | None = Field(
+        None, description="NHTSA campaign number, else the provider's own identifier"
+    )
+    component: str | None = Field(None, description="Component the recall covers")
+
+
+class LinkedWarranty(BaseModel):
+    """The warranty a line item links, enough to label its chip."""
+
+    id: int
+    warranty_type: str = Field(..., description="Type of warranty coverage")
+    provider: str | None = Field(None, description="Warranty provider name")
+
+
 class ServiceLineItemBase(BaseModel):
     """Base service line item schema."""
 
@@ -66,6 +101,14 @@ class ServiceLineItemBase(BaseModel):
     )
     triggered_by_inspection_id: int | None = Field(
         None, description="ID of inspection that triggered this repair"
+    )
+    is_recall: bool = Field(default=False, description="Is this recall work")
+    recall_id: int | None = Field(
+        None, description="The recall this item fixed, when it's in MyGarage (needs is_recall)"
+    )
+    is_warranty: bool = Field(default=False, description="Is this warranty work")
+    warranty_id: int | None = Field(
+        None, description="The warranty that covered this item, if any (needs is_warranty)"
     )
 
     @field_validator("inspection_result")
@@ -117,6 +160,13 @@ class ServiceLineItemCreate(ServiceLineItemBase):
             raise ValueError("temp_id must be a negative integer")
         return self
 
+    # Not on the base either: a stored link whose flag is off must still read.
+    @model_validator(mode="after")
+    def validate_link_flags(self) -> ServiceLineItemCreate:
+        """A recall or warranty link needs its flag."""
+        _require_link_flags(self, None)
+        return self
+
     model_config = {
         "json_schema_extra": {
             "examples": [
@@ -136,9 +186,9 @@ class ServiceLineItemUpdate(BaseModel):
     """Line item shape for diff-based visit updates.
 
     An existing item (`id` set) keeps any field the request leaves out. A
-    nullable field sent as null is cleared; `is_inspection` takes false, not
-    null; `supplies_used` takes [] to remove every usage (null is refused);
-    `description` is always required.
+    nullable field sent as null is cleared; `is_inspection`, `is_recall` and
+    `is_warranty` take false, not null; `supplies_used` takes [] to remove
+    every usage (null is refused); `description` is always required.
 
     temp_id: negative int assigned by client for new items so other new items
     can reference them via triggered_by_inspection_id before flush.
@@ -155,6 +205,10 @@ class ServiceLineItemUpdate(BaseModel):
     inspection_result: InspectionResult | None = None
     inspection_severity: InspectionSeverity | None = None
     triggered_by_inspection_id: int | None = None
+    is_recall: bool = False
+    recall_id: int | None = None
+    is_warranty: bool = False
+    warranty_id: int | None = None
     reminder: ReminderCreate | None = None
     supplies_used: list[SupplyUsageInput] = Field(
         default_factory=list,
@@ -175,6 +229,16 @@ class ServiceLineItemUpdate(BaseModel):
         """temp_id must be a negative integer if provided."""
         if self.temp_id is not None and self.temp_id >= 0:
             raise ValueError("temp_id must be a negative integer")
+        return self
+
+    @model_validator(mode="after")
+    def validate_link_flags(self) -> ServiceLineItemUpdate:
+        """A recall or warranty link needs its flag.
+
+        An existing item that omits the flag keeps the stored one, so only a
+        flag it sends counts. A new item has nothing stored: omitted is false.
+        """
+        _require_link_flags(self, None if self.id is None else set(self.model_fields_set))
         return self
 
 
@@ -206,6 +270,10 @@ class ServiceLineItemResponse(ServiceLineItemBase):
         default=False, description="Whether this inspection needs followup"
     )
     supply_usages: list[SupplyUsageResponse] = Field(default_factory=list)
+    # Named apart from the ORM's `recall` / `warranty`, so from_attributes
+    # never reaches for an unloaded relationship.
+    recall_summary: LinkedRecall | None = Field(None, description="The linked recall, if any")
+    warranty_summary: LinkedWarranty | None = Field(None, description="The linked warranty, if any")
 
     model_config = {
         "from_attributes": True,

@@ -9,6 +9,16 @@ from pydantic import BaseModel, Field
 from app.schemas._nullability import reject_null
 
 
+class WarrantyLinkedItem(BaseModel):
+    """A line item done under the warranty."""
+
+    visit_id: int
+    line_item_id: int
+    date: date_type = Field(..., description="The visit's date")
+    description: str = Field(..., description="Service description")
+    cost: Decimal | None = Field(None, description="Cost for this line item")
+
+
 class WarrantyRecordBase(BaseModel):
     """Base warranty record schema."""
 
@@ -57,6 +67,11 @@ class WarrantyRecord(WarrantyRecordBase):
     id: int
     vin: str
     created_at: datetime
+    # Not an ORM attribute, so from_attributes leaves it empty; whoever loads
+    # the links sets it.
+    linked_items: list[WarrantyLinkedItem] = Field(
+        default_factory=list, description="Line items done under this warranty, by visit date"
+    )
 
     class Config:
         from_attributes = True

@@ -49,6 +49,11 @@ export interface ServiceVisitFormLineItem {
   inspection_result: InspectionResult | ''
   inspection_severity: InspectionSeverity | ''
   triggered_by_inspection_id: number | undefined
+  // Seeded from the stored item and sent back as is, so an edit never clears them.
+  is_recall: boolean
+  recall_id: number | null
+  is_warranty: boolean
+  warranty_id: number | null
   reminderDraft?: ReminderDraft
   supplies_used?: SupplyUsedEntry[]
 }

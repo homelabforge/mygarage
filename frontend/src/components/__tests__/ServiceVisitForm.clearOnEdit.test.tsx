@@ -362,3 +362,31 @@ describe('ServiceVisitForm: a repair link follows its inspection', () => {
     expect(items[0]).toHaveProperty('triggered_by_inspection_id', null)
   })
 })
+
+// The editor has no recall or warranty controls yet, so an edit has to hand
+// the stored flags and links back untouched instead of dropping or zeroing them.
+describe('ServiceVisitForm: recall and warranty links on edit', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockedApiPut.mockResolvedValue({ data: {} })
+  })
+
+  it('sends back the stored flags and links of every item', async () => {
+    const linked = {
+      ...visit,
+      line_items: [
+        { ...visit.line_items[0], is_recall: true, recall_id: 41, is_warranty: true, warranty_id: 9 },
+      ],
+    } as unknown as ServiceVisit
+    await renderEdit(linked)
+
+    const body = await submittedBody()
+    expect((body.line_items as Record<string, unknown>[])[0]).toMatchObject({
+      id: 501,
+      is_recall: true,
+      recall_id: 41,
+      is_warranty: true,
+      warranty_id: 9,
+    })
+  })
+})

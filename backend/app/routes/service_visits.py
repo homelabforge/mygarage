@@ -17,7 +17,6 @@ from app.schemas.service_visit import (
 )
 from app.services.auth import require_auth
 from app.services.service_visit_service import ServiceVisitService
-from app.services.supply_service import SupplyService
 
 logger = logging.getLogger(__name__)
 
@@ -189,23 +188,7 @@ async def add_line_item(
     """
     service = ServiceVisitService(db)
     line_item = await service.add_line_item(vin, visit_id, item_data, current_user)
-    return ServiceLineItemResponse(  # type: ignore[arg-type]
-        id=line_item.id,
-        visit_id=line_item.visit_id,
-        description=line_item.description,
-        category=line_item.category,
-        maintenance_type=line_item.maintenance_type,
-        cost=line_item.cost,
-        notes=line_item.notes,
-        is_inspection=line_item.is_inspection,
-        inspection_result=line_item.inspection_result,
-        inspection_severity=line_item.inspection_severity,
-        triggered_by_inspection_id=line_item.triggered_by_inspection_id,
-        created_at=line_item.created_at,
-        is_failed_inspection=line_item.is_failed_inspection,
-        needs_followup=line_item.needs_followup,
-        supply_usages=[SupplyService(db).to_usage_response(u) for u in line_item.supply_usages],
-    )
+    return service._line_item_to_response(line_item)
 
 
 @router.delete("/{visit_id}/line-items/{line_item_id}", status_code=204)
