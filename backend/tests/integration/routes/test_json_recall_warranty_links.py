@@ -312,6 +312,15 @@ async def test_a_newer_backup_onto_the_visit_leaves_the_new_recall_reopenable(
 ):
     source = await new_vehicle()
     rid = await _recall(db_session, source, "24V530001")
+    # A sibling resolved by hand, so the test can't pass on an import that
+    # drops resolved_via.
+    by_hand = await _recall(db_session, source, "24V530003")
+    r = await client.put(
+        f"/api/vehicles/{source}/recalls/{by_hand}",
+        json={"is_resolved": True},
+        headers=auth_headers,
+    )
+    assert r.status_code == 200, r.text
     await _create_visit(
         client,
         auth_headers,
@@ -333,11 +342,12 @@ async def test_a_newer_backup_onto_the_visit_leaves_the_new_recall_reopenable(
 
     data = await import_json(client, auth_headers, target, exported)
     assert data["service_records"]["skipped_count"] == 1, data
-    assert data["recalls"]["success_count"] == 1, data
+    assert data["recalls"]["success_count"] == 2, data
     recall_ids, _ = await _ids_by(test_sessionmaker, target)
     new_id = recall_ids["24V530001"]
-    # main: resolved_via is dropped on the way in, so this passes there; with
-    # resolved_via read and no I2 it would stay service_visit and stuck.
+    # main: the manual sibling comes back NULL
+    assert (await _state(test_sessionmaker, recall_ids["24V530003"]))[2] == "manual"
+    # Without I2 this one would stay service_visit and stuck.
     assert await _state(test_sessionmaker, new_id) == (True, resolved_at, None)
     assert (await _items(test_sessionmaker, target))["Inflator swap"][1] is None
 
@@ -361,16 +371,60 @@ async def test_a_service_visit_recall_with_no_link_in_the_file_is_cleared(
         client,
         auth_headers,
         vin,
-        {**V9, "recalls": [_file_recall("24V530002", resolved=True, via="service_visit")]},
+        {
+            **V9,
+            "recalls": [
+                _file_recall("24V530002", resolved=True, via="service_visit"),
+                _file_recall("24V530004", resolved=True, via="manual"),
+            ],
+        },
     )
     assert data["errors"] == [], data
     recall_ids, _ = await _ids_by(test_sessionmaker, vin)
-    # Fails without the I2 pass once resolved_via is read.
+    # main: the manual one comes back NULL
+    assert await _state(test_sessionmaker, recall_ids["24V530004"]) == (
+        True,
+        _FILE_RESOLVED_AT,
+        "manual",
+    )
+    # Without the I2 pass this one stays service_visit with nothing linking it.
     assert await _state(test_sessionmaker, recall_ids["24V530002"]) == (
         True,
         _FILE_RESOLVED_AT,
         None,
     )
+
+
+async def test_a_duplicate_fill_with_the_visit_skipped_is_cleared(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    db_session: AsyncSession,
+    test_sessionmaker: Sessions,
+    new_vehicle: NewVehicle,
+):
+    vin = await new_vehicle()
+    # Open with no notes, so the file fills it with service_visit.
+    stored = await _recall(db_session, vin, "24V530005")
+    # The visit's here already with no link, so the file's copy is skipped and
+    # nothing links the filled recall.
+    await _create_visit(
+        client, auth_headers, vin, [{"description": "Inflator swap", "is_recall": True}]
+    )
+    data = await import_json(
+        client,
+        auth_headers,
+        vin,
+        _file(
+            [_file_recall("24V530005", resolved=True, via="service_visit")],
+            [{"description": "Inflator swap", "is_recall": True, "recall": 0}],
+        ),
+    )
+    assert data["errors"] == [], data
+    assert data["service_records"]["skipped_count"] == 1, data
+    assert data["recalls"]["skipped_count"] == 1, data
+    # Fails with the I2 pass off: the fill leaves service_visit on the stored row.
+    assert await _state(test_sessionmaker, stored) == (True, _FILE_RESOLVED_AT, None)
+    assert (await _items(test_sessionmaker, vin))["Inflator swap"][1] is None
 
 
 async def test_the_duplicate_fill_lands_resolved_via_and_an_unlink_reopens(
