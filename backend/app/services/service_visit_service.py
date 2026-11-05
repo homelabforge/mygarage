@@ -28,7 +28,7 @@ from app.schemas.service_visit import (
     VendorSummary,
 )
 from app.schemas.supply import SupplyUsageInput
-from app.services import maintenance_service
+from app.services import maintenance_service, recall_links
 from app.services.attachment_cleanup import purge_record_attachments, remove_attachment_files
 from app.services.supply_service import SupplyService, usage_cost_subject
 from app.services.vehicle_lock import lock_vehicle_for_write
@@ -43,7 +43,8 @@ logger = logging.getLogger(__name__)
 # An update leaves these alone on an existing line item unless it sends them
 # (Ruling 11): omitted keeps the value, null clears it. The form sends null
 # for every blank field. triggered_by_inspection_id follows the same rule but
-# is resolved in pass 2, once new items have ids.
+# is resolved in pass 2, once new items have ids. The recall and warranty
+# flags and links follow it too, through _wanted_links and recall_links.
 _KEPT_WHEN_OMITTED = (
     "category",
     "cost",
@@ -69,6 +70,47 @@ def drop_stray_links(items: Sequence[ServiceLineItem]) -> None:
         target = by_id.get(ref)
         if target is None or target is item or not target.is_inspection:
             item.triggered_by_inspection_id = None
+
+
+#: Each flag and the link it carries (D8).
+_FLAGGED_LINKS = (("is_recall", "recall_id"), ("is_warranty", "warranty_id"))
+
+
+def _new_item_links(
+    item_data: ServiceLineItemCreate | ServiceLineItemUpdate,
+) -> tuple[int | None, int | None]:
+    """A new item's (recall_id, warranty_id). A flag that's off takes its link with it."""
+    return (
+        item_data.recall_id if item_data.is_recall else None,
+        item_data.warranty_id if item_data.is_warranty else None,
+    )
+
+
+def _wanted_links(
+    row: ServiceLineItem,
+    item_data: ServiceLineItemUpdate,
+    known: tuple[set[int], set[int]],
+) -> tuple[int | None, int | None]:
+    """An existing item's (recall_id, warranty_id) once this update applies.
+
+    Omitted keeps the stored value; a flag sent false unlinks. A sent id that no
+    longer exists reads as cleared: the form seeds stored links, and a recall
+    deleted since already nulled this one. Sets the flags it was sent.
+    """
+    sent = item_data.model_fields_set
+    out: list[int | None] = []
+    for (flag, link), still_there in zip(_FLAGGED_LINKS, known, strict=True):
+        if flag in sent:
+            setattr(row, flag, getattr(item_data, flag))
+        value = getattr(item_data, link) if link in sent else getattr(row, link)
+        if link in sent and value is not None and value not in still_there:
+            value = None
+        if not getattr(row, flag):
+            if link in sent and value is not None:
+                raise HTTPException(status_code=422, detail=f"{link} needs {flag} set to true")
+            value = None
+        out.append(value)
+    return out[0], out[1]
 
 
 def service_visit_full_load_options():
@@ -317,15 +359,24 @@ class ServiceVisitService:
                 inspection_severity=item_data.inspection_severity,
                 triggered_by_inspection_id=None,  # resolved in Pass 2
                 is_recall=item_data.is_recall,
-                recall_id=item_data.recall_id,
                 is_warranty=item_data.is_warranty,
-                warranty_id=item_data.warranty_id,
             )
             self.db.add(line_item)
             await self.db.flush()
             if item_data.temp_id is not None:
                 temp_id_map[item_data.temp_id] = line_item.id
             created_items.append((item_data, line_item))
+
+        # Recall and warranty links go on once every item exists, checked
+        # against this vehicle, and resolve the recalls they name.
+        await recall_links.apply_links(
+            self.db,
+            vin,
+            visit.date,
+            [line_item for _data, line_item in created_items],
+            [(li, *_new_item_links(data)) for data, li in created_items],
+            before=(),
+        )
 
         # Pass 2: Resolve triggered_by_inspection_id and create reminders
         for item_data, line_item in created_items:
@@ -412,6 +463,8 @@ class ServiceVisitService:
             # rule: serialise with every other rule writer before the first read.
             await lock_vehicle_for_write(self.db, vin)
             visit = await self.get_service_visit(vin, visit_id, current_user)
+            old_date = visit.date
+            linked_before = [item.recall_id for item in visit.line_items]
 
             update_data = visit_data.model_dump(exclude_unset=True)
 
@@ -466,6 +519,13 @@ class ServiceVisitService:
                 new_items: list[tuple[ServiceLineItemUpdate, ServiceLineItem]] = []
                 # Every link the request sends, set in pass 2.
                 links: list[tuple[ServiceLineItem, int | None]] = []
+                # Recall and warranty links, set after pass 1 by recall_links.
+                wanted: list[recall_links.WantedLinks] = []
+                known = await recall_links.known_ids(
+                    self.db,
+                    {i.recall_id for i in submitted if i.id and i.recall_id is not None},
+                    {i.warranty_id for i in submitted if i.id and i.warranty_id is not None},
+                )
 
                 for item_data in submitted:
                     if item_data.id and item_data.id in existing:
@@ -477,6 +537,7 @@ class ServiceVisitService:
                                 setattr(row, field, getattr(item_data, field))
                         if "triggered_by_inspection_id" in sent:
                             links.append((row, item_data.triggered_by_inspection_id))
+                        wanted.append((row, *_wanted_links(row, item_data, known)))
                         if "maintenance_type" in sent:
                             row.maintenance_type = item_data.maintenance_type
                         elif row.maintenance_type is None:
@@ -504,9 +565,7 @@ class ServiceVisitService:
                             inspection_severity=item_data.inspection_severity,
                             triggered_by_inspection_id=None,  # resolved in Pass 2
                             is_recall=item_data.is_recall,
-                            recall_id=item_data.recall_id,
                             is_warranty=item_data.is_warranty,
-                            warranty_id=item_data.warranty_id,
                         )
                         self.db.add(line_item)
                         await self.db.flush()
@@ -514,8 +573,20 @@ class ServiceVisitService:
                             temp_id_map[item_data.temp_id] = line_item.id
                         new_items.append((item_data, line_item))
                         links.append((line_item, item_data.triggered_by_inspection_id))
+                        wanted.append((line_item, *_new_item_links(item_data)))
                         if line_item.category:
                             effective_cats.append(line_item.category)
+
+                # Every item exists now, so links can move between them.
+                await recall_links.apply_links(
+                    self.db,
+                    vin,
+                    visit.date,
+                    [row for row, _rid, _wid in wanted],
+                    wanted,
+                    before=linked_before,
+                    restamp=visit.date != old_date,
+                )
 
                 # Pass 2: a temp id names a new item; a real id (checked above)
                 # keeps the link only if this PUT keeps that item.
@@ -546,6 +617,11 @@ class ServiceVisitService:
                 # From the items' categories as they are now, kept or sent.
                 if effective_cats:
                     visit.service_category = effective_cats[0]
+            elif visit.date != old_date:
+                # A new date is a new repair date for every recall it links (D12).
+                await recall_links.link_recalls(
+                    self.db, [(rid, visit.date) for rid in linked_before if rid is not None]
+                )
 
             # Always recompute total_cost from line items + supplies + fees (denormalized cache)
             await self.db.flush()
@@ -701,6 +777,8 @@ class ServiceVisitService:
             # Attachments have no FK to the visit, so nothing cascades to them.
             attachment_paths = await purge_record_attachments(self.db, "service_visit", visit_id)
 
+            # The recalls this visit resolved open again (D1).
+            await recall_links.unlink_recalls(self.db, [i.recall_id for i in visit.line_items])
             await self.db.delete(visit)
             # Sessions don't autoflush and the reconcile reads history first,
             # so the delete has to be in the database before it runs.
@@ -789,14 +867,21 @@ class ServiceVisitService:
                 inspection_severity=item_data.inspection_severity,
                 triggered_by_inspection_id=item_data.triggered_by_inspection_id,
                 is_recall=item_data.is_recall,
-                recall_id=item_data.recall_id,
                 is_warranty=item_data.is_warranty,
-                warranty_id=item_data.warranty_id,
             )
             self.db.add(line_item)
             await self.db.flush()
             # A link to an item that isn't an inspection just goes.
             drop_stray_links([*visit.line_items, line_item])
+            # Checked against the visit's other items too: one item per recall.
+            await recall_links.apply_links(
+                self.db,
+                vin,
+                visit.date,
+                [*visit.line_items, line_item],
+                [(line_item, *_new_item_links(item_data))],
+                before=[item.recall_id for item in visit.line_items],
+            )
 
             if item_data.reminder:
                 await maintenance_service.create_reminder_for_line_item(
@@ -890,6 +975,8 @@ class ServiceVisitService:
             if not line_item:
                 raise HTTPException(status_code=404, detail=f"Line item {line_item_id} not found")
 
+            # Its recall opens again if this link resolved it (D1).
+            await recall_links.unlink_recalls(self.db, [line_item.recall_id])
             await self.db.delete(line_item)
             # Flushed before the reconcile reads history: sessions don't autoflush.
             await self.db.flush()
