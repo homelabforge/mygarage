@@ -192,7 +192,7 @@ class TestGenerateGarageAnalyticsPdf:
         assert "GARAGE VALUE" in text
         assert "RUNNING COST" in text
         assert "OPERATING COST" not in text
-        assert "TOTAL MAINTENANCE $5,000.00 Maintenance category" in text
+        assert "TOTAL MAINTENANCE $5,000.00 Maintenance only" in text
         assert "Service records" not in text
         assert "TOTAL FUEL" in text
 
@@ -321,16 +321,16 @@ class TestCostByVehicleTotals:
         # The other money columns stay compact.
         assert "$30,000" in text and "$30,000.00" not in text
 
-    def test_a_five_figure_total_with_a_long_symbol_fits_on_one_line(self) -> None:
+    def test_a_six_figure_total_with_a_long_symbol_fits_on_one_line(self) -> None:
         data = self._with_cents(_make_garage_data())
-        data["cost_by_vehicle"][1]["total_cost"] = Decimal("12345.67")
+        data["cost_by_vehicle"][1]["total_cost"] = Decimal("123456.78")
         text = _extract_text(
             generate_garage_analytics_pdf(
                 data, currency_code="CAD", locale="en-CA", date_order="mdy"
             ).read(),
             normalize=True,
         )
-        assert "CA$12,345.67" in text
+        assert "CA$123,456.78" in text
 
 
 class TestLargeCurrencyValuesRenderIntact:

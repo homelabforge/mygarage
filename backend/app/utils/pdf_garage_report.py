@@ -160,7 +160,7 @@ def generate_garage_analytics_pdf(
         {
             "label": "Total Maintenance",
             "value": format_currency_short(total_maintenance, currency_code, locale),
-            "sub": "Maintenance category",
+            "sub": "Maintenance only",
             "color": "amber",
         },
         {
@@ -242,10 +242,10 @@ def generate_garage_analytics_pdf(
                 ]
             )
 
-        # Total gets room for a five-figure amount with cents and a 3-char
-        # symbol (CA$12,345.67); name and the other eight split the rest.
+        # Total gets room for a six-figure amount with cents and a 3-char
+        # symbol (CA$123,456.78); name and the other eight split the rest.
         name_w = CONTENT_WIDTH * 0.12
-        total_w = 70.0
+        total_w = 80.0
         dollar_w = (CONTENT_WIDTH - name_w - total_w) / 8
 
         vehicle_table = make_data_table(
