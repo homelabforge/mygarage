@@ -396,7 +396,9 @@
     "attachments": "Вложения",
     "createTitle": "Создать запись обслуживания",
     "editTitle": "Редактировать обслуживание",
-    "insuranceClaim": "Страховой случай",
+    "refs": {
+      "insuranceClaim": "Страховой случай"
+    },
     "miscFees": "Прочие сборы",
     "servicesPerformed": "Выполненные услуги",
     "shopSupplies": "Расходные материалы",

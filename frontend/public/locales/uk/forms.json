@@ -396,7 +396,9 @@
     "attachments": "Вкладення",
     "createTitle": "Створити запис обслуговування",
     "editTitle": "Редагувати обслуговування",
-    "insuranceClaim": "Страховий випадок",
+    "refs": {
+      "insuranceClaim": "Страховий випадок"
+    },
     "miscFees": "Інші збори",
     "servicesPerformed": "Виконані послуги",
     "shopSupplies": "Витратні матеріали",

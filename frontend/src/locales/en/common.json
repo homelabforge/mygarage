@@ -545,6 +545,9 @@
       "inspectionSeverityInvalid": "Invalid inspection severity",
       "notesTooLong": "Notes too long (max 5000 characters)",
       "insuranceClaimNumberTooLong": "Insurance claim number too long (max 50 characters)",
+      "invoiceNumberTooLong": "Invoice number too long (max 50 characters)",
+      "poNumberTooLong": "PO number too long (max 50 characters)",
+      "workOrderNumberTooLong": "Work order number too long (max 50 characters)",
       "lineItemsRequired": "At least one line item is required",
       "inspectionResultRequired": "Inspection result is required for inspection items"
     },

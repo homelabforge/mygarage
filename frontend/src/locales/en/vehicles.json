@@ -1179,6 +1179,7 @@
     "deleted": "Service visit deleted",
     "inspection": "Inspection",
     "insuranceClaim": "Insurance Claim",
+    "invoice": "Invoice #",
     "loading": "Loading service history...",
     "logFirstVisit": "Log First Service Visit",
     "logVisit": "Log Service Visit",
@@ -1199,6 +1200,7 @@
     "searchPlaceholder": "Search services...",
     "serviceCount": "{{count}} services",
     "partsCost": "Parts {{amount}}",
+    "po": "PO #",
     "servicesPerformed": "Services Performed",
     "shopSupplies": "Shop Supplies",
     "showingResults": "Showing {{shown}} of {{total}} visits",
@@ -1207,6 +1209,7 @@
     "title": "Service History",
     "total": "Total",
     "visitCount": "{{count}} visits",
+    "workOrder": "WO #",
     "loadAction": "load service history"
   },
   "serviceVisitAttachmentUpload": {

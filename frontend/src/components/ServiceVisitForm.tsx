@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Save, Plus, AlertTriangle, Paperclip } from 'lucide-react'
 import FormModalWrapper from './FormModalWrapper'
 import { toast } from 'sonner'
-import type { ServiceVisit, ServiceVisitCreate, ServiceVisitFormData, ServiceVisitFormLineItem, ServiceLineItemCreate, ServiceLineItemUpdate, ServiceCategory, SupplyUsedEntry } from '../types/serviceVisit'
+import type { ServiceVisit, ServiceVisitCreate, ServiceVisitUpdate, ServiceVisitFormData, ServiceVisitFormLineItem, ServiceLineItemCreate, ServiceLineItemUpdate, ServiceCategory, SupplyUsedEntry } from '../types/serviceVisit'
 import { reminderDraftToCreate } from '../types/reminder'
 import type { Vehicle, VehicleType } from '../types/vehicle'
 import { NON_MOTORIZED_TYPES } from '../schemas/vehicle'
@@ -27,7 +27,7 @@ import { getUsageTracking } from '../utils/usageTracking'
 import api from '../services/api'
 import { getActionErrorMessage } from '../utils/httpErrorHandler'
 import { applyControlledFieldErrors, withoutFieldError } from '../hooks/useApiFormErrors'
-import { Button, Field, Input, NumberInput, Textarea, Mono } from './ui'
+import { Button, Chip, Field, Input, NumberInput, Textarea, Mono } from './ui'
 import CurrencyInput from './common/CurrencyInput'
 import { formatCurrency, formatCurrencyZero } from '../utils/formatUtils'
 import { useCurrencyPreference } from '../hooks/useCurrencyPreference'
@@ -82,6 +82,22 @@ const NON_MOTORIZED: readonly string[] = NON_MOTORIZED_TYPES
 
 /** The visit's own number boxes, each held as typed text. */
 type NumericVisitField = 'odometer_km' | 'engine_hours' | 'tax_amount' | 'shop_supplies' | 'misc_fees'
+
+/** The visit's paperwork refs. Each one sits behind a chip, off until it has a value. */
+type RefField = 'insurance_claim_number' | 'invoice_number' | 'po_number' | 'work_order_number'
+
+/** Chip order, and the id each ref's input keeps for tests and labels. */
+const REF_FIELDS: readonly { field: RefField; id: string }[] = [
+  { field: 'insurance_claim_number', id: 'insurance-claim' },
+  { field: 'invoice_number', id: 'invoice-number' },
+  { field: 'po_number', id: 'po-number' },
+  { field: 'work_order_number', id: 'work-order-number' },
+]
+
+/** The API's cap. It strips first, so padding doesn't count. */
+const REF_MAX_LENGTH = 50
+
+const isRefField = (field: string): field is RefField => REF_FIELDS.some((ref) => ref.field === field)
 
 /** A seeded number as box text. It's only parsed once the user edits it; until then formData keeps the number. */
 const textOf = (value: number | undefined): string => (value == null ? '' : String(value))
@@ -201,6 +217,9 @@ function ServiceVisitForm({
         engine_hours: visit.engine_hours != null ? Number(visit.engine_hours) : undefined,
         notes: visit.notes || '',
         insurance_claim_number: visit.insurance_claim_number || '',
+        invoice_number: visit.invoice_number || '',
+        po_number: visit.po_number || '',
+        work_order_number: visit.work_order_number || '',
         tax_amount: visit.tax_amount !== undefined && visit.tax_amount !== null ? Number(visit.tax_amount) : undefined,
         shop_supplies: visit.shop_supplies !== undefined && visit.shop_supplies !== null ? Number(visit.shop_supplies) : undefined,
         misc_fees: visit.misc_fees !== undefined && visit.misc_fees !== null ? Number(visit.misc_fees) : undefined,
@@ -233,6 +252,9 @@ function ServiceVisitForm({
       engine_hours: undefined,
       notes: '',
       insurance_claim_number: '',
+      invoice_number: '',
+      po_number: '',
+      work_order_number: '',
       tax_amount: undefined,
       shop_supplies: undefined,
       misc_fees: undefined,
@@ -249,6 +271,48 @@ function ServiceVisitForm({
     shop_supplies: textOf(formData.shop_supplies),
     misc_fees: textOf(formData.misc_fees),
   }))
+
+  // A ref's chip starts on when there's something stored. `refsTouched` marks a
+  // chip the user flipped, so an edit only sends refs it showed at some point.
+  const [refsOn, setRefsOn] = useState<Record<RefField, boolean>>(() => ({
+    insurance_claim_number: !!formData.insurance_claim_number,
+    invoice_number: !!formData.invoice_number,
+    po_number: !!formData.po_number,
+    work_order_number: !!formData.work_order_number,
+  }))
+  const [refsTouched, setRefsTouched] = useState<Partial<Record<RefField, true>>>({})
+
+  const refText: Record<RefField, { label: string; placeholder: string; tooLong: string }> = {
+    insurance_claim_number: {
+      label: t('service.refs.insuranceClaim'),
+      placeholder: t('service.refs.insuranceClaimPlaceholder'),
+      tooLong: t('common:validation.serviceVisit.insuranceClaimNumberTooLong'),
+    },
+    invoice_number: {
+      label: t('service.refs.invoice'),
+      placeholder: t('service.refs.invoicePlaceholder'),
+      tooLong: t('common:validation.serviceVisit.invoiceNumberTooLong'),
+    },
+    po_number: {
+      label: t('service.refs.po'),
+      placeholder: t('service.refs.poPlaceholder'),
+      tooLong: t('common:validation.serviceVisit.poNumberTooLong'),
+    },
+    work_order_number: {
+      label: t('service.refs.workOrder'),
+      placeholder: t('service.refs.workOrderPlaceholder'),
+      tooLong: t('common:validation.serviceVisit.workOrderNumberTooLong'),
+    },
+  }
+
+  const toggleRef = (field: RefField): void => {
+    setRefsOn((prev) => ({ ...prev, [field]: !prev[field] }))
+    setRefsTouched((prev) => ({ ...prev, [field]: true }))
+    setFieldErrors((prev) => withoutFieldError(prev, field))
+  }
+
+  // Its text while the chip is on; turning the chip off clears it.
+  const refValue = (field: RefField): string | null => (refsOn[field] ? formData[field] || null : null)
 
   // Hydrate supplies_used from visit.line_items[*].supply_usages once the
   // supplies list has loaded. This can't happen in the formData initializer
@@ -463,6 +527,12 @@ function ServiceVisitForm({
       }
     }
 
+    for (const { field } of REF_FIELDS) {
+      if (refsOn[field] && formData[field].trim().length > REF_MAX_LENGTH) {
+        errors[field] = refText[field].tooLong
+      }
+    }
+
     return errors
   }
 
@@ -621,6 +691,13 @@ function ServiceVisitForm({
             : undefined,
         }))
 
+        // A ref the form never showed stays out of the PUT, so it can't wipe
+        // a stored value. Shown or turned off, it goes out like any field (D6).
+        const updateRefs: Pick<ServiceVisitUpdate, RefField> = {}
+        for (const { field } of REF_FIELDS) {
+          if (refsOn[field] || refsTouched[field]) updateRefs[field] = refValue(field)
+        }
+
         // Null, not undefined, for anything left empty: the update route
         // skips keys that aren't sent, so a cleared field kept its old value.
         await updateMutation.mutateAsync({
@@ -632,7 +709,7 @@ function ServiceVisitForm({
           // (mirrors FuelRecordForm's engine_hours submit).
           engine_hours: formData.engine_hours ?? null,
           notes: formData.notes || null,
-          insurance_claim_number: formData.insurance_claim_number || null,
+          ...updateRefs,
           tax_amount: formData.tax_amount ?? null,
           shop_supplies: formData.shop_supplies ?? null,
           misc_fees: formData.misc_fees ?? null,
@@ -665,7 +742,10 @@ function ServiceVisitForm({
           // Dimensionless — submitted verbatim, no canonical conversion.
           engine_hours: formData.engine_hours,
           notes: formData.notes || undefined,
-          insurance_claim_number: formData.insurance_claim_number || undefined,
+          insurance_claim_number: refValue('insurance_claim_number'),
+          invoice_number: refValue('invoice_number'),
+          po_number: refValue('po_number'),
+          work_order_number: refValue('work_order_number'),
           tax_amount: formData.tax_amount,
           shop_supplies: formData.shop_supplies,
           misc_fees: formData.misc_fees,
@@ -682,15 +762,15 @@ function ServiceVisitForm({
       onSuccess()
       onClose()
     } catch (err) {
-      // Render targets: date, odometer_km, engine_hours, insurance_claim_number,
-      // notes, tax_amount, shop_supplies, misc_fees. vendor_id and line_items
-      // have no fieldErrors-wired Field, so a problem addressed to either must
-      // fall through to the banner below.
+      // Render targets: date, odometer_km, engine_hours, the four refs, notes,
+      // tax_amount, shop_supplies, misc_fees. vendor_id and line_items have no
+      // fieldErrors-wired Field, so a problem addressed to either must fall
+      // through to the banner below.
       const { attached, unhandled, errorsByField } = applyControlledFieldErrors(err, [
         'date',
         'odometer_km',
         'engine_hours',
-        'insurance_claim_number',
+        ...REF_FIELDS.map((ref) => ref.field),
         'notes',
         'tax_amount',
         'shop_supplies',
@@ -698,6 +778,11 @@ function ServiceVisitForm({
       ])
       if (attached.length > 0) {
         setFieldErrors(errorsByField)
+        // A ref's input only renders with its chip on, so the message needs it on.
+        const refsHit = attached.map((p) => p.field).filter(isRefField)
+        if (refsHit.length > 0) {
+          setRefsOn((prev) => ({ ...prev, ...Object.fromEntries(refsHit.map((f) => [f, true])) }))
+        }
       }
       if (attached.length === 0 || unhandled.length > 0) {
         setError(getActionErrorMessage(err, t('service.saveAction')))
@@ -806,16 +891,32 @@ function ServiceVisitForm({
               />
             </div>
 
-            <Field id="insurance-claim" label={t('service.insuranceClaim')} error={fieldErrors.insurance_claim_number}>
-              <Input
-                type="text"
-                id="insurance-claim"
-                value={formData.insurance_claim_number}
-                onChange={(e) => handleFieldChange('insurance_claim_number', e.target.value)}
-                placeholder="Claim #12345"
-                disabled={submitting}
-              />
-            </Field>
+            <div className="mb-4 space-y-3">
+              <div role="group" aria-labelledby="service-refs-label" className="flex flex-wrap items-center gap-2">
+                <span id="service-refs-label" className="text-sm font-medium text-text">{t('service.refs.toggleLabel')}</span>
+                {REF_FIELDS.map(({ field }) => (
+                  <Chip key={field} selected={refsOn[field]} onClick={() => toggleRef(field)}>
+                    {refText[field].label}
+                  </Chip>
+                ))}
+              </div>
+              {REF_FIELDS.some(({ field }) => refsOn[field]) && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4">
+                  {REF_FIELDS.filter(({ field }) => refsOn[field]).map(({ field, id }) => (
+                    <Field key={field} id={id} label={refText[field].label} error={fieldErrors[field]}>
+                      <Input
+                        type="text"
+                        id={id}
+                        value={formData[field]}
+                        onChange={(e) => handleFieldChange(field, e.target.value)}
+                        placeholder={refText[field].placeholder}
+                        disabled={submitting}
+                      />
+                    </Field>
+                  ))}
+                </div>
+              )}
+            </div>
 
             <Field id="visit-notes" label={t('service.visitNotes')} error={fieldErrors.notes}>
               <Textarea

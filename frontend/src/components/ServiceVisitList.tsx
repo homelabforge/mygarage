@@ -201,6 +201,15 @@ export default function ServiceVisitList({
     )
   }
 
+  // The visit's paperwork refs that have a value, claim first.
+  const visitRefs = (visit: ServiceVisit): { key: string; label: string; value: string }[] =>
+    [
+      { key: 'claim', label: t('serviceList.insuranceClaim'), value: visit.insurance_claim_number },
+      { key: 'invoice', label: t('serviceList.invoice'), value: visit.invoice_number },
+      { key: 'po', label: t('serviceList.po'), value: visit.po_number },
+      { key: 'workOrder', label: t('serviceList.workOrder'), value: visit.work_order_number },
+    ].filter((ref): ref is { key: string; label: string; value: string } => !!ref.value)
+
   const renderLineItem = (visit: ServiceVisit, item: ServiceLineItem, index: number) => {
     const laborCost = item.cost ? Number(item.cost) : 0
     const partsCost = (item.supply_usages ?? []).reduce((sum, usage) => sum + Number(usage.cost_snapshot ?? 0), 0)
@@ -314,6 +323,7 @@ export default function ServiceVisitList({
             const titleId = `${rowIdPrefix}-title-${visit.id}`
             const dateId = `${rowIdPrefix}-date-${visit.id}`
             const totalCost = calculateVisitTotal(visit)
+            const refs = visitRefs(visit)
             const lineItemCount = visit.line_items?.length || 0
             const hasFailedInspections = visit.line_items?.some(
               (item) =>
@@ -421,9 +431,13 @@ export default function ServiceVisitList({
                       <div className="text-sm text-text-mute bg-surface-2/50 rounded-md p-3">{visit.notes}</div>
                     )}
 
-                    {visit.insurance_claim_number && (
-                      <div className="text-sm text-text-mute">
-                        <span className="font-medium">{t('serviceList.insuranceClaim')}:</span> {visit.insurance_claim_number}
+                    {refs.length > 0 && (
+                      <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-text-mute">
+                        {refs.map(({ key, label, value }) => (
+                          <div key={key}>
+                            <span className="font-medium">{label}:</span> {value}
+                          </div>
+                        ))}
                       </div>
                     )}
 

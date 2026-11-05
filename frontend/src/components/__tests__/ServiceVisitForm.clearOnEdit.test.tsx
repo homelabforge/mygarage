@@ -89,6 +89,9 @@ const visit = {
   engine_hours: '640.5',
   notes: 'Old notes',
   insurance_claim_number: 'CLM-1',
+  invoice_number: 'INV-1',
+  po_number: 'PO-1',
+  work_order_number: 'WO-1',
   tax_amount: '4.50',
   shop_supplies: '3.25',
   misc_fees: '2.00',
@@ -182,7 +185,7 @@ describe('ServiceVisitForm: clearing a field on edit', () => {
     await renderEdit()
 
     fireEvent.click(screen.getByRole('button', { name: 'clear vendor' }))
-    for (const id of ['service-odometer', 'service-engine-hours', 'insurance-claim', 'visit-notes', 'tax-amount', 'shop-supplies', 'misc-fees']) {
+    for (const id of ['service-odometer', 'service-engine-hours', 'insurance-claim', 'invoice-number', 'po-number', 'work-order-number', 'visit-notes', 'tax-amount', 'shop-supplies', 'misc-fees']) {
       fireEvent.change(input(id), { target: { value: '' } })
     }
 
@@ -192,6 +195,9 @@ describe('ServiceVisitForm: clearing a field on edit', () => {
       odometer_km: null,
       engine_hours: null,
       insurance_claim_number: null,
+      invoice_number: null,
+      po_number: null,
+      work_order_number: null,
       notes: null,
       tax_amount: null,
       shop_supplies: null,
@@ -208,11 +214,32 @@ describe('ServiceVisitForm: clearing a field on edit', () => {
       odometer_km: 72420,
       engine_hours: 640.5,
       insurance_claim_number: 'CLM-1',
+      invoice_number: 'INV-1',
+      po_number: 'PO-1',
+      work_order_number: 'WO-1',
       notes: 'Old notes',
       tax_amount: 4.5,
       shop_supplies: 3.25,
       misc_fees: 2,
     })
+  })
+
+  // A ref with no stored value has its chip off and no input. Sending null for
+  // it would be harmless here, but it's the same code path that would wipe a
+  // value the form never showed, so the key stays out of the PUT entirely (D6).
+  it('leaves out every ref whose chip it never showed', async () => {
+    await renderEdit({
+      ...visit,
+      insurance_claim_number: null,
+      invoice_number: null,
+      po_number: null,
+      work_order_number: null,
+    } as unknown as ServiceVisit)
+
+    const body = await submittedBody()
+    for (const key of ['insurance_claim_number', 'invoice_number', 'po_number', 'work_order_number']) {
+      expect(body).not.toHaveProperty(key)
+    }
   })
 })
 

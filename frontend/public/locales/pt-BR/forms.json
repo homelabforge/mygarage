@@ -396,7 +396,9 @@
     "attachments": "Anexos",
     "createTitle": "Criar registro de serviço",
     "editTitle": "Editar serviço",
-    "insuranceClaim": "Sinistro de seguro",
+    "refs": {
+      "insuranceClaim": "Sinistro de seguro"
+    },
     "miscFees": "Taxas diversas",
     "servicesPerformed": "Serviços realizados",
     "shopSupplies": "Insumos da oficina",

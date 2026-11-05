@@ -729,7 +729,9 @@
     "attachments": "Allegati",
     "createTitle": "Registra intervento",
     "editTitle": "Modifica intervento",
-    "insuranceClaim": "N. pratica assicurativa",
+    "refs": {
+      "insuranceClaim": "N. pratica assicurativa"
+    },
     "lineItemCostDecimals": "Voce {{number}}: il costo consente al massimo 2 decimali",
     "lineItemCostInvalid": "Voce {{number}}: inserisci un numero valido per il costo",
     "lineItemCostNegative": "Voce {{number}}: il costo non può essere negativo",

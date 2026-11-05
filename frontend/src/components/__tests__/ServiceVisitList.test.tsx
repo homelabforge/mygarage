@@ -352,3 +352,25 @@ describe('ServiceVisitList: a service line shows what it cost and opens its deta
     expect(detailOpen()).toBe(true)
   })
 })
+
+describe('ServiceVisitList: reference numbers', () => {
+  it('shows each stored ref beside the claim line and skips the empty ones', async () => {
+    const refsVisit = {
+      ...visit,
+      insurance_claim_number: 'CLM-9',
+      invoice_number: '4CCS403925',
+      po_number: null,
+      work_order_number: 'WO-12',
+    } as unknown as ServiceVisit
+    useServiceVisitsMock.mockReturnValue({ data: { visits: [refsVisit] }, isLoading: false, error: null })
+    render(<ServiceVisitList {...PROPS} />)
+
+    fireEvent.click(screen.getByRole('button', { name: `Tire rotation ${formatDateForDisplay('2026-03-01')}` }))
+
+    await waitFor(() => expect(screen.getByText('4CCS403925')).toBeInTheDocument())
+    expect(screen.getByText('4CCS403925').parentElement).toHaveTextContent('serviceList.invoice: 4CCS403925')
+    expect(screen.getByText('WO-12').parentElement).toHaveTextContent('serviceList.workOrder: WO-12')
+    expect(screen.getByText('CLM-9').parentElement).toHaveTextContent('serviceList.insuranceClaim: CLM-9')
+    expect(screen.queryByText(/serviceList\.po:/)).toBeNull()
+  })
+})

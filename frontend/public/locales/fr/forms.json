@@ -758,7 +758,9 @@
     "attachments": "Pièces jointes",
     "createTitle": "Enregistrer une visite d’entretien",
     "editTitle": "Modifier la visite d’entretien",
-    "insuranceClaim": "N° de dossier d’assurance",
+    "refs": {
+      "insuranceClaim": "N° de dossier d’assurance"
+    },
     "miscFees": "Frais divers",
     "partsSupplies": "Pièces/Fournitures",
     "servicesPerformed": "Services effectués",

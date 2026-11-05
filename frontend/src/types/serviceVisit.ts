@@ -62,6 +62,9 @@ export interface ServiceVisitFormData {
   engine_hours: number | undefined
   notes: string
   insurance_claim_number: string
+  invoice_number: string
+  po_number: string
+  work_order_number: string
   tax_amount: number | undefined
   shop_supplies: number | undefined
   misc_fees: number | undefined
