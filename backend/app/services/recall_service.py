@@ -678,6 +678,9 @@ class RecallService:
 
         try:
             await get_vehicle_or_403(vin, current_user, self.db, require_write=True)
+            # Same lock as the visit writers, so a delete can't land between a
+            # visit PUT's link check and its flush.
+            await lock_vehicle_for_write(self.db, vin)
 
             result = await self.db.execute(
                 select(Recall).where(Recall.id == recall_id, Recall.vin == vin)

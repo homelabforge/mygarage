@@ -1254,6 +1254,41 @@ class TestRecallsTabAndVisitLinks:
         assert order[:2] == ["lock", "recall_read"]
         assert order.count("lock") == 1
 
+    async def test_delete_recall_locks_before_it_reads_the_recall(
+        self,
+        new_vehicle: Callable[..., Awaitable[str]],
+        db_session: AsyncSession,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Without the lock a delete can commit between a visit PUT's link check
+        and its flush, and the PUT gets a bogus 409 on PG (FB-1)."""
+        vin = await new_vehicle()
+        rid = await _stored_recall(db_session, vin)
+        order: list[str] = []
+        real_lock = recall_service_module.lock_vehicle_for_write
+
+        async def recording_lock(db: AsyncSession, lock_vin: str) -> None:
+            order.append("lock")
+            await real_lock(db, lock_vin)
+
+        real_execute = db_session.execute
+
+        async def recording_execute(statement: Any, *args: Any, **kwargs: Any) -> Any:
+            descriptions: list[dict[str, Any]] = (
+                getattr(statement, "column_descriptions", None) or []
+            )
+            if descriptions and descriptions[0].get("entity") is Recall:
+                order.append("recall_read")
+            return await real_execute(statement, *args, **kwargs)
+
+        monkeypatch.setattr(recall_service_module, "lock_vehicle_for_write", recording_lock)
+        monkeypatch.setattr(db_session, "execute", recording_execute)
+        await RecallService(db_session).delete_recall(vin, rid, None)
+        assert order[:2] == ["lock", "recall_read"]
+        assert order.count("lock") == 1
+        gone = await db_session.execute(select(Recall.id).where(Recall.id == rid))
+        assert gone.scalar_one_or_none() is None
+
 
 @pytest.mark.integration
 @pytest.mark.asyncio
