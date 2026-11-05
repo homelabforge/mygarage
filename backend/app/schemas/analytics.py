@@ -372,6 +372,9 @@ class GarageCostTotals(BaseModel):
     total_insurance: Decimal = Field(default=Decimal("0.00"))
     total_taxes: Decimal = Field(default=Decimal("0.00"))
     total_financing: Decimal = Field(default=Decimal("0.00"))
+    # Running costs = all five service categories + fuel + DEF. Same thing the
+    # per-vehicle Total counts, so it's the sum of those.
+    total_running_cost: Decimal = Field(default=Decimal("0.00"))
 
     model_config = {"from_attributes": True}
 

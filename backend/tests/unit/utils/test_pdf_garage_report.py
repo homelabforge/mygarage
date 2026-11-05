@@ -59,6 +59,23 @@ def _make_garage_data(
             }
         )
 
+    # What the route sends: service + fuel + DEF, nothing else.
+    total_costs["total_running_cost"] = sum(
+        (
+            total_costs[k]
+            for k in (
+                "total_maintenance",
+                "total_upgrades",
+                "total_inspection",
+                "total_collision",
+                "total_detailing",
+                "total_fuel",
+                "total_def",
+            )
+        ),
+        Decimal("0.00"),
+    )
+
     cost_breakdown = [
         {"category": "Maintenance", "amount": Decimal("5000.00")},
         {"category": "Fuel", "amount": Decimal("8000.00")},
@@ -173,7 +190,8 @@ class TestGenerateGarageAnalyticsPdf:
         buf = generate_garage_analytics_pdf(data, date_order="mdy")
         text = _extract_text(buf.read(), normalize=True)
         assert "GARAGE VALUE" in text
-        assert "OPERATING COST" in text
+        assert "RUNNING COST" in text
+        assert "OPERATING COST" not in text
         assert "TOTAL MAINTENANCE" in text
         assert "TOTAL FUEL" in text
 
@@ -238,23 +256,27 @@ class TestGenerateGarageAnalyticsPdf:
         text = _extract_text(buf.read())
         assert "1 vehicle" in text
 
-    def test_operating_cost_includes_financing(self) -> None:
-        """The Operating Cost KPI (which already includes Insurance) must
-        also include total_financing, matching the donut's Financing slice."""
-        data_without = _make_garage_data(include_all_cost_fields=False)
-        data_with = _make_garage_data_with_financing()
-
-        text_without = _extract_text(
-            generate_garage_analytics_pdf(data_without, date_order="mdy").read(), normalize=True
+    def test_running_cost_card_leaves_out_insurance_taxes_and_financing(self) -> None:
+        """The card used to add up everything, insurance and financing included."""
+        text = _extract_text(
+            generate_garage_analytics_pdf(
+                _make_garage_data_with_financing(), date_order="mdy"
+            ).read(),
+            normalize=True,
         )
-        text_with = _extract_text(
-            generate_garage_analytics_pdf(data_with, date_order="mdy").read(), normalize=True
-        )
+        # 5000 + 2000 + 8000 + 300 of service, fuel and DEF.
+        assert "RUNNING COST $15,300 Service + fuel + DEF" in text
+        # The old all-in sum: plus 4000 insurance, 1500 taxes, 450 financing.
+        assert "$21,250" not in text
 
-        # Without financing: 5000 + 8000 + 4000 + 1500 + 2000 + 300 = $20,800
-        assert "$20,800" in text_without
-        # With financing: $20,800 + $450 = $21,250
-        assert "$21,250" in text_with
+    def test_running_cost_card_prints_the_routes_number(self) -> None:
+        """The route owns the definition, so the PDF prints its field and never re-adds."""
+        data = _make_garage_data()
+        data["total_costs"]["total_running_cost"] = Decimal("4321.09")
+        text = _extract_text(
+            generate_garage_analytics_pdf(data, date_order="mdy").read(), normalize=True
+        )
+        assert "RUNNING COST $4,321.09" in text
 
     def test_regression_inspection_collision_detailing_values(self) -> None:
         """Ensure the data flow bug fix carries all cost fields through."""

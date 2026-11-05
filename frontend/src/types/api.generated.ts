@@ -12155,6 +12155,11 @@ export interface components {
              */
             total_maintenance: string;
             /**
+             * Total Running Cost
+             * @default 0.00
+             */
+            total_running_cost: string;
+            /**
              * Total Taxes
              * @default 0.00
              */

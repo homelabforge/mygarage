@@ -3,7 +3,7 @@
 import uuid
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 
 import pymupdf
@@ -13,12 +13,19 @@ from httpx import AsyncClient
 from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.models.def_record import DEFRecord
+from app.models.financing import FinancingRecord
 from app.models.fuel import FuelRecord
+from app.models.insurance import InsurancePolicy, InsurancePolicyVehicle
 from app.models.service_line_item import ServiceLineItem
 from app.models.service_visit import ServiceVisit
+from app.models.tax import TaxRecord
 from app.models.user import User
 from app.models.vehicle import Vehicle
 from app.models.vendor import Vendor
+from app.services.auth import create_access_token
+from app.utils.household_time import household_today
+from tests._users import TEST_PASSWORD_HASH
 
 
 def _extract_pdf_text(pdf_bytes: bytes) -> str:
@@ -486,3 +493,140 @@ async def test_analytics_pdf_requests_full_anomaly_history(
         "the PDF path must pass anomaly_range explicitly; a bound Query object "
         "silently means 12 months"
     )
+
+
+@dataclass(frozen=True)
+class MixedGarage:
+    """A one-user garage holding every kind of spend."""
+
+    headers: dict[str, str]
+    vins: tuple[str, str]
+
+
+# Running costs the mixed garage should report: service in two categories,
+# fuel and DEF on the first car, one fill-up on the second.
+MIXED_RUNNING = Decimal("100.00") + Decimal("250.00") + Decimal("60.00") + Decimal("15.50")
+MIXED_RUNNING += Decimal("40.00")
+# What sits beside them and must stay out: insurance, tax, financing.
+MIXED_OTHER = Decimal("120.00") + Decimal("80.00") + Decimal("300.00")
+
+
+@pytest_asyncio.fixture
+async def mixed_garage(db_session: AsyncSession) -> AsyncGenerator[MixedGarage]:
+    """A fresh non-admin user who owns just these two cars, so the totals are ours."""
+    suffix = uuid.uuid4().hex[:14].upper()
+    username = f"runcost_{suffix[:8].lower()}"
+    vin_a, vin_b = f"RCA{suffix}", f"RCB{suffix}"
+    user = User(
+        username=username,
+        email=f"{username}@example.com",
+        hashed_password=TEST_PASSWORD_HASH,
+        is_active=True,
+        is_admin=False,
+    )
+    db_session.add(user)
+    await db_session.flush()
+    for vin, nickname in ((vin_a, "Runner"), (vin_b, "Spare")):
+        db_session.add(
+            Vehicle(
+                vin=vin,
+                user_id=user.id,
+                nickname=f"{nickname} {suffix[:4]}",
+                vehicle_type="Car",
+                year=2020,
+                make="Ford",
+                model="Ranger",
+            )
+        )
+    await db_session.flush()
+    for category, cost in (("Maintenance", "100.00"), ("Upgrades", "250.00")):
+        visit = ServiceVisit(vin=vin_a, date=date(2024, 3, 1), service_category=category)
+        visit.line_items.append(ServiceLineItem(description=category, cost=Decimal(cost)))
+        db_session.add(visit)
+    db_session.add_all(
+        [
+            _fuel(vin_a, date(2024, 3, 5), "60.00"),
+            _fuel(vin_b, date(2024, 3, 6), "40.00"),
+            DEFRecord(
+                vin=vin_a, date=date(2024, 3, 7), liters=Decimal("9.000"), cost=Decimal("15.50")
+            ),
+            TaxRecord(vin=vin_a, date=date(2024, 3, 8), amount=Decimal("80.00")),
+            FinancingRecord(
+                vin=vin_a, date=date(2024, 3, 9), amount=Decimal("300.00"), category="loan_payment"
+            ),
+        ]
+    )
+    # A finished term, so the whole premium has accrued.
+    start = household_today() - timedelta(days=200)
+    policy = InsurancePolicy(
+        provider="Progressive",
+        policy_number=f"P-{suffix[:6]}",
+        start_date=start,
+        end_date=start + timedelta(days=182),
+        premium_amount=Decimal("120.00"),
+        premium_frequency="Semi-Annual",
+    )
+    policy.vehicle_links.append(InsurancePolicyVehicle(vin=vin_a, policy_type="Liability"))
+    db_session.add(policy)
+    await db_session.commit()
+    policy_id = policy.id
+    token = create_access_token(data={"sub": str(user.id), "username": username})
+
+    yield MixedGarage(headers={"Authorization": f"Bearer {token}"}, vins=(vin_a, vin_b))
+
+    await db_session.rollback()
+    await db_session.execute(delete(InsurancePolicy).where(InsurancePolicy.id == policy_id))
+    await db_session.execute(delete(Vehicle).where(Vehicle.vin.in_([vin_a, vin_b])))
+    await db_session.execute(delete(User).where(User.username == username))
+    await db_session.commit()
+
+
+@pytest.mark.integration
+@pytest.mark.analytics
+@pytest.mark.asyncio
+async def test_garage_running_cost_is_service_fuel_and_def(
+    client: AsyncClient, mixed_garage: MixedGarage
+):
+    """One number for the PDF: service + fuel + DEF, same as the per-vehicle Total."""
+    response = await client.get("/api/analytics/garage", headers=mixed_garage.headers)
+    assert response.status_code == 200, response.text
+    body = response.json()
+    totals = body["total_costs"]
+
+    # The fixture really did land insurance, tax and financing.
+    assert Decimal(totals["total_insurance"]) == Decimal("120.00")
+    assert Decimal(totals["total_taxes"]) == Decimal("80.00")
+    assert Decimal(totals["total_financing"]) == Decimal("300.00")
+
+    # The category totals and the per-vehicle Totals must count the same thing.
+    categories = (
+        "total_maintenance",
+        "total_upgrades",
+        "total_inspection",
+        "total_collision",
+        "total_detailing",
+        "total_fuel",
+        "total_def",
+    )
+    by_category = sum((Decimal(totals[k]) for k in categories), Decimal("0"))
+    by_vehicle = sum((Decimal(v["total_cost"]) for v in body["cost_by_vehicle"]), Decimal("0"))
+    assert by_category == by_vehicle == MIXED_RUNNING
+
+    assert Decimal(totals["total_running_cost"]) == MIXED_RUNNING
+
+
+@pytest.mark.integration
+@pytest.mark.analytics
+@pytest.mark.asyncio
+async def test_garage_pdf_shows_the_running_cost_not_the_all_in_sum(
+    client: AsyncClient, mixed_garage: MixedGarage
+):
+    """The KPI card prints the route's running cost, not everything added up."""
+    response = await client.get("/api/analytics/garage/export", headers=mixed_garage.headers)
+    assert response.status_code == 200, response.text
+
+    text = " ".join(_extract_pdf_text(response.content).split())
+    assert "RUNNING COST" in text
+    assert "OPERATING COST" not in text
+    assert f"${MIXED_RUNNING:,.2f}" in text
+    assert f"${MIXED_RUNNING + MIXED_OTHER:,.2f}" not in text

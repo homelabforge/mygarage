@@ -10236,6 +10236,11 @@
             "title": "Total Maintenance",
             "type": "string"
           },
+          "total_running_cost": {
+            "default": "0.00",
+            "title": "Total Running Cost",
+            "type": "string"
+          },
           "total_taxes": {
             "default": "0.00",
             "title": "Total Taxes",

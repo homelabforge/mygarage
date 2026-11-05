@@ -139,23 +139,8 @@ def generate_garage_analytics_pdf(
     garage_value = _safe_float(total_costs.get("total_garage_value", 0))
     total_maintenance = _safe_float(total_costs.get("total_maintenance", 0))
     total_fuel = _safe_float(total_costs.get("total_fuel", 0))
-
-    # Calculate total operating cost (all categories except garage value)
-    operating_cost = sum(
-        _safe_float(total_costs.get(f, 0))
-        for f in [
-            "total_maintenance",
-            "total_fuel",
-            "total_insurance",
-            "total_taxes",
-            "total_upgrades",
-            "total_inspection",
-            "total_collision",
-            "total_detailing",
-            "total_def",
-            "total_financing",
-        ]
-    )
+    # The route works this out, so the card can't drift from the page.
+    running_cost = _safe_float(total_costs.get("total_running_cost", 0))
 
     kpi_cards = [
         {
@@ -165,9 +150,9 @@ def generate_garage_analytics_pdf(
             "color": "blue",
         },
         {
-            "label": "Operating Cost",
-            "value": format_currency_short(operating_cost, currency_code, locale),
-            "sub": "Maintenance + Fuel + Insurance + Taxes",
+            "label": "Running Cost",
+            "value": format_currency_short(running_cost, currency_code, locale),
+            "sub": "Service + fuel + DEF",
             "color": "green",
         },
         {
