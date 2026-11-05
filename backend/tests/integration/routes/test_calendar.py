@@ -4,14 +4,30 @@ Integration tests for calendar routes.
 Tests calendar event aggregation and iCal export.
 """
 
+from collections.abc import AsyncIterator
+from dataclasses import dataclass
 from datetime import date, timedelta
 from decimal import Decimal
 
 import pytest
+import pytest_asyncio
 from httpx import AsyncClient
+from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import HoursRecord, OdometerRecord, Reminder, Vehicle
+from app.models import (
+    HoursRecord,
+    InsurancePolicy,
+    OdometerRecord,
+    Reminder,
+    ServiceVisit,
+    Vehicle,
+    WarrantyRecord,
+)
+from app.models.insurance import InsurancePolicyVehicle
+from app.models.service_line_item import ServiceLineItem
+from app.utils.datetime_utils import utc_now
+from app.utils.household_time import household_today
 
 
 async def _isolated_vehicle(
@@ -854,3 +870,129 @@ class TestCalendarRoutes:
         assert response.status_code == 200
         data = response.json()
         assert data["summary"]["total"] == 0
+
+
+CALENDAR_EVENT_TYPES = ("maintenance", "warranty", "insurance", "service")
+
+
+@dataclass(frozen=True)
+class ArchivedVehicle:
+    """An archived car with one event of every kind in the calendar window."""
+
+    vin: str
+    headers: dict[str, str]
+    event_ids: dict[str, str]
+
+
+@pytest_asyncio.fixture
+async def archived_vehicle(
+    db_session: AsyncSession, made_users: list[str]
+) -> AsyncIterator[ArchivedVehicle]:
+    """A pending reminder, an expiring warranty, a recent visit and a renewing policy."""
+    vin, headers = await _isolated_vehicle(db_session, made_users)
+    today = household_today()
+    reminder = Reminder(
+        vin=vin,
+        title="Archived oil change",
+        reminder_type="date",
+        due_date=today + timedelta(days=30),
+        status="pending",
+    )
+    warranty = WarrantyRecord(
+        vin=vin,
+        warranty_type="Powertrain",
+        provider="Acme",
+        start_date=today - timedelta(days=1000),
+        end_date=today + timedelta(days=60),
+    )
+    visit = ServiceVisit(vin=vin, date=today - timedelta(days=10))
+    visit.line_items.append(ServiceLineItem(description="Archived brakes", cost=Decimal("90.00")))
+    policy = InsurancePolicy(
+        provider="Archived Mutual",
+        policy_number="P-ARCH",
+        start_date=today - timedelta(days=300),
+        end_date=today + timedelta(days=20),
+    )
+    policy.vehicle_links.append(InsurancePolicyVehicle(vin=vin, policy_type="Liability"))
+    db_session.add_all([reminder, warranty, visit, policy])
+    vehicle = await db_session.get(Vehicle, vin)
+    assert vehicle is not None
+    vehicle.archived_at = utc_now()
+    await db_session.commit()
+    policy_id = policy.id
+
+    yield ArchivedVehicle(
+        vin=vin,
+        headers=headers,
+        event_ids={
+            "maintenance": f"reminder-{reminder.id}",
+            "warranty": f"warranty-{warranty.id}",
+            "insurance": f"insurance-{policy_id}",
+            "service": f"service-{visit.id}",
+        },
+    )
+
+    # The policy is a household record, so the user cascade leaves it behind.
+    await db_session.rollback()
+    await db_session.execute(delete(InsurancePolicy).where(InsurancePolicy.id == policy_id))
+    await db_session.commit()
+
+
+def _window(**extra: str) -> dict[str, str]:
+    today = household_today()
+    return {
+        "start_date": (today - timedelta(days=30)).isoformat(),
+        "end_date": (today + timedelta(days=365)).isoformat(),
+        **extra,
+    }
+
+
+async def _calendar_ids(client: AsyncClient, headers: dict[str, str], **params: str) -> set[str]:
+    response = await client.get("/api/calendar", params=_window(**params), headers=headers)
+    assert response.status_code == 200, response.text
+    return {e["id"] for e in response.json()["events"]}
+
+
+async def _ical(client: AsyncClient, headers: dict[str, str], **params: str) -> str:
+    response = await client.get("/api/calendar/export", params=_window(**params), headers=headers)
+    assert response.status_code == 200, response.text
+    return response.content.decode("utf-8")
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+class TestCalendarHidesArchivedVehicles:
+    """D3: an archived vehicle drops off the calendar, every event type, JSON and iCal."""
+
+    @pytest.mark.parametrize("event_type", CALENDAR_EVENT_TYPES)
+    async def test_an_archived_vehicles_event_is_hidden_until_it_comes_back(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        archived_vehicle: ArchivedVehicle,
+        event_type: str,
+    ):
+        event_id = archived_vehicle.event_ids[event_type]
+        uid = f"UID:{event_id}@mygarage.local"
+        headers = archived_vehicle.headers
+
+        assert event_id not in await _calendar_ids(client, headers, event_types=event_type)
+        assert uid not in await _ical(client, headers, event_types=event_type)
+
+        # Unarchived, the same row shows up, so the fixture isn't what hid it.
+        vehicle = await db_session.get(Vehicle, archived_vehicle.vin)
+        assert vehicle is not None
+        vehicle.archived_at = None
+        await db_session.commit()
+
+        assert event_id in await _calendar_ids(client, headers, event_types=event_type)
+        assert uid in await _ical(client, headers, event_types=event_type)
+
+    async def test_filtering_on_an_archived_vin_returns_nothing(
+        self, client: AsyncClient, archived_vehicle: ArchivedVehicle
+    ):
+        headers = archived_vehicle.headers
+        vin = archived_vehicle.vin
+
+        assert await _calendar_ids(client, headers, vehicle_vins=vin) == set()
+        assert "BEGIN:VEVENT" not in await _ical(client, headers, vehicle_vins=vin)

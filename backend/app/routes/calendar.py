@@ -95,8 +95,9 @@ async def get_calendar_events(
         else ["maintenance", "insurance", "warranty", "service"]
     )
 
-    # Get vehicles scoped to current user (owned + shared), or all for admins
-    vehicle_query = select(Vehicle)
+    # Get vehicles scoped to current user (owned + shared), or all for admins.
+    # Archived vehicles never reach vehicles_dict, so none of their events show.
+    vehicle_query = select(Vehicle).where(Vehicle.archived_at.is_(None))
     scope = visible_vehicles_filter(current_user)
     if scope is not None:
         vehicle_query = vehicle_query.where(scope)
@@ -232,7 +233,7 @@ async def get_calendar_events(
 
     # Fetch insurance policies. A policy is a household record covering several
     # vehicles, so it is ONE event, anchored on the first covered vehicle the
-    # caller may see that is still in service.
+    # caller may see.
     if "insurance" in type_list:
         insurance_result = await db.execute(
             select(InsurancePolicy).where(
@@ -254,9 +255,7 @@ async def get_calendar_events(
 
         for policy in insurance_result.scalars().unique().all():
             covered = [
-                vehicles_dict[link.vin]
-                for link in policy.vehicle_links
-                if link.vin in allowed_vins and vehicles_dict[link.vin].archived_at is None
+                vehicles_dict[link.vin] for link in policy.vehicle_links if link.vin in allowed_vins
             ]
             if not covered:
                 continue
