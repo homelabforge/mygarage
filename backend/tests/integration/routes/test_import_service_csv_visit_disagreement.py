@@ -15,7 +15,8 @@ pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
 _V8_HEADER = (
     "units_version,unit_system,Visit,Date,Category,Description,Odometer (km),Engine Hours,"
-    "Cost,Vendor,Item Notes,Tax,Shop Supplies,Misc Fees,Insurance Claim,Visit Notes"
+    "Cost,Vendor,Item Notes,Tax,Shop Supplies,Misc Fees,Insurance Claim,"
+    "Invoice #,PO #,WO #,Visit Notes"
 )
 
 # The visit-level cells in header order, as a v8 export repeats them on every row.
@@ -29,6 +30,9 @@ _VISIT = {
     "Shop Supplies": "2.00",
     "Misc Fees": "1.00",
     "Insurance Claim": "CLM-1",
+    "Invoice #": "INV-1",
+    "PO #": "PO-1",
+    "WO #": "WO-1",
     "Visit Notes": "Spring service",
 }
 
@@ -43,6 +47,9 @@ _CHANGED = [
     ("Shop Supplies", "3.00", "Shop Supplies"),
     ("Misc Fees", "1.50", "Misc Fees"),
     ("Insurance Claim", "CLM-2", "Insurance Claim"),
+    ("Invoice #", "INV-2", "Invoice #"),
+    ("PO #", "PO-2", "PO #"),
+    ("WO #", "WO-2", "WO #"),
     ("Visit Notes", "Autumn service", "Visit Notes"),
 ]
 
@@ -82,6 +89,9 @@ def _row(visit: str, description: str, cost: str, **visit_cells: str) -> str:
             cells["Shop Supplies"],
             cells["Misc Fees"],
             cells["Insurance Claim"],
+            cells["Invoice #"],
+            cells["PO #"],
+            cells["WO #"],
             cells["Visit Notes"],
         ]
     )

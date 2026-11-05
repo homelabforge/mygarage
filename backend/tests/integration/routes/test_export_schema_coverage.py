@@ -148,6 +148,9 @@ EXPORT_COVERAGE_SPECS: list[ExportCoverageSpec] = [
             "Shop Supplies": "shop_supplies",
             "Misc Fees": "misc_fees",
             "Insurance Claim": "insurance_claim_number",
+            "Invoice #": "invoice_number",
+            "PO #": "po_number",
+            "WO #": "work_order_number",
             "Visit Notes": "notes",
         },
         exclude={
@@ -157,10 +160,6 @@ EXPORT_COVERAGE_SPECS: list[ExportCoverageSpec] = [
             "total_cost",
             "created_at",
             "updated_at",
-            # Not in the CSV yet. The next commit adds their columns and drops these.
-            "invoice_number",
-            "po_number",
-            "work_order_number",
         },
         shared_headers={"Visit", "Description", "Cost", "Item Notes"},
     ),
@@ -193,6 +192,9 @@ EXPORT_COVERAGE_SPECS: list[ExportCoverageSpec] = [
             "Shop Supplies",
             "Misc Fees",
             "Insurance Claim",
+            "Invoice #",
+            "PO #",
+            "WO #",
             "Visit Notes",
         },
     ),
@@ -317,6 +319,14 @@ async def test_export_covers_all_model_columns(
 ):
     """Every public model column must be either exported or explicitly
     excluded. Diverge in either direction and this fails."""
+    # 0. A column can't be both mapped and excluded. A stale exclude would
+    # keep covering it after the header goes away.
+    both = spec.exclude & set(spec.header_to_attr.values())
+    assert not both, (
+        f"{spec.name}: EXCLUDE lists columns the spec also maps to a header: {sorted(both)}. "
+        "Drop them from .exclude."
+    )
+
     vin = test_vehicle_with_records["vin"]
     response = await client.get(
         f"{spec.url_pattern.format(vin=vin)}?units=metric", headers=auth_headers

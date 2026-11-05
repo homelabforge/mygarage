@@ -135,6 +135,8 @@ async def test_blank_or_whitespace_is_stored_as_null(
     created = await _create(client, auth_headers, vin, **{field: "   "})
     assert created[field] is None
     await _put(client, auth_headers, vin, created["id"], {field: "REF-9"})
+    # Stored first, so the blank PUT below has something to clear.
+    assert (await _get(client, auth_headers, vin, created["id"]))[field] == "REF-9"
     await _put(client, auth_headers, vin, created["id"], {field: ""})
     assert (await _get(client, auth_headers, vin, created["id"]))[field] is None
 

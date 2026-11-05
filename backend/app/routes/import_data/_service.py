@@ -32,6 +32,7 @@ from app.routes.import_data._common import (
     _json_text,
     _RowError,
     _within_api_bounds,
+    _within_length,
     parse_date,
     parse_decimal,
 )
@@ -131,6 +132,9 @@ class _ServiceCsvRow:
     shop_supplies: Decimal | None
     misc_fees: Decimal | None
     insurance_claim_number: str | None
+    invoice_number: str | None
+    po_number: str | None
+    work_order_number: str | None
     split_notes: bool  # the file has Item Notes and Visit Notes (v8)
     visit_notes: str | None
     item_notes: str | None  # a v<=7 file's one Notes cell lands here and in visit_notes
@@ -165,6 +169,9 @@ _VISIT_FIELDS: tuple[tuple[str, str], ...] = (
     ("shop_supplies", "Shop Supplies"),
     ("misc_fees", "Misc Fees"),
     ("insurance_claim_number", "Insurance Claim"),
+    ("invoice_number", "Invoice #"),
+    ("po_number", "PO #"),
+    ("work_order_number", "WO #"),
     ("visit_notes", "Visit Notes"),
 )
 
@@ -258,6 +265,10 @@ def _parse_service_row(
         shop_supplies=shop_supplies,
         misc_fees=misc_fees,
         insurance_claim_number=text("Insurance Claim"),
+        # Not in the dedupe key (D7): an older file lacks them.
+        invoice_number=_within_length(text("Invoice #"), "Invoice #", 50),
+        po_number=_within_length(text("PO #"), "PO #", 50),
+        work_order_number=_within_length(text("WO #"), "WO #", 50),
         split_notes=split_notes,
         visit_notes=visit_notes,
         item_notes=item_notes,
@@ -494,6 +505,9 @@ async def _write_service_csv_visit(
         shop_supplies=first.shop_supplies,
         misc_fees=first.misc_fees,
         insurance_claim_number=first.insurance_claim_number,
+        invoice_number=first.invoice_number,
+        po_number=first.po_number,
+        work_order_number=first.work_order_number,
         notes=visit_notes,
         total_cost=total_cost,
     )

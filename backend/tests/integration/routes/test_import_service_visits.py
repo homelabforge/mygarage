@@ -19,10 +19,13 @@ from app.models import OdometerRecord, ServiceLineItem, ServiceVisit, Vehicle, V
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
+# A v8 file from before the visit refs: what rc1 and rc2 exported.
 _V8_HEADER = (
     "units_version,unit_system,Visit,Date,Category,Description,Odometer (km),Engine Hours,"
     "Cost,Vendor,Item Notes,Tax,Shop Supplies,Misc Fees,Insurance Claim,Visit Notes"
 )
+# Today's export: the invoice, PO and WO numbers ride after the claim.
+_V8_REFS_HEADER = _V8_HEADER.replace("Insurance Claim,", "Insurance Claim,Invoice #,PO #,WO #,")
 
 
 async def _vehicle(db_session: AsyncSession, owner_id: Any, vin: str) -> str:
@@ -108,6 +111,9 @@ async def _seed_two_item_visit(db_session: AsyncSession, vin: str, vendor_name: 
         shop_supplies=Decimal("1.50"),
         misc_fees=Decimal("0.50"),
         insurance_claim_number="CLM-1",
+        invoice_number="INV-1",
+        po_number="PO-1",
+        work_order_number="WO-1",
         notes="visit note",
         total_cost=Decimal("55.00"),
     )
@@ -149,7 +155,7 @@ async def test_the_service_csv_export_numbers_each_visit_and_splits_the_notes(
 
     # main: the v7 header (eight columns after the two markers), and "Notes" merging
     # the item's and the visit's
-    assert rows[0] == _V8_HEADER.split(",")
+    assert rows[0] == _V8_REFS_HEADER.split(",")
     assert rows[1:] == [
         [
             "8",
@@ -167,6 +173,9 @@ async def test_the_service_csv_export_numbers_each_visit_and_splits_the_notes(
             "1.50",
             "0.50",
             "CLM-1",
+            "INV-1",
+            "PO-1",
+            "WO-1",
             "visit note",
         ],
         [
@@ -185,6 +194,9 @@ async def test_the_service_csv_export_numbers_each_visit_and_splits_the_notes(
             "1.50",
             "0.50",
             "CLM-1",
+            "INV-1",
+            "PO-1",
+            "WO-1",
             "visit note",
         ],
         [
@@ -195,6 +207,9 @@ async def test_the_service_csv_export_numbers_each_visit_and_splits_the_notes(
             "Inspection",
             "",
             "4000.00",
+            "",
+            "",
+            "",
             "",
             "",
             "",
@@ -384,6 +399,9 @@ async def test_a_service_csv_round_trip_keeps_items_fees_and_notes(
         full.shop_supplies,
         full.misc_fees,
         full.insurance_claim_number,
+        full.invoice_number,
+        full.po_number,
+        full.work_order_number,
         full.notes,
         full.engine_hours,
         full.total_cost,
@@ -392,10 +410,46 @@ async def test_a_service_csv_round_trip_keeps_items_fees_and_notes(
         Decimal("1.50"),
         Decimal("0.50"),
         "CLM-1",
+        "INV-1",
+        "PO-1",
+        "WO-1",
         "visit note",
         Decimal("10.0"),
         Decimal("55.00"),
     )
+
+
+async def test_a_csv_from_before_the_refs_imports_them_as_null_and_matches_a_visit_that_has_them(
+    client: AsyncClient, auth_headers, test_user, db_session: AsyncSession, test_sessionmaker
+):
+    """Guard (passes before the refs too): an rc2 file still imports, and D7 keeps it a duplicate.
+
+    The refs aren't in the dedupe key, so re-importing an old export into a
+    vehicle whose visit now carries an invoice # skips it instead of doubling it.
+    """
+    source = await _vehicle(db_session, test_user["id"], "B3RTSVCCSVOLD0001")
+    target = await _vehicle(db_session, test_user["id"], "B3RTSVCCSVOLD0002")
+    await _seed_two_item_visit(db_session, source, "B3 Svc Old Shop")
+    old = (
+        f"{_V8_HEADER}\n"
+        "8,metric,1,2026-07-01,Maintenance,Oil,5000.00,10.0,40.00,B3 Svc Old Shop,"
+        "5W-30,3.00,1.50,0.50,CLM-1,visit note\n"
+        "8,metric,1,2026-07-01,Maintenance,Filter,5000.00,10.0,10.00,B3 Svc Old Shop,"
+        ",3.00,1.50,0.50,CLM-1,visit note\n"
+    )
+
+    data = await _post_csv(client, auth_headers, target, old)
+    assert (data["success_count"], data["error_count"]) == (2, 0), data
+    (visit,) = await _visits(test_sessionmaker, target)
+    assert (visit.insurance_claim_number, visit.invoice_number, visit.po_number) == (
+        "CLM-1",
+        None,
+        None,
+    )
+    assert visit.work_order_number is None
+
+    data = await _post_csv(client, auth_headers, source, old)
+    assert (data["success_count"], data["skipped_count"], data["error_count"]) == (0, 2, 0), data
 
 
 # -- JSON v9: service_visits with nested line items ----------------------------
@@ -418,6 +472,9 @@ async def test_a_json_backup_round_trip_keeps_every_line_item(
         shop_supplies=Decimal("2.00"),
         misc_fees=Decimal("1.00"),
         insurance_claim_number="CLM-9",
+        invoice_number="INV-9",
+        po_number="PO-9",
+        work_order_number="WO-9",
         notes="annual",
         total_cost=Decimal("187.00"),
     )
@@ -497,6 +554,9 @@ async def test_a_json_backup_round_trip_keeps_every_line_item(
         restored.shop_supplies,
         restored.misc_fees,
         restored.insurance_claim_number,
+        restored.invoice_number,
+        restored.po_number,
+        restored.work_order_number,
         restored.notes,
         restored.vendor.name,
         restored.total_cost,
@@ -506,10 +566,47 @@ async def test_a_json_backup_round_trip_keeps_every_line_item(
         Decimal("2.00"),
         Decimal("1.00"),
         "CLM-9",
+        "INV-9",
+        "PO-9",
+        "WO-9",
         "annual",
         "B3 Svc Json Shop",
         Decimal("187.00"),
     )
+
+
+async def test_a_json_visit_without_the_ref_keys_imports_them_as_null_and_still_matches(
+    client: AsyncClient, auth_headers, test_user, db_session: AsyncSession, test_sessionmaker
+):
+    """Guard (passes before the refs too): an older backup has no ref keys.
+
+    They land as NULL, and D7 keeps that backup matching a stored visit that has them.
+    """
+    source = await _vehicle(db_session, test_user["id"], "B3RTSVCJSONOLD001")
+    target = await _vehicle(db_session, test_user["id"], "B3RTSVCJSONOLD002")
+    await _seed_two_item_visit(db_session, source, "B3 Svc Json Old Shop")
+    exported = await client.get(f"/api/export/vehicles/{source}/json", headers=auth_headers)
+    assert exported.status_code == 200, exported.text
+    payload = exported.json()
+    for visit_data in payload["service_visits"]:
+        for key in ("invoice_number", "po_number", "work_order_number"):
+            del visit_data[key]
+
+    data = await _post_json(client, auth_headers, target, payload)
+    assert data["service_records"]["success_count"] == 2, data
+    _empty, full = await _visits(test_sessionmaker, target)
+    assert (full.insurance_claim_number, full.invoice_number, full.po_number) == (
+        "CLM-1",
+        None,
+        None,
+    )
+    assert full.work_order_number is None
+
+    data = await _post_json(client, auth_headers, source, payload)
+    assert (data["service_records"]["success_count"], data["service_records"]["skipped_count"]) == (
+        0,
+        2,
+    ), data
 
 
 async def test_a_line_item_link_outside_its_visit_is_a_row_error(
@@ -631,6 +728,20 @@ _CATEGORY_WORDS = "Maintenance, Inspection, Collision, Upgrades, Detailing"
             id="claim-not-text",
         ),
         pytest.param(
+            {"invoice_number": 7, "line_items": []},
+            "invoice_number must be text",
+            id="invoice-not-text",
+        ),
+        # PG refuses past VARCHAR(50) where SQLite keeps it, so the import says so for both.
+        *(
+            pytest.param(
+                {key: "X" * 51, "line_items": []},
+                f"{key} must be at most 50 characters",
+                id=f"{key}-past-50",
+            )
+            for key in ("invoice_number", "po_number", "work_order_number")
+        ),
+        pytest.param(
             {"vendor_name": 7, "line_items": []}, "vendor_name must be text", id="vendor-not-text"
         ),
         pytest.param(
@@ -719,6 +830,32 @@ async def test_a_csv_visit_whose_total_is_past_the_column_is_a_row_error_on_ever
     reason = "The visit total would exceed the largest amount MyGarage can store (9999999999.99)"
     assert (data["success_count"], data["error_count"]) == (0, 2), data
     assert data["errors"] == [f"Row 2: {reason}", f"Row 3: {reason}"]
+    assert await _visits(test_sessionmaker, vin) == []
+
+
+@pytest.mark.parametrize("column", ["Invoice #", "PO #", "WO #"])
+async def test_a_csv_visit_ref_past_50_characters_is_a_row_error(
+    column: str,
+    client: AsyncClient,
+    auth_headers,
+    test_user,
+    db_session: AsyncSession,
+    test_sessionmaker,
+):
+    """PG refuses past VARCHAR(50) where SQLite keeps it, so the import says so for both."""
+    vin = await _vehicle(
+        db_session,
+        test_user["id"],
+        f"B3RTSVCCSVREF{['Invoice #', 'PO #', 'WO #'].index(column):04d}",
+    )
+    cells = {"Invoice #": "", "PO #": "", "WO #": "", column: "X" * 51}
+    body = (
+        f"{_V8_REFS_HEADER}\n"
+        "8,metric,1,2026-07-12,Maintenance,Oil,9300.00,,40.00,,,,,,,"
+        f"{cells['Invoice #']},{cells['PO #']},{cells['WO #']},\n"
+    )
+    data = await _post_csv(client, auth_headers, vin, body)
+    assert data["errors"] == [f"Row 2: {column} must be at most 50 characters"], data
     assert await _visits(test_sessionmaker, vin) == []
 
 

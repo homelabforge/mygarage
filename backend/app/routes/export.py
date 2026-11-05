@@ -126,6 +126,10 @@ limiter = Limiter(key_func=get_remote_address)
 #   and an `Octane Scale` column / `octane_scale` key, the RON or AKI scale a
 #   fill-up's octane was read on (migration 151). Same additive treatment as
 #   the #164 grade columns: an older file imports with NULLs.
+# - A visit's invoice, PO and work order numbers (migration 157) ride CSV "8"
+#   (`Invoice #`, `PO #`, `WO #` after `Insurance Claim`) and JSON "9" without
+#   a bump too. An older file imports them as NULL; they stay out of the
+#   import's duplicate key so that file still matches its visits.
 CSV_SCHEMA_VERSION = "8"
 JSON_SCHEMA_VERSION = "9"
 EXPORT_UNITS = "metric"
@@ -553,6 +557,9 @@ async def export_service_records_csv(
         "Shop Supplies",
         "Misc Fees",
         "Insurance Claim",
+        "Invoice #",
+        "PO #",
+        "WO #",
         "Visit Notes",
     ]
 
@@ -585,6 +592,9 @@ async def export_service_records_csv(
                     _money_cell(visit.shop_supplies),
                     _money_cell(visit.misc_fees),
                     visit.insurance_claim_number or "",
+                    visit.invoice_number or "",
+                    visit.po_number or "",
+                    visit.work_order_number or "",
                     visit.notes or "",
                 ]
             )

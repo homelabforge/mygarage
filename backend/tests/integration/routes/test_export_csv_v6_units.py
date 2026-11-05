@@ -601,6 +601,9 @@ class TestEveryUnitBearingPairEmitsTokenisedHeaders:
                 "Shop Supplies",
                 "Misc Fees",
                 "Insurance Claim",
+                "Invoice #",
+                "PO #",
+                "WO #",
                 "Visit Notes",
             ]
             assert row["unit_system"] == "custom"

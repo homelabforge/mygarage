@@ -511,6 +511,10 @@ async def import_vehicle_json(
             # _vendor_id_for matches the exact name, so a cut name would make a second.
             vendor_name = _json_text(visit_data, "vendor_name")
             insurance_claim_number = _json_text(visit_data, "insurance_claim_number")
+            # Left out of fee_key below (D7), so an older backup still matches.
+            invoice_number = _json_text(visit_data, "invoice_number", max_length=50)
+            po_number = _json_text(visit_data, "po_number", max_length=50)
+            work_order_number = _json_text(visit_data, "work_order_number", max_length=50)
             notes = _json_text(visit_data, "notes")
 
             # R5's service key. The visit's own amounts and claim number are in
@@ -605,6 +609,9 @@ async def import_vehicle_json(
                     shop_supplies=shop_supplies,
                     misc_fees=misc_fees,
                     insurance_claim_number=insurance_claim_number,
+                    invoice_number=invoice_number,
+                    po_number=po_number,
+                    work_order_number=work_order_number,
                     notes=notes,
                     total_cost=total_cost,
                 )
