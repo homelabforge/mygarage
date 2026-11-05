@@ -1297,7 +1297,7 @@ class TestRecallPutRacesAVisitLink:
                 )
 
         async def recalls_put() -> None:
-            await linked.wait()
+            await asyncio.wait_for(linked.wait(), 5)
             async with test_sessionmaker() as b:
                 await RecallService(b).update_recall(
                     vin, rid, RecallUpdate(is_resolved=True, notes="from the tab"), None
