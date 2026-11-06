@@ -558,6 +558,18 @@ DEFAULT_SETTINGS = {
         "description": "TomTom API key for Places API (2,500 free requests/day)",
         "encrypted": True,
     },
+    "autoref_enabled": {
+        "value": "false",
+        "category": "integrations",
+        "description": "Decode European VINs with AutoRef (needs an API key)",
+        "encrypted": False,
+    },
+    "autoref_api_key": {
+        "value": "",
+        "category": "integrations",
+        "description": "AutoRef API key (paid; a free Test plan of 50 requests/month from info@autoref.eu)",
+        "encrypted": True,
+    },
     # ============================================
     # LiveLink MQTT Settings
     # ============================================

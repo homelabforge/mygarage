@@ -8100,6 +8100,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/vin/autoref/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Test Autoref Key
+         * @description Check an AutoRef key against `/usage`, which costs no quota (admin only).
+         *
+         *     A null key or the mask tests the stored one. Every failure is a 200 with
+         *     `valid: false`; the key never reaches a log line or an error.
+         */
+        post: operations["test_autoref_key_api_vin_autoref_test_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/vin/decode": {
         parameters: {
             query?: never;
@@ -8111,21 +8134,20 @@ export interface paths {
         put?: never;
         /**
          * Decode Vin
-         * @description Decode a VIN using the NHTSA vPIC API.
+         * @description Decode a VIN with NHTSA or AutoRef.
          *
-         *     This endpoint validates the VIN format and queries the NHTSA database
-         *     to retrieve vehicle information including make, model, year, engine specs,
-         *     and other details.
-         *
-         *     **Args:**
-         *     - **vin**: 17-character Vehicle Identification Number
-         *
-         *     **Returns:**
-         *     - Vehicle information decoded from the VIN
+         *     Without `provider` (Automatic) the preferred decoder answers first: AutoRef
+         *     for a European country when it has a key, NHTSA otherwise and for every
+         *     North American VIN. An AutoRef miss or error then asks NHTSA and says so in
+         *     `notes`. A chosen `provider` runs alone.
          *
          *     **Raises:**
          *     - **400**: Invalid VIN format
-         *     - **500**: NHTSA API error or service unavailable
+         *     - **404**: AutoRef chosen and it has no record for this VIN
+         *     - **409**: AutoRef chosen and it isn't configured
+         *     - **429**: AutoRef chosen and its quota is used up
+         *     - **502**: AutoRef rejected the key or failed; NHTSA failed
+         *     - **503/504**: the chosen decoder can't be reached or timed out
          */
         post: operations["decode_vin_api_vin_decode_post"];
         delete?: never;
@@ -8159,6 +8181,28 @@ export interface paths {
          *     - **500**: NHTSA API error or service unavailable
          */
         get: operations["decode_vin_get_api_vin_decode__vin__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/vin/providers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Vin Providers
+         * @description The decoders this instance can use and which one Automatic asks first.
+         *
+         *     Open to every user: the settings behind it are admin-only.
+         */
+        get: operations["vin_providers_api_vin_providers_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -8761,6 +8805,30 @@ export interface components {
              * @description URL to view the file inline
              */
             view_url: string;
+        };
+        /**
+         * AutoRefTestRequest
+         * @description An AutoRef key to test; null or the mask tests the stored one.
+         */
+        AutoRefTestRequest: {
+            /** Api Key */
+            api_key?: string | null;
+        };
+        /**
+         * AutoRefTestResponse
+         * @description Whether AutoRef accepts the key, and what's left of its plan.
+         */
+        AutoRefTestResponse: {
+            /** Limit */
+            limit?: number | null;
+            /** Message */
+            message: string;
+            /** Plan */
+            plan?: string | null;
+            /** Remaining */
+            remaining?: number | null;
+            /** Valid */
+            valid: boolean;
         };
         /**
          * BackfillResultResponse
@@ -19804,6 +19872,16 @@ export interface components {
          */
         VINDecodeRequest: {
             /**
+             * Country
+             * @description The country deciding which decoder Automatic asks first (the vehicle's registration country, else the person's); omitted reads the account's
+             */
+            country?: string | null;
+            /**
+             * Provider
+             * @description The decoder the person chose. Omitted means Automatic: the preferred decoder first, NHTSA when AutoRef has no answer
+             */
+            provider?: ("nhtsa" | "autoref") | null;
+            /**
              * Vin
              * @description 17-character Vehicle Identification Number
              */
@@ -19846,6 +19924,11 @@ export interface components {
              */
             decode_quality?: ("full" | "partial" | "wmi_only" | "none") | null;
             /**
+             * Decoded By
+             * @description Which decoder answered: nhtsa or autoref
+             */
+            decoded_by?: ("nhtsa" | "autoref") | null;
+            /**
              * Doors
              * @description Number of doors
              */
@@ -19884,9 +19967,9 @@ export interface components {
             make?: string | null;
             /**
              * Make Source
-             * @description Where `make` came from: NHTSA's answer or the bundled WMI table
+             * @description Where `make` came from: NHTSA's answer, AutoRef's, or the bundled WMI table
              */
-            make_source?: ("nhtsa" | "wmi") | null;
+            make_source?: ("nhtsa" | "wmi" | "autoref") | null;
             /**
              * Manufacturer
              * @description Manufacturer name
@@ -19899,7 +19982,7 @@ export interface components {
             model?: string | null;
             /**
              * Notes
-             * @description Why the answer is partial: eu_vin_no_model, year_unreliable, check_digit_not_applicable
+             * @description What to check: eu_vin_no_model, year_unreliable, check_digit_not_applicable; autoref_best_guess, autoref_external_record; and when Automatic fell back to NHTSA, autoref_no_match, autoref_key_rejected, autoref_quota, autoref_unavailable
              */
             notes?: string[];
             /**
@@ -19954,6 +20037,23 @@ export interface components {
              * @description Model year
              */
             year?: number | null;
+        };
+        /**
+         * VINProvidersResponse
+         * @description The decoders this instance can use, and which one Automatic asks first.
+         */
+        VINProvidersResponse: {
+            /**
+             * Available
+             * @description nhtsa always; autoref when it has a key
+             */
+            available: ("nhtsa" | "autoref")[];
+            /**
+             * Preferred
+             * @description The decoder Automatic asks first
+             * @enum {string}
+             */
+            preferred: "nhtsa" | "autoref";
         };
         /** ValidationError */
         ValidationError: {
@@ -35770,6 +35870,39 @@ export interface operations {
             };
         };
     };
+    test_autoref_key_api_vin_autoref_test_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AutoRefTestRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutoRefTestResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     decode_vin_api_vin_decode_post: {
         parameters: {
             query?: never;
@@ -35821,6 +35954,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["VINDecodeResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    vin_providers_api_vin_providers_get: {
+        parameters: {
+            query?: {
+                /** @description ISO 3166-1 alpha-2; omitted reads the account's */
+                country?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VINProvidersResponse"];
                 };
             };
             /** @description Validation Error */

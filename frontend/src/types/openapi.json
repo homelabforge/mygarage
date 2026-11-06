@@ -1560,6 +1560,77 @@
         "title": "AttachmentResponse",
         "type": "object"
       },
+      "AutoRefTestRequest": {
+        "description": "An AutoRef key to test; null or the mask tests the stored one.",
+        "properties": {
+          "api_key": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Api Key"
+          }
+        },
+        "title": "AutoRefTestRequest",
+        "type": "object"
+      },
+      "AutoRefTestResponse": {
+        "description": "Whether AutoRef accepts the key, and what's left of its plan.",
+        "properties": {
+          "limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Limit"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "plan": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plan"
+          },
+          "remaining": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remaining"
+          },
+          "valid": {
+            "title": "Valid",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "valid",
+          "message"
+        ],
+        "title": "AutoRefTestResponse",
+        "type": "object"
+      },
       "BackfillResultResponse": {
         "description": "Schema for SD-card backfill trigger response.",
         "properties": {
@@ -29069,6 +29140,34 @@
           }
         ],
         "properties": {
+          "country": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The country deciding which decoder Automatic asks first (the vehicle's registration country, else the person's); omitted reads the account's",
+            "title": "Country"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "enum": [
+                  "nhtsa",
+                  "autoref"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The decoder the person chose. Omitted means Automatic: the preferred decoder first, NHTSA when AutoRef has no answer",
+            "title": "Provider"
+          },
           "vin": {
             "description": "17-character Vehicle Identification Number",
             "maxLength": 17,
@@ -29138,6 +29237,22 @@
             ],
             "description": "How much NHTSA itself decoded, before the WMI table fills anything. full: make and model; partial: make only; wmi_only: NHTSA named no make and the VIN's first three characters did; none: nothing",
             "title": "Decode Quality"
+          },
+          "decoded_by": {
+            "anyOf": [
+              {
+                "enum": [
+                  "nhtsa",
+                  "autoref"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Which decoder answered: nhtsa or autoref",
+            "title": "Decoded By"
           },
           "doors": {
             "anyOf": [
@@ -29239,7 +29354,8 @@
               {
                 "enum": [
                   "nhtsa",
-                  "wmi"
+                  "wmi",
+                  "autoref"
                 ],
                 "type": "string"
               },
@@ -29247,7 +29363,7 @@
                 "type": "null"
               }
             ],
-            "description": "Where `make` came from: NHTSA's answer or the bundled WMI table",
+            "description": "Where `make` came from: NHTSA's answer, AutoRef's, or the bundled WMI table",
             "title": "Make Source"
           },
           "manufacturer": {
@@ -29275,7 +29391,7 @@
             "title": "Model"
           },
           "notes": {
-            "description": "Why the answer is partial: eu_vin_no_model, year_unreliable, check_digit_not_applicable",
+            "description": "What to check: eu_vin_no_model, year_unreliable, check_digit_not_applicable; autoref_best_guess, autoref_external_record; and when Automatic fell back to NHTSA, autoref_no_match, autoref_key_rejected, autoref_quota, autoref_unavailable",
             "items": {
               "type": "string"
             },
@@ -29411,6 +29527,38 @@
           "vin"
         ],
         "title": "VINDecodeResponse",
+        "type": "object"
+      },
+      "VINProvidersResponse": {
+        "description": "The decoders this instance can use, and which one Automatic asks first.",
+        "properties": {
+          "available": {
+            "description": "nhtsa always; autoref when it has a key",
+            "items": {
+              "enum": [
+                "nhtsa",
+                "autoref"
+              ],
+              "type": "string"
+            },
+            "title": "Available",
+            "type": "array"
+          },
+          "preferred": {
+            "description": "The decoder Automatic asks first",
+            "enum": [
+              "nhtsa",
+              "autoref"
+            ],
+            "title": "Preferred",
+            "type": "string"
+          }
+        },
+        "required": [
+          "available",
+          "preferred"
+        ],
+        "title": "VINProvidersResponse",
         "type": "object"
       },
       "ValidationError": {
@@ -58865,9 +59013,56 @@
         ]
       }
     },
+    "/api/vin/autoref/test": {
+      "post": {
+        "description": "Check an AutoRef key against `/usage`, which costs no quota (admin only).\n\nA null key or the mask tests the stored one. Every failure is a 200 with\n`valid: false`; the key never reaches a log line or an error.",
+        "operationId": "test_autoref_key_api_vin_autoref_test_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AutoRefTestRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AutoRefTestResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Test Autoref Key",
+        "tags": [
+          "VIN"
+        ]
+      }
+    },
     "/api/vin/decode": {
       "post": {
-        "description": "Decode a VIN using the NHTSA vPIC API.\n\nThis endpoint validates the VIN format and queries the NHTSA database\nto retrieve vehicle information including make, model, year, engine specs,\nand other details.\n\n**Args:**\n- **vin**: 17-character Vehicle Identification Number\n\n**Returns:**\n- Vehicle information decoded from the VIN\n\n**Raises:**\n- **400**: Invalid VIN format\n- **500**: NHTSA API error or service unavailable",
+        "description": "Decode a VIN with NHTSA or AutoRef.\n\nWithout `provider` (Automatic) the preferred decoder answers first: AutoRef\nfor a European country when it has a key, NHTSA otherwise and for every\nNorth American VIN. An AutoRef miss or error then asks NHTSA and says so in\n`notes`. A chosen `provider` runs alone.\n\n**Raises:**\n- **400**: Invalid VIN format\n- **404**: AutoRef chosen and it has no record for this VIN\n- **409**: AutoRef chosen and it isn't configured\n- **429**: AutoRef chosen and its quota is used up\n- **502**: AutoRef rejected the key or failed; NHTSA failed\n- **503/504**: the chosen decoder can't be reached or timed out",
         "operationId": "decode_vin_api_vin_decode_post",
         "requestBody": {
           "content": {
@@ -58955,6 +59150,63 @@
           }
         ],
         "summary": "Decode Vin Get",
+        "tags": [
+          "VIN"
+        ]
+      }
+    },
+    "/api/vin/providers": {
+      "get": {
+        "description": "The decoders this instance can use and which one Automatic asks first.\n\nOpen to every user: the settings behind it are admin-only.",
+        "operationId": "vin_providers_api_vin_providers_get",
+        "parameters": [
+          {
+            "description": "ISO 3166-1 alpha-2; omitted reads the account's",
+            "in": "query",
+            "name": "country",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "ISO 3166-1 alpha-2; omitted reads the account's",
+              "title": "Country"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VINProvidersResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Vin Providers",
         "tags": [
           "VIN"
         ]

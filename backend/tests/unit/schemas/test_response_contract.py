@@ -567,6 +567,22 @@ COMPUTED_VOCAB: dict[tuple[str, str], tuple[str, str]] = {
         "app.services.vin_decoder.enrich",
         "a constant per branch",
     ),
+    # Which decoder answered (#219 takeover): enrich copies decode()'s
+    # `source`, a Provider literal set on each branch.
+    ("VINDecodeResponse", "decoded_by"): (
+        "app.services.vin_decoder.enrich",
+        "a constant per branch",
+    ),
+    # The provider list and Automatic's pick are worked out per request from
+    # the settings, never read from a row.
+    ("VINProvidersResponse", "available"): (
+        "app.services.vin_decoder.available_providers",
+        "a constant per branch",
+    ),
+    ("VINProvidersResponse", "preferred"): (
+        "app.services.vin_decoder.preferred_provider",
+        "a constant per branch",
+    ),
     ("LezRules", "scheme"): (_COUNTRY_PROFILE_LOADER, "shipped data, validated on load"),
     ("NoClaimsScheme", "scheme"): (_COUNTRY_PROFILE_LOADER, "shipped data, validated on load"),
     ("InspectionSchedule", "vehicle_types"): (

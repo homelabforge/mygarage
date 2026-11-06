@@ -185,7 +185,7 @@ class TestDecode:
         with patch("app.services.nhtsa.httpx.AsyncClient", _client):
             result = await vin_decoder.decode(MERCEDES_VIN, NHTSAService())
         assert result["year"] == 2013
-        assert result["make"] == "MERCEDES-BENZ"
+        assert result["make"] == "Mercedes-Benz"
         assert result["decode_quality"] == "full"
         assert result["make_source"] == "nhtsa"
 
