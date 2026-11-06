@@ -1470,10 +1470,25 @@
     "nothingDecoded": "This VIN could not be decoded. Type the vehicle's details, or import the registration certificate.",
     "importCertificate": "Import the registration certificate",
     "fieldWmiCountry": "Built in:",
+    "decodeWith": "Decode with",
+    "providerAutomatic": "Automatic ({{first}} first)",
+    "providers": {
+      "nhtsa": "NHTSA",
+      "autoref": "AutoRef"
+    },
+    "tryAutoRef": "Try AutoRef",
+    "tryNhtsa": "Try NHTSA",
+    "decodedBy": "Decoded by {{provider}}",
     "notes": {
       "eu_vin_no_model": "European VINs do not encode the model.",
       "year_unreliable": "Position 10 is not a model year for this maker; the year was left blank.",
-      "check_digit_not_applicable": "The check digit is a North American rule and does not apply to this VIN."
+      "check_digit_not_applicable": "The check digit is a North American rule and does not apply to this VIN.",
+      "autoref_best_guess": "Best match from AutoRef; check the model and engine.",
+      "autoref_external_record": "From the UK or US vehicle registry, as written there.",
+      "autoref_no_match": "AutoRef had no record for this VIN, so NHTSA answered.",
+      "autoref_key_rejected": "AutoRef rejected the API key, so NHTSA answered. Check the key in Settings.",
+      "autoref_quota": "AutoRef's monthly quota is used up, so NHTSA answered.",
+      "autoref_unavailable": "AutoRef could not be reached, so NHTSA answered."
     }
   },
   "tireList": {

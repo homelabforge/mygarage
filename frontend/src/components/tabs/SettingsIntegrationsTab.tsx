@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { CheckCircle, AlertCircle, Plug, Shield, Radio, HelpCircle, Webhook, Sparkles, Settings, Fuel } from 'lucide-react'
+import { CheckCircle, AlertCircle, Plug, Shield, Radio, HelpCircle, Webhook, Sparkles, Settings, Fuel, ScanSearch } from 'lucide-react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useSettings } from '@/contexts/SettingsContext'
 import { useCanManageInstance } from '@/hooks/useCanManageInstance'
 import api from '@/services/api'
@@ -36,6 +37,7 @@ type SettingsResponse = {
 }
 
 type LlmTestResult = components['schemas']['LlmTestResponse']
+type AutoRefTestResult = components['schemas']['AutoRefTestResponse']
 
 // The base URL each preset fills in. `custom` fills nothing. The vocabulary
 // is the backend's `LLM_PROVIDER_PRESETS`; a value outside it is a 422.
@@ -130,6 +132,7 @@ function IntegrationsAdminView(): React.ReactElement {
   const { t } = useTranslation('settings')
   const [loading, setLoading] = useState(true)
   const { triggerSave, registerSaveHandler, unregisterSaveHandler } = useSettings()
+  const queryClient = useQueryClient()
   const [testing, setTesting] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
   // Which card's "About" help sidecar is open (null = closed).
@@ -151,6 +154,8 @@ function IntegrationsAdminView(): React.ReactElement {
     carcomplaints_enabled: 'true',
     tomtom_api_key: '',
     tomtom_enabled: 'false',
+    autoref_enabled: 'false',
+    autoref_api_key: '',
     webhook_ingest_token: '',
     llm_receipt_parse_enabled: 'false',
     llm_garage_assistant_enabled: 'false',
@@ -167,6 +172,7 @@ function IntegrationsAdminView(): React.ReactElement {
   })
   const [loadedFormData, setLoadedFormData] = useState<typeof formData | null>(null)
   const [llmTesting, setLlmTesting] = useState(false)
+  const [autorefTesting, setAutorefTesting] = useState(false)
 
   const loadSettings = useCallback(async () => {
     try {
@@ -186,6 +192,8 @@ function IntegrationsAdminView(): React.ReactElement {
         carcomplaints_enabled: settingsMap['carcomplaints_enabled'] || 'true',
         tomtom_api_key: settingsMap['tomtom_api_key'] || '',
         tomtom_enabled: settingsMap['tomtom_enabled'] || 'false',
+        autoref_enabled: settingsMap['autoref_enabled'] || 'false',
+        autoref_api_key: settingsMap['autoref_api_key'] || '',
         webhook_ingest_token: settingsMap['webhook_ingest_token'] || '',
         llm_receipt_parse_enabled: settingsMap['llm_receipt_parse_enabled'] || 'false',
         llm_garage_assistant_enabled: settingsMap['llm_garage_assistant_enabled'] || 'false',
@@ -224,6 +232,8 @@ function IntegrationsAdminView(): React.ReactElement {
         carcomplaints_enabled: formData.carcomplaints_enabled,
         tomtom_api_key: formData.tomtom_api_key,
         tomtom_enabled: formData.tomtom_enabled,
+        autoref_enabled: formData.autoref_enabled,
+        autoref_api_key: formData.autoref_api_key,
         webhook_ingest_token: formData.webhook_ingest_token,
         llm_receipt_parse_enabled: formData.llm_receipt_parse_enabled,
         llm_garage_assistant_enabled: formData.llm_garage_assistant_enabled,
@@ -239,7 +249,10 @@ function IntegrationsAdminView(): React.ReactElement {
         fuel_prices_api_url: formData.fuel_prices_api_url,
       },
     })
-  }, [formData])
+    // The VIN input asks which decoders exist; an AutoRef key saved or
+    // cleared here changes the answer (R1-F5).
+    void queryClient.invalidateQueries({ queryKey: ['vin-providers'] })
+  }, [formData, queryClient])
 
   // Register save handler
   useEffect(() => {
@@ -300,6 +313,35 @@ function IntegrationsAdminView(): React.ReactElement {
       setMessage({ type: 'error', text: t('integrations.llmTestFailed', { message: '' }) })
     } finally {
       setLlmTesting(false)
+    }
+  }
+
+  // The key in the form: a typed one is tested as typed, the mask tests the
+  // stored one. /usage costs no quota. Every failure is a 200 with
+  // `valid: false` and the server's sentence.
+  const handleTestAutoref = async () => {
+    setAutorefTesting(true)
+    setMessage(null)
+    try {
+      const { data } = await api.post<AutoRefTestResult>('/vin/autoref/test', {
+        api_key: formData.autoref_api_key || null,
+      })
+      if (data.valid) {
+        setMessage({
+          type: 'success',
+          text: t('integrations.autorefTestOk', {
+            plan: data.plan ?? '',
+            remaining: data.remaining ?? '?',
+            limit: data.limit ?? '?',
+          }),
+        })
+      } else {
+        setMessage({ type: 'error', text: t('integrations.autorefTestFailed', { message: data.message }) })
+      }
+    } catch {
+      setMessage({ type: 'error', text: t('integrations.autorefTestFailed', { message: '' }) })
+    } finally {
+      setAutorefTesting(false)
     }
   }
 
@@ -597,6 +639,53 @@ function IntegrationsAdminView(): React.ReactElement {
             </p>
           </div>
         </div>
+        </IntegrationCard>
+
+        {/* AutoRef (#219): European VIN decoding, next to NHTSA. Paid, with a
+            free test tier; the help text says what leaves the instance. */}
+        <IntegrationCard
+          icon={ScanSearch}
+          title={t('integrations.autoref')}
+          description={t('integrations.autorefDesc')}
+        >
+          <div className="space-y-6">
+            <div>
+              <Toggle
+                label={t('integrations.enableAutoref')}
+                checked={isSettingOn(formData.autoref_enabled, false)}
+                onChange={(next) => setFormData({ ...formData, autoref_enabled: next ? 'true' : 'false' })}
+              />
+              <p className="mt-1 ml-14 text-sm text-garage-text-muted">
+                {t('integrations.enableAutorefDesc')}
+              </p>
+            </div>
+            <div>
+              <label htmlFor="autoref_api_key" className="block text-sm font-medium text-garage-text mb-2">
+                {t('integrations.autorefApiKey')}
+              </label>
+              <input
+                type="password"
+                id="autoref_api_key"
+                value={formData.autoref_api_key}
+                disabled={!isSettingOn(formData.autoref_enabled, false)}
+                onChange={(e) => setFormData({ ...formData, autoref_api_key: e.target.value })}
+                className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-lg text-garage-text focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50 font-mono text-sm"
+                autoComplete="off"
+              />
+              <p className="mt-1 text-sm text-garage-text-muted">{t('integrations.autorefApiKeyDesc')}</p>
+            </div>
+            <div className="pt-4 border-t border-garage-border">
+              <button
+                onClick={handleTestAutoref}
+                disabled={autorefTesting || !isSettingOn(formData.autoref_enabled, false)}
+                className="flex items-center gap-2 btn btn-primary rounded-lg transition-colors disabled:opacity-50"
+              >
+                <CheckCircle size={16} />
+                {autorefTesting ? t('integrations.testingConnection') : t('integrations.testAutoref')}
+              </button>
+              <p className="mt-2 text-sm text-garage-text-muted">{t('integrations.testAutorefDesc')}</p>
+            </div>
+          </div>
         </IntegrationCard>
 
         <IntegrationCard

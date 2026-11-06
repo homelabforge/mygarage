@@ -529,6 +529,7 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
                     onDecode={handleVinDecode}
                     autoValidate={true}
                     checkDuplicate={true}
+                    registrationCountry={formData.registration_country}
                     onImportCertificate={() =>
                       certificateCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
                     }

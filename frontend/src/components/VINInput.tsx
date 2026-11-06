@@ -4,20 +4,40 @@
 
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useQuery } from '@tanstack/react-query'
 import { Search, Check, X, Loader2, Info, FileText } from 'lucide-react'
 import { vinService } from '@/services/vinService'
 import { getActionErrorMessage } from '@/utils/httpErrorHandler'
-import { Card } from '@/components/ui'
+import { Card, Select } from '@/components/ui'
 import { asCountryCode, countryName } from '@/constants/countries'
 import { useLanguageLocale } from '@/hooks/useLanguageLocale'
-import type { VINDecodeResponse } from '@/types/vin'
+import { useResolvedCountry } from '@/hooks/useResolvedCountry'
+import type { VINDecodeResponse, VINProvider } from '@/types/vin'
 
-/** The decoder's notes (#211), each with its own translated sentence. */
+/** The decoder's notes (#211, #219), each with its own translated sentence. */
 const NOTE_LABEL_KEYS: Record<string, string> = {
   eu_vin_no_model: 'vinInput.notes.eu_vin_no_model',
   year_unreliable: 'vinInput.notes.year_unreliable',
   check_digit_not_applicable: 'vinInput.notes.check_digit_not_applicable',
+  autoref_best_guess: 'vinInput.notes.autoref_best_guess',
+  autoref_external_record: 'vinInput.notes.autoref_external_record',
+  autoref_no_match: 'vinInput.notes.autoref_no_match',
+  autoref_key_rejected: 'vinInput.notes.autoref_key_rejected',
+  autoref_quota: 'vinInput.notes.autoref_quota',
+  autoref_unavailable: 'vinInput.notes.autoref_unavailable',
 }
+
+/** Shown on a full answer too: what the decoder itself wants checked. The
+ *  VIN-structure notes (the check digit fires for most European VINs) stay in
+ *  the partial banner. */
+const isDecoderNote = (note: string): boolean => note.startsWith('autoref_')
+
+const PROVIDER_LABEL_KEYS: Record<VINProvider, string> = {
+  nhtsa: 'vinInput.providers.nhtsa',
+  autoref: 'vinInput.providers.autoref',
+}
+
+type ProviderChoice = 'automatic' | VINProvider
 
 interface VINInputProps {
   value: string
@@ -38,6 +58,9 @@ interface VINInputProps {
    * Absent, no button.
    */
   onImportCertificate?: () => void
+  /** The vehicle's registration country, which orders the decoders (#219).
+   *  Absent, the person's own country or the instance's is used. */
+  registrationCountry?: string | null
 }
 
 export default function VINInput({
@@ -48,6 +71,7 @@ export default function VINInput({
   className = '',
   checkDuplicate = false,
   onImportCertificate,
+  registrationCountry,
 }: VINInputProps) {
   const { t } = useTranslation('vehicles')
   const locale = useLanguageLocale()
@@ -59,6 +83,19 @@ export default function VINInput({
   const [errorMessage, setErrorMessage] = useState<string>('')
   const [duplicateWarning, setDuplicateWarning] = useState<string>('')
   const [decodedData, setDecodedData] = useState<VINDecodeResponse | null>(null)
+  // Automatic sends no provider, so the backend may fall back (Codex R1-M1);
+  // only a deliberate choice here, or a Try button, names one.
+  const [choice, setChoice] = useState<ProviderChoice>('automatic')
+  const [tryError, setTryError] = useState<string>('')
+  const country = useResolvedCountry({ registration_country: registrationCountry })
+  const { data: providers } = useQuery({
+    queryKey: ['vin-providers', country],
+    queryFn: () => vinService.providers(country),
+    staleTime: 5 * 60 * 1000,
+  })
+  const available = providers?.available ?? ['nhtsa']
+  const hasChoice = available.includes('autoref')
+  const preferred = providers?.preferred ?? 'nhtsa'
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '')
@@ -67,6 +104,7 @@ export default function VINInput({
     setErrorMessage('')
     setDuplicateWarning('')
     setDecodedData(null)
+    setTryError('')
 
     // Auto-validate when 17 characters
     if (autoValidate && newValue.length === 17) {
@@ -134,15 +172,46 @@ export default function VINInput({
 
     setIsDecoding(true)
     setErrorMessage('')
+    setTryError('')
 
     try {
-      const data = await vinService.decode(value)
+      const data = await vinService.decode(value, {
+        ...(choice !== 'automatic' ? { provider: choice } : {}),
+        country,
+      })
       setDecodedData(data)
       if (onDecode) {
         onDecode(data)
       }
     } catch (err: unknown) {
       setErrorMessage(getActionErrorMessage(err, t('vinInput.decodeAction')))
+    } finally {
+      setIsDecoding(false)
+    }
+  }
+
+  // The other decoder, offered on a thin answer when it's available.
+  const otherProvider: VINProvider | null =
+    decodedData && decodedData.decode_quality && decodedData.decode_quality !== 'full'
+      ? decodedData.decoded_by === 'autoref'
+        ? 'nhtsa'
+        : 'autoref'
+      : null
+  const canTryOther = otherProvider !== null && available.includes(otherProvider)
+
+  // A failed try keeps the answer already on screen (Fable F-10): the wizard
+  // would otherwise blank the engine and body fields it filled.
+  const handleTryOther = async (provider: VINProvider) => {
+    setIsDecoding(true)
+    setTryError('')
+    try {
+      const data = await vinService.decode(value, { provider, country })
+      setDecodedData(data)
+      if (onDecode) {
+        onDecode(data)
+      }
+    } catch (err: unknown) {
+      setTryError(getActionErrorMessage(err, t('vinInput.decodeAction')))
     } finally {
       setIsDecoding(false)
     }
@@ -190,6 +259,23 @@ export default function VINInput({
         >
           {t('vinInput.characterCount', { current: value.length, max: 17 })}
         </span>
+        <div className="flex items-center gap-2">
+        {hasChoice && (
+          <Select
+            size="sm"
+            aria-label={t('vinInput.decodeWith')}
+            value={choice}
+            onChange={(e) => setChoice(e.target.value as ProviderChoice)}
+            options={[
+              {
+                value: 'automatic',
+                label: t('vinInput.providerAutomatic', { first: t(PROVIDER_LABEL_KEYS[preferred]) }),
+              },
+              { value: 'nhtsa', label: t(PROVIDER_LABEL_KEYS.nhtsa) },
+              { value: 'autoref', label: t(PROVIDER_LABEL_KEYS.autoref) },
+            ]}
+          />
+        )}
         <button
           onClick={handleDecode}
           disabled={value.length !== 17 || isDecoding}
@@ -207,6 +293,7 @@ export default function VINInput({
             </>
           )}
         </button>
+        </div>
       </div>
 
       {/* Error message */}
@@ -253,6 +340,22 @@ export default function VINInput({
                 ))}
               </ul>
             )}
+            {canTryOther && otherProvider && (
+              <button
+                type="button"
+                onClick={() => void handleTryOther(otherProvider)}
+                disabled={isDecoding}
+                className="mr-4 inline-flex items-center gap-1 text-sm font-medium text-(--accent-fg) underline-offset-2 hover:underline disabled:opacity-50"
+              >
+                <Search aria-hidden="true" className="h-4 w-4" />
+                {otherProvider === 'autoref' ? t('vinInput.tryAutoRef') : t('vinInput.tryNhtsa')}
+              </button>
+            )}
+            {tryError && (
+              <p data-testid="vin-try-error" className="text-xs text-danger-500">
+                {tryError}
+              </p>
+            )}
             {onImportCertificate && (
               <button
                 type="button"
@@ -267,10 +370,31 @@ export default function VINInput({
         </div>
       )}
 
+      {/* A full answer can still carry the decoder's own caveats (#219): a
+          best guess among several matches, a registry record, a fallback. */}
+      {decodedData && !errorMessage && decodedData.decode_quality === 'full' &&
+        (decodedData.notes ?? []).some(isDecoderNote) && (
+        <ul
+          data-testid="vin-full-notes"
+          className="list-disc pl-5 text-xs text-text-mute"
+        >
+          {(decodedData.notes ?? []).filter(isDecoderNote).map((note) => (
+            <li key={note}>{t(NOTE_LABEL_KEYS[note] ?? note)}</li>
+          ))}
+        </ul>
+      )}
+
       {/* Decoded data display */}
       {decodedData && !errorMessage && (
         <Card className="bg-surface-2">
-          <h4 className="text-lg font-semibold mb-3">{t('vinInput.decodedTitle')}</h4>
+          <h4 className={`text-lg font-semibold ${decodedData.decoded_by ? 'mb-1' : 'mb-3'}`}>
+            {t('vinInput.decodedTitle')}
+          </h4>
+          {decodedData.decoded_by && (
+            <p className="mb-3 text-xs text-text-mute">
+              {t('vinInput.decodedBy', { provider: t(PROVIDER_LABEL_KEYS[decodedData.decoded_by]) })}
+            </p>
+          )}
           <div className="grid grid-cols-2 gap-3 text-sm">
             {decodedData.year && (
               <div>

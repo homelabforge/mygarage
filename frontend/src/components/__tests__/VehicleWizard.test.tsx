@@ -11,6 +11,7 @@ vi.mock('@/services/vinService', () => ({
     validate: vi.fn().mockResolvedValue({ valid: true, vin: '1HGCM82633A004352' }),
     decode: vi.fn(),
     exists: vi.fn().mockResolvedValue(false),
+    providers: vi.fn().mockResolvedValue({ available: ['nhtsa'], preferred: 'nhtsa' }),
   },
 }))
 
@@ -68,7 +69,7 @@ async function decodeWithEngine(engine: VINDecodeResponse['engine']): Promise<vo
   await waitFor(() => expect(decodeButton).not.toBeDisabled())
   fireEvent.click(decodeButton)
 
-  await waitFor(() => expect(mockedVinService.decode).toHaveBeenCalledWith(TEST_VIN))
+  await waitFor(() => expect(mockedVinService.decode.mock.calls[0]?.[0]).toBe(TEST_VIN))
 
   const nextButton = await screen.findByRole('button', { name: 'wizard.next' })
   fireEvent.click(nextButton)
