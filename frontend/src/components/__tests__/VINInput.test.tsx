@@ -77,6 +77,31 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { vinService } from '@/services/vinService'
 
 describe('VINInput — European VINs (#211)', () => {
+  // A Porsche's VIN carries the year (NHTSA read 2019), so the notice can't
+  // say it doesn't (dev test 2026-11-06).
+  it.each([
+    ['EU', 'vinInput.euNoModel'],
+    [null, 'vinInput.partialNoModel'],
+  ])('only asks for the model when the year decoded (region %s)', async (region, key) => {
+    vi.mocked(vinService.decode).mockResolvedValue({
+      vin: 'WP1ZZZ95ZKLB15431',
+      make: 'Porsche',
+      model: null,
+      year: 2019,
+      region,
+      decode_quality: 'partial',
+      notes: [],
+    })
+    render(<VINInput value="WP1ZZZ95ZKLB15431" onChange={vi.fn()} onDecode={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: /vinInput.decode/ }))
+
+    const notice = await screen.findByTestId('vin-partial-decode')
+    expect(notice).toHaveTextContent(key)
+    expect(notice).not.toHaveTextContent('vinInput.euPartial')
+    expect(notice).not.toHaveTextContent('vinInput.partialDecode')
+  })
+
   it('explains a partial decode and offers the certificate import', async () => {
     vi.mocked(vinService.decode).mockResolvedValue({
       vin: 'VF1RFB00X56123456',

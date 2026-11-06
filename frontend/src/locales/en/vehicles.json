@@ -1467,6 +1467,8 @@
     "validateFailed": "Failed to validate VIN",
     "euPartial": "European VIN: the maker is {{make}}, but the VIN does not carry the model or the year. Type them, or import the registration certificate.",
     "partialDecode": "Partial decode: the maker is {{make}}. Type the model and the year.",
+    "euNoModel": "European VIN: the maker is {{make}} and the year {{year}}, but the VIN does not carry the model. Type it, or import the registration certificate.",
+    "partialNoModel": "Partial decode: the maker is {{make}} and the year {{year}}. Type the model.",
     "nothingDecoded": "This VIN could not be decoded. Type the vehicle's details, or import the registration certificate.",
     "importCertificate": "Import the registration certificate",
     "fieldWmiCountry": "Built in:",

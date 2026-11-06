@@ -347,11 +347,18 @@ export default function VINInput({
           <Info aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-(--accent-fg)" />
           <div className="space-y-2">
             <p>
-              {decodedData.make
-                ? decodedData.region === 'EU'
-                  ? t('vinInput.euPartial', { make: decodedData.make })
-                  : t('vinInput.partialDecode', { make: decodedData.make })
-                : t('vinInput.nothingDecoded')}
+              {/* Partial means no model. Some makers put the year in the VIN
+                  (a Porsche reads 2019), so ask for it only when it's missing. */}
+              {!decodedData.make
+                ? t('vinInput.nothingDecoded')
+                : decodedData.year
+                  ? t(decodedData.region === 'EU' ? 'vinInput.euNoModel' : 'vinInput.partialNoModel', {
+                      make: decodedData.make,
+                      year: decodedData.year,
+                    })
+                  : t(decodedData.region === 'EU' ? 'vinInput.euPartial' : 'vinInput.partialDecode', {
+                      make: decodedData.make,
+                    })}
             </p>
             {decodedData.notes && decodedData.notes.length > 0 && (
               <ul className="list-disc pl-5 text-xs text-text-mute">

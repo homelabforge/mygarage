@@ -580,6 +580,56 @@ describe('VehicleWizard: make and model pickers', () => {
     expect(screen.getByLabelText('wizard.trim')).toHaveValue('Initiale')
   })
 
+  // NHTSA reads a Porsche's year from the VIN and no model; AutoRef the model
+  // and no year. The nickname the first answer wrote isn't the person's, so
+  // the second answer rewrites it (dev test 2026-11-06 saved "2019 Porsche").
+  function mockPorscheAnswers(): void {
+    mockedVinService.providers.mockResolvedValue({ available: ['nhtsa', 'autoref'], preferred: 'nhtsa' })
+    mockedVinService.decode
+      .mockResolvedValueOnce({ vin: TEST_VIN, year: 2019, make: 'Porsche', model: null,
+                               decode_quality: 'partial', decoded_by: 'nhtsa' })
+      .mockResolvedValueOnce({ vin: TEST_VIN, year: null, make: 'Porsche', model: 'Macan',
+                               decode_quality: 'full', decoded_by: 'autoref' })  // prettier-ignore
+  }
+
+  async function decode(): Promise<void> {
+    const decodeButton = await screen.findByRole('button', { name: 'vinInput.decode' })
+    await waitFor(() => expect(decodeButton).not.toBeDisabled())
+    fireEvent.click(decodeButton)
+  }
+
+  async function toStep2(): Promise<void> {
+    await screen.findByText('vinInput.decodedBy')
+    fireEvent.click(await screen.findByRole('button', { name: 'wizard.next' }))
+    await screen.findByLabelText('wizard.fuelType')
+  }
+
+  it("a second decoder's model goes into the nickname the wizard wrote", async () => {
+    mockPorscheAnswers()
+    renderAndEnterVin()
+    await decode()
+    fireEvent.click(await screen.findByRole('button', { name: 'vinInput.tryAutoRef' }))
+    await waitFor(() => expect(mockedVinService.decode).toHaveBeenCalledTimes(2))
+    await toStep2()
+
+    expect(screen.getByLabelText(/^wizard\.nickname/)).toHaveValue('2019 Porsche Macan')
+  })
+
+  it('a nickname the person typed stays through a second decode', async () => {
+    mockPorscheAnswers()
+    renderAndEnterVin()
+    await decode()
+    await toStep2()
+    fireEvent.change(screen.getByLabelText(/^wizard\.nickname/), { target: { value: 'Red one' } })
+    fireEvent.click(screen.getByRole('button', { name: 'wizard.misc.previous' }))
+    await decode()
+    await waitFor(() => expect(mockedVinService.decode).toHaveBeenCalledTimes(2))
+    await toStep2()
+
+    expect(screen.getByLabelText('wizard.model')).toHaveValue('Macan')
+    expect(screen.getByLabelText(/^wizard\.nickname/)).toHaveValue('Red one')
+  })
+
   it('keeps a make the catalog does not know', async () => {
     await goToStep2()
     const make = screen.getByLabelText('wizard.make')

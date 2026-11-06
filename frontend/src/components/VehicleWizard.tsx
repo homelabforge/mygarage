@@ -107,6 +107,18 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
     },
   })
 
+  // The nickname the wizard last wrote itself. A later decode or certificate
+  // rewrites that one with what it adds (NHTSA's year, then AutoRef's model);
+  // one the person typed stays.
+  const autoNickname = useRef<string | null>(null)
+  const fillNickname = (): void => {
+    const current = getValues('nickname')
+    if (current && current !== autoNickname.current) return
+    const next = `${getValues('year') || ''} ${getValues('make') || ''} ${getValues('model') || ''}`.trim()
+    autoNickname.current = next
+    setValue('nickname', next)
+  }
+
   // Wizard state
   const [vin, setVin] = useState('')
   // No VIN (#226): the server keys the vehicle itself, so nothing typed here
@@ -158,8 +170,6 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
 
   // Handle VIN decode - populate form with setValue
   const handleVinDecode = (data: VINDecodeResponse, options?: { fillOnly?: boolean }) => {
-    const currentNickname = getValues('nickname')
-    const generatedNickname = `${data.year || ''} ${data.make || ''} ${data.model || ''}`.trim()
     // A second decoder's answer (Try AutoRef / Try NHTSA) only adds: a field
     // it doesn't know keeps what the first answer or a certificate filled.
     const fillOnly = options?.fillOnly ?? false
@@ -173,7 +183,7 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
     if (data.year) setValue('year', data.year)
     if (data.make || !getValues('make')) setValue('make', data.make || null)
     if (data.model || !getValues('model')) setValue('model', data.model || null)
-    setValue('nickname', currentNickname || generatedNickname)
+    fillNickname()
     put('trim', data.trim || null)
     put('body_class', data.body_class || null)
     put('drive_type', data.drive_type || null)
@@ -233,9 +243,7 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
     if (firstRegistration && !getValues('year')) {
       setValue('year', Number(firstRegistration.slice(0, 4)))
     }
-    if (!getValues('nickname')) {
-      setValue('nickname', `${getValues('year') || ''} ${text('make') || ''} ${text('model') || ''}`.trim())
-    }
+    fillNickname()
 
     const extras: CertificateExtras = {}
     for (const key of CERTIFICATE_EXTRA_KEYS) {
