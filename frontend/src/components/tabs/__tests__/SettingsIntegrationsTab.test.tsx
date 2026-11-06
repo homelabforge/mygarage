@@ -14,7 +14,7 @@
 
 import { useEffect } from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { SettingsProvider, useSettings } from '@/contexts/SettingsContext'
 
@@ -124,6 +124,13 @@ function ActiveIntegrationsTab() {
     setCurrentTabId('integrations')
   }, [setCurrentTabId])
   return <SettingsIntegrationsTab />
+}
+
+// A Test result shows under the button that asked for it. The tab's top
+// banner sits screens above the lower cards (more on a phone), so a result
+// there read as no result at all.
+function besideButton(button: HTMLElement): ReturnType<typeof within> {
+  return within(button.parentElement as HTMLElement)
 }
 
 function renderTab(queryClient: QueryClient = new QueryClient()): void {
@@ -383,7 +390,7 @@ describe('the LLM card (#211)', () => {
 
     fireEvent.click(button)
 
-    expect(await screen.findByText('integrations.llmTestVisionOk')).toBeInTheDocument()
+    expect(await besideButton(button).findByText('integrations.llmTestVisionOk')).toBeInTheDocument()
     const urls = mockedApi.post.mock.calls.map(([url]) => url as string)
     const save = urls.indexOf('/settings/batch')
     const test = urls.lastIndexOf('/settings/test/llm')
@@ -414,7 +421,18 @@ describe('the LLM card (#211)', () => {
 
     fireEvent.click(button)
 
-    expect(await screen.findByText('integrations.llmTestFailed')).toBeInTheDocument()
+    expect(await besideButton(button).findByText('integrations.llmTestFailed')).toBeInTheDocument()
+  })
+})
+
+describe('the NHTSA card', () => {
+  it('shows the test result under its button', async () => {
+    renderTab()
+    const button = await screen.findByRole('button', { name: 'integrations.testNHTSA' })
+
+    fireEvent.click(button)
+
+    expect(await besideButton(button).findByText('integrations.nhtsaTestSuccess')).toBeInTheDocument()
   })
 })
 
@@ -461,12 +479,13 @@ describe('the AutoRef card', () => {
       }),
     )
     renderTab()
-    fireEvent.click(await screen.findByRole('button', { name: 'integrations.testAutoref' }))
+    const button = await screen.findByRole('button', { name: 'integrations.testAutoref' })
+    fireEvent.click(button)
 
     await waitFor(() =>
       expect(mockedApi.post).toHaveBeenCalledWith('/vin/autoref/test', { api_key: '********' }),
     )
-    expect(await screen.findByText('integrations.autorefTestOk')).toBeInTheDocument()
+    expect(await besideButton(button).findByText('integrations.autorefTestOk')).toBeInTheDocument()
   })
 
   it('says why a key failed', async () => {
@@ -484,8 +503,9 @@ describe('the AutoRef card', () => {
       }),
     )
     renderTab()
-    fireEvent.click(await screen.findByRole('button', { name: 'integrations.testAutoref' }))
+    const button = await screen.findByRole('button', { name: 'integrations.testAutoref' })
+    fireEvent.click(button)
 
-    expect(await screen.findByText('integrations.autorefTestFailed')).toBeInTheDocument()
+    expect(await besideButton(button).findByText('integrations.autorefTestFailed')).toBeInTheDocument()
   })
 })

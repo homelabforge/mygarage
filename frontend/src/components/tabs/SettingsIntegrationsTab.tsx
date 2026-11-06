@@ -5,6 +5,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useSettings } from '@/contexts/SettingsContext'
 import { useCanManageInstance } from '@/hooks/useCanManageInstance'
 import api from '@/services/api'
+import { vinService } from '@/services/vinService'
 import { isSettingOn } from '@/utils/settingSwitch'
 import WidgetKeysPanel from '../settings/WidgetKeysPanel'
 import { Card, IconButton, Select, Toggle, Drawer } from '../ui'
@@ -37,7 +38,27 @@ type SettingsResponse = {
 }
 
 type LlmTestResult = components['schemas']['LlmTestResponse']
-type AutoRefTestResult = components['schemas']['AutoRefTestResponse']
+type Notice = { type: 'success' | 'error'; text: string }
+type TestTarget = 'nhtsa' | 'llm' | 'autoref'
+
+// A Test button's answer goes right under it. The tab's banner sits at the
+// top, screens away from the lower cards on a phone, so a result up there
+// looked like the button did nothing.
+function TestResultNote({ result }: { result?: Notice }): React.ReactElement | null {
+  if (!result) return null
+  const Icon = result.type === 'success' ? CheckCircle : AlertCircle
+  return (
+    <p
+      role="status"
+      className={`mt-3 flex items-start gap-2 text-sm ${
+        result.type === 'success' ? 'text-success-500' : 'text-danger-500'
+      }`}
+    >
+      <Icon className="w-4 h-4 mt-0.5 shrink-0" />
+      <span>{result.text}</span>
+    </p>
+  )
+}
 
 // The base URL each preset fills in. `custom` fills nothing. The vocabulary
 // is the backend's `LLM_PROVIDER_PRESETS`; a value outside it is a 422.
@@ -134,7 +155,10 @@ function IntegrationsAdminView(): React.ReactElement {
   const { triggerSave, registerSaveHandler, unregisterSaveHandler } = useSettings()
   const queryClient = useQueryClient()
   const [testing, setTesting] = useState(false)
-  const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
+  const [message, setMessage] = useState<Notice | null>(null)
+  const [testResults, setTestResults] = useState<Partial<Record<TestTarget, Notice>>>({})
+  const showTestResult = (target: TestTarget, result: Notice | undefined): void =>
+    setTestResults((prev) => ({ ...prev, [target]: result }))
   // Which card's "About" help sidecar is open (null = closed).
   const [helpDrawer, setHelpDrawer] = useState<'carcomplaints' | 'livelink' | null>(null)
 
@@ -271,17 +295,14 @@ function IntegrationsAdminView(): React.ReactElement {
 
   const handleTestNHTSA = async () => {
     setTesting(true)
-    setMessage(null)
+    showTestResult('nhtsa', undefined)
 
     try {
       // Test NHTSA API by trying to decode a sample VIN
       await api.get(`/vin/decode/${TEST_VIN}`)
-
-      setMessage({ type: 'success', text: t('integrations.nhtsaTestSuccess') })
-      setTimeout(() => setMessage(null), 3000)
+      showTestResult('nhtsa', { type: 'success', text: t('integrations.nhtsaTestSuccess') })
     } catch {
-      // Removed console.error
-      setMessage({ type: 'error', text: t('integrations.nhtsaTestFailed') })
+      showTestResult('nhtsa', { type: 'error', text: t('integrations.nhtsaTestFailed') })
     } finally {
       setTesting(false)
     }
@@ -294,23 +315,23 @@ function IntegrationsAdminView(): React.ReactElement {
   // to our own backend lands in the catch.
   const handleTestLlm = async () => {
     setLlmTesting(true)
-    setMessage(null)
+    showTestResult('llm', undefined)
     try {
       await handleSave()
       const { data } = await api.post<LlmTestResult>('/settings/test/llm')
       if (data.valid) {
-        setMessage({
+        showTestResult('llm', {
           type: 'success',
           text: data.vision_ok ? t('integrations.llmTestVisionOk') : t('integrations.llmTestOk'),
         })
       } else {
-        setMessage({
+        showTestResult('llm', {
           type: 'error',
           text: t('integrations.llmTestFailed', { message: data.message }),
         })
       }
     } catch {
-      setMessage({ type: 'error', text: t('integrations.llmTestFailed', { message: '' }) })
+      showTestResult('llm', { type: 'error', text: t('integrations.llmTestFailed', { message: '' }) })
     } finally {
       setLlmTesting(false)
     }
@@ -321,13 +342,11 @@ function IntegrationsAdminView(): React.ReactElement {
   // `valid: false` and the server's sentence.
   const handleTestAutoref = async () => {
     setAutorefTesting(true)
-    setMessage(null)
+    showTestResult('autoref', undefined)
     try {
-      const { data } = await api.post<AutoRefTestResult>('/vin/autoref/test', {
-        api_key: formData.autoref_api_key || null,
-      })
+      const data = await vinService.testAutoRef(formData.autoref_api_key || null)
       if (data.valid) {
-        setMessage({
+        showTestResult('autoref', {
           type: 'success',
           text: t('integrations.autorefTestOk', {
             plan: data.plan ?? '',
@@ -336,10 +355,13 @@ function IntegrationsAdminView(): React.ReactElement {
           }),
         })
       } else {
-        setMessage({ type: 'error', text: t('integrations.autorefTestFailed', { message: data.message }) })
+        showTestResult('autoref', {
+          type: 'error',
+          text: t('integrations.autorefTestFailed', { message: data.message }),
+        })
       }
     } catch {
-      setMessage({ type: 'error', text: t('integrations.autorefTestFailed', { message: '' }) })
+      showTestResult('autoref', { type: 'error', text: t('integrations.autorefTestFailed', { message: '' }) })
     } finally {
       setAutorefTesting(false)
     }
@@ -540,6 +562,7 @@ function IntegrationsAdminView(): React.ReactElement {
                 <CheckCircle size={16} />
                 {llmTesting ? t('integrations.testingConnection') : t('integrations.llmTest')}
               </button>
+              <TestResultNote result={testResults.llm} />
             </div>
           </div>
         </IntegrationCard>
@@ -634,6 +657,7 @@ function IntegrationsAdminView(): React.ReactElement {
               <CheckCircle size={16} />
               {testing ? t('integrations.testingConnection') : t('integrations.testNHTSA')}
             </button>
+            <TestResultNote result={testResults.nhtsa} />
             <p className="mt-2 text-sm text-garage-text-muted">
               {t('integrations.testNHTSADesc')}
             </p>
@@ -683,6 +707,7 @@ function IntegrationsAdminView(): React.ReactElement {
                 <CheckCircle size={16} />
                 {autorefTesting ? t('integrations.testingConnection') : t('integrations.testAutoref')}
               </button>
+              <TestResultNote result={testResults.autoref} />
               <p className="mt-2 text-sm text-garage-text-muted">{t('integrations.testAutorefDesc')}</p>
             </div>
           </div>

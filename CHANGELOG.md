@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Equipment (Standard/Optional) shows on every vehicle but plain trailers, on phones too, not only after a window sticker.
+- The Test buttons in Settings > Integrations show their result under the button, not at the top of the page where it was easy to miss.
 
 ## [3.10.0] - 2026-11-05
 
