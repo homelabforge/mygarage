@@ -152,8 +152,15 @@ def vehicle_patch(data: RegistrationData) -> tuple[dict[str, Any], list[str]]:
             valid[key] = value
             continue
         value = fit_to_column(key, value, source="Registration certificate")
+        # The model reads its spelling under the make (ION is Peugeot's iOn),
+        # so it's checked with the make already accepted above it.
+        fields = (
+            {"make": valid["make"], key: value}
+            if key == "model" and "make" in valid
+            else {key: value}
+        )
         try:
-            checked = VehicleUpdate.model_validate({key: value})
+            checked = VehicleUpdate.model_validate(fields)
         except ValidationError as exc:
             reason = exc.errors()[0].get("msg", "invalid") if exc.errors() else "invalid"
             warnings.append(f"{key}: {value!r} dropped ({reason})")

@@ -460,6 +460,18 @@ class TestVehiclePatch:
             "vehicle_type": "Car",
         }
 
+    # Codex on #286: the model is read under the certificate's make. Without
+    # it ION matches both Saturn's Ion and Peugeot's iOn and falls back to the
+    # word rule, and a mixed-case Ion is never corrected later.
+    def test_the_model_takes_its_spelling_under_the_make(self):
+        patch, _ = vehicle_patch(RegistrationData(make="PEUGEOT", commercial_name="ION"))
+        assert patch["make"] == "Peugeot"
+        assert patch["model"] == "iOn"
+
+    def test_a_model_without_a_make_still_normalizes(self):
+        patch, _ = vehicle_patch(RegistrationData(commercial_name="CLIO"))
+        assert patch["model"] == "Clio"
+
     def test_plug_in_hybrid_code_sets_both_fuel_types(self):
         data = RegistrationData(energy_code="EE", country="FR")
         patch, _ = vehicle_patch(data)
