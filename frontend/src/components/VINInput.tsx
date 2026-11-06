@@ -200,6 +200,7 @@ export default function VINInput({
         onDecode(data)
       }
     } catch (err: unknown) {
+      if (currentVin.current !== requested) return
       setErrorMessage(getActionErrorMessage(err, t('vinInput.decodeAction')))
     } finally {
       setIsDecoding(false)
@@ -229,6 +230,7 @@ export default function VINInput({
         onDecode(data, { fillOnly: true })
       }
     } catch (err: unknown) {
+      if (currentVin.current !== requested) return
       setTryError(getActionErrorMessage(err, t('vinInput.decodeAction')))
     } finally {
       setIsDecoding(false)

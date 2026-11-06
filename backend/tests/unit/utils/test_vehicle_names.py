@@ -154,6 +154,50 @@ class TestCatalogModelSpellings:
         ]
         assert changed == []
 
+    def test_every_catalog_model_saves_as_written_under_its_make(self):
+        models: dict[str, list[str]] = json.loads(_MODELS_FILE.read_text(encoding="utf-8"))
+        changed = [
+            f"{make}: {model.upper()} -> {normalize_model(model.upper(), make=make)}"
+            for make, names in models.items()
+            for model in names
+            if normalize_model(model.upper(), make=make) != model
+        ]
+        assert changed == []
+
+    @pytest.mark.parametrize(
+        "raw,expected",
+        [("ID.BUZZ", "ID. Buzz"), ("ID. BUZZ", "ID. Buzz"), ("ID.CROSS", "ID.Cross")],
+    )
+    def test_a_space_after_a_dot_is_optional(self, raw, expected):
+        # Fable fix-wave F-3: VW writes `ID. Buzz`, people type `ID.BUZZ`.
+        assert normalize_model(raw) == expected
+
+
+@pytest.mark.unit
+class TestModelsReadByMake:
+    """Fable fix-wave F-1: with the make known, only that make's catalog models count."""
+
+    @pytest.mark.parametrize(
+        "raw,make,expected",
+        [
+            ("ONE", "MINI", "One"),
+            ("ONE", "Mercedes-AMG", "ONE"),
+            ("ZOE", "RENAULT", "ZOE"),
+            ("ZOE", "KZ-RV", "Zoe"),
+            ("ION", "Peugeot", "iOn"),
+            ("ION", "Saturn", "Ion"),
+            ("ID.BUZZ", "VW", "ID. Buzz"),
+        ],
+    )
+    def test_the_make_picks_the_spelling(self, raw, make, expected):
+        assert normalize_model(raw, make=make) == expected
+
+    def test_without_a_make_any_unambiguous_catalog_spelling_counts(self):
+        assert normalize_model("ONE") == "ONE"
+
+    def test_mixed_case_is_still_never_touched(self):
+        assert normalize_model("Zoe", make="Renault") == "Zoe"
+
 
 @pytest.mark.unit
 class TestFoldKey:

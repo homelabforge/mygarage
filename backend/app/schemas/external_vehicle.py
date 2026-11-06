@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, ValidationInfo, field_validator
 
 from app.schemas._nullability import reject_null
 from app.utils.vehicle_names import normalize_make, normalize_model
@@ -48,8 +48,11 @@ class ExternalVehicleCreate(BaseModel):
 
     @field_validator("model", mode="before")
     @classmethod
-    def normalize_model_field(cls, v: Any) -> Any:
-        return normalize_model(v) if isinstance(v, str) else v
+    def normalize_model_field(cls, v: Any, info: ValidationInfo) -> Any:
+        make = info.data.get("make")
+        return (
+            normalize_model(v, make if isinstance(make, str) else None) if isinstance(v, str) else v
+        )
 
 
 class ExternalVehicleUpdate(BaseModel):
@@ -78,8 +81,11 @@ class ExternalVehicleUpdate(BaseModel):
 
     @field_validator("model", mode="before")
     @classmethod
-    def normalize_model_field(cls, v: Any) -> Any:
-        return normalize_model(v) if isinstance(v, str) else v
+    def normalize_model_field(cls, v: Any, info: ValidationInfo) -> Any:
+        make = info.data.get("make")
+        return (
+            normalize_model(v, make if isinstance(make, str) else None) if isinstance(v, str) else v
+        )
 
 
 class ExternalVehicleResponse(BaseModel):

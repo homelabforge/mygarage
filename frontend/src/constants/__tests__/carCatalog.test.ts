@@ -94,4 +94,25 @@ describe('carCatalog.json', () => {
     )
     expect(dangling).toEqual([])
   })
+
+  it('spells models as their makers do, one car to an entry', () => {
+    // An ALL-CAPS model saves with the catalog's spelling, so a typo here
+    // becomes the saved name (Fable fix-wave F-2).
+    const has = (make: string, model: string): boolean => byName.get(make)?.models.includes(model) ?? false
+    for (const [make, model] of [
+      ['Ford', 'Mustang Mach-E'], ['Ford', 'Focus'], ['Nissan', 'Xterra'], ['Renault', 'Duster Oroch'],
+      ['Volkswagen', 'Golf GTI Cabrio'], ['Volkswagen', 'e-up!'], ['Volkswagen', 'cross up!'],
+      ['Škoda', '100 Series'], ['Morgan', '3 Wheeler'], ['Datsun', 'mi-DO'], ['Datsun', 'on-DO'],
+      ['Toyota', 'Land Cruiser'], ['Honda', 'Civic Si'], ['TVR', 'Wedge Series'],
+      ['Ferrari', '288 GTO'], ['Ferrari', 'F40'], ['Ferrari', 'F50'], ['Ferrari', 'Enzo'],
+      ['Ferrari', '365 GT4 BB'], ['Ferrari', '512 BB'], ['Ferrari', 'Testarossa'], ['Ferrari', '512 TR'],
+      ['TVR', 'Typhon'],
+    ] as const) {
+      expect(has(make, model), `${make}: ${model}`).toBe(true)
+    }
+    const odd = makes.flatMap((make) =>
+      make.models.filter((m) => /["’]| and | US$/.test(m)).map((m) => `${make.name}: ${m}`),
+    )
+    expect(odd).toEqual([])
+  })
 })

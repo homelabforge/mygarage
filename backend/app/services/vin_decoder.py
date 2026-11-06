@@ -214,7 +214,8 @@ def _title_case(info: dict[str, Any]) -> dict[str, Any]:
     if isinstance(out.get("make"), str):
         out["make"] = normalize_make(out["make"])
     if isinstance(out.get("model"), str):
-        out["model"] = normalize_model(out["model"])
+        make = out.get("make")
+        out["model"] = normalize_model(out["model"], make if isinstance(make, str) else None)
     return out
 
 

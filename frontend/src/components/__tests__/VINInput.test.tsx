@@ -281,4 +281,41 @@ describe('VINInput — choosing the decoder', () => {
     expect(onDecode).not.toHaveBeenCalled()
     expect(screen.queryByText('Renault')).not.toBeInTheDocument()
   })
+
+  it('drops a failure for a VIN that was edited while it was decoding', async () => {
+    // Fable fix-wave F-4: the old VIN's error must not land under the new VIN.
+    let reject: (reason: Error) => void = () => {}
+    vi.mocked(vinService.decode).mockReturnValue(new Promise((_r, j) => { reject = j }))
+    const { rerender } = render(<VINInput value={EU_VIN} onChange={vi.fn()} onDecode={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: /vinInput.decode/ }))
+    await waitFor(() => expect(vinService.decode).toHaveBeenCalled())
+
+    rerender(<VINInput value="WVWZZZ1JZXW000001" onChange={vi.fn()} onDecode={vi.fn()} />)
+    await act(async () => {
+      reject(new Error('VIN not found'))
+    })
+
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.queryByText(/VIN not found|vinInput.decodeAction/)).not.toBeInTheDocument()
+  })
+
+  it('drops a failed try for a VIN that was edited while it was decoding', async () => {
+    withAutoRef()
+    let reject: (reason: unknown) => void = () => {}
+    vi.mocked(vinService.decode)
+      .mockResolvedValueOnce(thinNhtsa)
+      .mockReturnValueOnce(new Promise((_r, j) => { reject = j }))
+    const { rerender } = render(<VINInput value={EU_VIN} onChange={vi.fn()} onDecode={vi.fn()} />)
+    await screen.findByLabelText('vinInput.decodeWith')
+    fireEvent.click(screen.getByRole('button', { name: /vinInput.decode/ }))
+    fireEvent.click(await screen.findByRole('button', { name: /vinInput.tryAutoRef/ }))
+    await waitFor(() => expect(vinService.decode).toHaveBeenCalledTimes(2))
+
+    rerender(<VINInput value="WVWZZZ1JZXW000001" onChange={vi.fn()} onDecode={vi.fn()} />)
+    await act(async () => {
+      reject({ response: { status: 404, data: { detail: 'AutoRef has no record for this VIN' } } })
+    })
+
+    expect(screen.queryByTestId('vin-try-error')).not.toBeInTheDocument()
+  })
 })

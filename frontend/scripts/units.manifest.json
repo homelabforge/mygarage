@@ -1996,7 +1996,7 @@
     {
       "path": "src/components/VINInput.tsx",
       "disposition": "no unit behaviour",
-      "digest": "9e3c26c85539374cfbab6202fb9bb014465275eba7460c10020f847a289fd74a",
+      "digest": "666c7d1921f28b813938952c8f7e8fd19ff750184819a1615b47ccdea99ea93f",
       "reason": "no unit behaviour: dispositioned under the CORRECTED scan: every unit stem, token, quantity name and canonical field suffix this codebase uses, matched case-insensitively with NO word boundary. The earlier word-boundary version was a floor (it called AnalyticsHelpModal.tsx clean while it renders \"Average MPG:\" to every user) and it was superseded before any disposition in this file was written. This file matched NONE of them. 2026-10-08 (European VINs, #211): a partial-decode notice (maker, notes, a link to the certificate import) and the WMI's country shown when NHTSA names no plant; codes and names, no quantity, unit or conversion code. 2026-11-04 (#278 review): country names read useLanguageLocale. Still no unit behaviour."
     },
     {
@@ -3289,7 +3289,7 @@
     {
       "path": "src/constants/carCatalog.json",
       "disposition": "no unit behaviour",
-      "digest": "7d785dd77691ff67efb6a6ffe0c5678e519c77993cd7b7897998a138b5f2a3cf",
+      "digest": "99e395f22951098e14f821d6d1007ca45cb83657fafd063c9bad7efde6d7ecb4",
       "reason": "no unit behaviour: NEW 2026-11-05 (#219 takeover). Make and model NAMES only. A few model names contain unit-like text (Fiat \"3 1/2 HP\", DR \"1.0 EV\", \"3000 GT\"); they are product names, shown and stored as text, never read as a quantity or converted."
     },
     {

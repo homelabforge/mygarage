@@ -405,6 +405,11 @@ class TestMapping:
         assert result["model"] == "Levante D V6 Auto"
         assert NOTE_AUTOREF_EXTERNAL in result["notes"]
 
+    def test_the_brand_picks_the_model_spelling(self):
+        # Fable fix-wave F-1: a Mini One, not the Mercedes-AMG ONE.
+        row = {**ROW, "BRAND": "MINI", "MODEL_RESOLVED": "ONE"}
+        assert map_vehicle(VIN, row, {}, multiple=False)["model"] == "One"
+
     @pytest.mark.parametrize("field", ["POWER_KW", "DISPLACEMENT", "DOORS", "CYLINDERS"])
     def test_wrong_types_read_as_missing(self, field):
         row = {**ROW, field: "n/a"}

@@ -679,8 +679,8 @@
   "Datsun": [
     "GO",
     "GO+",
-    "Mi-Do",
-    "on-Do"
+    "mi-DO",
+    "on-DO"
   ],
   "DMC": [
     "DeLorean DMC-12"
@@ -765,7 +765,10 @@
   ],
   "Ferrari": [
     "12Cilindri",
-    "288 GTO/F40/F50/Enzo/LaFerrari",
+    "288 GTO",
+    "F40",
+    "F50",
+    "Enzo",
     "296 GTB",
     "296 GTS",
     "296 Speciale",
@@ -776,7 +779,9 @@
     "360 Challenge Stradale",
     "360 Modena",
     "365",
-    "365GT4 BB/ 512BB/ 512 BBi",
+    "365 GT4 BB",
+    "512 BB",
+    "512 BBi",
     "400",
     "456 GT",
     "458",
@@ -819,7 +824,8 @@
     "Scuderia",
     "SF90",
     "Testarossa",
-    "Testarossa/512 TR/512M"
+    "512 TR",
+    "F512 M"
   ],
   "Fiat": [
     "124",
@@ -940,7 +946,7 @@
     "Focus CC",
     "Focus RS",
     "Focus ST",
-    "Focus US",
+    "Focus",
     "Freestar",
     "Freestyle",
     "Fusion European",
@@ -958,7 +964,7 @@
     "Mondeo",
     "Mustang",
     "Mustang Mach 1",
-    "Mustang MACH-E",
+    "Mustang Mach-E",
     "Orion",
     "Pinto",
     "Probe",
@@ -1135,7 +1141,7 @@
     "Civic Aero Deck",
     "Civic CRX",
     "Civic Shuttle",
-    "Civic Si Sedan US",
+    "Civic Si",
     "Civic Tourer",
     "Civic Type-R",
     "Clarity",
@@ -1390,7 +1396,7 @@
     "Picanto",
     "Picanto X-Line",
     "Pro cee'd",
-    "pro_cee’d GT",
+    "pro_cee'd GT",
     "PV5",
     "Rio",
     "Rondo",
@@ -1896,7 +1902,7 @@
     "Starion"
   ],
   "Morgan": [
-    "3 wheeler",
+    "3 Wheeler",
     "4/4 2 Seater",
     "4/4 4 Seater",
     "Aero",
@@ -1979,7 +1985,7 @@
     "Tiida / Versa",
     "Titan",
     "X-Trail",
-    "XTerra",
+    "Xterra",
     "Z Nismo"
   ],
   "Oldsmobile": [
@@ -2330,7 +2336,7 @@
     "Clio",
     "Clio RS",
     "Clio Symbol / Thalia",
-    "Duster OROCH",
+    "Duster Oroch",
     "Espace",
     "Filante",
     "Fluence",
@@ -2500,7 +2506,7 @@
     "Toledo"
   ],
   "Škoda": [
-    "100 series",
+    "100 Series",
     "Citigo",
     "Elroq",
     "Elroq RS",
@@ -2712,7 +2718,7 @@
     "Innova",
     "iQ",
     "Land Cruiser / Prado",
-    "Land Cruiser V8 and predecessors",
+    "Land Cruiser",
     "Matrix",
     "Mirai",
     "MR2",
@@ -2748,7 +2754,7 @@
   ],
   "Triumph": [],
   "TVR": [
-    "\"Wedge Series\"",
+    "Wedge Series",
     "Cerbera",
     "Chimaera",
     "Griffith",
@@ -2756,7 +2762,10 @@
     "T350",
     "Tamora",
     "Tuscan",
-    "Tuscan R/ T 440R/T 400R/ Typhon",
+    "Tuscan R",
+    "T440R",
+    "T400R",
+    "Typhon",
     "Tuscan S"
   ],
   "UAZ": [
@@ -2816,10 +2825,10 @@
     "Caddy",
     "CC",
     "Corrado",
-    "Cross UP!",
+    "cross up!",
     "Derby",
     "e-Golf",
-    "e-UP!",
+    "e-up!",
     "Eos",
     "Fox",
     "Gol",
@@ -2828,7 +2837,7 @@
     "Golf Cabrio",
     "Golf GTD Variant",
     "Golf GTI / GTD / GTE",
-    "Golf GTI cabrio",
+    "Golf GTI Cabrio",
     "Golf Plus",
     "Golf R",
     "Golf R Cabrio",

@@ -152,6 +152,12 @@ class TestDecodeWithNHTSA:
         result = await vin_decoder.decode(NA_VIN, nhtsa)
         assert (result["make"], result["model"]) == ("Mitsubishi", "Mirage G4")
 
+    async def test_the_make_picks_the_model_spelling(self):
+        # Fable fix-wave F-1: a Mini One, not the Mercedes-AMG ONE.
+        nhtsa = _nhtsa({"vin": NA_VIN, "make": "MINI", "model": "ONE", "error_code": "0"})
+        result = await vin_decoder.decode(NA_VIN, nhtsa)
+        assert (result["make"], result["model"]) == ("MINI", "One")
+
     async def test_nhtsa_never_calls_autoref(self):
         autoref = _autoref(dict(AUTOREF_ANSWER))
         await vin_decoder.decode(EU_VIN, _nhtsa(), provider="nhtsa", autoref=autoref, fallback=True)

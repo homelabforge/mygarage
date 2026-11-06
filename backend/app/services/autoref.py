@@ -240,6 +240,8 @@ def map_vehicle(
         _text(pick("MODEL_RESOLVED")) or _text(pick("MODEL_LINE")) or _text(pick("MODEL_FULL"))
     )
 
+    make = normalize_make(_text(pick("BRAND")))
+
     notes: list[str] = []
     configurations = row.get("configurations")
     if multiple or (isinstance(configurations, list) and len(configurations) > 1):
@@ -250,8 +252,8 @@ def map_vehicle(
     return {
         "vin": vin,
         "year": None,
-        "make": normalize_make(_text(pick("BRAND"))),
-        "model": normalize_model(model_text),
+        "make": make,
+        "model": normalize_model(model_text, make),
         "trim": _text(pick("MOTORIZATION")),
         "body_class": _text(pick("BODY")),
         "engine": {

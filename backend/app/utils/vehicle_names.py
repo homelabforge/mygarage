@@ -5,8 +5,8 @@ were saved that way, so the same car read « MITSUBISHI Mirage » in one place
 and « Mitsubishi Mirage » in another. Makes take the canonical spelling from
 ``data/vehicle_makes.json`` (``BMW``, ``Ram``, ``Škoda``, ``McLaren``); a make
 that isn't listed and a model only change when they arrive in ALL CAPS: a
-model the picker catalog lists takes its spelling (``data/vehicle_models.json``),
-anything else goes word by word. Anything typed in mixed case is the user's spelling and is
+model the picker catalog lists takes its spelling (``data/vehicle_models.json``,
+read under the make when the writer knows it), anything else goes word by word. Anything typed in mixed case is the user's spelling and is
 left alone, apart from the make aliases (``Chevy`` reads Chevrolet).
 """
 
@@ -89,27 +89,40 @@ def _model_key(text: str) -> str:
     """Case and diacritics folded, spaces collapsed, punctuation kept.
 
     Punctuation stays because it tells models apart: ``GO`` and ``GO+``,
-    ``3.0`` and ``30``.
+    ``3.0`` and ``30``. A space after a dot doesn't: VW writes ``ID. Buzz``
+    and people type ``ID.BUZZ``.
     """
     decomposed = unicodedata.normalize("NFKD", text)
     plain = "".join(ch for ch in decomposed if not unicodedata.combining(ch))
-    return " ".join(plain.casefold().split())
+    return re.sub(r"\.\s+", ".", " ".join(plain.casefold().split()))
+
+
+def _unambiguous(names: list[str]) -> dict[str, str]:
+    """Each name by its key; a key two spellings share is left out."""
+    spellings: dict[str, set[str]] = {}
+    for name in names:
+        spellings.setdefault(_model_key(name), set()).add(name)
+    return {key: next(iter(found)) for key, found in spellings.items() if len(found) == 1}
+
+
+@lru_cache(maxsize=1)
+def _catalog_by_make() -> dict[str, dict[str, str]]:
+    """Each make's catalog models by key."""
+    with _MODELS_PATH.open(encoding="utf-8") as handle:
+        by_make = cast(dict[str, list[str]], json.load(handle))
+    return {make: _unambiguous(names) for make, names in by_make.items()}
 
 
 @lru_cache(maxsize=1)
 def _catalog_models() -> dict[str, str]:
-    """Each catalog model by its key; a key two spellings share is left out.
+    """Every make's catalog models by key, for a writer that has no make.
 
-    Saturn's ``Ion`` and Peugeot's ``iOn`` share one, so ``ION`` falls back
+    Saturn's ``Ion`` and Peugeot's ``iOn`` share a key, so ``ION`` falls back
     to the word rule instead of picking a make's spelling at random.
     """
     with _MODELS_PATH.open(encoding="utf-8") as handle:
         by_make = cast(dict[str, list[str]], json.load(handle))
-    spellings: dict[str, set[str]] = {}
-    for names in by_make.values():
-        for name in names:
-            spellings.setdefault(_model_key(name), set()).add(name)
-    return {key: next(iter(names)) for key, names in spellings.items() if len(names) == 1}
+    return _unambiguous([name for names in by_make.values() for name in names])
 
 
 def _is_all_caps(text: str) -> bool:
@@ -155,17 +168,21 @@ def normalize_make(raw: str | None) -> str | None:
     return _title_words(text) if _is_all_caps(text) else text
 
 
-def normalize_model(raw: str | None) -> str | None:
+def normalize_model(raw: str | None, make: str | None = None) -> str | None:
     """A model name in Title Case when it arrives in ALL CAPS.
 
     Args:
         raw: The model as typed, decoded or stored.
+        make: The vehicle's make, in any spelling, when the writer has it.
 
     Returns:
         None when blank. ALL-CAPS text takes the picker catalog's spelling
         when it names a catalog model (``DBS`` stays DBS, ``A2 E-TRON`` reads
-        A2 e-tron), so a picked model saves as picked (Fable diff F-1);
-        otherwise the word rule (digits and two-letter codes stay,
+        A2 e-tron), so a picked model saves as picked (Fable diff F-1). With
+        a make, only that make's models count (a MINI ``ONE`` reads One, a
+        Mercedes-AMG ``ONE`` stays ONE), and a make the catalog doesn't list
+        gets the word rule; without one, any model only one make spells that
+        way. Otherwise the word rule (digits and two-letter codes stay,
         three-letter words stay only in ``KEEP_CAPS``). Mixed case stripped
         but as written.
     """
@@ -176,5 +193,10 @@ def normalize_model(raw: str | None) -> str | None:
         return None
     if not _is_all_caps(text):
         return text
-    known = _catalog_models().get(_model_key(text))
+    canonical = normalize_make(make)
+    if canonical is None:
+        catalog = _catalog_models()
+    else:
+        catalog = _catalog_by_make().get(canonical, {})
+    known = catalog.get(_model_key(text))
     return known if known is not None else _title_words(text)

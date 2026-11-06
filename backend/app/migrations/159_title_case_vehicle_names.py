@@ -38,7 +38,7 @@ def _rewrite(conn: Connection, table: str, key: str) -> int:
     changed = 0
     for row_key, make, model in rows:
         new_make = normalize_make(make) if make else make
-        new_model = normalize_model(model) if model else model
+        new_model = normalize_model(model, make) if model else model
         if (new_make, new_model) == (make, model):
             continue
         conn.execute(

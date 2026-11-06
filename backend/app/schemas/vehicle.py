@@ -8,6 +8,7 @@ from pydantic import (
     BaseModel,
     BeforeValidator,
     Field,
+    ValidationInfo,
     computed_field,
     field_validator,
     model_validator,
@@ -54,11 +55,17 @@ def _normalize_make_input(v: Any) -> Any:
     return normalize_make(v) if isinstance(v, str) else v
 
 
-def _normalize_model_input(v: Any) -> Any:
-    """Title Case for an ALL-CAPS model; mixed case stays as typed (#219 takeover)."""
+def _normalize_model_input(v: Any, info: ValidationInfo) -> Any:
+    """Title Case for an ALL-CAPS model; mixed case stays as typed (#219 takeover).
+
+    Reads the make validated just before it (``make`` is declared first), so
+    a MINI ``ONE`` reads One; an update that leaves the make out matches the
+    whole catalog.
+    """
     from app.utils.vehicle_names import normalize_model
 
-    return normalize_model(v) if isinstance(v, str) else v
+    make = info.data.get("make")
+    return normalize_model(v, make if isinstance(make, str) else None) if isinstance(v, str) else v
 
 
 def _normalize_fuel_type_input(v: Any) -> Any:
@@ -364,9 +371,9 @@ class VehicleCreate(VehicleBase):
 
     @field_validator("model", mode="before")
     @classmethod
-    def normalize_model(cls, v: Any) -> Any:
+    def normalize_model(cls, v: Any, info: ValidationInfo) -> Any:
         """Title Case for an ALL-CAPS model (#219 takeover)."""
-        return _normalize_model_input(v)
+        return _normalize_model_input(v, info)
 
     @field_validator("fuel_type", "fuel_type_secondary", mode="before")
     @classmethod
@@ -481,9 +488,9 @@ class VehicleUpdate(VehicleBase):
 
     @field_validator("model", mode="before")
     @classmethod
-    def normalize_model(cls, v: Any) -> Any:
+    def normalize_model(cls, v: Any, info: ValidationInfo) -> Any:
         """Title Case for an ALL-CAPS model (#219 takeover)."""
-        return _normalize_model_input(v)
+        return _normalize_model_input(v, info)
 
     @field_validator("fuel_type", "fuel_type_secondary", mode="before")
     @classmethod

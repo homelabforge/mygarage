@@ -42,6 +42,8 @@ def _seed(engine: Engine, *, external: bool = True) -> None:
             ("1HGMIG15900000005", "Chevy", "SILVERADO 1500"),
             ("VF1MIG15900000006", None, None),
             ("TMBMIG15900000007", "SKODA", "OCTAVIA"),
+            ("WMWMIG15900000008", "MINI", "ONE"),
+            ("W1KMIG15900000009", "MERCEDES-AMG", "ONE"),
         ]:
             conn.execute(
                 text("INSERT INTO vehicles (vin, make, model) VALUES (:v, :m, :md)"),
@@ -101,6 +103,9 @@ def test_vehicles_take_title_case(engine_for_migration):
         "1HGMIG15900000005": ("Chevrolet", "Silverado 1500"),
         "VF1MIG15900000006": (None, None),
         "TMBMIG15900000007": ("Škoda", "Octavia"),
+        # The make picks the spelling (Fable fix-wave F-1).
+        "WMWMIG15900000008": ("MINI", "One"),
+        "W1KMIG15900000009": ("Mercedes-AMG", "ONE"),
     }
 
 
