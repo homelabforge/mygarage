@@ -3,6 +3,8 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Drawer, Button, Field, Input, NumberInput, Textarea } from '@/components/ui'
 import VINInput from '@/components/VINInput'
+import MakeSelect from '@/components/MakeSelect'
+import ModelSelect from '@/components/ModelSelect'
 import { getActiveLocale } from '@/constants/i18n'
 import type { ExternalVehicle, ExternalVehicleInput } from '@/types/externalVehicle'
 import type { VINDecodeResponse } from '@/types/vin'
@@ -181,17 +183,18 @@ export default function ExternalVehicleModal({
             />
           </Field>
           <Field id="ext-make" label={t('externalVehicles.make')}>
-            <Input
+            <MakeSelect
               id="ext-make"
               value={form.make ?? ''}
-              onChange={(e) => setField('make', e.target.value)}
+              onChange={(next) => setField('make', next)}
             />
           </Field>
           <Field id="ext-model" label={t('externalVehicles.model')}>
-            <Input
+            <ModelSelect
               id="ext-model"
+              make={form.make}
               value={form.model ?? ''}
-              onChange={(e) => setField('model', e.target.value)}
+              onChange={(next) => setField('model', next)}
             />
           </Field>
         </div>

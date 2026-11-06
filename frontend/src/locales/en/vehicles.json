@@ -1983,6 +1983,7 @@
       "enterVinHeading": "Enter Vehicle Identification Number",
       "nicknamePlaceholder": "My Red Mirage",
       "modelPlaceholder": "Mirage",
+      "makePlaceholder": "Mitsubishi",
       "colorPlaceholder": "Red",
       "licensePlatePlaceholder": "ABC-1234",
       "vinDecodedInfoOptional": "VIN Decoded Information (Optional)",

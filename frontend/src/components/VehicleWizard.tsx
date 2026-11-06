@@ -10,10 +10,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
-import { useForm, type Resolver } from 'react-hook-form'
+import { Controller, useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { ChevronLeft, ChevronRight, Check } from 'lucide-react'
 import VINInput from './VINInput'
+import MakeSelect from './MakeSelect'
+import ModelSelect from './ModelSelect'
 import { FormError } from './FormError'
 import { Stepper, Drawer, Button, Select, NumberInput, Tabs, registerDecimal } from './ui'
 import type { VINDecodeResponse } from '../types/vin'
@@ -89,6 +91,7 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
   // Form management with react-hook-form + Zod
   const {
     register,
+    control,
     handleSubmit: handleFormSubmit,
     setValue,
     watch,
@@ -611,24 +614,43 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label htmlFor="wizard-make" className="block text-sm font-medium text-text-mid mb-2">{t('wizard.make')}</label>
-                <input
-                  id="wizard-make"
-                  type="text"
-                  {...register('make')}
-                  className="w-full bg-surface border border-border rounded-control px-4 py-2 text-text focus:outline-none focus:border-(--accent-solid)"
-                  placeholder="MITSUBISHI"
+                <Controller
+                  name="make"
+                  control={control}
+                  render={({ field }) => (
+                    <MakeSelect
+                      id="wizard-make"
+                      name={field.name}
+                      value={field.value ?? ''}
+                      onChange={field.onChange}
+                      onBlur={field.onBlur}
+                      invalid={!!errors.make}
+                      inputClassName="w-full bg-surface border border-border rounded-control px-4 py-2 text-text focus:outline-none focus:border-(--accent-solid)"
+                      placeholder={t('wizard.misc.makePlaceholder')}
+                    />
+                  )}
                 />
                 <FormError error={errors.make} />
               </div>
 
               <div>
                 <label htmlFor="wizard-model" className="block text-sm font-medium text-text-mid mb-2">{t('wizard.model')}</label>
-                <input
-                  id="wizard-model"
-                  type="text"
-                  {...register('model')}
-                  className="w-full bg-surface border border-border rounded-control px-4 py-2 text-text focus:outline-none focus:border-(--accent-solid)"
-                  placeholder={t('wizard.misc.modelPlaceholder')}
+                <Controller
+                  name="model"
+                  control={control}
+                  render={({ field }) => (
+                    <ModelSelect
+                      id="wizard-model"
+                      name={field.name}
+                      make={formData.make}
+                      value={field.value ?? ''}
+                      onChange={field.onChange}
+                      onBlur={field.onBlur}
+                      invalid={!!errors.model}
+                      inputClassName="w-full bg-surface border border-border rounded-control px-4 py-2 text-text focus:outline-none focus:border-(--accent-solid)"
+                      placeholder={t('wizard.misc.modelPlaceholder')}
+                    />
+                  )}
                 />
                 <FormError error={errors.model} />
               </div>

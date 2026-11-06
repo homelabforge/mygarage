@@ -519,3 +519,40 @@ describe('VehicleWizard: No VIN (#226)', () => {
     })
   })
 })
+
+// The make/model picker (#219 takeover).
+describe('VehicleWizard: make and model pickers', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockedVinService.validate.mockResolvedValue({ valid: true, vin: TEST_VIN })
+    mockedVinService.exists.mockResolvedValue(false)
+  })
+
+  it('shows a decoded make with its logo and offers its models', async () => {
+    mockedVinService.decode.mockResolvedValue({ vin: TEST_VIN, make: 'Mitsubishi', model: null })
+    renderAndEnterVin()
+    const decodeButton = await screen.findByRole('button', { name: 'vinInput.decode' })
+    await waitFor(() => expect(decodeButton).not.toBeDisabled())
+    fireEvent.click(decodeButton)
+    await waitFor(() => expect(mockedVinService.decode).toHaveBeenCalled())
+    fireEvent.click(await screen.findByRole('button', { name: 'wizard.next' }))
+    await screen.findByLabelText('wizard.fuelType')
+
+    expect(screen.getByLabelText('wizard.make')).toHaveValue('Mitsubishi')
+    expect(screen.getByTestId('make-logo').querySelector('img')).toHaveAttribute(
+      'src',
+      expect.stringContaining('/brand-logos/mitsubishi.png'),
+    )
+    fireEvent.change(screen.getByLabelText('wizard.model'), { target: { value: 'mir' } })
+    expect(screen.getByRole('option', { name: 'Mirage' })).toBeInTheDocument()
+  })
+
+  it('keeps a make the catalog does not know', async () => {
+    await goToStep2()
+    const make = screen.getByLabelText('wizard.make')
+    fireEvent.change(make, { target: { value: 'KZ-RV' } })
+    fireEvent.blur(make)
+    expect(make).toHaveValue('KZ-RV')
+    expect(screen.queryByTestId('make-logo')).not.toBeInTheDocument()
+  })
+})
