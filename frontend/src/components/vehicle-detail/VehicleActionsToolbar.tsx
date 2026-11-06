@@ -12,8 +12,7 @@ interface VehicleActionsToolbarProps {
   exporting: boolean
   isOnline: boolean
   showFuelAction: boolean
-  hasStandardEquipment: boolean
-  hasOptionalEquipment: boolean
+  showEquipment: boolean
   onLogService: () => void
   onAddFuel: () => void
   onReminder: () => void
@@ -28,16 +27,15 @@ interface VehicleActionsToolbarProps {
 
 /**
  * Vehicle Detail actions (P5 Task 4). Two rows per the prototype: primary
- * actions (Log Service / Add Fuel / Reminder switch tabs — SDQ-1; an Equipment
- * pill expands the Overview lists — SDQ-2, each button rendered only when its
- * target list exists; Edit) and a secondary toolbar (Import / Export /
+ * actions (Log Service / Add Fuel / Reminder switch tabs — SDQ-1; the Equipment
+ * pills open the equipment editor — SDQ-2; Edit) and a secondary toolbar (Import / Export /
  * Analytics / Share / Transfer / Remove). Every control keeps its title attr
  * and Transfer/Remove stay real, clickable, literal text (G6). No `vin` prop —
  * Edit/Analytics navigate via the page's callbacks.
  */
 export default function VehicleActionsToolbar({
   isAdmin, importing, exporting, isOnline, showFuelAction,
-  hasStandardEquipment, hasOptionalEquipment,
+  showEquipment,
   onLogService, onAddFuel, onReminder, onEditEquipment, onEdit, onAnalytics,
   onImport, onExport, onOpenModal, onOpenMobileMenu,
 }: VehicleActionsToolbarProps) {
@@ -75,22 +73,16 @@ export default function VehicleActionsToolbar({
         )}
         <Button variant="primary" icon={Bell} onClick={onReminder}>{t('detail.hero.reminder')}</Button>
 
-        {/* Equipment pill group (SDQ-2, B7) — the whole group is hidden when
-            neither decoded list exists; each button is hidden when its own
-            <details> target is absent (no live no-op controls). */}
-        {(hasStandardEquipment || hasOptionalEquipment) && (
+        {/* Equipment pills (SDQ-2): the page leaves them off a bare trailer. */}
+        {showEquipment && (
           <div className="ml-auto flex items-center gap-2 rounded-control border border-border py-1 pl-3 pr-2">
             <span className="text-[11px] font-bold uppercase tracking-[.05em] text-text-mute">{t('detail.hero.equipment')}</span>
-            {hasStandardEquipment && (
-              <Button variant="secondary" size="sm" icon={List} onClick={() => onEditEquipment('standard')}>
-                {t('detail.hero.standard')}
-              </Button>
-            )}
-            {hasOptionalEquipment && (
-              <Button variant="secondary" size="sm" icon={Plus} onClick={() => onEditEquipment('optional')}>
-                {t('detail.hero.optional')}
-              </Button>
-            )}
+            <Button variant="secondary" size="sm" icon={List} onClick={() => onEditEquipment('standard')}>
+              {t('detail.hero.standard')}
+            </Button>
+            <Button variant="secondary" size="sm" icon={Plus} onClick={() => onEditEquipment('optional')}>
+              {t('detail.hero.optional')}
+            </Button>
           </div>
         )}
 
@@ -99,7 +91,7 @@ export default function VehicleActionsToolbar({
           icon={Edit}
           onClick={onEdit}
           title={t('detail.editVehicle')}
-          className={hasStandardEquipment || hasOptionalEquipment ? '' : 'ml-auto'}
+          className={showEquipment ? '' : 'ml-auto'}
         >
           {t('common:edit')}
         </Button>

@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
-import { X, Upload, Download, BarChart3, Share2, Edit, ArrowRightLeft, Trash2 } from 'lucide-react'
+import { X, Upload, Download, BarChart3, Share2, Edit, ArrowRightLeft, Trash2, List, Plus } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 
 interface VehicleMobileActionsSheetProps {
@@ -14,6 +14,8 @@ interface VehicleMobileActionsSheetProps {
   onOpenModal: (modal: 'remove' | 'transfer' | 'sharing') => void
   onClose: () => void
   onEdit: () => void
+  showEquipment: boolean
+  onEditEquipment: (which: 'standard' | 'optional') => void
 }
 
 /**
@@ -23,7 +25,7 @@ interface VehicleMobileActionsSheetProps {
  */
 export default function VehicleMobileActionsSheet({
   vin, isAdmin, importing, exporting, isOnline,
-  onImportClick, onExport, onOpenModal, onClose, onEdit,
+  onImportClick, onExport, onOpenModal, onClose, onEdit, showEquipment, onEditEquipment,
 }: VehicleMobileActionsSheetProps) {
   const { t } = useTranslation('vehicles')
   const navigate = useNavigate()
@@ -83,6 +85,24 @@ export default function VehicleMobileActionsSheet({
             <Edit className="w-5 h-5" />
             <span>{t('detail.editVehicle')}</span>
           </button>
+          {showEquipment && (
+            <>
+              <button
+                onClick={() => { onClose(); onEditEquipment('standard') }}
+                className="w-full flex items-center space-x-3 px-4 py-3 text-left text-text hover:bg-surface-2 rounded-lg ui-motion cursor-pointer"
+              >
+                <List className="w-5 h-5" />
+                <span>{t('detail.standardEquipment')}</span>
+              </button>
+              <button
+                onClick={() => { onClose(); onEditEquipment('optional') }}
+                className="w-full flex items-center space-x-3 px-4 py-3 text-left text-text hover:bg-surface-2 rounded-lg ui-motion cursor-pointer"
+              >
+                <Plus className="w-5 h-5" />
+                <span>{t('detail.optionalEquipment')}</span>
+              </button>
+            </>
+          )}
           {isAdmin && (
             <button
               onClick={() => { onClose(); onOpenModal('transfer') }}

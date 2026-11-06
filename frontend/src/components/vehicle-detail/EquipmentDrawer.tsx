@@ -17,7 +17,7 @@ interface EquipmentDrawerProps {
   vin: string
   which: EquipmentWhich
   /** Receives the server's updated vehicle after each successful save so the
-   *  page (and the toolbar pill visibility) stays in sync. */
+   *  page stays in sync. */
   onUpdated: (vehicle: Vehicle) => void
 }
 
@@ -47,8 +47,8 @@ function normalize(equipment: unknown): Groups {
   return out
 }
 
-/** Final save-boundary guard: a fully-cleared list persists as {} — which hides
- *  the toolbar pill — never as stale empty buckets. */
+/** Final save-boundary guard: a fully-cleared list persists as {}, never as
+ *  stale empty buckets. */
 function toEquipmentDict(groups: Groups): Record<string, string[]> {
   return Object.fromEntries(Object.entries(groups).filter(([, items]) => items.length > 0))
 }

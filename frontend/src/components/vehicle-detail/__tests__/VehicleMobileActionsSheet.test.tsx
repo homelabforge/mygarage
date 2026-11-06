@@ -14,6 +14,7 @@ function setup(overrides: Partial<ComponentProps<typeof VehicleMobileActionsShee
   const props: ComponentProps<typeof VehicleMobileActionsSheet> = {
     vin: '1HGCM82633A004352', isAdmin: false, importing: false, exporting: false, isOnline: true,
     onImportClick: vi.fn(), onExport: vi.fn(), onOpenModal: vi.fn(), onClose: vi.fn(), onEdit: vi.fn(),
+    showEquipment: true, onEditEquipment: vi.fn(),
     ...overrides,
   }
   render(<VehicleMobileActionsSheet {...props} />)
@@ -25,6 +26,21 @@ beforeEach(() => {
 })
 
 describe('VehicleMobileActionsSheet', () => {
+  it('opens the equipment editor and closes the sheet', () => {
+    const props = setup()
+    fireEvent.click(screen.getByRole('button', { name: 'detail.standardEquipment' }))
+    expect(props.onClose).toHaveBeenCalledTimes(1)
+    expect(props.onEditEquipment).toHaveBeenCalledWith('standard')
+    fireEvent.click(screen.getByRole('button', { name: 'detail.optionalEquipment' }))
+    expect(props.onEditEquipment).toHaveBeenCalledWith('optional')
+  })
+
+  it('leaves equipment out when showEquipment is false', () => {
+    setup({ showEquipment: false })
+    expect(screen.queryByRole('button', { name: 'detail.standardEquipment' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'detail.optionalEquipment' })).not.toBeInTheDocument()
+  })
+
   // Phone twin of the toolbar check: no user to share as with sign-in off, and
   // isAdmin is false there, so Transfer stays gone too (A-12).
   it('hides Share and Transfer with sign-in off (A-12)', () => {
