@@ -17,7 +17,7 @@ beforeEach(() => {
 function setup(overrides: Partial<ComponentProps<typeof VehicleActionsToolbar>> = {}) {
   const props: ComponentProps<typeof VehicleActionsToolbar> = {
     isAdmin: true, importing: false, exporting: false, isOnline: true,
-    showFuelAction: true, hasStandardEquipment: true, hasOptionalEquipment: true,
+    showFuelAction: true, showEquipment: true,
     onLogService: vi.fn(), onAddFuel: vi.fn(), onReminder: vi.fn(),
     onEditEquipment: vi.fn(), onEdit: vi.fn(), onAnalytics: vi.fn(),
     onImport: vi.fn(), onExport: vi.fn(), onOpenModal: vi.fn(), onOpenMobileMenu: vi.fn(),
@@ -92,17 +92,18 @@ describe('VehicleActionsToolbar', () => {
     expect(screen.queryByRole('button', { name: 'detail.hero.addFuel' })).not.toBeInTheDocument()
   })
 
-  it('hides the whole Equipment group when neither list exists (B7)', () => {
-    setup({ hasStandardEquipment: false, hasOptionalEquipment: false })
+  it('hides the whole Equipment group when showEquipment is false', () => {
+    setup({ showEquipment: false })
     expect(screen.queryByText('detail.hero.equipment')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'detail.hero.standard' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'detail.hero.optional' })).not.toBeInTheDocument()
   })
 
-  it('shows only Standard when only standard equipment exists (B7)', () => {
-    setup({ hasStandardEquipment: true, hasOptionalEquipment: false })
+  it('shows Standard and Optional together when showEquipment is true', () => {
+    setup({ showEquipment: true })
+    expect(screen.getByText('detail.hero.equipment')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'detail.hero.standard' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'detail.hero.optional' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'detail.hero.optional' })).toBeInTheDocument()
   })
 
   // With sign-in off there's no user to share as, and the server 400s the

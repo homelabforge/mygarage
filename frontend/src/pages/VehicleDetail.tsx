@@ -508,23 +508,13 @@ function VehicleDetailPage() {
   // Tires and brakes need wheels too (#272): a boat or a `none` override gets neither tab.
   const hasWheels = isMotorized && vehicle?.effective_wheel_layout !== 'none'
 
-  // Equipment-presence flags (B7) — the actions toolbar hides an Equipment
-  // button when its <details> target (below, in VehicleOverviewTab) is absent.
-  // Optional-chained into a local so no `vehicle.standard_equipment` non-null
-  // deref is written (B5 — strict-clean); `vehicle` is still `Vehicle | null`
-  // here, before the `!vehicle` early return.
-  const standardEquipment = vehicle?.standard_equipment
-  const hasStandardEquipment = Boolean(
-    standardEquipment &&
-    typeof standardEquipment === 'object' &&
-    Object.keys(standardEquipment).length > 0,
+  // Equipment gets added by hand too, so every vehicle gets the pills, not
+  // just one with a parsed window sticker. A plain trailer has nothing to
+  // list, unless something's already saved there.
+  const hasEquipment = [vehicle?.standard_equipment, vehicle?.optional_equipment].some(
+    (list) => Boolean(list && typeof list === 'object' && Object.keys(list).length > 0),
   )
-  const optionalEquipment = vehicle?.optional_equipment
-  const hasOptionalEquipment = Boolean(
-    optionalEquipment &&
-    typeof optionalEquipment === 'object' &&
-    Object.keys(optionalEquipment).length > 0,
-  )
+  const showEquipment = vehicle?.vehicle_type !== 'Trailer' || hasEquipment
 
   const hasPropane = logKinds.propane
   // Either fuel slot, as the API gates DEF writes; the DEF tab renders
@@ -699,8 +689,7 @@ function VehicleDetailPage() {
           exporting={exporting}
           isOnline={isOnline}
           showFuelAction={Boolean(showFuelLog || hasDEF || hasPropane)}
-          hasStandardEquipment={hasStandardEquipment}
-          hasOptionalEquipment={hasOptionalEquipment}
+          showEquipment={showEquipment}
           onLogService={() => goToSection('maintenance', 'service')}
           onAddFuel={() => goToSection('fuel', fillUpKind({ ...logKinds, def: logKinds.defHistory }) ?? 'fuel')}
           onReminder={() => goToSection('tracking', 'reminders')}
@@ -919,6 +908,8 @@ function VehicleDetailPage() {
           onOpenModal={setOpenModal}
           onClose={() => setShowMobileMenu(false)}
           onEdit={() => setEditDrawerOpen(true)}
+          showEquipment={showEquipment}
+          onEditEquipment={handleEquipmentClick}
         />
       )}
 

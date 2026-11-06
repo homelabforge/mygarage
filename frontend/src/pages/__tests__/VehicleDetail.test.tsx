@@ -1146,7 +1146,7 @@ describe('VehicleDetail', () => {
     expect(within(optionalDialog).queryByText('ABS')).not.toBeInTheDocument()
   })
 
-  it('with only optional equipment: Standard button hidden, Optional opens the editor (B7)', async () => {
+  it('with only optional equipment: both pills show, Optional opens the editor', async () => {
     mockedVehicleService.get.mockResolvedValue({
       ...mockVehicle,
       standard_equipment: null,
@@ -1154,10 +1154,79 @@ describe('VehicleDetail', () => {
     })
     renderVehicleDetail()
     await waitFor(() => expect(screen.getByText('Test Car')).toBeInTheDocument())
-    // No standard list -> no Standard button; Optional present and functional.
-    expect(screen.queryByRole('button', { name: 'detail.hero.standard' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'detail.hero.standard' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'detail.hero.optional' }))
     const dialog = await screen.findByRole('dialog', { name: 'detail.optionalEquipment' })
     expect(within(dialog).getByText('Sunroof')).toBeInTheDocument()
+  })
+
+  // Equipment is added by hand too, so the pills can't wait for a window
+  // sticker. A plain trailer has nothing to list, unless it already does.
+  it('offers equipment on a car with none saved yet, opening an empty editor', async () => {
+    mockedVehicleService.get.mockResolvedValue({
+      ...mockVehicle,
+      vehicle_type: 'Car',
+      standard_equipment: null,
+      optional_equipment: {},
+    })
+    renderVehicleDetail()
+    await waitFor(() => expect(screen.getByText('Test Car')).toBeInTheDocument())
+    expect(screen.getByRole('button', { name: 'detail.hero.optional' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'detail.hero.standard' }))
+    const dialog = await screen.findByRole('dialog', { name: 'detail.standardEquipment' })
+    expect(within(dialog).getByText('detail.equipment.empty')).toBeInTheDocument()
+  })
+
+  it('offers equipment in the phone Actions sheet, and not for a bare trailer', async () => {
+    mockedVehicleService.get.mockResolvedValue({
+      ...mockVehicle, vehicle_type: 'Car', standard_equipment: null, optional_equipment: null,
+    })
+    const { unmount } = renderVehicleDetail()
+    await waitFor(() => expect(screen.getByText('Test Car')).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: 'detail.actions' }))
+    fireEvent.click(screen.getByRole('button', { name: 'detail.optionalEquipment' }))
+    const dialog = await screen.findByRole('dialog', { name: 'detail.optionalEquipment' })
+    expect(within(dialog).getByText('detail.equipment.empty')).toBeInTheDocument()
+    unmount()
+
+    mockedVehicleService.get.mockResolvedValue({
+      ...mockVehicle, vehicle_type: 'Trailer', standard_equipment: null, optional_equipment: null,
+    })
+    renderVehicleDetail()
+    await waitFor(() => expect(screen.getByText('Test Car')).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: 'detail.actions' }))
+    expect(screen.getByRole('button', { name: 'detail.editVehicle' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'detail.standardEquipment' })).not.toBeInTheDocument()
+  })
+
+  it.each(['FifthWheel', 'TravelTrailer'] as const)('offers equipment on a %s', async (type) => {
+    mockedVehicleService.get.mockResolvedValue({
+      ...mockVehicle, vehicle_type: type, standard_equipment: null, optional_equipment: null,
+    })
+    renderVehicleDetail()
+    await waitFor(() => expect(screen.getByText('Test Car')).toBeInTheDocument())
+    expect(screen.getByRole('button', { name: 'detail.hero.standard' })).toBeInTheDocument()
+  })
+
+  it('offers no equipment on a trailer with none saved', async () => {
+    mockedVehicleService.get.mockResolvedValue({
+      ...mockVehicle, vehicle_type: 'Trailer', standard_equipment: null, optional_equipment: null,
+    })
+    renderVehicleDetail()
+    await waitFor(() => expect(screen.getByText('Test Car')).toBeInTheDocument())
+    expect(screen.queryByText('detail.hero.equipment')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'detail.hero.standard' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'detail.hero.optional' })).not.toBeInTheDocument()
+  })
+
+  it('keeps equipment reachable on a trailer that already has some', async () => {
+    mockedVehicleService.get.mockResolvedValue({
+      ...mockVehicle, vehicle_type: 'Trailer', standard_equipment: null, optional_equipment: { items: ['Spare'] },
+    })
+    renderVehicleDetail()
+    await waitFor(() => expect(screen.getByText('Test Car')).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: 'detail.hero.optional' }))
+    const dialog = await screen.findByRole('dialog', { name: 'detail.optionalEquipment' })
+    expect(within(dialog).getByText('Spare')).toBeInTheDocument()
   })
 })
