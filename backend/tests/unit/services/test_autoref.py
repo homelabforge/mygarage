@@ -8,7 +8,7 @@ are the spec's examples and English guesses.
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from typing import Any
 
 import httpx
@@ -59,6 +59,23 @@ DETAIL: dict[str, Any] = {
         "GEARBOX": ["Automatique"],
     }
 }
+
+
+@pytest.fixture
+def httpx_at_info() -> Iterator[None]:
+    """httpx's own logger at INFO, where it prints request URLs, then put back.
+
+    Pinned here so the leak tests don't depend on whether ``app.main`` (which
+    turns it down) was imported first (Fable F-8), and restored so the rest of
+    the suite sees the level ``app.main`` set.
+    """
+    httpx_logger = logging.getLogger("httpx")
+    before = httpx_logger.level
+    httpx_logger.setLevel(logging.INFO)
+    try:
+        yield
+    finally:
+        httpx_logger.setLevel(before)
 
 
 def _service(handler: Callable[[httpx.Request], httpx.Response]) -> AutoRefService:
@@ -253,8 +270,7 @@ class TestTheKeyNeverLeaks:
         return out
 
     @pytest.mark.parametrize("status", [403, 503])
-    async def test_usage_errors_hold_no_key(self, status, caplog):
-        logging.getLogger("httpx").setLevel(logging.INFO)
+    async def test_usage_errors_hold_no_key(self, status, caplog, httpx_at_info):
         caplog.set_level(logging.DEBUG)
         service = _service(lambda request: httpx.Response(status, text=f"bad key {KEY}"))
         with pytest.raises((AutoRefAuthError, AutoRefUnavailableError)) as caught:
@@ -266,8 +282,7 @@ class TestTheKeyNeverLeaks:
         for record in caplog.records:
             assert KEY not in record.getMessage()
 
-    async def test_transport_errors_hold_no_key(self, caplog):
-        logging.getLogger("httpx").setLevel(logging.INFO)
+    async def test_transport_errors_hold_no_key(self, caplog, httpx_at_info):
         caplog.set_level(logging.DEBUG)
 
         def handler(request: httpx.Request) -> httpx.Response:
@@ -280,8 +295,7 @@ class TestTheKeyNeverLeaks:
         for record in caplog.records:
             assert KEY not in record.getMessage()
 
-    async def test_a_decode_logs_no_key(self, caplog):
-        logging.getLogger("httpx").setLevel(logging.INFO)
+    async def test_a_decode_logs_no_key(self, caplog, httpx_at_info):
         caplog.set_level(logging.DEBUG)
         seen: list[httpx.Request] = []
         service = _service(
