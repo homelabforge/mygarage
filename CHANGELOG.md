@@ -7,8 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Fixed
+### Added
+- European VIN decoding with AutoRef (your own key; the free Test plan has 50 requests a month), set up in Settings > Integrations. Automatic asks AutoRef first for European countries and falls back to NHTSA, and the VIN step can pick the decoder (#219, thanks @marcomatrella)
+- Make and model pickers with brand logos in Add Vehicle and the reference vehicle form (#219, thanks @marcomatrella)
 
+### Changed
+- Makes and models are saved in Title Case, so HONDA reads Honda and MERCEDES-BENZ reads Mercedes-Benz. Migration 159 rewrites the ones already stored
+
+### Fixed
 - Equipment (Standard/Optional) shows on every vehicle but plain trailers, on phones too, not only after a window sticker.
 
 ## [3.10.0] - 2026-11-05
