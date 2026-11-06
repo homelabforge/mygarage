@@ -168,3 +168,4 @@ migrations must swallow their own operational errors.
 | `156_add_date_format` | **FATAL**: Add users.date_format: the order of day and month in this person's dates. |
 | `157_add_visit_reference_numbers` | **FATAL**: Add invoice, PO and work order numbers to service_visits. |
 | `158_line_item_recall_warranty` | **FATAL**: Recall and warranty flags and links on service_line_items, and recalls.resolved_via. |
+| `159_title_case_vehicle_names` | Stored makes and models in Title Case (#219 takeover). |
