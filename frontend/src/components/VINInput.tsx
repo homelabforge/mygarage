@@ -42,7 +42,11 @@ type ProviderChoice = 'automatic' | VINProvider
 interface VINInputProps {
   value: string
   onChange: (vin: string) => void
-  onDecode?: (data: VINDecodeResponse) => void
+  /**
+   * A decode's answer. `fillOnly` is set on a second decoder's answer (Try
+   * AutoRef / Try NHTSA): it adds what it knows and blanks nothing.
+   */
+  onDecode?: (data: VINDecodeResponse, options?: { fillOnly?: boolean }) => void
   autoValidate?: boolean
   className?: string
   /**
@@ -208,7 +212,7 @@ export default function VINInput({
       const data = await vinService.decode(value, { provider, country })
       setDecodedData(data)
       if (onDecode) {
-        onDecode(data)
+        onDecode(data, { fillOnly: true })
       }
     } catch (err: unknown) {
       setTryError(getActionErrorMessage(err, t('vinInput.decodeAction')))

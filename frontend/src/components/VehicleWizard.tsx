@@ -10,7 +10,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
-import { Controller, useForm, type Resolver } from 'react-hook-form'
+import { Controller, useForm, type Path, type PathValue, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { ChevronLeft, ChevronRight, Check } from 'lucide-react'
 import VINInput from './VINInput'
@@ -157,9 +157,16 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
   ]
 
   // Handle VIN decode - populate form with setValue
-  const handleVinDecode = (data: VINDecodeResponse) => {
+  const handleVinDecode = (data: VINDecodeResponse, options?: { fillOnly?: boolean }) => {
     const currentNickname = getValues('nickname')
     const generatedNickname = `${data.year || ''} ${data.make || ''} ${data.model || ''}`.trim()
+    // A second decoder's answer (Try AutoRef / Try NHTSA) only adds: a field
+    // it doesn't know keeps what the first answer or a certificate filled.
+    const fillOnly = options?.fillOnly ?? false
+    const put = <P extends Path<VehicleEditFormData>>(field: P, value: PathValue<VehicleEditFormData, P>): void => {
+      if (fillOnly && (value === null || value === undefined)) return
+      setValue(field, value)
+    }
 
     // Set all decoded values using setValue. A European VIN decodes with no
     // year and no model (#211): neither clears what was typed.
@@ -167,13 +174,13 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
     if (data.make || !getValues('make')) setValue('make', data.make || null)
     if (data.model || !getValues('model')) setValue('model', data.model || null)
     setValue('nickname', currentNickname || generatedNickname)
-    setValue('trim', data.trim || null)
-    setValue('body_class', data.body_class || null)
-    setValue('drive_type', data.drive_type || null)
-    setValue('doors', data.doors || undefined)
-    setValue('gvwr_class', data.gvwr || null)
-    setValue('displacement_l', data.engine?.displacement_l || null)
-    setValue('cylinders', data.engine?.cylinders || undefined)
+    put('trim', data.trim || null)
+    put('body_class', data.body_class || null)
+    put('drive_type', data.drive_type || null)
+    put('doors', data.doors || undefined)
+    put('gvwr_class', data.gvwr || null)
+    put('displacement_l', data.engine?.displacement_l || null)
+    put('cylinders', data.engine?.cylinders || undefined)
     // Use the server-normalized fuel type (canonical FuelTypeEnum value),
     // not the raw NHTSA string — the vehicle API rejects non-canonical
     // fuel_type values with 422. Fall back to null when NHTSA's fuel type
@@ -182,9 +189,9 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
     // one of FUEL_TYPE_VALUES when non-null — normalize_fuel_type() on the
     // backend guarantees it. The form's own zod validation (fuelTypeSchema)
     // re-checks this at submit time regardless.
-    setValue('fuel_type', (data.engine?.fuel_type_normalized as FuelType | null) || null)
-    setValue('transmission_type', data.transmission?.type || null)
-    setValue('transmission_speeds', data.transmission?.speeds || null)
+    put('fuel_type', (data.engine?.fuel_type_normalized as FuelType | null) || null)
+    put('transmission_type', data.transmission?.type || null)
+    put('transmission_speeds', data.transmission?.speeds || null)
   }
 
   // A certificate fills what it can; every value stays editable on step 2,

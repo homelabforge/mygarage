@@ -1996,7 +1996,7 @@
     {
       "path": "src/components/VINInput.tsx",
       "disposition": "no unit behaviour",
-      "digest": "c3aac0590b7139ba2dca2b66be2032efed13dcbbf242676847c2cbba9ef0cc2b",
+      "digest": "af108cc1653613752ef7c749776b87430746077b234e428bb0479edbd83420ab",
       "reason": "no unit behaviour: dispositioned under the CORRECTED scan: every unit stem, token, quantity name and canonical field suffix this codebase uses, matched case-insensitively with NO word boundary. The earlier word-boundary version was a floor (it called AnalyticsHelpModal.tsx clean while it renders \"Average MPG:\" to every user) and it was superseded before any disposition in this file was written. This file matched NONE of them. 2026-10-08 (European VINs, #211): a partial-decode notice (maker, notes, a link to the certificate import) and the WMI's country shown when NHTSA names no plant; codes and names, no quantity, unit or conversion code. 2026-11-04 (#278 review): country names read useLanguageLocale. Still no unit behaviour."
     },
     {
@@ -2021,7 +2021,7 @@
     {
       "path": "src/components/VehicleWizard.tsx",
       "disposition": "no unit behaviour",
-      "digest": "0a4df814dc8da506d6e46f1cb39f119fad891f18ebce0d22024376882fcf115a",
+      "digest": "253d22af0f96f20880a5e866dc92d37d100b14b12763bc8cb1cd84fe9a1a5f33",
       "reason": "no unit behaviour: dispositioned under the CORRECTED scan: every unit stem, token, quantity name and canonical field suffix this codebase uses, matched case-insensitively with NO word boundary. The earlier word-boundary version was a floor (it called AnalyticsHelpModal.tsx clean while it renders \"Average MPG:\" to every user) and it was superseded before any disposition in this file was written. This file matched 5 of them; every hit was read in context and none is a unit decision or a unit-bearing quantity. 2026-10-31 (b11 fix wave): every label gets htmlFor and its control a matching wizard-* id; markup only, no unit behaviour. 2026-10-07 (country setting, #211): step 2 gains a registration-country select (defaulted from useResolvedCountry) and a first-registration date input, both sent as-is; no quantity, unit or conversion touched. 2026-10-08 (registration certificate import, #211): a certificate import card on step 1 that fills the form (plate, country, date, make, model, fuel, displacement litres as the server computed them, type) and keeps the other certificate fields for the create payload; tax amounts on the review step are shown with formatCurrency, no unit conversion. 2026-10-08 (European VINs, #211): a decode with no year or model no longer clears what was typed, and the VIN input's link scrolls to the certificate card; no quantity, unit or conversion code. 2026-11-04 (#278 review): country names read useLanguageLocale. Still no unit behaviour."
     },
     {

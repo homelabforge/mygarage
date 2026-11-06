@@ -547,6 +547,39 @@ describe('VehicleWizard: make and model pickers', () => {
     expect(screen.getByRole('option', { name: 'Mirage' })).toBeInTheDocument()
   })
 
+  it('a second decoder fills what it knows and keeps what the first one filled', async () => {
+    // Codex diff R1-H1: a sparser second answer must not blank the form.
+    mockedVinService.providers.mockResolvedValue({ available: ['nhtsa', 'autoref'], preferred: 'nhtsa' })
+    mockedVinService.decode
+      .mockResolvedValueOnce({
+        vin: TEST_VIN,
+        make: 'Renault',
+        model: null,
+        trim: 'Initiale',
+        decode_quality: 'partial',
+        decoded_by: 'nhtsa',
+      })
+      .mockResolvedValueOnce({
+        vin: TEST_VIN,
+        make: 'Renault',
+        model: 'Clio',
+        decode_quality: 'full',
+        decoded_by: 'autoref',
+      })
+    renderAndEnterVin()
+    const decodeButton = await screen.findByRole('button', { name: 'vinInput.decode' })
+    await waitFor(() => expect(decodeButton).not.toBeDisabled())
+    fireEvent.click(decodeButton)
+    fireEvent.click(await screen.findByRole('button', { name: 'vinInput.tryAutoRef' }))
+    await waitFor(() => expect(mockedVinService.decode).toHaveBeenCalledTimes(2))
+    await screen.findByText('vinInput.decodedBy')
+    fireEvent.click(await screen.findByRole('button', { name: 'wizard.next' }))
+    await screen.findByLabelText('wizard.fuelType')
+
+    expect(screen.getByLabelText('wizard.model')).toHaveValue('Clio')
+    expect(screen.getByLabelText('wizard.trim')).toHaveValue('Initiale')
+  })
+
   it('keeps a make the catalog does not know', async () => {
     await goToStep2()
     const make = screen.getByLabelText('wizard.make')
