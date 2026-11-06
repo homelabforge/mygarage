@@ -718,7 +718,7 @@ wheels = [
 
 [[package]]
 name = "mygarage"
-version = "3.10.0rc2"
+version = "3.10.0"
 source = { editable = "." }
 dependencies = [
     { name = "aiomqtt" },

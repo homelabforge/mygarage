@@ -7,56 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Upgrade note
-
-Back up first; migrations 157 and 158 are FATAL.
-
-### Added
-- Date format setting in Quick Settings: English dates month-first (10/24/2026) or day-first (24/10/2026), PDF reports included (#278, thanks @dpruddel)
-- Invoice, PO and work order numbers on a service visit
-- Recall and warranty line items (linking a recall resolves it on the visit's date)
-
-### Changed
-- The garage PDF's Operating Cost is now Running Cost (service, fuel and DEF), matching the Analytics page
-
-### Fixed
-- The calendar no longer shows archived vehicles' reminders, warranties and service history
-- The service history PDF exported from archived vehicles printed USD instead of your currency
-- Search terms, names and other request values are stripped of control characters before they're logged, so they can't forge log lines
-
-## [3.10.0-rc2] - 2026-11-03
-
-_Pre-release; promoting to stable will keep these entries._
+## [3.10.0] - 2026-11-05
 
 ### Upgrade note
 
-Back up before you upgrade. Migrations 153, 154 and 155 are FATAL: if one fails, MyGarage refuses to start. The backup steps in the 3.10.0-rc1 note cover them.
-
-Migration 155 moves a motorcycle, bicycle or e-bike that follows its type's wheel layout onto front and rear: an axle whose tires or brakes used one position (such as FL) moves to F or R, and an axle that used two is left for you to sort out. A boat, snowmobile, generator, small engine or attachment that has tire or brake records is set to four wheels, so its tabs stay.
-
-### Added
-
-- The next inspection deadline (X.1) shows in Basic Information, where you can correct or clear it.
-- Tires and brakes follow a per-vehicle wheel layout: motorcycles get front and rear, plus trikes, duallies and no wheels (#272)
-
-### Fixed
-
-- A vehicle with no NHTSA recalls no longer counts as an NHTSA outage, which made the scheduled check ask again every night.
-- An X.1 date older than the current inspection cycle no longer makes the reminder years overdue.
-- A recall source is only marked checked when a vehicle asked it and the check got through, including a RappelConso maintenance page and a vehicle that errored.
-- POI search through OpenStreetMap no longer comes back empty: the Overpass servers refused requests without a MyGarage User-Agent, and a hung server no longer holds up the search (#273).
-- Maps show their tiles again: the service worker was re-fetching OpenStreetMap tiles and the CSP blocked them, leaving a grey square (reported in #271, thanks @dpruddel).
-- The registration certificate upload checks the vehicle key before using it in a file path, like the photo and window sticker uploads, and the key checks no longer let a trailing newline through.
-
-### Removed
-
-- The unused NHTSA service bulletin lookup, whose address no longer exists.
-
-## [3.10.0-rc1] - 2026-11-02
-
-_Pre-release; promoting to stable will keep these entries._
-
-### Upgrade note
+Back up before you upgrade. Coming from 3.9.0, migrations 133 to 135, 143 to 145 and 147 to 158 are FATAL: if one fails, MyGarage refuses to start. From 3.10.0-rc1, 153 to 158 are new; from 3.10.0-rc2, 156 to 158 (date format, visit reference numbers, recall and warranty line items). All of them are FATAL, and the backup steps below cover them.
 
 Back up `settings.key` after you upgrade, and keep it apart from your backups. Secret settings (the SSO client secret, the notification tokens, webhook URLs and SMTP password, the LLM and POI provider keys, the LiveLink MQTT password, and the webhook ingest token) are now encrypted at rest. The key is generated on the first start at `/data/settings.key`, unless `MYGARAGE_SETTINGS_KEY` holds it or `MYGARAGE_SETTINGS_KEY_FILE` names the absolute path of a file that does. Neither settings backups nor full backups include it, on purpose: on a new host without it, a full restore brings every secret back unreadable and a settings restore skips them, so you re-enter them. Once either variable is set, MyGarage uses it instead of the file, even when its key is wrong, so put the key already in use into it.
 
@@ -98,6 +53,8 @@ Migration 137 closes any duplicate active DTC rows a vehicle has for one code, k
 
 Torque sends `TORQUE_ODOMETER` in km, so a Torque device set to odometer unit `mi` with `TORQUE_ODOMETER` as its odometer has stored that odometer 1.609x high since the switch. Migration 139 logs a WARNING naming each such device. Back up first, then run `python tools/repair_wican_odometer_unit.py --device-id <id> --key TORQUE_ODOMETER --to km` inside the container, with MyGarage stopped or in maintenance mode. It's a dry run until you add `--apply`, and it rescales the readings, odometer records, trips and daily summaries from the switch on and clears the unit. `tools/backfill_livelink_odometer.py` refuses such a device until it's repaired.
 
+Migration 155 moves a motorcycle, bicycle or e-bike that follows its type's wheel layout onto front and rear: an axle whose tires or brakes used one position (such as FL) moves to F or R, and an axle that used two is left for you to sort out. A boat, snowmobile, generator, small engine or attachment that has tire or brake records is set to four wheels, so its tabs stay.
+
 ### Added
 - Advanced statistics on a vehicle's Analytics page: running and ownership cost, fuel-ups and expenses, with insurance counted over its days in force or as paid
 - South African Rand (ZAR) currency
@@ -131,6 +88,12 @@ Torque sends `TORQUE_ODOMETER` in km, so a Torque device set to odometer unit `m
 - French fuel prices near a saved station (#211)
 - French, Spanish and Portuguese toll systems (#211)
 - Reminder pack names and descriptions are translated (French: « Vidange et filtre à huile », « Permutation des pneus »…); packs you saved keep the name you typed.
+- The next inspection deadline (X.1) shows in Basic Information, where you can correct or clear it.
+- Tires and brakes follow a per-vehicle wheel layout: motorcycles get front and rear, plus trikes, duallies and no wheels (#272)
+- Date format setting in Quick Settings: English dates month-first (10/24/2026) or day-first (24/10/2026), PDF reports included (#278, thanks @dpruddel)
+- Invoice, PO and work order numbers on a service visit
+- Recall and warranty line items (linking a recall resolves it on the visit's date)
+- The login signs in on its own after you pick a saved login in Safari or the Passwords app (#280, thanks @dpruddel)
 
 ### Changed
 - An engine-off stop shorter than the drive gap no longer splits a drive
@@ -195,12 +158,14 @@ Torque sends `TORQUE_ODOMETER` in km, so a Torque device set to odometer unit `m
 - French translation brought up to date and revised for French typography and vouvoiement (#211)
 - **BREAKING (API):** tax records use type codes (`registration`, `registration_tax`, ...) instead of display names; the old names are still accepted on input (#211)
 - Export downloads are named Year_Make_Model with unknown parts skipped and spaces as hyphens, falling back to the nickname
+- The garage PDF's Operating Cost is now Running Cost (service, fuel and DEF), matching the Analytics page
 
 ### Removed
 - The Files settings for max upload size, allowed photo types and allowed attachment types, and the `date_format`, `distance_unit` and `fuel_unit` settings. None of them ever did anything. They are no longer seeded and the settings API refuses them (422); rows already stored stay and do nothing. A browser still running the old page gets a 422 when it saves the Files tab, until the page is reloaded
 - The `MYGARAGE_RECALL_CHECK_INTERVAL_DAYS` environment variable, which nothing read. The interval is the Recall Check Interval setting
 - `duplicate_of` on the reminder API response. `GET /api/vehicles/{vin}/reminders/duplicates` returns the same groups, and is what the app reads
 - `mount_period_id` on tire readings in the API, which only older readings carried
+- The unused NHTSA service bulletin lookup, whose address no longer exists.
 
 ### Fixed
 - Garage analytics stops counting a sold vehicle's insurance on its sale date, even when its policy was never ended
@@ -320,6 +285,15 @@ Torque sends `TORQUE_ODOMETER` in km, so a Torque device set to odometer unit `m
 - A server error on the odometer unit, an EV charging field or a supply barcode shows under that field instead of a generic save error
 - On a fill-up, an error on the driver or the OBC trip duration shows under that field, and a server error on one of the checkboxes shows the save error instead of nothing
 - Logging a supply purchase shows errors on the date, supplier and part number under the field (an empty date says it's required), and a server error on a recall's resolved checkbox shows the save error instead of nothing
+- A vehicle with no NHTSA recalls no longer counts as an NHTSA outage, which made the scheduled check ask again every night.
+- An X.1 date older than the current inspection cycle no longer makes the reminder years overdue.
+- A recall source is only marked checked when a vehicle asked it and the check got through, including a RappelConso maintenance page and a vehicle that errored.
+- POI search through OpenStreetMap no longer comes back empty: the Overpass servers refused requests without a MyGarage User-Agent, and a hung server no longer holds up the search (#273).
+- Maps show their tiles again: the service worker was re-fetching OpenStreetMap tiles and the CSP blocked them, leaving a grey square (reported in #271, thanks @dpruddel).
+- The registration certificate upload checks the vehicle key before using it in a file path, like the photo and window sticker uploads, and the key checks no longer let a trailing newline through.
+- The calendar no longer shows archived vehicles' reminders, warranties and service history
+- The service history PDF exported from archived vehicles printed USD instead of your currency
+- Search terms, names and other request values are stripped of control characters before they're logged, so they can't forge log lines
 
 ### Security
 - A sign-in token with no expiry, or with one that isn't a finite number, is refused instead of never expiring (a text expiry used to error)
