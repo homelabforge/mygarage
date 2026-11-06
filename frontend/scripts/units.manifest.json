@@ -1899,7 +1899,7 @@
     {
       "path": "src/components/SuggestInput.tsx",
       "disposition": "no unit behaviour",
-      "digest": "73a03b323b1357f5f863421b72c37bce8e1fc16c7d20a4286b97afc427394ea9",
+      "digest": "d597f83927711a7e889ddeb6ba41d81b22d24b331c5d8cb34cb0b7e929d4888f",
       "reason": "no unit behaviour: NEW 2026-11-05 (#219 takeover). A free-text box with a useCombobox listbox. Read in full; no quantity, unit or conversion."
     },
     {

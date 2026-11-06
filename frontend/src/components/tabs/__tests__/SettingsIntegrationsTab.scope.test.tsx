@@ -9,6 +9,7 @@
 import { useEffect } from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { SettingsProvider, useSettings } from '@/contexts/SettingsContext'
 
 const h = vi.hoisted(() => ({ isAdmin: false, authMode: 'local' }))
@@ -60,9 +61,11 @@ function ActiveIntegrationsTab(): React.ReactElement {
 
 function renderTab(): void {
   render(
-    <SettingsProvider>
-      <ActiveIntegrationsTab />
-    </SettingsProvider>,
+    <QueryClientProvider client={new QueryClient()}>
+      <SettingsProvider>
+        <ActiveIntegrationsTab />
+      </SettingsProvider>
+    </QueryClientProvider>,
   )
 }
 

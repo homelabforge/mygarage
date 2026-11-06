@@ -100,7 +100,7 @@ export default function SuggestInput({
       {combobox.expanded && (
         <ul
           {...combobox.listProps}
-          className="absolute z-dropdown mt-1 max-h-64 w-full overflow-auto rounded-control border border-border bg-surface shadow-dropdown"
+          className="absolute z-dropdown mt-1 max-h-64 w-full overflow-auto rounded-control border border-border bg-surface shadow-menu"
         >
           {suggestions.map((suggestion, index) => (
             <li
