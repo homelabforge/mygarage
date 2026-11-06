@@ -374,7 +374,14 @@ class TestMapping:
 
     @pytest.mark.parametrize(
         "code,expected",
-        [("M", "Manual"), ("A", "Automatic"), ("S", None), ("H", None), (None, None)],
+        [
+            ("M", "Manual"),
+            ("A", "Automatic"),
+            ("S", "Continuously Variable Transmission (CVT)"),
+            ("s", "Continuously Variable Transmission (CVT)"),
+            ("H", None),
+            (None, None),
+        ],
     )
     def test_gearbox_code(self, code, expected):
         row = {**ROW, "CODE_GEARBOX": code}
@@ -441,6 +448,65 @@ class TestMapping:
     def test_gears_that_are_not_a_gear_count_read_as_missing(self, details):
         detail = {"GEARBOX_DETAILS": details}
         assert map_vehicle(VIN, ROW, detail, multiple=False)["transmission"]["speeds"] is None
+
+    def test_a_cvt_hybrid_reads_cvt_and_hybrid(self):
+        # A 2020 Corolla 1.8 Hybrid as AutoRef answered it (live decode
+        # 2026-11-06): CODE_GEARBOX S, FUEL "Gasoline / Electric", and
+        # TYPE_HYBRID blank even though it's a hybrid.
+        row = {
+            **ROW,
+            "CODE_GEARBOX": "S",
+            "GEARBOX": "Continuously Variable",
+            "FUEL": "Gasoline / Electric",
+        }
+        detail = {
+            "FUEL": "Gasoline / Electric",
+            "CODE_FUEL": "C",
+            "TYPE_HYBRID": "",
+            "GEARBOX_DETAILS": [
+                {
+                    "code": None,
+                    "type": "Semi-automatic (gear shift)",
+                    "description": None,
+                    "additionnal_mode": None,
+                    "gears": None,
+                }
+            ],
+        }
+        result = map_vehicle(VIN, row, detail, multiple=False)
+        assert result["transmission"] == {
+            "type": "Continuously Variable Transmission (CVT)",
+            "speeds": None,
+        }
+        engine = result["engine"]
+        assert engine["fuel_type"] == "Gasoline / Electric"
+        assert engine["fuel_type_normalized"] == "hybrid"
+        assert engine["fuel_type_secondary"] == "electric"
+
+    @pytest.mark.parametrize(
+        "fuel,expected",
+        [
+            ("Gasoline / Electric", ("hybrid", "electric")),
+            ("Diesel / Electric", ("hybrid", "electric")),
+            ("Electric / Gasoline", ("hybrid", "electric")),
+            ("gasoline/electric", ("hybrid", "electric")),
+            ("Electric", ("electric", None)),
+            ("Gasoline", ("gasoline", None)),
+            ("Compressed Natural Gas (CNG) / Gasoline", (None, None)),
+            ("Electric / Electric", (None, None)),
+            ("Unobtainium / Electric", (None, None)),
+        ],
+    )  # fmt: skip
+    def test_a_fuel_paired_with_electric_reads_hybrid(self, fuel, expected):
+        row = {**ROW, "FUEL": fuel}
+        engine = map_vehicle(VIN, row, {}, multiple=False)["engine"]
+        assert (engine["fuel_type_normalized"], engine["fuel_type_secondary"]) == expected
+
+    def test_a_second_fuel_autoref_names_wins_over_electric(self):
+        row = {**ROW, "FUEL": "Gasoline / Electric"}
+        engine = map_vehicle(VIN, row, {"SECOND_FUEL": "Diesel"}, multiple=False)["engine"]
+        assert engine["fuel_type_normalized"] == "hybrid"
+        assert engine["fuel_type_secondary"] == "diesel"
 
     def test_best_guess_when_several_rows(self):
         assert NOTE_AUTOREF_BEST_GUESS in map_vehicle(VIN, ROW, {}, multiple=True)["notes"]
