@@ -53,10 +53,19 @@ DETAIL: dict[str, Any] = {
         "DOORS": 5,
         "DISPLACEMENT": 1498,
         "CYLINDERS": 4,
-        "DRIVETRAIN": "Front-wheel drive",
-        "CODE_DRIVETRAIN": "F",
+        "DRIVETRAIN": "Front-Wheel Drive",
+        "CODE_DRIVETRAIN": "V",
         "MANUFACTURER": "AUDI AG",
         "GEARBOX": ["Automatique"],
+        "GEARBOX_DETAILS": [
+            {
+                "code": None,
+                "type": "Automatic",
+                "description": None,
+                "additionnal_mode": None,
+                "gears": 7,
+            }
+        ],
     }
 }
 
@@ -354,7 +363,7 @@ class TestMapping:
         assert engine["cylinders"] == 4
         assert engine["fuel_type"] == "Petrol"
         assert engine["fuel_type_normalized"] == "gasoline"
-        assert result["transmission"]["type"] == "Automatic"
+        assert result["transmission"] == {"type": "Automatic", "speeds": "7"}
         assert result["drive_type"] == "FWD"
         assert result["doors"] == 5
         assert result["manufacturer"] == "AUDI AG"
@@ -386,6 +395,52 @@ class TestMapping:
     def test_drive_type_is_never_a_raw_string(self, words, expected):
         detail = {"DRIVETRAIN": words, "CODE_DRIVETRAIN": None}
         assert map_vehicle(VIN, ROW, detail, multiple=False)["drive_type"] == expected
+
+    # Live decodes, 2026-11-06 (plan Q1). The codes are the Swiss type
+    # approval's German ones: a Golf read V "Front-Wheel Drive", a Porsche
+    # Macan (all-wheel drive, every one of them) read A, with the words
+    # "Front", as if A were French "avant". So the code wins over the words.
+    # H (Hinterrad) wasn't in a sample; it's the third letter of the same set.
+    @pytest.mark.parametrize(
+        "code,words,expected",
+        [
+            ("A", "Front", "AWD"),
+            ("V", "Front-Wheel Drive", "FWD"),
+            ("H", None, "RWD"),
+            ("v", None, "FWD"),
+            ("Z", "Rear-wheel drive", "RWD"),
+        ],
+    )
+    def test_the_drivetrain_code_wins_over_the_words(self, code, words, expected):
+        detail = {"CODE_DRIVETRAIN": code, "DRIVETRAIN": words}
+        assert map_vehicle(VIN, ROW, detail, multiple=False)["drive_type"] == expected
+
+    def test_a_manual_with_an_automatic_mode_reads_automated_manual(self):
+        # The Macan's PDK: CODE_GEARBOX M, with additionnal_mode A and 7 gears.
+        row = {**ROW, "CODE_GEARBOX": "M", "GEARBOX": "Manual"}
+        detail = {"GEARBOX_DETAILS": [{"code": None, "type": "Manual", "description": None,
+                                       "additionnal_mode": "A", "gears": 7}]}  # fmt: skip
+        assert map_vehicle(VIN, row, detail, multiple=False)["transmission"] == {
+            "type": "Automated Manual",
+            "speeds": "7",
+        }
+
+    def test_a_plain_manual_stays_manual(self):
+        row = {**ROW, "CODE_GEARBOX": "M"}
+        detail = {"GEARBOX_DETAILS": [{"type": "Manual", "additionnal_mode": None, "gears": 6}]}
+        assert map_vehicle(VIN, row, detail, multiple=False)["transmission"] == {
+            "type": "Manual",
+            "speeds": "6",
+        }
+
+    @pytest.mark.parametrize(
+        "details",
+        [None, [], "7", [None], [{"gears": None}], [{"gears": "7"}], [{"gears": True}],
+         [{"gears": 0}], [{"gears": 40}]],
+    )  # fmt: skip
+    def test_gears_that_are_not_a_gear_count_read_as_missing(self, details):
+        detail = {"GEARBOX_DETAILS": details}
+        assert map_vehicle(VIN, ROW, detail, multiple=False)["transmission"]["speeds"] is None
 
     def test_best_guess_when_several_rows(self):
         assert NOTE_AUTOREF_BEST_GUESS in map_vehicle(VIN, ROW, {}, multiple=True)["notes"]

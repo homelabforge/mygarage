@@ -52,9 +52,20 @@ NOTE_AUTOREF_BEST_GUESS = "autoref_best_guess"
 NOTE_AUTOREF_EXTERNAL = "autoref_external_record"
 
 _GEARBOX_CODES = {"M": "Manual", "A": "Automatic"}
+#: A manual with an automatic mode (``additionnal_mode`` A): a Porsche PDK
+#: reads this way. S and H are "other" in AutoRef's docs and stay unmapped.
+AUTOMATED_MANUAL = "Automated Manual"
+#: More gears than any car has means the number isn't a gear count.
+_MAX_GEARS = 12
 
-#: Drivetrain words to the form's codes, checked in order. AutoRef's own
-#: vocabulary hasn't been seen yet (plan Q1); these are English and French.
+#: The Swiss type approval's drivetrain codes, in German: Vorderrad,
+#: Hinterrad, Allrad. Read before the words, which are translated from the
+#: code and got A wrong: a Porsche Macan's A came back as "Front", as if it
+#: were French "avant" (live decodes 2026-11-06, plan Q1).
+_DRIVE_CODES = {"V": "FWD", "H": "RWD", "A": "AWD"}
+
+#: Drivetrain words to the form's codes, checked in order, for a code that
+#: isn't one of the above. English and French.
 _DRIVE_WORDS: tuple[tuple[str, str], ...] = (
     ("4x4", "4WD"),
     ("four-wheel", "4WD"),
@@ -194,6 +205,9 @@ def _text(value: Any) -> str | None:
 
 
 def _drive_type(code: Any, words: Any) -> str | None:
+    known = _DRIVE_CODES.get((_text(code) or "").upper())
+    if known is not None:
+        return known
     for raw in (code, words):
         text = _text(raw)
         if text is None:
@@ -205,6 +219,22 @@ def _drive_type(code: Any, words: Any) -> str | None:
             if needle in lowered:
                 return drive
     return None
+
+
+def _gearbox(code: str, details: Any) -> dict[str, str | None]:
+    """The transmission type and speeds from the code and the first gearbox detail."""
+    first = details[0] if isinstance(details, list) and details else None
+    detail = first if isinstance(first, dict) else {}
+    gears = detail.get("gears")
+    speeds = (
+        str(gears)
+        if isinstance(gears, int) and not isinstance(gears, bool) and 0 < gears <= _MAX_GEARS
+        else None
+    )
+    kind = _GEARBOX_CODES.get(code)
+    if kind == "Manual" and (_text(detail.get("additionnal_mode")) or "").upper() == "A":
+        kind = AUTOMATED_MANUAL
+    return {"type": kind, "speeds": speeds}
 
 
 def map_vehicle(
@@ -265,7 +295,7 @@ def map_vehicle(
             "fuel_type_normalized": fuel.value if fuel else None,
             "fuel_type_secondary": fuel_secondary.value if fuel_secondary else None,
         },
-        "transmission": {"type": _GEARBOX_CODES.get(gearbox_code), "speeds": None},
+        "transmission": _gearbox(gearbox_code, detail.get("GEARBOX_DETAILS")),
         "drive_type": _drive_type(pick("CODE_DRIVETRAIN"), pick("DRIVETRAIN")),
         "manufacturer": _text(pick("MANUFACTURER")),
         "doors": _int(pick("DOORS")),
