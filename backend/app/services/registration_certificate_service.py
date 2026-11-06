@@ -153,12 +153,13 @@ def vehicle_patch(data: RegistrationData) -> tuple[dict[str, Any], list[str]]:
             continue
         value = fit_to_column(key, value, source="Registration certificate")
         try:
-            VehicleUpdate.model_validate({key: value})
+            checked = VehicleUpdate.model_validate({key: value})
         except ValidationError as exc:
             reason = exc.errors()[0].get("msg", "invalid") if exc.errors() else "invalid"
             warnings.append(f"{key}: {value!r} dropped ({reason})")
             continue
-        valid[key] = value
+        # The preview shows what will be saved: RENAULT is saved as Renault.
+        valid[key] = getattr(checked, key) if key in ("make", "model") else value
     return valid, warnings
 
 

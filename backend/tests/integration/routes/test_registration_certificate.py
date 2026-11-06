@@ -360,7 +360,7 @@ class TestImport:
         vehicle = await client.get(f"/api/vehicles/{vin}", headers=auth_headers)
         data = vehicle.json()
         assert data["make"] == "Renault"
-        assert data["model"] == "CLIO"
+        assert data["model"] == "Clio"
         assert data["license_plate"] == "AB-123-CD"
         assert data["first_registration_date"] == first.isoformat()
         assert data["registration_country"] == "FR"
@@ -533,8 +533,8 @@ class TestImport:
         assert body["inspection_due_recorded"] is False
         vehicle = (await client.get(f"/api/vehicles/{vin}", headers=auth_headers)).json()
         assert vehicle["vin"] == vin
-        assert vehicle["make"] == "RENAULT"
-        assert vehicle["model"] == "CLIO"
+        assert vehicle["make"] == "Renault"
+        assert vehicle["model"] == "Clio"
 
     @pytest.mark.parametrize(
         ("e_value", "warning"),
@@ -585,7 +585,7 @@ class TestImport:
             assert vehicle["vin"] == key
             assert vehicle["identifier_type"] == "serial"
             assert vehicle["identifier"] == "KBT-9"
-            assert vehicle["make"] == "RENAULT"
+            assert vehicle["make"] == "Renault"
         finally:
             await client.delete(f"/api/vehicles/{key}", headers=auth_headers)
 

@@ -41,6 +41,26 @@ def _normalize_country_input(v: Any) -> Any:
     return code
 
 
+def _normalize_make_input(v: Any) -> Any:
+    """Canonical make spelling for typed or decoded input (#219 takeover).
+
+    A `mode="before"` validator on the writers only (`VehicleCreate`,
+    `VehicleUpdate`, the external-vehicle schemas): a stored legacy
+    `MITSUBISHI` must still read, so responses never normalize. A non-string
+    is passed through for the field's own type check to refuse.
+    """
+    from app.utils.vehicle_names import normalize_make
+
+    return normalize_make(v) if isinstance(v, str) else v
+
+
+def _normalize_model_input(v: Any) -> Any:
+    """Title Case for an ALL-CAPS model; mixed case stays as typed (#219 takeover)."""
+    from app.utils.vehicle_names import normalize_model
+
+    return normalize_model(v) if isinstance(v, str) else v
+
+
 def _normalize_fuel_type_input(v: Any) -> Any:
     """Normalize free-text / NHTSA fuel-type input to the canonical vocabulary.
 
@@ -336,6 +356,18 @@ class VehicleCreate(VehicleBase):
             )
         return self
 
+    @field_validator("make", mode="before")
+    @classmethod
+    def normalize_make(cls, v: Any) -> Any:
+        """Canonical make spelling (#219 takeover)."""
+        return _normalize_make_input(v)
+
+    @field_validator("model", mode="before")
+    @classmethod
+    def normalize_model(cls, v: Any) -> Any:
+        """Title Case for an ALL-CAPS model (#219 takeover)."""
+        return _normalize_model_input(v)
+
     @field_validator("fuel_type", "fuel_type_secondary", mode="before")
     @classmethod
     def normalize_fuel_type_fields(cls, v: Any) -> Any:
@@ -440,6 +472,18 @@ class VehicleUpdate(VehicleBase):
     def clean_identifier(cls, v: Any) -> Any:
         """Trim a typed identifier; a blank one is no identifier."""
         return _clean_identifier(v)
+
+    @field_validator("make", mode="before")
+    @classmethod
+    def normalize_make(cls, v: Any) -> Any:
+        """Canonical make spelling (#219 takeover)."""
+        return _normalize_make_input(v)
+
+    @field_validator("model", mode="before")
+    @classmethod
+    def normalize_model(cls, v: Any) -> Any:
+        """Title Case for an ALL-CAPS model (#219 takeover)."""
+        return _normalize_model_input(v)
 
     @field_validator("fuel_type", "fuel_type_secondary", mode="before")
     @classmethod

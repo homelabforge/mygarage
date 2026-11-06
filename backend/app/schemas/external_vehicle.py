@@ -6,6 +6,7 @@ from typing import Any
 from pydantic import BaseModel, Field, field_validator
 
 from app.schemas._nullability import reject_null
+from app.utils.vehicle_names import normalize_make, normalize_model
 from app.utils.vin import validate_vin
 
 
@@ -40,6 +41,16 @@ class ExternalVehicleCreate(BaseModel):
     def validate_vin_format(cls, v: Any) -> str | None:
         return _normalize_optional_vin(v)
 
+    @field_validator("make", mode="before")
+    @classmethod
+    def normalize_make_field(cls, v: Any) -> Any:
+        return normalize_make(v) if isinstance(v, str) else v
+
+    @field_validator("model", mode="before")
+    @classmethod
+    def normalize_model_field(cls, v: Any) -> Any:
+        return normalize_model(v) if isinstance(v, str) else v
+
 
 class ExternalVehicleUpdate(BaseModel):
     nickname: str | None = Field(None, min_length=1, max_length=100)
@@ -59,6 +70,16 @@ class ExternalVehicleUpdate(BaseModel):
     @classmethod
     def validate_vin_format(cls, v: Any) -> str | None:
         return _normalize_optional_vin(v)
+
+    @field_validator("make", mode="before")
+    @classmethod
+    def normalize_make_field(cls, v: Any) -> Any:
+        return normalize_make(v) if isinstance(v, str) else v
+
+    @field_validator("model", mode="before")
+    @classmethod
+    def normalize_model_field(cls, v: Any) -> Any:
+        return normalize_model(v) if isinstance(v, str) else v
 
 
 class ExternalVehicleResponse(BaseModel):
