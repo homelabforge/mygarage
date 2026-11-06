@@ -78,11 +78,11 @@ def httpx_at_info() -> Iterator[None]:
         httpx_logger.setLevel(before)
 
 
-def _service(handler: Callable[[httpx.Request], httpx.Response]) -> AutoRefService:
+def _service(handler: Callable[[httpx.Request], httpx.Response], key: str = KEY) -> AutoRefService:
     def factory() -> httpx.AsyncClient:
         return httpx.AsyncClient(transport=httpx.MockTransport(handler), base_url=BASE_URL)
 
-    return AutoRefService(KEY, client_factory=factory)
+    return AutoRefService(key, client_factory=factory)
 
 
 def _routes(seen: list[httpx.Request], **by_path: httpx.Response) -> Callable:
@@ -305,6 +305,30 @@ class TestTheKeyNeverLeaks:
         await service.decode(VIN)
         for record in caplog.records:
             assert KEY not in record.getMessage()
+
+    @pytest.mark.parametrize("bad", ["sk-clé-SECRET-1234", "sk SECRET 1234", "sk-SECRET\n1234"])
+    @pytest.mark.parametrize("call", ["decode", "usage"])
+    async def test_a_malformed_key_is_rejected_before_any_request(self, bad, call):
+        # Codex diff R1-M2: httpx encodes headers as ASCII, so a non-ASCII
+        # key raised UnicodeEncodeError (a ValueError, read as a bad VIN)
+        # holding the whole key. It reads as a rejected key, sends nothing,
+        # and no exception in the chain carries it.
+        seen: list[httpx.Request] = []
+        service = _service(_routes(seen), key=bad)
+        with pytest.raises(AutoRefAuthError) as caught:
+            await (service.decode(VIN) if call == "decode" else service.usage())
+        assert seen == []
+        assert caught.value.status is None
+        for exc in self._chain(caught.value):
+            assert bad not in str(exc)
+            assert bad not in repr(exc)
+            assert "SECRET" not in repr(getattr(exc, "args", ()))
+
+    async def test_a_malformed_key_given_to_usage_is_rejected_too(self):
+        seen: list[httpx.Request] = []
+        with pytest.raises(AutoRefAuthError):
+            await _service(_routes(seen)).usage("sk-clé-SECRET")
+        assert seen == []
 
     async def test_auth_failures_log_a_warning_with_the_status(self, caplog):
         caplog.set_level(logging.WARNING, logger="app.services.autoref")

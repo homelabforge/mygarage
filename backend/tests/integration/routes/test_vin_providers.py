@@ -332,4 +332,7 @@ class TestKeyTest:
         assert response.status_code == 200
         assert response.json()["valid"] is False
         assert response.json()["message"] == message
+        # The route's own logs and answer; usage() is a mock here, so its
+        # logging is pinned in test_autoref.py::TestTheKeyNeverLeaks.
         assert all("typed-key-9" not in r.getMessage() for r in caplog.records)
+        assert "typed-key-9" not in response.text

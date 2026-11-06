@@ -157,3 +157,21 @@ def test_a_failing_table_is_logged_and_the_rest_still_runs(engine_for_migration)
     _upgrade(engine)
 
     assert _vehicles(engine)["JA3MIG15900000001"] == ("Mitsubishi", "Mirage")
+
+
+@pytest.mark.parametrize("engine_for_migration", ["sqlite", "pg"], indirect=True)
+def test_the_rewrite_rolls_back_with_the_runners_transaction(engine_for_migration):
+    # Codex diff R1-M1 / Fable F-2: the runner stamps on the same transaction
+    # after upgrade(). If that fails, the rewrite must go with it. On SQLite a
+    # SAVEPOINT issued before any BEGIN opens its own transaction and its
+    # RELEASE commits, ahead of the stamp.
+    _dialect, engine, _url = engine_for_migration
+    _seed(engine)
+
+    with pytest.raises(RuntimeError, match="stamp failed"):
+        with engine.begin() as conn:
+            _load().upgrade(conn=conn)
+            raise RuntimeError("stamp failed")
+
+    assert _vehicles(engine)["JA3MIG15900000001"] == ("MITSUBISHI", "MIRAGE")
+    assert _externals(engine)[1] == ("TOYOTA", "RAV4")

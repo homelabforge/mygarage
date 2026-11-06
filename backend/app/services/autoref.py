@@ -73,6 +73,22 @@ _DRIVE_WORDS: tuple[tuple[str, str], ...] = (
 )
 
 
+#: What an API key may hold: visible ASCII. httpx sends headers as ASCII, so
+#: anything else raised UnicodeEncodeError carrying the whole key (Codex diff R1-M2).
+_KEY_SHAPE = re.compile(r"[\x21-\x7e]+")
+
+
+def _checked_key(key: str) -> str:
+    """The key, or AutoRefAuthError(None) when it can't go on the wire.
+
+    Raised before any request, and the error never holds the key.
+    """
+    if not _KEY_SHAPE.fullmatch(key):
+        logger.warning("AutoRef API key is malformed (only visible ASCII); not sent")
+        raise AutoRefAuthError(None)
+    return key
+
+
 _API_KEY_IN_TEXT = re.compile(r"(api_key=)[^&\s\"']+")
 
 
@@ -106,11 +122,16 @@ class AutoRefError(Exception):
 
 
 class AutoRefAuthError(AutoRefError):
-    """AutoRef refused the key (401 or 403)."""
+    """AutoRef refused the key (401 or 403), or the key can't be sent at all.
 
-    def __init__(self, status: int) -> None:
+    Attributes:
+        status: The HTTP status, or None for a malformed key that was never sent.
+    """
+
+    def __init__(self, status: int | None) -> None:
         self.status = status
-        super().__init__(f"AutoRef rejected the API key (HTTP {status})")
+        reason = "malformed, not sent" if status is None else f"HTTP {status}"
+        super().__init__(f"AutoRef rejected the API key ({reason})")
 
 
 class AutoRefQuotaError(AutoRefError):
@@ -338,7 +359,7 @@ class AutoRefService:
         is_valid, error = validate_vin(vin)
         if not is_valid:
             raise ValueError(f"Invalid VIN: {error}")
-        headers = {"x-api-key": self._api_key}
+        headers = {"x-api-key": _checked_key(self._api_key)}
         async with self._client_factory() as client:
             # codeql[py/partial-ssrf] - fixed host; the VIN is validated above (17 alphanumerics, no I/O/Q)
             rows = await self._get(
@@ -376,8 +397,9 @@ class AutoRefService:
             AutoRefAuthError, AutoRefUnavailableError (never an httpx error:
             the request URL holds the key).
         """
+        checked = _checked_key(key or self._api_key)
         async with self._client_factory() as client:
-            body = await self._get(client, "/usage", params={"api_key": key or self._api_key})
+            body = await self._get(client, "/usage", params={"api_key": checked})
         if not isinstance(body, dict):
             raise AutoRefUnavailableError(404 if body is None else 200)
         return AutoRefUsage(

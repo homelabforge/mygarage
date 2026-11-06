@@ -49,9 +49,25 @@ def _rewrite(conn: Connection, table: str, key: str) -> int:
     return changed
 
 
+def _open_transaction(conn: Connection) -> None:
+    """Start the real transaction the savepoints nest in (SQLite only).
+
+    pysqlite's legacy transaction control only BEGINs before a write, so a
+    SAVEPOINT issued first opens its own transaction and its RELEASE commits,
+    ahead of the runner's stamp (Codex diff R1-M1). PostgreSQL is already in
+    one.
+    """
+    if conn.dialect.name != "sqlite":
+        return
+    dbapi = conn.connection.dbapi_connection
+    if dbapi is not None and not dbapi.in_transaction:
+        conn.exec_driver_sql("BEGIN")
+
+
 def upgrade(conn: Connection) -> None:
     """Title Case every stored make and model, on the runner's connection."""
     present = set(inspect(conn).get_table_names())
+    _open_transaction(conn)
     for table, key in _TABLES:
         if table not in present:
             logger.info("159: %s missing; nothing to rewrite", table)

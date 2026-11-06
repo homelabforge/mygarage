@@ -10,6 +10,7 @@ import catalog from '../carCatalog.json'
 import { foldKey } from '@/services/carCatalogService'
 
 const BACKEND_MAKES = resolve(__dirname, '../../../../backend/app/data/vehicle_makes.json')
+const BACKEND_MODELS = resolve(__dirname, '../../../../backend/app/data/vehicle_models.json')
 const LOGO_DIR = resolve(__dirname, '../../../public/brand-logos')
 
 interface Make {
@@ -32,6 +33,12 @@ describe('carCatalog.json', () => {
   it('lists every backend make, so the picker offers what decoding can return', () => {
     const canonical = (JSON.parse(readFileSync(BACKEND_MAKES, 'utf-8')) as { makes: string[] }).makes
     expect(canonical.filter((name) => !byName.has(name))).toEqual([])
+  })
+
+  it('gives the backend the same models, so a picked model saves as picked', () => {
+    // Fable diff F-1. Fix a mismatch with `bun run scripts/sync-vehicle-models.ts`.
+    const backend = JSON.parse(readFileSync(BACKEND_MODELS, 'utf-8')) as Record<string, string[]>
+    expect(backend).toEqual(Object.fromEntries(makes.map((m) => [m.name, m.models])))
   })
 
   it('has no two makes with the same folded name', () => {
