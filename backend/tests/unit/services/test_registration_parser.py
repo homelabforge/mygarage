@@ -446,8 +446,8 @@ class TestVehiclePatch:
             "vin": "VF1RFB00X56123456",
             "license_plate": "AB-123-CD",
             "first_registration_date": "2023-03-12",
-            "make": "RENAULT",
-            "model": "CLIO",
+            "make": "Renault",
+            "model": "Clio",
             "displacement_l": "1.5",
             "power_kw": 74,
             "fuel_type": "gasoline",
@@ -459,6 +459,18 @@ class TestVehiclePatch:
             "registration_country": "FR",
             "vehicle_type": "Car",
         }
+
+    # Codex on #286: the model is read under the certificate's make. Without
+    # it ION matches both Saturn's Ion and Peugeot's iOn and falls back to the
+    # word rule, and a mixed-case Ion is never corrected later.
+    def test_the_model_takes_its_spelling_under_the_make(self):
+        patch, _ = vehicle_patch(RegistrationData(make="PEUGEOT", commercial_name="ION"))
+        assert patch["make"] == "Peugeot"
+        assert patch["model"] == "iOn"
+
+    def test_a_model_without_a_make_still_normalizes(self):
+        patch, _ = vehicle_patch(RegistrationData(commercial_name="CLIO"))
+        assert patch["model"] == "Clio"
 
     def test_plug_in_hybrid_code_sets_both_fuel_types(self):
         data = RegistrationData(energy_code="EE", country="FR")

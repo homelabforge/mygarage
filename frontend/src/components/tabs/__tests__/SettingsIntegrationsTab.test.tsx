@@ -14,7 +14,8 @@
 
 import { useEffect } from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { SettingsProvider, useSettings } from '@/contexts/SettingsContext'
 
 vi.mock('@/services/api', () => ({
@@ -125,11 +126,20 @@ function ActiveIntegrationsTab() {
   return <SettingsIntegrationsTab />
 }
 
-function renderTab(): void {
+// A Test result shows under the button that asked for it. The tab's top
+// banner sits screens above the lower cards (more on a phone), so a result
+// there read as no result at all.
+function besideButton(button: HTMLElement): ReturnType<typeof within> {
+  return within(button.parentElement as HTMLElement)
+}
+
+function renderTab(queryClient: QueryClient = new QueryClient()): void {
   render(
-    <SettingsProvider>
-      <ActiveIntegrationsTab />
-    </SettingsProvider>,
+    <QueryClientProvider client={queryClient}>
+      <SettingsProvider>
+        <ActiveIntegrationsTab />
+      </SettingsProvider>
+    </QueryClientProvider>,
   )
 }
 
@@ -153,6 +163,7 @@ describe('SettingsIntegrationsTab', () => {
       'integrations.webhooks',
       'integrations.llmSection',
       'integrations.nhtsa',
+      'integrations.autoref',
       'integrations.rappelconso',
       'integrations.fuelPrices',
       'integrations.carComplaints',
@@ -379,7 +390,7 @@ describe('the LLM card (#211)', () => {
 
     fireEvent.click(button)
 
-    expect(await screen.findByText('integrations.llmTestVisionOk')).toBeInTheDocument()
+    expect(await besideButton(button).findByText('integrations.llmTestVisionOk')).toBeInTheDocument()
     const urls = mockedApi.post.mock.calls.map(([url]) => url as string)
     const save = urls.indexOf('/settings/batch')
     const test = urls.lastIndexOf('/settings/test/llm')
@@ -410,6 +421,91 @@ describe('the LLM card (#211)', () => {
 
     fireEvent.click(button)
 
-    expect(await screen.findByText('integrations.llmTestFailed')).toBeInTheDocument()
+    expect(await besideButton(button).findByText('integrations.llmTestFailed')).toBeInTheDocument()
+  })
+})
+
+describe('the NHTSA card', () => {
+  it('shows the test result under its button', async () => {
+    renderTab()
+    const button = await screen.findByRole('button', { name: 'integrations.testNHTSA' })
+
+    fireEvent.click(button)
+
+    expect(await besideButton(button).findByText('integrations.nhtsaTestSuccess')).toBeInTheDocument()
+  })
+})
+
+// AutoRef, the European VIN decoder (#219 takeover).
+describe('the AutoRef card', () => {
+  it('saves the switch and the key with the rest of the tab', async () => {
+    renderTab()
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'integrations.enableAutoref' }))
+    fireEvent.change(screen.getByLabelText('integrations.autorefApiKey'), { target: { value: 'k-123' } })
+
+    await waitFor(() => expect(mockedApi.post).toHaveBeenCalled(), { timeout: 3000 })
+    const [url, body] = mockedApi.post.mock.calls.at(-1) as [string, { settings: Record<string, string> }]
+    expect(url).toBe('/settings/batch')
+    expect(body.settings.autoref_enabled).toBe('true')
+    expect(body.settings.autoref_api_key).toBe('k-123')
+  })
+
+  it('refreshes the decoder list after a save (R1-F5)', async () => {
+    const queryClient = new QueryClient()
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+    renderTab(queryClient)
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'integrations.enableAutoref' }))
+
+    await waitFor(() => expect(invalidate).toHaveBeenCalledWith({ queryKey: ['vin-providers'] }), {
+      timeout: 3000,
+    })
+  })
+
+  it('tests the key and shows what is left of the plan', async () => {
+    mockedApi.get.mockImplementation((url: string) =>
+      Promise.resolve({
+        data:
+          url === '/settings'
+            ? { settings: [{ key: 'autoref_enabled', value: 'true' }, { key: 'autoref_api_key', value: '********' }] }
+            : { settings: [] },
+      }),
+    )
+    mockedApi.post.mockImplementation((url: string) =>
+      Promise.resolve({
+        data:
+          url === '/vin/autoref/test'
+            ? { valid: true, message: 'AutoRef API key is valid', plan: 'Test', remaining: 48, limit: 50 }
+            : {},
+      }),
+    )
+    renderTab()
+    const button = await screen.findByRole('button', { name: 'integrations.testAutoref' })
+    fireEvent.click(button)
+
+    await waitFor(() =>
+      expect(mockedApi.post).toHaveBeenCalledWith('/vin/autoref/test', { api_key: '********' }),
+    )
+    expect(await besideButton(button).findByText('integrations.autorefTestOk')).toBeInTheDocument()
+  })
+
+  it('says why a key failed', async () => {
+    mockedApi.get.mockImplementation((url: string) =>
+      Promise.resolve({
+        data:
+          url === '/settings'
+            ? { settings: [{ key: 'autoref_enabled', value: 'true' }, { key: 'autoref_api_key', value: 'bad' }] }
+            : { settings: [] },
+      }),
+    )
+    mockedApi.post.mockImplementation((url: string) =>
+      Promise.resolve({
+        data: url === '/vin/autoref/test' ? { valid: false, message: 'AutoRef rejected the API key' } : {},
+      }),
+    )
+    renderTab()
+    const button = await screen.findByRole('button', { name: 'integrations.testAutoref' })
+    fireEvent.click(button)
+
+    expect(await besideButton(button).findByText('integrations.autorefTestFailed')).toBeInTheDocument()
   })
 })

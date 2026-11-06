@@ -39,7 +39,7 @@ class TestVINRoutes:
         assert response.status_code == 200
         data = response.json()
         assert data["vin"] == "1HGCM82633A004352"
-        assert data["make"] == "HONDA"
+        assert data["make"] == "Honda"
         assert data["model"] == "Accord"
         assert data["year"] == 2018
 
@@ -66,7 +66,7 @@ class TestVINRoutes:
         assert response.status_code == 200
         data = response.json()
         assert data["vin"] == "1HGCM82633A004352"
-        assert data["make"] == "HONDA"
+        assert data["make"] == "Honda"
 
     async def test_decode_vin_invalid_length(self, client: AsyncClient, auth_headers):
         """Test that VINs with invalid length are rejected."""

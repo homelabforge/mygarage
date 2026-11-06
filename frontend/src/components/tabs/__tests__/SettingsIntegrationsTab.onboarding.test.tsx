@@ -12,6 +12,7 @@
 import { useEffect } from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { SettingsProvider, useSettings } from '@/contexts/SettingsContext'
 
 vi.mock('@/services/api', () => ({
@@ -91,9 +92,11 @@ beforeEach(() => {
 describe('Adding a source with no devices at all', () => {
   it('reaches the preset catalog and the blank-device form from the card', async () => {
     render(
-      <SettingsProvider>
-        <ActiveIntegrationsTab />
-      </SettingsProvider>,
+      <QueryClientProvider client={new QueryClient()}>
+        <SettingsProvider>
+          <ActiveIntegrationsTab />
+        </SettingsProvider>
+      </QueryClientProvider>,
     )
 
     // The card has loaded its strip: no device tab exists.

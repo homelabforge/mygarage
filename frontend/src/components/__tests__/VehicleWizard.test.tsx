@@ -11,6 +11,7 @@ vi.mock('@/services/vinService', () => ({
     validate: vi.fn().mockResolvedValue({ valid: true, vin: '1HGCM82633A004352' }),
     decode: vi.fn(),
     exists: vi.fn().mockResolvedValue(false),
+    providers: vi.fn().mockResolvedValue({ available: ['nhtsa'], preferred: 'nhtsa' }),
   },
 }))
 
@@ -68,7 +69,7 @@ async function decodeWithEngine(engine: VINDecodeResponse['engine']): Promise<vo
   await waitFor(() => expect(decodeButton).not.toBeDisabled())
   fireEvent.click(decodeButton)
 
-  await waitFor(() => expect(mockedVinService.decode).toHaveBeenCalledWith(TEST_VIN))
+  await waitFor(() => expect(mockedVinService.decode.mock.calls[0]?.[0]).toBe(TEST_VIN))
 
   const nextButton = await screen.findByRole('button', { name: 'wizard.next' })
   fireEvent.click(nextButton)
@@ -516,5 +517,125 @@ describe('VehicleWizard: No VIN (#226)', () => {
       allowExternalVision: false,
       taxCodes: [],
     })
+  })
+})
+
+// The make/model picker (#219 takeover).
+describe('VehicleWizard: make and model pickers', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockedVinService.validate.mockResolvedValue({ valid: true, vin: TEST_VIN })
+    mockedVinService.exists.mockResolvedValue(false)
+  })
+
+  it('shows a decoded make with its logo and offers its models', async () => {
+    mockedVinService.decode.mockResolvedValue({ vin: TEST_VIN, make: 'Mitsubishi', model: null })
+    renderAndEnterVin()
+    const decodeButton = await screen.findByRole('button', { name: 'vinInput.decode' })
+    await waitFor(() => expect(decodeButton).not.toBeDisabled())
+    fireEvent.click(decodeButton)
+    await waitFor(() => expect(mockedVinService.decode).toHaveBeenCalled())
+    fireEvent.click(await screen.findByRole('button', { name: 'wizard.next' }))
+    await screen.findByLabelText('wizard.fuelType')
+
+    expect(screen.getByLabelText('wizard.make')).toHaveValue('Mitsubishi')
+    expect(screen.getByTestId('make-logo').querySelector('img')).toHaveAttribute(
+      'src',
+      expect.stringContaining('/brand-logos/mitsubishi.png'),
+    )
+    fireEvent.change(screen.getByLabelText('wizard.model'), { target: { value: 'mir' } })
+    expect(screen.getByRole('option', { name: 'Mirage' })).toBeInTheDocument()
+  })
+
+  it('a second decoder fills what it knows and keeps what the first one filled', async () => {
+    // Codex diff R1-H1: a sparser second answer must not blank the form.
+    mockedVinService.providers.mockResolvedValue({ available: ['nhtsa', 'autoref'], preferred: 'nhtsa' })
+    mockedVinService.decode
+      .mockResolvedValueOnce({
+        vin: TEST_VIN,
+        make: 'Renault',
+        model: null,
+        trim: 'Initiale',
+        decode_quality: 'partial',
+        decoded_by: 'nhtsa',
+      })
+      .mockResolvedValueOnce({
+        vin: TEST_VIN,
+        make: 'Renault',
+        model: 'Clio',
+        decode_quality: 'full',
+        decoded_by: 'autoref',
+      })
+    renderAndEnterVin()
+    const decodeButton = await screen.findByRole('button', { name: 'vinInput.decode' })
+    await waitFor(() => expect(decodeButton).not.toBeDisabled())
+    fireEvent.click(decodeButton)
+    fireEvent.click(await screen.findByRole('button', { name: 'vinInput.tryAutoRef' }))
+    await waitFor(() => expect(mockedVinService.decode).toHaveBeenCalledTimes(2))
+    await screen.findByText('vinInput.decodedBy')
+    fireEvent.click(await screen.findByRole('button', { name: 'wizard.next' }))
+    await screen.findByLabelText('wizard.fuelType')
+
+    expect(screen.getByLabelText('wizard.model')).toHaveValue('Clio')
+    expect(screen.getByLabelText('wizard.trim')).toHaveValue('Initiale')
+  })
+
+  // NHTSA reads a Porsche's year from the VIN and no model; AutoRef the model
+  // and no year. The nickname the first answer wrote isn't the person's, so
+  // the second answer rewrites it (dev test 2026-11-06 saved "2019 Porsche").
+  function mockPorscheAnswers(): void {
+    mockedVinService.providers.mockResolvedValue({ available: ['nhtsa', 'autoref'], preferred: 'nhtsa' })
+    mockedVinService.decode
+      .mockResolvedValueOnce({ vin: TEST_VIN, year: 2019, make: 'Porsche', model: null,
+                               decode_quality: 'partial', decoded_by: 'nhtsa' })
+      .mockResolvedValueOnce({ vin: TEST_VIN, year: null, make: 'Porsche', model: 'Macan',
+                               decode_quality: 'full', decoded_by: 'autoref' })  // prettier-ignore
+  }
+
+  async function decode(): Promise<void> {
+    const decodeButton = await screen.findByRole('button', { name: 'vinInput.decode' })
+    await waitFor(() => expect(decodeButton).not.toBeDisabled())
+    fireEvent.click(decodeButton)
+  }
+
+  async function toStep2(): Promise<void> {
+    await screen.findByText('vinInput.decodedBy')
+    fireEvent.click(await screen.findByRole('button', { name: 'wizard.next' }))
+    await screen.findByLabelText('wizard.fuelType')
+  }
+
+  it("a second decoder's model goes into the nickname the wizard wrote", async () => {
+    mockPorscheAnswers()
+    renderAndEnterVin()
+    await decode()
+    fireEvent.click(await screen.findByRole('button', { name: 'vinInput.tryAutoRef' }))
+    await waitFor(() => expect(mockedVinService.decode).toHaveBeenCalledTimes(2))
+    await toStep2()
+
+    expect(screen.getByLabelText(/^wizard\.nickname/)).toHaveValue('2019 Porsche Macan')
+  })
+
+  it('a nickname the person typed stays through a second decode', async () => {
+    mockPorscheAnswers()
+    renderAndEnterVin()
+    await decode()
+    await toStep2()
+    fireEvent.change(screen.getByLabelText(/^wizard\.nickname/), { target: { value: 'Red one' } })
+    fireEvent.click(screen.getByRole('button', { name: 'wizard.misc.previous' }))
+    await decode()
+    await waitFor(() => expect(mockedVinService.decode).toHaveBeenCalledTimes(2))
+    await toStep2()
+
+    expect(screen.getByLabelText('wizard.model')).toHaveValue('Macan')
+    expect(screen.getByLabelText(/^wizard\.nickname/)).toHaveValue('Red one')
+  })
+
+  it('keeps a make the catalog does not know', async () => {
+    await goToStep2()
+    const make = screen.getByLabelText('wizard.make')
+    fireEvent.change(make, { target: { value: 'KZ-RV' } })
+    fireEvent.blur(make)
+    expect(make).toHaveValue('KZ-RV')
+    expect(screen.queryByTestId('make-logo')).not.toBeInTheDocument()
   })
 })

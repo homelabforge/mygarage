@@ -130,7 +130,7 @@
     "W1K": {"make": "Mercedes-Benz", "manufacturer": "Mercedes-Benz Group (cars)", "country": "DE"},
     "W1N": {"make": "Mercedes-Benz", "manufacturer": "Mercedes-Benz Group (SUV)", "country": "DE"},
     "W1V": {"make": "Mercedes-Benz", "manufacturer": "Mercedes-Benz Group (vans)", "country": "DE"},
-    "WME": {"make": "smart", "manufacturer": "smart (Mercedes-Benz Group)", "country": "DE"},
+    "WME": {"make": "Smart", "manufacturer": "smart (Mercedes-Benz Group)", "country": "DE"},
     "WF0": {"make": "Ford", "manufacturer": "Ford-Werke", "country": "DE"},
     "WP0": {"make": "Porsche", "manufacturer": "Porsche AG", "country": "DE", "uses_model_year": true},
     "WP1": {"make": "Porsche", "manufacturer": "Porsche AG (SUV)", "country": "DE", "uses_model_year": true},

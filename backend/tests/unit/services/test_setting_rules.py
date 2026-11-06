@@ -76,6 +76,8 @@ UI_WRITTEN_KEYS: dict[str, tuple[str, ...]] = {
         "carcomplaints_enabled",
         "tomtom_api_key",
         "tomtom_enabled",
+        "autoref_enabled",
+        "autoref_api_key",
         "webhook_ingest_token",
         "llm_receipt_parse_enabled",
         "llm_garage_assistant_enabled",

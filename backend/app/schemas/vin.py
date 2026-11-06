@@ -4,6 +4,21 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
+from app.constants.countries import is_country_code, normalize_country_code
+
+#: The decoders (#219 takeover).
+Provider = Literal["nhtsa", "autoref"]
+
+
+def country_input(v: str | None) -> str | None:
+    """Uppercase an ISO 3166-1 alpha-2 code and refuse an unknown one."""
+    code = normalize_country_code(v)
+    if code is None:
+        return None
+    if not is_country_code(code):
+        raise ValueError("country must be an ISO 3166-1 alpha-2 code")
+    return code
+
 
 class VINDecodeRequest(BaseModel):
     """Request schema for VIN decode endpoint."""
@@ -27,6 +42,27 @@ class VINDecodeRequest(BaseModel):
             raise ValueError("VIN cannot contain the letters I, O, or Q")
 
         return v
+
+    provider: Provider | None = Field(
+        None,
+        description=(
+            "The decoder the person chose. Omitted means Automatic: the preferred "
+            "decoder first, NHTSA when AutoRef has no answer"
+        ),
+    )
+    country: str | None = Field(
+        None,
+        description=(
+            "The country deciding which decoder Automatic asks first (the vehicle's "
+            "registration country, else the person's); omitted reads the account's"
+        ),
+    )
+
+    @field_validator("country")
+    @classmethod
+    def validate_country(cls, v: str | None) -> str | None:
+        """Uppercase and check the country code."""
+        return country_input(v)
 
     model_config = {"json_schema_extra": {"examples": [{"vin": "JA32U2FU9KU005963"}]}}
 
@@ -99,15 +135,20 @@ class VINDecodeResponse(BaseModel):
             "and the VIN's first three characters did; none: nothing"
         ),
     )
-    make_source: Literal["nhtsa", "wmi"] | None = Field(
+    make_source: Literal["nhtsa", "wmi", "autoref"] | None = Field(
         None,
-        description="Where `make` came from: NHTSA's answer or the bundled WMI table",
+        description="Where `make` came from: NHTSA's answer, AutoRef's, or the bundled WMI table",
+    )
+    decoded_by: Provider | None = Field(
+        None, description="Which decoder answered: nhtsa or autoref"
     )
     notes: list[str] = Field(
         default_factory=list,
         description=(
-            "Why the answer is partial: eu_vin_no_model, year_unreliable, "
-            "check_digit_not_applicable"
+            "What to check: eu_vin_no_model, year_unreliable, check_digit_not_applicable; "
+            "autoref_best_guess, autoref_external_record; and when Automatic fell back "
+            "to NHTSA, autoref_no_match, autoref_key_rejected, autoref_quota, "
+            "autoref_unavailable"
         ),
     )
 
@@ -138,3 +179,26 @@ class VINDecodeResponse(BaseModel):
             ]
         }
     }
+
+
+class VINProvidersResponse(BaseModel):
+    """The decoders this instance can use, and which one Automatic asks first."""
+
+    available: list[Provider] = Field(..., description="nhtsa always; autoref when it has a key")
+    preferred: Provider = Field(..., description="The decoder Automatic asks first")
+
+
+class AutoRefTestRequest(BaseModel):
+    """An AutoRef key to test; null or the mask tests the stored one."""
+
+    api_key: str | None = Field(None, max_length=200)
+
+
+class AutoRefTestResponse(BaseModel):
+    """Whether AutoRef accepts the key, and what's left of its plan."""
+
+    valid: bool
+    message: str
+    plan: str | None = None
+    remaining: int | None = None
+    limit: int | None = None

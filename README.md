@@ -23,7 +23,7 @@ Self-hosted vehicle maintenance tracking for the whole household: service histor
 
 ## Features
 
-- **Vehicles** - Cars, motorcycles, boats, RVs and equipment. VIN decoding via NHTSA, maintenance specs, photos, window stickers, recalls and warranties.
+- **Vehicles** - Cars, motorcycles, boats, RVs and equipment. VIN decoding via NHTSA, plus AutoRef for European VINs, maintenance specs, photos, window stickers, recalls and warranties.
 - **Service history** - Visits with line items and attachments, with parts drawn from your own supplies inventory.
 - **Reminders** - Recurring rules by distance, months or engine hours, anchored on real service history. Reminder packs, snooze, and notifications to Discord, Telegram, ntfy, Pushover, Gotify, Slack, Matrix or email.
 - **Fuel and charging** - Fill-ups, DEF and propane, EV/PHEV charge sessions, economy trends, and imports from Fuelio, Drivvo and Tesla/ABRP.
@@ -72,6 +72,8 @@ MIT License. See [LICENSE](LICENSE).
 Built for homelabbers who want to track vehicle maintenance without sending data to third-party services.
 
 VIN decoding powered by the [NHTSA vPIC API](https://vpic.nhtsa.dot.gov/).
+
+European VIN decoding by [AutoRef](https://autoref.eu/) (optional, your own key). Brand logos from [car-logos-dataset](https://github.com/filippofilip95/car-logos-dataset) (MIT); the logos are trademarks of their owners.
 
 ### Development Assistance
 

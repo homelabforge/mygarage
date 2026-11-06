@@ -23,8 +23,8 @@ def test_the_list_is_the_flagged_seed_keys_plus_the_poi_keys() -> None:
     assert SECRET_SETTING_KEYS == flagged | POI_SECRET_KEYS
 
 
-def test_there_are_seventeen() -> None:
-    assert len(SECRET_SETTING_KEYS) == 17
+def test_there_are_eighteen() -> None:
+    assert len(SECRET_SETTING_KEYS) == 18
     assert isinstance(SECRET_SETTING_KEYS, frozenset)
 
 

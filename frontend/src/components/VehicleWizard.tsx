@@ -10,10 +10,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
-import { useForm, type Resolver } from 'react-hook-form'
+import { Controller, useForm, type Path, type PathValue, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { ChevronLeft, ChevronRight, Check } from 'lucide-react'
 import VINInput from './VINInput'
+import MakeSelect from './MakeSelect'
+import ModelSelect from './ModelSelect'
 import { FormError } from './FormError'
 import { Stepper, Drawer, Button, Select, NumberInput, Tabs, registerDecimal } from './ui'
 import type { VINDecodeResponse } from '../types/vin'
@@ -89,6 +91,7 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
   // Form management with react-hook-form + Zod
   const {
     register,
+    control,
     handleSubmit: handleFormSubmit,
     setValue,
     watch,
@@ -103,6 +106,18 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
       usage_unit: 'distance',
     },
   })
+
+  // The nickname the wizard last wrote itself. A later decode or certificate
+  // rewrites that one with what it adds (NHTSA's year, then AutoRef's model);
+  // one the person typed stays.
+  const autoNickname = useRef<string | null>(null)
+  const fillNickname = (): void => {
+    const current = getValues('nickname')
+    if (current && current !== autoNickname.current) return
+    const next = `${getValues('year') || ''} ${getValues('make') || ''} ${getValues('model') || ''}`.trim()
+    autoNickname.current = next
+    setValue('nickname', next)
+  }
 
   // Wizard state
   const [vin, setVin] = useState('')
@@ -154,23 +169,28 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
   ]
 
   // Handle VIN decode - populate form with setValue
-  const handleVinDecode = (data: VINDecodeResponse) => {
-    const currentNickname = getValues('nickname')
-    const generatedNickname = `${data.year || ''} ${data.make || ''} ${data.model || ''}`.trim()
+  const handleVinDecode = (data: VINDecodeResponse, options?: { fillOnly?: boolean }) => {
+    // A second decoder's answer (Try AutoRef / Try NHTSA) only adds: a field
+    // it doesn't know keeps what the first answer or a certificate filled.
+    const fillOnly = options?.fillOnly ?? false
+    const put = <P extends Path<VehicleEditFormData>>(field: P, value: PathValue<VehicleEditFormData, P>): void => {
+      if (fillOnly && (value === null || value === undefined)) return
+      setValue(field, value)
+    }
 
     // Set all decoded values using setValue. A European VIN decodes with no
     // year and no model (#211): neither clears what was typed.
     if (data.year) setValue('year', data.year)
     if (data.make || !getValues('make')) setValue('make', data.make || null)
     if (data.model || !getValues('model')) setValue('model', data.model || null)
-    setValue('nickname', currentNickname || generatedNickname)
-    setValue('trim', data.trim || null)
-    setValue('body_class', data.body_class || null)
-    setValue('drive_type', data.drive_type || null)
-    setValue('doors', data.doors || undefined)
-    setValue('gvwr_class', data.gvwr || null)
-    setValue('displacement_l', data.engine?.displacement_l || null)
-    setValue('cylinders', data.engine?.cylinders || undefined)
+    fillNickname()
+    put('trim', data.trim || null)
+    put('body_class', data.body_class || null)
+    put('drive_type', data.drive_type || null)
+    put('doors', data.doors || undefined)
+    put('gvwr_class', data.gvwr || null)
+    put('displacement_l', data.engine?.displacement_l || null)
+    put('cylinders', data.engine?.cylinders || undefined)
     // Use the server-normalized fuel type (canonical FuelTypeEnum value),
     // not the raw NHTSA string — the vehicle API rejects non-canonical
     // fuel_type values with 422. Fall back to null when NHTSA's fuel type
@@ -179,9 +199,9 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
     // one of FUEL_TYPE_VALUES when non-null — normalize_fuel_type() on the
     // backend guarantees it. The form's own zod validation (fuelTypeSchema)
     // re-checks this at submit time regardless.
-    setValue('fuel_type', (data.engine?.fuel_type_normalized as FuelType | null) || null)
-    setValue('transmission_type', data.transmission?.type || null)
-    setValue('transmission_speeds', data.transmission?.speeds || null)
+    put('fuel_type', (data.engine?.fuel_type_normalized as FuelType | null) || null)
+    put('transmission_type', data.transmission?.type || null)
+    put('transmission_speeds', data.transmission?.speeds || null)
   }
 
   // A certificate fills what it can; every value stays editable on step 2,
@@ -223,9 +243,7 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
     if (firstRegistration && !getValues('year')) {
       setValue('year', Number(firstRegistration.slice(0, 4)))
     }
-    if (!getValues('nickname')) {
-      setValue('nickname', `${getValues('year') || ''} ${text('make') || ''} ${text('model') || ''}`.trim())
-    }
+    fillNickname()
 
     const extras: CertificateExtras = {}
     for (const key of CERTIFICATE_EXTRA_KEYS) {
@@ -529,6 +547,7 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
                     onDecode={handleVinDecode}
                     autoValidate={true}
                     checkDuplicate={true}
+                    registrationCountry={formData.registration_country}
                     onImportCertificate={() =>
                       certificateCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
                     }
@@ -610,24 +629,43 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label htmlFor="wizard-make" className="block text-sm font-medium text-text-mid mb-2">{t('wizard.make')}</label>
-                <input
-                  id="wizard-make"
-                  type="text"
-                  {...register('make')}
-                  className="w-full bg-surface border border-border rounded-control px-4 py-2 text-text focus:outline-none focus:border-(--accent-solid)"
-                  placeholder="MITSUBISHI"
+                <Controller
+                  name="make"
+                  control={control}
+                  render={({ field }) => (
+                    <MakeSelect
+                      id="wizard-make"
+                      name={field.name}
+                      value={field.value ?? ''}
+                      onChange={field.onChange}
+                      onBlur={field.onBlur}
+                      invalid={!!errors.make}
+                      inputClassName="w-full bg-surface border border-border rounded-control px-4 py-2 text-text focus:outline-none focus:border-(--accent-solid)"
+                      placeholder={t('wizard.misc.makePlaceholder')}
+                    />
+                  )}
                 />
                 <FormError error={errors.make} />
               </div>
 
               <div>
                 <label htmlFor="wizard-model" className="block text-sm font-medium text-text-mid mb-2">{t('wizard.model')}</label>
-                <input
-                  id="wizard-model"
-                  type="text"
-                  {...register('model')}
-                  className="w-full bg-surface border border-border rounded-control px-4 py-2 text-text focus:outline-none focus:border-(--accent-solid)"
-                  placeholder={t('wizard.misc.modelPlaceholder')}
+                <Controller
+                  name="model"
+                  control={control}
+                  render={({ field }) => (
+                    <ModelSelect
+                      id="wizard-model"
+                      name={field.name}
+                      make={formData.make}
+                      value={field.value ?? ''}
+                      onChange={field.onChange}
+                      onBlur={field.onBlur}
+                      invalid={!!errors.model}
+                      inputClassName="w-full bg-surface border border-border rounded-control px-4 py-2 text-text focus:outline-none focus:border-(--accent-solid)"
+                      placeholder={t('wizard.misc.modelPlaceholder')}
+                    />
+                  )}
                 />
                 <FormError error={errors.model} />
               </div>

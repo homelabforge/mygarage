@@ -28,6 +28,7 @@ SECRET_SETTING_KEYS: frozenset[str] = frozenset(
         # Integrations
         "webhook_ingest_token",
         "llm_api_key",
+        "autoref_api_key",
         "livelink_mqtt_password",
         # POI providers
         "tomtom_api_key",
