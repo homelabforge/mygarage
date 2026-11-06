@@ -1381,7 +1381,7 @@
     {
       "path": "src/components/BrandLogo.tsx",
       "disposition": "no unit behaviour",
-      "digest": "15220cc110bda9bc41078d8f20e6f98abfafe1c3003577695d0364d2e713f025",
+      "digest": "47499682517f71e381dc67d6c65992abdf4532c07c066eda9408628b5198c4af",
       "reason": "no unit behaviour: NEW 2026-11-05 (#219 takeover). A make logo <img> with a letter-badge fallback. Read in full; no quantity, unit or conversion."
     },
     {
@@ -1996,7 +1996,7 @@
     {
       "path": "src/components/VINInput.tsx",
       "disposition": "no unit behaviour",
-      "digest": "af108cc1653613752ef7c749776b87430746077b234e428bb0479edbd83420ab",
+      "digest": "9e3c26c85539374cfbab6202fb9bb014465275eba7460c10020f847a289fd74a",
       "reason": "no unit behaviour: dispositioned under the CORRECTED scan: every unit stem, token, quantity name and canonical field suffix this codebase uses, matched case-insensitively with NO word boundary. The earlier word-boundary version was a floor (it called AnalyticsHelpModal.tsx clean while it renders \"Average MPG:\" to every user) and it was superseded before any disposition in this file was written. This file matched NONE of them. 2026-10-08 (European VINs, #211): a partial-decode notice (maker, notes, a link to the certificate import) and the WMI's country shown when NHTSA names no plant; codes and names, no quantity, unit or conversion code. 2026-11-04 (#278 review): country names read useLanguageLocale. Still no unit behaviour."
     },
     {
@@ -3289,7 +3289,7 @@
     {
       "path": "src/constants/carCatalog.json",
       "disposition": "no unit behaviour",
-      "digest": "671dbb1414c68d7eba601b9518ff738a853d6d6b11ac206f79bbf7824984cbe4",
+      "digest": "7d785dd77691ff67efb6a6ffe0c5678e519c77993cd7b7897998a138b5f2a3cf",
       "reason": "no unit behaviour: NEW 2026-11-05 (#219 takeover). Make and model NAMES only. A few model names contain unit-like text (Fiat \"3 1/2 HP\", DR \"1.0 EV\", \"3000 GT\"); they are product names, shown and stored as text, never read as a quantity or converted."
     },
     {

@@ -15,8 +15,9 @@ interface BrandLogoProps {
  * shows the make's first letter instead.
  */
 export default function BrandLogo({ slug, name, className = 'h-5 w-5' }: BrandLogoProps) {
-  const [failed, setFailed] = useState(false)
-  if (!slug || failed) {
+  // The slug whose file failed, so a later make's logo still loads (Fable diff F-5).
+  const [failedSlug, setFailedSlug] = useState<string | null>(null)
+  if (!slug || failedSlug === slug) {
     return (
       <span
         aria-hidden="true"
@@ -31,7 +32,7 @@ export default function BrandLogo({ slug, name, className = 'h-5 w-5' }: BrandLo
       src={logoUrl(slug)}
       alt=""
       loading="lazy"
-      onError={() => setFailed(true)}
+      onError={() => setFailedSlug(slug)}
       className={`shrink-0 object-contain ${className}`}
     />
   )

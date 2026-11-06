@@ -2,7 +2,7 @@
  * VIN Input component with auto-decode functionality
  */
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
 import { Search, Check, X, Loader2, Info, FileText } from 'lucide-react'
@@ -100,6 +100,16 @@ export default function VINInput({
   const available = providers?.available ?? ['nhtsa']
   const hasChoice = available.includes('autoref')
   const preferred = providers?.preferred ?? 'nhtsa'
+  // A choice that is no longer offered (the key was cleared) reads as
+  // Automatic, or Decode would keep naming it with no control left to change
+  // it (Fable diff F-3).
+  const effectiveChoice: ProviderChoice = choice !== 'automatic' && available.includes(choice) ? choice : 'automatic'
+  // The VIN on screen now, so an answer for one that was edited while it
+  // decoded is dropped (Fable diff F-6).
+  const currentVin = useRef(value)
+  useEffect(() => {
+    currentVin.current = value
+  }, [value])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '')
@@ -178,11 +188,13 @@ export default function VINInput({
     setErrorMessage('')
     setTryError('')
 
+    const requested = value
     try {
-      const data = await vinService.decode(value, {
-        ...(choice !== 'automatic' ? { provider: choice } : {}),
+      const data = await vinService.decode(requested, {
+        ...(effectiveChoice !== 'automatic' ? { provider: effectiveChoice } : {}),
         country,
       })
+      if (currentVin.current !== requested) return
       setDecodedData(data)
       if (onDecode) {
         onDecode(data)
@@ -208,8 +220,10 @@ export default function VINInput({
   const handleTryOther = async (provider: VINProvider) => {
     setIsDecoding(true)
     setTryError('')
+    const requested = value
     try {
-      const data = await vinService.decode(value, { provider, country })
+      const data = await vinService.decode(requested, { provider, country })
+      if (currentVin.current !== requested) return
       setDecodedData(data)
       if (onDecode) {
         onDecode(data, { fillOnly: true })
@@ -268,7 +282,7 @@ export default function VINInput({
           <Select
             size="sm"
             aria-label={t('vinInput.decodeWith')}
-            value={choice}
+            value={effectiveChoice}
             onChange={(e) => setChoice(e.target.value as ProviderChoice)}
             options={[
               {

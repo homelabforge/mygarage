@@ -72,7 +72,8 @@ vi.mock('@/hooks/useResolvedCountry', () => ({
   useResolvedCountry: () => 'FR',
 }))
 
-import { waitFor } from '@testing-library/react'
+import { act, waitFor } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { vinService } from '@/services/vinService'
 
 describe('VINInput — European VINs (#211)', () => {
@@ -239,5 +240,45 @@ describe('VINInput — choosing the decoder', () => {
     expect(notes).toHaveTextContent('vinInput.notes.autoref_best_guess')
     expect(notes).not.toHaveTextContent('vinInput.notes.check_digit_not_applicable')
     expect(screen.queryByTestId('vin-partial-decode')).not.toBeInTheDocument()
+  })
+
+  it('falls back to Automatic when the chosen decoder goes away', async () => {
+    // Fable diff F-3: the key is cleared while AutoRef is chosen; the choice
+    // control unmounts, so Decode must not keep naming AutoRef.
+    withAutoRef()
+    vi.mocked(vinService.decode).mockResolvedValue({ ...thinNhtsa, decode_quality: 'full', model: 'Clio' })
+    const client = new QueryClient()
+    render(
+      <QueryClientProvider client={client}>
+        <VINInput value={EU_VIN} onChange={vi.fn()} />
+      </QueryClientProvider>,
+    )
+    fireEvent.change(await screen.findByLabelText('vinInput.decodeWith'), { target: { value: 'autoref' } })
+    act(() => {
+      client.setQueryData(['vin-providers', 'FR'], { available: ['nhtsa'], preferred: 'nhtsa' })
+    })
+    await waitFor(() => expect(screen.queryByLabelText('vinInput.decodeWith')).not.toBeInTheDocument())
+
+    fireEvent.click(screen.getByRole('button', { name: /vinInput.decode/ }))
+    await waitFor(() => expect(vinService.decode).toHaveBeenCalled())
+    expect(vi.mocked(vinService.decode).mock.calls[0][1]).toEqual({ country: 'FR' })
+  })
+
+  it('drops an answer for a VIN that was edited while it was decoding', async () => {
+    // Fable diff F-6: the old VIN's answer must not fill the form.
+    let resolve: (value: typeof thinNhtsa) => void = () => {}
+    vi.mocked(vinService.decode).mockReturnValue(new Promise((r) => { resolve = r }))
+    const onDecode = vi.fn()
+    const { rerender } = render(<VINInput value={EU_VIN} onChange={vi.fn()} onDecode={onDecode} />)
+    fireEvent.click(screen.getByRole('button', { name: /vinInput.decode/ }))
+    await waitFor(() => expect(vinService.decode).toHaveBeenCalled())
+
+    rerender(<VINInput value="WVWZZZ1JZXW000001" onChange={vi.fn()} onDecode={onDecode} />)
+    await act(async () => {
+      resolve(thinNhtsa)
+    })
+
+    expect(onDecode).not.toHaveBeenCalled()
+    expect(screen.queryByText('Renault')).not.toBeInTheDocument()
   })
 })

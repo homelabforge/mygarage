@@ -20,6 +20,8 @@ interface Make {
 }
 const makes = catalog as Make[]
 const byName = new Map(makes.map((m) => [m.name, m]))
+/** Models that fold to another model of the same make and are a different car. */
+const SIBLINGS = new Set(['Datsun: GO+', 'Ford: Ka+', 'Peugeot: 206+', "Kia: cee'd"])
 
 describe('carCatalog.json', () => {
   it('spells every make as the backend does', () => {
@@ -62,6 +64,8 @@ describe('carCatalog.json', () => {
     expect(byName.get('Smart')?.models).toContain('forfour')
     expect(byName.get('Polestar')?.models).toContain('Polestar 2')
     expect(byName.get('Tank')?.models).toContain('Tank 300')
+    expect(byName.get('Smart')?.models).toEqual(expect.arrayContaining(['#1', '#3']))
+    expect(byName.get('Opel')?.models).toContain('Astra TwinTop')
   })
 
   it('carries no brand prefixes, German twins or case duplicates', () => {
@@ -70,8 +74,17 @@ describe('carCatalog.json', () => {
         expect(model, `${make.name}: ${model}`).not.toMatch(/^(MERCEDES BENZ|CITROEN|SKODA|AUTOMOBILES|MOTORS?|Trucks|Motors) /)
         expect(model, `${make.name}: ${model}`).not.toMatch(/Klasse/)
       }
-      const lowered = make.models.map((m) => m.toLowerCase())
-      expect(lowered.length, make.name).toBe(new Set(lowered).size)
+      // Folded, so `Doblo`/`Doblò` and `ID.Buzz`/`ID. Buzz` count as one
+      // (Fable diff F-4); the `+` models and Kia's cee'd/Ceed are real siblings.
+      const folded = make.models.filter((m) => !SIBLINGS.has(`${make.name}: ${m}`)).map(foldKey)
+      expect(folded.length, make.name).toBe(new Set(folded).size)
     }
+  })
+
+  it('spells no model with a dangling separator', () => {
+    const dangling = makes.flatMap((make) =>
+      make.models.filter((m) => /[-/]\s*$|[A-Za-z]- /.test(m)).map((m) => `${make.name}: ${m}`),
+    )
+    expect(dangling).toEqual([])
   })
 })
