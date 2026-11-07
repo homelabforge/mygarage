@@ -34,6 +34,7 @@ from typing import Any, Literal
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.constants.countries import EU_MEMBER_STATES
+from app.schemas.vin import AutoRefVersionRequest
 from app.services.autoref import (
     AutoRefAuthError,
     AutoRefError,
@@ -149,7 +150,8 @@ def enrich(vin: str, info: dict[str, Any], source: Provider = "nhtsa") -> dict[s
     if region is not None and region != "NA":
         if _check_digit_mismatch(vin) or _NHTSA_CHECK_DIGIT_ERROR in _nhtsa_codes(info):
             notes.append(NOTE_CHECK_DIGIT_NOT_APPLICABLE)
-        if region == "EU" and not result.get("model"):
+        # With versions to pick, the picker is the way to the model.
+        if region == "EU" and not result.get("model") and not info.get("candidates"):
             notes.append(NOTE_EU_VIN_NO_MODEL)
 
     result["region"] = region
@@ -283,6 +285,42 @@ async def decode(
         source,
         result["decode_quality"],
         result["region"],
+        sanitize_for_log(result.get("make")),
+        sanitize_for_log(result.get("model")),
+    )
+    return result
+
+
+async def decode_version(
+    vin: str, autoref: AutoRefService | None, request: AutoRefVersionRequest
+) -> dict[str, Any]:
+    """A version picked from an AutoRef decode's candidates, enriched like a decode.
+
+    Raises:
+        ValueError: A malformed VIN or pick.
+        AutoRefNotConfiguredError: No AutoRef client.
+        AutoRefNoMatchError: AutoRef no longer has that version under that id.
+        AutoRefError: AutoRef failed.
+    """
+    if autoref is None:
+        raise AutoRefNotConfiguredError()
+    info = await autoref.decode_version(
+        vin,
+        request.record_type,
+        request.id,
+        gearbox_code=request.gearbox_code,
+        expect_model=request.expect_model,
+        expect_kw=request.expect_kw,
+        grouped=request.grouped,
+    )
+    if info is None:
+        raise AutoRefNoMatchError()
+    result = enrich(vin, _title_case(info), "autoref")
+    logger.info(
+        "VIN %s version %s/%s decoded by autoref: make=%s model=%s",
+        sanitize_for_log(vin),
+        request.record_type,
+        sanitize_for_log(request.id),
         sanitize_for_log(result.get("make")),
         sanitize_for_log(result.get("model")),
     )
