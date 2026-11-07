@@ -527,6 +527,22 @@ describe('VINInput — picking an AutoRef version', () => {
     expect(screen.queryByRole('combobox', { name: 'vinInput.version' })).not.toBeInTheDocument()
   })
 
+  it('hides the old picker while a fresh decode is on its way', async () => {
+    // Codex diff R1-M1: a pick from the old list would cancel the new answer.
+    const fresh = deferred<ReturnType<typeof picked>>()
+    vi.mocked(vinService.decode).mockResolvedValueOnce(several).mockReturnValueOnce(fresh.promise)
+    const onDecode = vi.fn()
+    render(<VINInput value={GOLF_VIN} onChange={vi.fn()} onDecode={onDecode} />)
+    await decode()
+    fireEvent.click(screen.getByRole('button', { name: /vinInput.decode/ }))
+    expect(screen.queryByRole('combobox', { name: 'vinInput.version' })).not.toBeInTheDocument()
+    await act(async () => {
+      fresh.resolve({ ...picked(R), body_class: 'Fresh' })
+    })
+    expect(screen.getByText('Fresh')).toBeInTheDocument()
+    expect(onDecode).toHaveBeenCalledTimes(2)
+  })
+
   it('a late failure never shows over a newer success', async () => {
     const slowR = deferred<ReturnType<typeof picked>>()
     vi.mocked(vinService.decode).mockResolvedValue(several)

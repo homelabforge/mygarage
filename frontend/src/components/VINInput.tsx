@@ -135,6 +135,15 @@ export default function VINInput({
     return () => generation.current !== mine || currentVin.current !== requested
   }
 
+  // A decode or Try on its way replaces the versions, so the old ones go at
+  // once: a pick from them would overtake the new answer (Codex diff R1-M1).
+  const clearVersions = (): void => {
+    setVersions([])
+    setPicked('')
+    setPickError('')
+    setIsPicking(false)
+  }
+
   const takeVersions = (data: VINDecodeResponse, vin: string): void => {
     setVersions(data.candidates ?? [])
     setVersionsVin(vin)
@@ -152,10 +161,7 @@ export default function VINInput({
     setDecodedData(null)
     setTryError('')
     generation.current += 1
-    setVersions([])
-    setPicked('')
-    setPickError('')
-    setIsPicking(false)
+    clearVersions()
 
     // Auto-validate when 17 characters
     if (autoValidate && newValue.length === 17) {
@@ -227,6 +233,7 @@ export default function VINInput({
 
     const requested = value
     const overtaken = begin(requested)
+    clearVersions()
     try {
       const data = await vinService.decode(requested, {
         ...(effectiveChoice !== 'automatic' ? { provider: effectiveChoice } : {}),
@@ -240,7 +247,6 @@ export default function VINInput({
       }
     } catch (err: unknown) {
       if (overtaken()) return
-      setVersions([])
       setErrorMessage(getActionErrorMessage(err, t('vinInput.decodeAction')))
     } finally {
       setIsDecoding(false)
@@ -263,6 +269,7 @@ export default function VINInput({
     setTryError('')
     const requested = value
     const overtaken = begin(requested)
+    clearVersions()
     try {
       const data = await vinService.decode(requested, { provider, country })
       if (overtaken()) return

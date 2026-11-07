@@ -1996,7 +1996,7 @@
     {
       "path": "src/components/VINInput.tsx",
       "disposition": "audited",
-      "digest": "2aee38e784068b1922035fdcb1c3707523f90ee2a881d7abf1874caa9e6bbe72",
+      "digest": "0b2f82a26206e09599e82f5ee8f1d871d2299a6dd56e263564e2d0b8ffac47ca",
       "reason": "no unit behaviour: dispositioned under the CORRECTED scan: every unit stem, token, quantity name and canonical field suffix this codebase uses, matched case-insensitively with NO word boundary. The earlier word-boundary version was a floor (it called AnalyticsHelpModal.tsx clean while it renders \"Average MPG:\" to every user) and it was superseded before any disposition in this file was written. This file matched NONE of them. 2026-10-08 (European VINs, #211): a partial-decode notice (maker, notes, a link to the certificate import) and the WMI's country shown when NHTSA names no plant; codes and names, no quantity, unit or conversion code. 2026-11-04 (#278 review): country names read useLanguageLocale. Still no unit behaviour. 2026-11-07 (AutoRef version picker): NOW RENDERS A UNIT. Each version's option label shows its power as \"{{kw}} kW\" through vinInput.versionKw. kW is AutoRef's statutory figure and the universal power unit (utils/units.ts: no conversion), with no account unit for it, the same reasoning as VehicleCompliancePanel's powerValue, so it goes through no unit adapter by design. The fuel part reads forms:fuel.fuelTypes. Read in full; covered by VINInput.test.tsx, which asserts the option label with the kW key.",
       "tests": [
         "components/__tests__/VINInput.test.tsx"

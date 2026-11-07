@@ -463,6 +463,10 @@ def agreed_answer(vin: str, rows: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def _identity(candidate: dict[str, Any]) -> tuple[Any, ...]:
+    """What makes two rows the same version. Without a MODEL_FULL nothing
+    says they are, so such a row is only ever itself."""
+    if candidate["model_full"] is None:
+        return ("record", candidate["record_type"], candidate["id"])
     return (
         _fold(candidate["model_full"]),
         candidate["kw"],

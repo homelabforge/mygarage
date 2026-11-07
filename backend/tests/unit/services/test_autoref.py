@@ -970,6 +970,21 @@ class TestSeveralMatches:
         ids = [x["id"] for x in candidates_of([GOLF_ROWS[0], twin, GOLF_ROWS[2]])]
         assert ids == ["310899", GTE_ID]
 
+    async def test_rows_without_a_model_name_are_never_merged(self):
+        # Codex diff R1-H1: same power, fuel and gearbox isn't the same car
+        # when there's no MODEL_FULL to say so.
+        a = {**GOLF_ROWS[0], "MODEL_FULL": None, "BRAND_MODEL": "VW GOLF VII R 5T"}
+        b = {**GOLF_ROWS[0], "id": 400001, "MODEL_FULL": None, "BRAND_MODEL": "VW ARTEON 2.0 TSI"}
+        assert [x["id"] for x in candidates_of([a, b])] == ["310899", "400001"]
+        seen: list[httpx.Request] = []
+        service = _service(
+            _routes(seen, **{f"/vehicles/{GOLF_VIN}": httpx.Response(200, json=[a, b])})
+        )
+        result = await service.decode(GOLF_VIN)
+        assert [r.url.path for r in seen] == [f"/vehicles/{GOLF_VIN}"]
+        assert result is not None
+        assert len(result["candidates"]) == 2
+
     async def test_rows_that_are_one_version_decode_as_one(self):
         seen: list[httpx.Request] = []
         service = _service(
