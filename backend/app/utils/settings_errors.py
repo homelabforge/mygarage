@@ -7,7 +7,7 @@ raises ``SettingCiphertextValue`` and re-exports it. Existing imports keep
 working.
 """
 
-from app.utils.settings_crypto import CIPHERTEXT_PREFIX, ENV_KEY
+from app.utils.settings_crypto import CIPHERTEXT_PREFIX
 
 
 class SettingCiphertextValue(ValueError):  # noqa: N818 - the name the plan and later tasks use
@@ -42,19 +42,20 @@ class PlaintextSecretsRemain(Exception):  # noqa: N818 - the name the plan and l
         keys: The secret setting keys still stored as plaintext, sorted.
     """
 
-    def __init__(self, keys: tuple[str, ...], *, keyring_unavailable: bool = True) -> None:
+    def __init__(self, keys: tuple[str, ...], *, keyring_fix: str | None) -> None:
         """Build the refusal for these keys.
 
         Args:
             keys: The plaintext secret setting keys, sorted.
-            keyring_unavailable: Why they stayed plaintext. True says how to fix
-                the key; False means encrypting them failed with a key at hand.
+            keyring_fix: How to fix the key source that broke
+                (``keyring_fix_advice()``), or None when encrypting them failed
+                with a key at hand. Naming the broken source matters: a writable
+                data dir fixes nothing while a bad env var wins (B2-21).
         """
         self.keys = keys
         fix = (
-            f"Set {ENV_KEY} to a valid key, or make the data directory writable so a key "
-            "can be generated, then try again."
-            if keyring_unavailable
+            f"{keyring_fix} Then try again."
+            if keyring_fix
             else "Encrypting them failed; check the server log, then try again."
         )
         super().__init__(

@@ -290,6 +290,7 @@ class RecallService:
 
             # Fetch recalls from NHTSA
             nhtsa_service = NHTSAService()
+            # An outage raises NHTSAUnavailableError, never "no new recalls" (B5-1).
             nhtsa_recalls = await nhtsa_service.get_vehicle_recalls(vin, self.db)
 
             # Get existing recalls
@@ -366,25 +367,17 @@ class RecallService:
                 status_code=422,
                 detail=f"Could not decode VIN to fetch recalls: {e!s}",
             )
-        except httpx.TimeoutException:
+        except NHTSAUnavailableError as e:
+            # Every request error, HTTP error status and non-JSON body lands
+            # here, so none reads as a 500 or as a VIN that can't be decoded.
             logger.error(
-                "NHTSA API timeout fetching recalls for VIN %s",
-                sanitize_for_log(vin),
-            )
-            raise HTTPException(status_code=504, detail="NHTSA API request timed out")
-        except httpx.ConnectError:
-            logger.error(
-                "Cannot connect to NHTSA API for VIN %s",
-                sanitize_for_log(vin),
-            )
-            raise HTTPException(status_code=503, detail="Cannot connect to NHTSA API")
-        except httpx.HTTPStatusError as e:
-            logger.error(
-                "NHTSA API error fetching recalls for VIN %s: %s",
+                "NHTSA unavailable fetching recalls for VIN %s: %s",
                 sanitize_for_log(vin),
                 sanitize_for_log(str(e)),
             )
-            raise HTTPException(status_code=e.response.status_code, detail="NHTSA API error")
+            raise HTTPException(
+                status_code=502, detail="NHTSA isn't answering right now. Try again later."
+            ) from e
         except IntegrityError as e:
             await self.db.rollback()
             logger.error(

@@ -188,8 +188,16 @@ describe('RecallList — the NHTSA and CarComplaints switches come from /setting
     expect(apiGet).not.toHaveBeenCalledWith('/settings')
   })
 
-  // CarComplaints keeps its fallback (off) when the key is absent.
-  it('with carcomplaints_enabled absent, there is no CarComplaints link', async () => {
+  // Absent reads as on, its seeded value and what Settings > Integrations
+  // shows (B5-4); only an explicit off hides the link.
+  it('with carcomplaints_enabled absent, the CarComplaints link shows', async () => {
+    render(<RecallList {...PROPS} />)
+
+    expect(await screen.findByText('recallList.viewOnCarComplaints')).toBeInTheDocument()
+  })
+
+  it('with carcomplaints_enabled "false", there is no CarComplaints link', async () => {
+    serve([{ key: 'carcomplaints_enabled', value: 'false' }])
     render(<RecallList {...PROPS} />)
 
     await waitFor(() => expect(apiGet).toHaveBeenCalledWith('/vehicles/V1'))

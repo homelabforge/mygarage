@@ -93,7 +93,11 @@ def test_hours_economy_trend_defaults_are_null_and_empty():
 def test_hours_accumulated_data_point_field_names_and_required():
     point = HoursAccumulatedDataPoint(date=date(2026, 1, 1), engine_hours=Decimal("42.5"))
 
-    assert point.model_dump() == {"date": date(2026, 1, 1), "engine_hours": Decimal("42.5")}
+    assert point.model_dump() == {
+        "date": date(2026, 1, 1),
+        "engine_hours": Decimal("42.5"),
+        "source": "manual",
+    }
 
     with pytest.raises(ValidationError):
         HoursAccumulatedDataPoint(date=date(2026, 1, 1))  # engine_hours is required

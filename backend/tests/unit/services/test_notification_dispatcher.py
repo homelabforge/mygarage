@@ -435,3 +435,49 @@ class TestConvenienceMethods:
         assert "gal" in message
         assert "0.66" in message
         assert "2026-06-15" in message
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("topic", "sends"), [("", False), ("garage-k7q2x9", True)])
+async def test_ntfy_needs_a_topic_of_its_own(topic: str, sends: bool) -> None:
+    """No shared fallback topic: a blank one leaves ntfy off (B2-4)."""
+    stored = {"ntfy_server": "https://ntfy.sh", "ntfy_topic": topic}
+    d = NotificationDispatcher(AsyncMock())
+
+    async def setting(key: str, default: str = "") -> str:
+        return stored.get(key) or default
+
+    async def switch(key: str, default: bool = False) -> bool:
+        return key == "ntfy_enabled"
+
+    with (
+        patch.object(d, "_get_setting", side_effect=setting),
+        patch.object(d, "_get_setting_bool", side_effect=switch),
+        patch(
+            "app.services.notifications.dispatcher.SettingsService.get_secret",
+            AsyncMock(return_value=""),
+        ),
+    ):
+        services = await d._get_enabled_services()  # pyright: ignore[reportPrivateUsage]
+
+    assert [s.service_name for s in services] == (["ntfy"] if sends else [])
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("event", "on"),
+    [("odometer_milestone", False), ("recall_detected", True), ("livelink_new_device", True)],
+)
+async def test_a_blank_event_switch_reads_its_seeded_value(event: str, on: bool) -> None:
+    """Blank reads as what Settings shows: milestones are seeded off (B5-3)."""
+    d = NotificationDispatcher(AsyncMock())
+    blank = type("Row", (), {"value": ""})()
+
+    with (
+        patch.object(d, "_has_any_service_enabled", AsyncMock(return_value=True)),
+        patch(
+            "app.services.notifications.dispatcher.SettingsService.get",
+            AsyncMock(return_value=blank),
+        ),
+    ):
+        assert await d._is_event_enabled(event) is on  # pyright: ignore[reportPrivateUsage]

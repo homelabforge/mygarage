@@ -40,10 +40,11 @@ export default function RecallList({ vin, onAddClick, onEditClick, onRefresh }: 
   // Both switches are public, so a non-admin reads them too (/settings is
   // admin-only). NHTSA reads as on until it says otherwise, matching the
   // backend default, so a failed read never disables the button; the
-  // backend's 409 is the enforcement.
+  // backend's 409 is the enforcement. CarComplaints reads as on too, its
+  // seeded value and what Settings > Integrations shows (B5-4).
   const publicSettings = usePublicSettings()
   const nhtsaEnabled = isSettingOn(publicSettings.nhtsa_enabled, true)
-  const carComplaintsEnabled = isSettingOn(publicSettings.carcomplaints_enabled)
+  const carComplaintsEnabled = isSettingOn(publicSettings.carcomplaints_enabled, true)
 
   const { data, isLoading, error } = useRecallRecords(vin, statusFilter)
   const deleteMutation = useDeleteRecallRecord(vin)

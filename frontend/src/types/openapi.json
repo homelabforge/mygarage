@@ -10567,6 +10567,12 @@
           "engine_hours": {
             "title": "Engine Hours",
             "type": "string"
+          },
+          "source": {
+            "default": "manual",
+            "description": "Where the reading came from",
+            "title": "Source",
+            "type": "string"
           }
         },
         "required": [
@@ -20111,6 +20117,18 @@
             ],
             "title": "Keyring",
             "type": "string"
+          },
+          "keyring_source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Which key source broke while the keyring is unavailable: 'env' (MYGARAGE_SETTINGS_KEY), 'env_file' (MYGARAGE_SETTINGS_KEY_FILE) or 'data_dir' (the data directory's key file); null while it is usable.",
+            "title": "Keyring Source"
           },
           "unreadable_keys": {
             "description": "Secret setting keys, sorted, whose stored value can't be decrypted with the current keyring. Each reads as unset until its key is restored or it is re-entered.",

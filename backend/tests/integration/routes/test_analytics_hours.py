@@ -250,7 +250,9 @@ class TestHoursAccumulatedSeriesRoute:
         # insertion order.
         db_session.add_all(
             [
-                HoursRecord(vin=vin, date=date(2026, 3, 1), engine_hours=Decimal("50.0")),
+                HoursRecord(
+                    vin=vin, date=date(2026, 3, 1), engine_hours=Decimal("50.0"), source="fuel"
+                ),
                 HoursRecord(vin=vin, date=date(2026, 1, 1), engine_hours=Decimal("10.0")),
                 HoursRecord(vin=vin, date=date(2026, 2, 1), engine_hours=Decimal("30.0")),
             ]
@@ -268,6 +270,8 @@ class TestHoursAccumulatedSeriesRoute:
             Decimal("30.0"),
             Decimal("50.0"),
         ]
+        # Each reading says where it came from, for the PDF's Source column (G2c-108).
+        assert [p["source"] for p in series] == ["manual", "manual", "fuel"]
 
 
 @pytest.mark.integration

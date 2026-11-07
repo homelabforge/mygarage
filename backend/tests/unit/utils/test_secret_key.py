@@ -25,8 +25,9 @@ def _mode(path: Path) -> int:
 
 @pytest.fixture(autouse=True)
 def _keep_key_source(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Put the module's KEY_SOURCE back after each test."""
+    """Put the module's KEY_SOURCE and KEY_FILE back after each test."""
     monkeypatch.setattr(secret_key, "KEY_SOURCE", secret_key.KEY_SOURCE)
+    monkeypatch.setattr(secret_key, "KEY_FILE", secret_key.KEY_FILE)
 
 
 @pytest.fixture
@@ -124,6 +125,52 @@ class TestGetOrCreateSecretKey:
         assert _mode(path) == 0o600
         assert secret_key.KEY_SOURCE == "generated"
 
+    def test_fills_an_empty_file_in_place(self, tmp_path: Path) -> None:
+        """Same inode: a single-file bind mount can't be unlinked (EBUSY), so
+        unlinking first left an in-memory key (B2-13)."""
+        path = tmp_path / "secret.key"
+        path.write_text("")
+        path.chmod(0o644)
+        inode = path.stat().st_ino
+
+        key = get_or_create_secret_key(path)
+
+        assert path.stat().st_ino == inode
+        assert path.read_text().strip() == key
+        assert _mode(path) == 0o600
+        assert secret_key.KEY_SOURCE == "generated"
+
+    def test_an_empty_file_that_cannot_be_unlinked_still_gets_a_key(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The bind-mount case itself: unlink raises EBUSY, the key persists."""
+        path = tmp_path / "secret.key"
+        path.write_text("")
+
+        def busy(self: Path, missing_ok: bool = False) -> None:
+            raise OSError(16, "Device or resource busy")
+
+        monkeypatch.setattr(Path, "unlink", busy)
+
+        key = get_or_create_secret_key(path)
+
+        assert secret_key.KEY_SOURCE == "generated"
+        assert path.read_text().strip() == key
+
+    def test_the_config_keeps_the_key_in_the_data_dir(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """`MYGARAGE_DATA_DIR` moves the key with the rest of the data (B2-6)."""
+        from app.config import Settings
+
+        monkeypatch.delenv("MYGARAGE_SECRET_KEY", raising=False)
+        monkeypatch.setenv("MYGARAGE_DATA_DIR", str(tmp_path))
+
+        key = Settings().secret_key
+
+        assert (tmp_path / "secret.key").read_text().strip() == key
+        assert secret_key.KEY_FILE == tmp_path / "secret.key"
+
     def test_a_concurrent_writer_wins_the_race(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -195,6 +242,7 @@ class TestLifespanKeyStatus:
     ) -> None:
         monkeypatch.delenv("MYGARAGE_SECRET_KEY", raising=False)
         monkeypatch.setattr(secret_key, "KEY_SOURCE", source)
+        monkeypatch.setattr(secret_key, "KEY_FILE", Path("/data/secret.key"))
 
         with caplog.at_level(logging.INFO, logger=app_main.logger.name):
             app_main.log_secret_key_status()

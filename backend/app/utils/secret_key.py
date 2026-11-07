@@ -22,6 +22,11 @@ logger = logging.getLogger(__name__)
 type KeySource = Literal["loaded", "generated", "memory"]
 
 DEFAULT_KEY_FILE = Path("/data/secret.key")
+#: The file name inside the data directory (`MYGARAGE_DATA_DIR`).
+KEY_FILE_NAME = "secret.key"
+
+#: The file the last get_or_create_secret_key call used, for the lifespan's log.
+KEY_FILE: Path = DEFAULT_KEY_FILE
 
 # What the last get_or_create_secret_key call did. Stays "memory" when
 # MYGARAGE_SECRET_KEY is set, because pydantic never calls the default factory
@@ -60,6 +65,25 @@ def create_key_file(path: Path, content: str) -> None:
         raise
 
 
+def _fill_empty_key_file(path: Path, content: str) -> None:
+    """Write ``content`` into the existing, empty key file at ``path``.
+
+    In place, not unlink-and-create: a single-file bind mount can't be
+    unlinked (EBUSY), which used to leave an in-memory key (B2-13). A symlink
+    is still replaced, since writing through it would land somewhere else.
+    """
+    if path.is_symlink():
+        path.unlink()
+        create_key_file(path, content)
+        return
+    fd = os.open(path, os.O_WRONLY | os.O_TRUNC | os.O_NOFOLLOW | os.O_CLOEXEC)
+    with os.fdopen(fd, "w", encoding="ascii") as handle:
+        os.fchmod(handle.fileno(), 0o600)
+        handle.write(content)
+        handle.flush()
+        os.fsync(handle.fileno())
+
+
 def _read_key(path: Path) -> str | None:
     """The stripped contents of ``path``, or None when it doesn't exist."""
     try:
@@ -74,11 +98,12 @@ def _resolve_secret_key(key_file: Path) -> tuple[str, KeySource]:
         existing = _read_key(key_file)
         if existing:
             return existing, "loaded"
+        secret_key = secrets.token_urlsafe(32)
         if existing is not None:
             logger.warning("Secret key file at %s is empty, generating a new key", key_file)
-            key_file.unlink()
+            _fill_empty_key_file(key_file, secret_key + "\n")
+            return secret_key, "generated"
 
-        secret_key = secrets.token_urlsafe(32)
         try:
             create_key_file(key_file, secret_key + "\n")
         except FileExistsError:
@@ -105,7 +130,8 @@ def get_or_create_secret_key(key_file: Path = DEFAULT_KEY_FILE) -> str:
     couldn't be read or written.
 
     Args:
-        key_file: Path to the secret key file (default: /data/secret.key).
+        key_file: Path to the secret key file. `app.config` passes
+            ``<data_dir>/secret.key``, so `MYGARAGE_DATA_DIR` moves it (B2-6).
 
     Returns:
         The secret key as a string.
@@ -115,6 +141,7 @@ def get_or_create_secret_key(key_file: Path = DEFAULT_KEY_FILE) -> str:
         changes on restart, which logs every user out. That is acceptable for a
         JWT key; the settings encryption key never does this.
     """
-    global KEY_SOURCE
+    global KEY_SOURCE, KEY_FILE
+    KEY_FILE = key_file  # pyright: ignore[reportConstantRedefinition]
     key, KEY_SOURCE = _resolve_secret_key(key_file)  # pyright: ignore[reportConstantRedefinition]
     return key

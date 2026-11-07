@@ -641,12 +641,14 @@ async def get_hours_accumulated_series(
     empty for a pure-distance vehicle.
     """
     result = await db.execute(
-        select(HoursRecord.date, HoursRecord.engine_hours)
+        select(HoursRecord.date, HoursRecord.engine_hours, HoursRecord.source)
         .where(HoursRecord.vin == vin)
         .order_by(HoursRecord.date, HoursRecord.id)
     )
     return [
-        HoursAccumulatedDataPoint(date=row.date, engine_hours=row.engine_hours)
+        HoursAccumulatedDataPoint(
+            date=row.date, engine_hours=row.engine_hours, source=row.source or "manual"
+        )
         for row in result.all()
     ]
 

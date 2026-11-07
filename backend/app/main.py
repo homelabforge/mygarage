@@ -130,17 +130,17 @@ def log_secret_key_status() -> None:
     if os.environ.get("MYGARAGE_SECRET_KEY"):
         logger.info("✓ Secret key loaded from MYGARAGE_SECRET_KEY environment variable")
     elif secret_key.KEY_SOURCE == "loaded":
-        logger.info("✓ Secret key loaded from %s", secret_key.DEFAULT_KEY_FILE)
+        logger.info("✓ Secret key loaded from %s", secret_key.KEY_FILE)
     elif secret_key.KEY_SOURCE == "generated":
         logger.info(
             "✓ Generated a new secret key and saved it to %s; it persists across restarts",
-            secret_key.DEFAULT_KEY_FILE,
+            secret_key.KEY_FILE,
         )
     else:
         logger.warning(
             "Secret key could not be persisted to %s - using a temporary in-memory key "
             "(sessions end on restart)",
-            secret_key.DEFAULT_KEY_FILE,
+            secret_key.KEY_FILE,
         )
 
 

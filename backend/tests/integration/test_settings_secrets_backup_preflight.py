@@ -97,7 +97,9 @@ def _test_database_file(engine: AsyncEngine) -> Path:
 def test_plaintext_secrets_remain_is_not_a_runtime_error() -> None:
     """R2-2: `create-full`'s `except RuntimeError` must never turn the 503 into a 500."""
     assert not issubclass(PlaintextSecretsRemain, RuntimeError)
-    message = str(PlaintextSecretsRemain(("ntfy_token", "llm_api_key")))
+    message = str(
+        PlaintextSecretsRemain(("ntfy_token", "llm_api_key"), keyring_fix=f"Set {ENV_KEY}.")
+    )
     assert "ntfy_token, llm_api_key" in message
     assert ENV_KEY in message
 
@@ -136,6 +138,10 @@ async def test_with_no_keyring_the_preflight_refuses_and_writes_nothing(
     assert raised.value.keys == ("ntfy_token",)
     assert PLAIN_NTFY not in str(raised.value)
     assert await raw_column(test_sessionmaker, "ntfy_token") == PLAIN_NTFY
+    # The broken env var wins over the data dir, so the fix names it, not a
+    # writable data dir that would change nothing (B2-21).
+    assert f"Set {ENV_KEY} to a valid key. Then try again." in str(raised.value)
+    assert "writable" not in str(raised.value)
 
 
 async def test_with_no_keyring_and_no_plaintext_the_preflight_passes(
@@ -208,7 +214,7 @@ def _app(*, debug: bool) -> FastAPI:
 
     @app.post("/backup")
     async def backup() -> None:
-        raise PlaintextSecretsRemain(("ntfy_token",))
+        raise PlaintextSecretsRemain(("ntfy_token",), keyring_fix=f"Set {ENV_KEY}.")
 
     return app
 

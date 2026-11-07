@@ -1179,3 +1179,11 @@ async def test_ocr_off_refuses_the_test_scan(
     assert response.json()["detail"] == OCR_OFF
     ocr.test_extraction.assert_not_awaited()
     assert _files_under(tmp_path) == [sticker_on_file]
+
+
+def test_the_sticker_cap_is_the_documents_limit() -> None:
+    """A sticker is stored with the documents, so MYGARAGE_MAX_DOCUMENT_SIZE_MB
+    (the limit Settings > Files shows) caps it, not a hardcoded 10 MB."""
+    from app.config import settings
+
+    assert window_sticker_route.MAX_FILE_SIZE == settings.max_document_size_bytes

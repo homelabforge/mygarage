@@ -203,8 +203,8 @@ const HOURS_ECONOMY_POINTS: HoursEconomyDataPoint[] = [
 ]
 
 const HOURS_ACCUMULATED_POINTS: HoursAccumulatedDataPoint[] = [
-  { date: '2026-06-01', engine_hours: '800.0' },
-  { date: '2026-07-01', engine_hours: '812.4' },
+  { date: '2026-06-01', engine_hours: '800.0', source: 'manual' },
+  { date: '2026-07-01', engine_hours: '812.4', source: 'fuel' },
 ]
 
 describe('Analytics — hours efficiency chart (Task 17)', () => {

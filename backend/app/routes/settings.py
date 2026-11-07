@@ -69,7 +69,7 @@ from app.utils.household_time import (
     household_zone,
 )
 from app.utils.logging_utils import sanitize_for_log
-from app.utils.settings_crypto import CIPHERTEXT_PREFIX, current_kid
+from app.utils.settings_crypto import CIPHERTEXT_PREFIX, current_kid, unavailable_key_source
 
 logger = logging.getLogger(__name__)
 
@@ -1062,6 +1062,7 @@ async def get_secrets_status(
     )
     return SecretsStatusResponse(
         keyring="ok" if current_kid() is not None else "unavailable",
+        keyring_source=unavailable_key_source(),
         unreadable_keys=sorted(row.key for row in rows if row.unreadable),
     )
 

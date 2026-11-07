@@ -221,3 +221,9 @@ class TestRetiredSeeds:
         row = await fresh_db.get(Setting, "max_upload_size_mb")
         assert row is not None
         assert row.value == "25"
+
+
+def test_a_new_install_has_no_shared_ntfy_topic() -> None:
+    """Anyone who knows a topic can read it on public ntfy.sh, so a new
+    install starts blank rather than on a name every install shares (B2-4)."""
+    assert DEFAULT_SETTINGS["ntfy_topic"]["value"] == ""

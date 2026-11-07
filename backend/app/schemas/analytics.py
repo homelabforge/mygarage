@@ -130,6 +130,8 @@ class HoursAccumulatedDataPoint(BaseModel):
 
     date: date_type
     engine_hours: Decimal
+    # Plain text, as on HoursRecordResponse: manual, fuel or service_visit.
+    source: str = Field(default="manual", description="Where the reading came from")
 
     model_config = {"from_attributes": True}
 

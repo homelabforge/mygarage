@@ -428,6 +428,23 @@ class TestUsageEfficiencySection:
         assert "100.0 hr" in text
         assert "150.0 hr" in text
 
+    def test_hours_history_shows_each_readings_source(self) -> None:
+        """The Source column names where a reading came from (G2c-108)."""
+        data = _make_analytics_data()
+        data["total_km_driven"] = None
+        points = _make_hours_accumulated(
+            [("2025-01-01", Decimal("100.0")), ("2025-03-01", Decimal("150.0"))]
+        )
+        points[0]["source"] = "fuel"
+        points[1]["source"] = "service_visit"
+        data["hours_accumulated"] = points
+
+        buf = generate_vehicle_analytics_pdf(data, render_context=METRIC_CTX, date_order="mdy")
+        text = _extract_text(buf.read())
+
+        assert "Fuel fill-up" in text
+        assert "Service visit" in text
+
     def test_dual_vehicle_shows_both_dimensions(self) -> None:
         """Dual-track vehicle: both odometer/distance AND hours summaries
         render, each with its own economy figure."""
@@ -1056,7 +1073,7 @@ class TestBannerIdentifier:
         data = _make_analytics_data()
         data["cost_analysis"]["service_type_breakdown"][0]["service_type"] = "Brake <b>job"
         data["hours_accumulated"] = [
-            {"date": "2025-01-01", "engine_hours": Decimal("10"), "notes": "Read <i>by hand"}
+            {"date": "2025-01-01", "engine_hours": Decimal("10"), "source": "Read <i>by hand"}
         ]
         vendors = _make_vendor_data()
         vendors["vendors"][0]["vendor_name"] = "Bob <i>& Sons"

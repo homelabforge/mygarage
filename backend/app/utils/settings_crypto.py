@@ -415,6 +415,28 @@ def is_ciphertext(stored: str | None) -> bool:
     return stored is not None and stored.startswith(CIPHERTEXT_PREFIX)
 
 
+def unavailable_key_source() -> str | None:
+    """Which key source broke, or None while the keyring is usable (B2-21).
+
+    "env" for ``MYGARAGE_SETTINGS_KEY``, "env_file" for ``_FILE``, "data_dir"
+    for the data dir's key file. Never a path or key material.
+    """
+    keyring = _get_keyring()
+    if not isinstance(keyring, _Unavailable):
+        return None
+    if keyring.source == ENV_KEY:
+        return "env"
+    if keyring.source == ENV_KEY_FILE:
+        return "env_file"
+    return "data_dir"
+
+
+def keyring_fix_advice() -> str | None:
+    """How to fix the keyring, for the source that broke; None while it's usable."""
+    keyring = _get_keyring()
+    return _fix_advice(keyring.source) if isinstance(keyring, _Unavailable) else None
+
+
 def current_kid() -> str | None:
     """The id of the key that ``encrypt`` uses now, or None when the keyring is unavailable."""
     keyring = _get_keyring()
