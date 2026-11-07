@@ -594,6 +594,30 @@ class TestMapping:
             "electric",
         )
 
+    @pytest.mark.parametrize(
+        "code,fuel,type_hybrid,expected",
+        [
+            ("", "Gasoline", "Plug-in hybrid", ("plugin_hybrid", "electric")),
+            ("", "Diesel", "Hybrid electric vehicle with charging station", ("plugin_hybrid", "electric")),
+            ("", "Gasoline", "Non-rechargeable hybrid", ("hybrid", "electric")),
+            ("", "Gasoline", "Hybrid electric vehicle without charging station", ("hybrid", "electric")),
+            ("B", "Treibstoff", "Plug-in hybrid", ("plugin_hybrid", "electric")),
+            ("D", "Treibstoff", "Non-rechargeable hybrid", ("hybrid", "electric")),
+            ("Z", "Treibstoff", "Non-rechargeable hybrid", ("hybrid", "propane_lpg")),
+            ("", "Gasoline", "Fuel Cell Hybrid Vehicle without Charging Station", ("gasoline", None)),
+            ("", "Gasoline", "", ("gasoline", None)),
+        ],
+    )  # fmt: skip
+    def test_a_stated_hybrid_type_turns_plain_fuel_into_a_hybrid(
+        self, code, fuel, type_hybrid, expected
+    ):
+        # A real 330e (WBA8E1C56JA756703) and i3 REx come back as FUEL
+        # "Gasoline", no CODE_FUEL, and TYPE_HYBRID "Plug-in hybrid".
+        row = {**ROW, "FUEL": fuel}
+        detail = {"CODE_FUEL": code, "TYPE_HYBRID": type_hybrid}
+        engine = map_vehicle(VIN, row, detail, multiple=False)["engine"]
+        assert (engine["fuel_type_normalized"], engine["fuel_type_secondary"]) == expected
+
     def test_a_second_fuel_autoref_names_wins_over_the_code(self):
         row = {**ROW, "FUEL": "Treibstoff"}
         detail = {"CODE_FUEL": "Y", "SECOND_FUEL": "LPG"}

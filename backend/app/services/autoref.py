@@ -256,19 +256,23 @@ def _drive_type(code: Any, words: Any) -> str | None:
     return None
 
 
-def _plugs_in(type_hybrid: str | None, electric_use: Any) -> bool:
-    """Whether a hybrid plugs in.
-
-    TYPE_HYBRID decides when it's filled. Otherwise ELECTRIC_RANGE_MIN_MAX
-    does: despite the name it's the electric use in kWh/100 km, and only
-    plug-ins have one (a 330e reads 18.6). AutoRef warns it's sometimes
-    missing on a plug-in too, so a blank reads as a regular hybrid.
-    """
+def _stated_hybrid(type_hybrid: str | None) -> bool | None:
+    """What TYPE_HYBRID says: True a plug-in, False a hybrid that doesn't plug in, None unsaid."""
     kind = (type_hybrid or "").lower()
     if kind in _PLUG_IN_TYPES:
         return True
     if kind in _NOT_PLUG_IN_TYPES:
         return False
+    return None
+
+
+def _uses_electricity(electric_use: Any) -> bool:
+    """Whether ELECTRIC_RANGE_MIN_MAX is filled.
+
+    Despite the name it's the electric use in kWh/100 km, and only plug-ins
+    have one (a 330e reads 18.6). AutoRef warns it's sometimes missing on a
+    plug-in too, so a blank reads as a regular hybrid.
+    """
     if isinstance(electric_use, bool):
         return False
     if isinstance(electric_use, (int, float)):
@@ -277,14 +281,21 @@ def _plugs_in(type_hybrid: str | None, electric_use: Any) -> bool:
 
 
 def _fuels(
-    code: str, fuel_raw: str | None, second_raw: str | None, plugs_in: bool
+    code: str,
+    fuel_raw: str | None,
+    second_raw: str | None,
+    type_hybrid: str | None,
+    electric_use: Any,
 ) -> tuple[str | None, str | None]:
     """The normalized fuel and second fuel.
 
     CODE_FUEL decides when it's one AutoRef lists; otherwise the words do,
     and a fuel paired with electric ("Gasoline / Electric") reads as a
-    hybrid with electric second, like a French certificate's EH. A hybrid
-    that plugs in is a plug-in hybrid. A SECOND_FUEL AutoRef names wins.
+    hybrid with electric second, like a French certificate's EH. A
+    TYPE_HYBRID that names a hybrid makes plain gasoline or diesel one too:
+    a real 330e comes back as just "Gasoline" with "Plug-in hybrid". A
+    hybrid that plugs in is a plug-in hybrid: TYPE_HYBRID decides when it
+    says, the electric use otherwise. A SECOND_FUEL AutoRef names wins.
     """
     second = normalize_fuel_type(second_raw) if second_raw else None
     known = _FUEL_CODES.get(code)
@@ -297,6 +308,10 @@ def _fuels(
             parts = {normalize_fuel_type(part) for part in fuel_raw.split("/")}
             if len(parts) == 2 and FuelTypeEnum.ELECTRIC in parts and None not in parts:
                 fuel, implied = FuelTypeEnum.HYBRID, FuelTypeEnum.ELECTRIC
+    stated = _stated_hybrid(type_hybrid)
+    if stated is not None and fuel in (FuelTypeEnum.GASOLINE, FuelTypeEnum.DIESEL):
+        fuel, implied = FuelTypeEnum.HYBRID, implied or FuelTypeEnum.ELECTRIC
+    plugs_in = stated if stated is not None else _uses_electricity(electric_use)
     if fuel is FuelTypeEnum.HYBRID and plugs_in:
         fuel = FuelTypeEnum.PLUGIN_HYBRID
     second = second or implied
@@ -348,7 +363,8 @@ def map_vehicle(
         (_text(pick("CODE_FUEL")) or "").upper(),
         fuel_raw,
         _text(pick("SECOND_FUEL")),
-        _plugs_in(_text(pick("TYPE_HYBRID")), pick("ELECTRIC_RANGE_MIN_MAX")),
+        _text(pick("TYPE_HYBRID")),
+        pick("ELECTRIC_RANGE_MIN_MAX"),
     )
     gearbox_code = (_text(row.get("CODE_GEARBOX")) or "").upper()
     model_text = (
