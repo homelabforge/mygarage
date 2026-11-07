@@ -27,7 +27,7 @@ from typing import Any
 
 import httpx
 
-from app.constants.fuel import normalize_fuel_type
+from app.constants.fuel import FuelTypeEnum, normalize_fuel_type
 from app.services.registration_certificate_service import displacement_litres
 from app.utils.vehicle_names import normalize_make, normalize_model
 from app.utils.vin import validate_vin
@@ -51,9 +51,17 @@ NOTE_AUTOREF_BEST_GUESS = "autoref_best_guess"
 #: The answer came from the UK or US registry, as written there.
 NOTE_AUTOREF_EXTERNAL = "autoref_external_record"
 
-_GEARBOX_CODES = {"M": "Manual", "A": "Automatic"}
+#: S is German "stufenlos" (stepless), like the drivetrain codes: a Corolla
+#: hybrid's S came with the words "Continuously Variable" (live decode
+#: 2026-11-06). Spelled the way NHTSA spells it. H is still unseen and stays
+#: unmapped.
+_GEARBOX_CODES = {
+    "M": "Manual",
+    "A": "Automatic",
+    "S": "Continuously Variable Transmission (CVT)",
+}
 #: A manual with an automatic mode (``additionnal_mode`` A): a Porsche PDK
-#: reads this way. S and H are "other" in AutoRef's docs and stay unmapped.
+#: reads this way.
 AUTOMATED_MANUAL = "Automated Manual"
 #: More gears than any car has means the number isn't a gear count.
 _MAX_GEARS = 12
@@ -221,6 +229,24 @@ def _drive_type(code: Any, words: Any) -> str | None:
     return None
 
 
+def _fuels(fuel_raw: str | None, second_raw: str | None) -> tuple[str | None, str | None]:
+    """The normalized fuel and second fuel.
+
+    AutoRef writes a hybrid as a fuel paired with electric ("Gasoline /
+    Electric") and leaves TYPE_HYBRID blank, so the pair reads as a hybrid
+    with electric second, like a French certificate's EH. Whether it plugs in
+    isn't in the answer, so it's never a plug-in hybrid.
+    """
+    fuel = normalize_fuel_type(fuel_raw) if fuel_raw else None
+    second = normalize_fuel_type(second_raw) if second_raw else None
+    if fuel_raw:
+        parts = {normalize_fuel_type(part) for part in fuel_raw.split("/")}
+        if len(parts) == 2 and FuelTypeEnum.ELECTRIC in parts and None not in parts:
+            fuel = FuelTypeEnum.HYBRID
+            second = second or FuelTypeEnum.ELECTRIC
+    return (fuel.value if fuel else None, second.value if second else None)
+
+
 def _gearbox(code: str, details: Any) -> dict[str, str | None]:
     """The transmission type and speeds from the code and the first gearbox detail."""
     first = details[0] if isinstance(details, list) and details else None
@@ -262,9 +288,7 @@ def map_vehicle(
     kw = kw_raw if isinstance(kw_raw, (int, float)) and not isinstance(kw_raw, bool) else None
     displacement_cc = _int(pick("DISPLACEMENT"))
     fuel_raw = _text(pick("FUEL"))
-    fuel = normalize_fuel_type(fuel_raw) if fuel_raw else None
-    second = _text(pick("SECOND_FUEL"))
-    fuel_secondary = normalize_fuel_type(second) if second else None
+    fuel, fuel_secondary = _fuels(fuel_raw, _text(pick("SECOND_FUEL")))
     gearbox_code = (_text(row.get("CODE_GEARBOX")) or "").upper()
     model_text = (
         _text(pick("MODEL_RESOLVED")) or _text(pick("MODEL_LINE")) or _text(pick("MODEL_FULL"))
@@ -292,8 +316,8 @@ def map_vehicle(
             "hp": round(kw * HP_PER_KW) if kw is not None else None,
             "kw": round(kw) if kw is not None else None,
             "fuel_type": fuel_raw,
-            "fuel_type_normalized": fuel.value if fuel else None,
-            "fuel_type_secondary": fuel_secondary.value if fuel_secondary else None,
+            "fuel_type_normalized": fuel,
+            "fuel_type_secondary": fuel_secondary,
         },
         "transmission": _gearbox(gearbox_code, detail.get("GEARBOX_DETAILS")),
         "drive_type": _drive_type(pick("CODE_DRIVETRAIN"), pick("DRIVETRAIN")),
