@@ -4,8 +4,14 @@
     {
       "path": "index.html",
       "disposition": "no unit behaviour",
-      "digest": "af279bbda0238d224f80f2b83016e939fe6f68a1c7ff8c31801890c99cd6be83",
-      "reason": "the entry document. Read in full: a title, a viewport meta, a description meta (\"Self-hosted vehicle maintenance tracking application\") and a noscript block. User-facing text, no unit-bearing quantity. In the universe because the walker starts at the module it loads and can never see it. 2026-11-01 (b12 FW): the pre-paint accent table darkens the light-mode accent text color (fgLight) for amber, teal, red and green to match constants/accents.ts, so accent text on a /20 chip tint over the light page clears contrast. Hex color values only; no unit-bearing quantity added."
+      "digest": "aa88db7abed768aec665e8f2b6662495477271282ba1123d2080b86af6717fbb",
+      "reason": "the entry document. Read in full: a title, a viewport meta, a description meta (\"Self-hosted vehicle maintenance tracking application\") and a noscript block. User-facing text, no unit-bearing quantity. In the universe because the walker starts at the module it loads and can never see it. 2026-11-01 (b12 FW): the pre-paint accent table darkens the light-mode accent text color (fgLight) for amber, teal, red and green to match constants/accents.ts, so accent text on a /20 chip tint over the light page clears contrast. Hex color values only; no unit-bearing quantity added. 2026-11-07 (app icon): a favicon.ico icon link, and the apple-touch-icon points at a 180x180 apple-touch-icon.png. Icon links only; no unit-bearing quantity added."
+    },
+    {
+      "path": "public/apple-touch-icon.png",
+      "disposition": "no unit behaviour",
+      "digest": "723762a0ed1ea2c0434c661fb1e2dac1a1e16b93c0b6571ab293696757f14f7d",
+      "reason": "no unit behaviour: NEW 2026-11-07 (app icon). A binary asset, with no text that could carry a unit (same reasoning as public/icon-192.png)."
     },
     {
       "path": "public/brand-logos/NOTICE.md",
@@ -872,16 +878,22 @@
       "reason": "no unit behaviour: NEW 2026-11-05 (#219 takeover). A brand logo thumbnail, a binary asset with no text that could carry a unit (same reasoning as public/icon-192.png)."
     },
     {
+      "path": "public/favicon.ico",
+      "disposition": "no unit behaviour",
+      "digest": "436a8f0ce476152f6f904c99d6d41302e578d28391ae918532c00f932bc9a52e",
+      "reason": "no unit behaviour: NEW 2026-11-07 (app icon). A binary asset, with no text that could carry a unit (same reasoning as public/icon-192.png)."
+    },
+    {
       "path": "public/icon-192.png",
       "disposition": "no unit behaviour",
-      "digest": "b6b095e937b362e6348f8681dc43c643b3dce50f793f62296ec9bdfa565eb6a8",
-      "reason": "no unit behaviour: a binary asset, with no text that could carry a unit. It is in the universe because the universe rule has no extension filter, deliberately: a filter is a judgement, and a judgement is the thing that relocates."
+      "digest": "3f8ea3678c0a880c21a96bf0d25baf22adcb059e19531749f297341b988b2974",
+      "reason": "no unit behaviour: a binary asset, with no text that could carry a unit. It is in the universe because the universe rule has no extension filter, deliberately: a filter is a judgement, and a judgement is the thing that relocates. 2026-11-07 (app icon): replaced with the garage icon, still a binary asset."
     },
     {
       "path": "public/icon-512.png",
       "disposition": "no unit behaviour",
-      "digest": "2590cddab1a097425622f7dcfebcea75aa7e1ee1b53d06544bc26c41e9e15619",
-      "reason": "no unit behaviour: a binary asset, with no text that could carry a unit. It is in the universe because the universe rule has no extension filter, deliberately: a filter is a judgement, and a judgement is the thing that relocates."
+      "digest": "b256b5bd6133f18edb619c1a20e72923d9b12308ebcfb08fb790c64b647dd04b",
+      "reason": "no unit behaviour: a binary asset, with no text that could carry a unit. It is in the universe because the universe rule has no extension filter, deliberately: a filter is a judgement, and a judgement is the thing that relocates. 2026-11-07 (app icon): replaced with the garage icon, still a binary asset."
     },
     {
       "path": "public/locales/de/analytics.json",
