@@ -347,7 +347,7 @@ describe('VINInput — choosing the decoder', () => {
 })
 
 // Several AutoRef versions for one VIN: pick yours.
-describe('VINInput — picking an AutoRef version', () => {
+describe('VINInput: picking an AutoRef version', () => {
   const GOLF_VIN = 'WVWZZZAUZFW806653'
   const candidate = (id: string, label: string, kw: number, fuel: string) => ({
     record_type: 'TG' as const,
@@ -578,6 +578,22 @@ describe('VINInput — picking an AutoRef version', () => {
     fireEvent.click(screen.getByRole('button', { name: /vinInput.decode/ }))
     fireEvent.click(await screen.findByRole('button', { name: /vinInput.tryAutoRef/ }))
     expect(await screen.findByRole('combobox', { name: 'vinInput.version' })).toBeInTheDocument()
+  })
+
+  it('a pick after Try AutoRef only adds, like the Try', async () => {
+    // Fable diff F-1: it must not blank what the first decoder filled.
+    vi.mocked(vinService.decode)
+      .mockResolvedValueOnce({ ...several, decoded_by: 'nhtsa', candidates: null, notes: ['eu_vin_no_model'] })
+      .mockResolvedValueOnce(several)
+    vi.mocked(vinService.decodeVersion).mockResolvedValue(picked(GTE))
+    const onDecode = vi.fn()
+    render(<VINInput value={GOLF_VIN} onChange={vi.fn()} onDecode={onDecode} />)
+    await screen.findByLabelText('vinInput.decodeWith')
+    fireEvent.click(screen.getByRole('button', { name: /vinInput.decode/ }))
+    fireEvent.click(await screen.findByRole('button', { name: /vinInput.tryAutoRef/ }))
+    pick((await screen.findByRole('combobox', { name: 'vinInput.version' })) as HTMLSelectElement, GTE)
+    await waitFor(() => expect(onDecode).toHaveBeenCalledTimes(3))
+    expect(onDecode).toHaveBeenLastCalledWith(picked(GTE), { fillOnly: true })
   })
 
   it('a partial answer with versions leads with the pick note and offers no Try NHTSA', async () => {

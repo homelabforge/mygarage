@@ -527,10 +527,20 @@ def candidates_of(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """
     out: list[dict[str, Any]] = []
     seen: set[tuple[Any, ...]] = set()
+    # A VIN prefix can match another maker's car (a Toyota and a Daihatsu),
+    # and MODEL_FULL never names the make, so say it when they differ.
+    makes = {(normalize_make(_text(row.get("BRAND"))) or "").casefold() for row in rows}
     for row in rows:
         candidate = _candidate(row)
         if candidate is None:
             continue
+        make = normalize_make(_text(row.get("BRAND")))
+        if (
+            len(makes) > 1
+            and make
+            and not candidate["label"].casefold().startswith(make.casefold())
+        ):
+            candidate["label"] = f"{make} {candidate['label']}"
         identity = _identity(candidate)
         if identity in seen:
             continue

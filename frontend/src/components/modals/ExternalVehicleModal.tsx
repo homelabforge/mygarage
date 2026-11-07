@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Drawer, Button, Field, Input, NumberInput, Textarea } from '@/components/ui'
@@ -45,9 +45,13 @@ export default function ExternalVehicleModal({
   const [yearText, setYearText] = useState('')
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  // The nickname a decode last wrote. A later decode (a picked AutoRef
+  // version after the make-only agreement) rewrites that one; a typed one stays.
+  const autoNickname = useRef<string | null>(null)
 
   useEffect(() => {
     if (!isOpen) return
+    autoNickname.current = null
     if (vehicle) {
       setForm({
         nickname: vehicle.nickname,
@@ -76,16 +80,13 @@ export default function ExternalVehicleModal({
   }
 
   const handleVinDecode = (data: VINDecodeResponse) => {
-    setForm((prev) => {
-      const generatedNickname = `${data.year || ''} ${data.make || ''} ${data.model || ''}`.trim()
-      return {
-        ...prev,
-        year: data.year ?? prev.year ?? null,
-        make: data.make || prev.make || '',
-        model: data.model || prev.model || '',
-        nickname: prev.nickname?.trim() ? prev.nickname : generatedNickname,
-      }
-    })
+    const year = data.year ?? form.year ?? null
+    const make = data.make || form.make || ''
+    const model = data.model || form.model || ''
+    const typed = form.nickname?.trim() && form.nickname !== autoNickname.current
+    const nickname = typed ? form.nickname : `${year || ''} ${make} ${model}`.trim()
+    if (!typed) autoNickname.current = nickname
+    setForm((prev) => ({ ...prev, year, make, model, nickname }))
     if (data.year != null) setYearText(String(data.year))
   }
 

@@ -970,6 +970,13 @@ class TestSeveralMatches:
         ids = [x["id"] for x in candidates_of([GOLF_ROWS[0], twin, GOLF_ROWS[2]])]
         assert ids == ["310899", GTE_ID]
 
+    async def test_labels_name_the_make_when_the_makes_differ(self):
+        # Fable diff F-4: a Toyota VIN that also matched a Daihatsu.
+        assert [x["label"] for x in candidates_of(YARIS_ROWS)] == [
+            "Toyota Yaris 1.33",
+            "Daihatsu Charade",
+        ]
+
     async def test_rows_without_a_model_name_are_never_merged(self):
         # Codex diff R1-H1: same power, fuel and gearbox isn't the same car
         # when there's no MODEL_FULL to say so.

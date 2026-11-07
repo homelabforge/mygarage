@@ -105,6 +105,8 @@ export default function VINInput({
   const [picked, setPicked] = useState('')
   const [pickError, setPickError] = useState('')
   const [isPicking, setIsPicking] = useState(false)
+  // Versions from a Try: a pick then only adds, like the Try's own answer.
+  const [versionsFillOnly, setVersionsFillOnly] = useState(false)
   // Decode, Try and Pick all write the same answer, so only the latest one
   // started may land, success or failure.
   const generation = useRef(0)
@@ -144,9 +146,10 @@ export default function VINInput({
     setIsPicking(false)
   }
 
-  const takeVersions = (data: VINDecodeResponse, vin: string): void => {
+  const takeVersions = (data: VINDecodeResponse, vin: string, fillOnly = false): void => {
     setVersions(data.candidates ?? [])
     setVersionsVin(vin)
+    setVersionsFillOnly(fillOnly)
     setPicked('')
     setPickError('')
     setIsPicking(false)
@@ -274,7 +277,7 @@ export default function VINInput({
       const data = await vinService.decode(requested, { provider, country })
       if (overtaken()) return
       setDecodedData(data)
-      takeVersions(data, requested)
+      takeVersions(data, requested, true)
       if (onDecode) {
         onDecode(data, { fillOnly: true })
       }
@@ -305,7 +308,8 @@ export default function VINInput({
       if (overtaken()) return
       setDecodedData(data)
       if (onDecode) {
-        onDecode(data)
+        if (versionsFillOnly) onDecode(data, { fillOnly: true })
+        else onDecode(data)
       }
     } catch (err: unknown) {
       if (overtaken()) return
