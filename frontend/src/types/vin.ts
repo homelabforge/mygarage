@@ -11,6 +11,8 @@ export type TransmissionInfo = components['schemas']['TransmissionInfo']
 export type VINDecodeResponse = components['schemas']['VINDecodeResponse']
 export type VINProvidersResponse = components['schemas']['VINProvidersResponse']
 export type AutoRefTestResponse = components['schemas']['AutoRefTestResponse']
+/** One of the versions AutoRef matched for a VIN, to pick from. */
+export type AutoRefCandidate = components['schemas']['AutoRefCandidate']
 /** The decoders (#219 takeover): NHTSA and AutoRef. */
 export type VINProvider = VINProvidersResponse['preferred']
 
