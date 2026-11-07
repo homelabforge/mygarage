@@ -23,7 +23,7 @@ import logging
 import re
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, cast
+from typing import Any
 
 import httpx
 
@@ -51,19 +51,42 @@ NOTE_AUTOREF_BEST_GUESS = "autoref_best_guess"
 #: The answer came from the UK or US registry, as written there.
 NOTE_AUTOREF_EXTERNAL = "autoref_external_record"
 
-#: AutoRef's gearbox codes, from its gearboxes endpoint: A automatic, M
-#: manual, S semi-auto or CVT, H hydrostatic (tractors, mowers).
+#: AutoRef's gearbox codes, per their support (2026-11-07): S is a CVT
+#: (stufenlos, Toyota e-CVTs too) even though the docs say "other", H is
+#: hydrostatic (loaders, small tractors). CVT spelled the way NHTSA spells it.
 _GEARBOX_CODES = {
     "M": "Manual",
     "A": "Automatic",
-    "S": "Semi-Automatic",
+    "S": "Continuously Variable Transmission (CVT)",
     "H": "Hydrostatic",
 }
-#: S is one code for two gearboxes, so its words decide: a Corolla hybrid's
-#: S came with "Continuously Variable" (live decode 2026-11-06). Spelled the
-#: way NHTSA spells it. English and French.
-CVT = "Continuously Variable Transmission (CVT)"
-_CVT_WORDS = ("continuously variable", "cvt", "variation continue")
+
+#: AutoRef's CODE_FUEL list (support, 2026-11-07) as fuel and second fuel,
+#: the same way the French certificate codes read. C and F are petrol or
+#: diesel with electric, hybrid or plug-in; ``_fuels`` tells which. M
+#: (methanol) and P (old petroleum) have no fuel type here, so they fall
+#: back to the words.
+_FUEL_CODES: dict[str, tuple[FuelTypeEnum, FuelTypeEnum | None]] = {
+    "B": (FuelTypeEnum.GASOLINE, None),
+    "D": (FuelTypeEnum.DIESEL, None),
+    "C": (FuelTypeEnum.HYBRID, FuelTypeEnum.ELECTRIC),
+    "F": (FuelTypeEnum.HYBRID, FuelTypeEnum.ELECTRIC),
+    "E": (FuelTypeEnum.ELECTRIC, None),
+    "R": (FuelTypeEnum.ELECTRIC, FuelTypeEnum.GASOLINE),  # range extender
+    "X": (FuelTypeEnum.HYDROGEN, None),  # fuel cell
+    "N": (FuelTypeEnum.CNG, None),
+    "Y": (FuelTypeEnum.GASOLINE, FuelTypeEnum.CNG),
+    "L": (FuelTypeEnum.PROPANE_LPG, None),
+    "Z": (FuelTypeEnum.GASOLINE, FuelTypeEnum.PROPANE_LPG),
+    "K": (FuelTypeEnum.E85, FuelTypeEnum.GASOLINE),  # flex fuel
+    "J": (FuelTypeEnum.E85, None),
+}
+#: TYPE_HYBRID's values (lang=en). It's only filled for CoC and non-Swiss
+#: records, so it's often blank on a real hybrid.
+_PLUG_IN_TYPES = frozenset({"hybrid electric vehicle with charging station", "plug-in hybrid"})
+_NOT_PLUG_IN_TYPES = frozenset(
+    {"hybrid electric vehicle without charging station", "non-rechargeable hybrid"}
+)
 #: A manual with an automatic mode (``additionnal_mode`` A): a Porsche PDK
 #: reads this way.
 AUTOMATED_MANUAL = "Automated Manual"
@@ -233,26 +256,70 @@ def _drive_type(code: Any, words: Any) -> str | None:
     return None
 
 
-def _fuels(fuel_raw: str | None, second_raw: str | None) -> tuple[str | None, str | None]:
+def _stated_hybrid(type_hybrid: str | None) -> bool | None:
+    """What TYPE_HYBRID says: True a plug-in, False a hybrid that doesn't plug in, None unsaid."""
+    kind = (type_hybrid or "").lower()
+    if kind in _PLUG_IN_TYPES:
+        return True
+    if kind in _NOT_PLUG_IN_TYPES:
+        return False
+    return None
+
+
+def _uses_electricity(electric_use: Any) -> bool:
+    """Whether ELECTRIC_RANGE_MIN_MAX is filled.
+
+    Despite the name it's the electric use in kWh/100 km, and only plug-ins
+    have one (a 330e reads 18.6). AutoRef warns it's sometimes missing on a
+    plug-in too, so a blank reads as a regular hybrid.
+    """
+    if isinstance(electric_use, bool):
+        return False
+    if isinstance(electric_use, (int, float)):
+        return electric_use > 0
+    return bool(_text(electric_use))
+
+
+def _fuels(
+    code: str,
+    fuel_raw: str | None,
+    second_raw: str | None,
+    type_hybrid: str | None,
+    electric_use: Any,
+) -> tuple[str | None, str | None]:
     """The normalized fuel and second fuel.
 
-    AutoRef writes a hybrid as a fuel paired with electric ("Gasoline /
-    Electric") and leaves TYPE_HYBRID blank, so the pair reads as a hybrid
-    with electric second, like a French certificate's EH. Whether it plugs in
-    isn't in the answer, so it's never a plug-in hybrid.
+    CODE_FUEL decides when it's one AutoRef lists; otherwise the words do,
+    and a fuel paired with electric ("Gasoline / Electric") reads as a
+    hybrid with electric second, like a French certificate's EH. A
+    TYPE_HYBRID that names a hybrid makes plain gasoline or diesel one too:
+    a real 330e comes back as just "Gasoline" with "Plug-in hybrid". A
+    hybrid that plugs in is a plug-in hybrid: TYPE_HYBRID decides when it
+    says, the electric use otherwise. A SECOND_FUEL AutoRef names wins.
     """
-    fuel = normalize_fuel_type(fuel_raw) if fuel_raw else None
     second = normalize_fuel_type(second_raw) if second_raw else None
-    if fuel_raw:
-        parts = {normalize_fuel_type(part) for part in fuel_raw.split("/")}
-        if len(parts) == 2 and FuelTypeEnum.ELECTRIC in parts and None not in parts:
-            fuel = FuelTypeEnum.HYBRID
-            second = second or FuelTypeEnum.ELECTRIC
+    known = _FUEL_CODES.get(code)
+    if known is not None:
+        fuel, implied = known
+    else:
+        fuel = normalize_fuel_type(fuel_raw) if fuel_raw else None
+        implied = None
+        if fuel_raw:
+            parts = {normalize_fuel_type(part) for part in fuel_raw.split("/")}
+            if len(parts) == 2 and FuelTypeEnum.ELECTRIC in parts and None not in parts:
+                fuel, implied = FuelTypeEnum.HYBRID, FuelTypeEnum.ELECTRIC
+    stated = _stated_hybrid(type_hybrid)
+    if stated is not None and fuel in (FuelTypeEnum.GASOLINE, FuelTypeEnum.DIESEL):
+        fuel, implied = FuelTypeEnum.HYBRID, implied or FuelTypeEnum.ELECTRIC
+    plugs_in = stated if stated is not None else _uses_electricity(electric_use)
+    if fuel is FuelTypeEnum.HYBRID and plugs_in:
+        fuel = FuelTypeEnum.PLUGIN_HYBRID
+    second = second or implied
     return (fuel.value if fuel else None, second.value if second else None)
 
 
-def _gearbox(code: str, details: Any, words: Any) -> dict[str, str | None]:
-    """The transmission type and speeds from the code, its words and the first gearbox detail."""
+def _gearbox(code: str, details: Any) -> dict[str, str | None]:
+    """The transmission type and speeds from the code and the first gearbox detail."""
     first = details[0] if isinstance(details, list) and details else None
     detail = first if isinstance(first, dict) else {}
     gears = detail.get("gears")
@@ -262,11 +329,6 @@ def _gearbox(code: str, details: Any, words: Any) -> dict[str, str | None]:
         else None
     )
     kind = _GEARBOX_CODES.get(code)
-    if code == "S":
-        listed: list[Any] = cast(list[Any], words) if isinstance(words, list) else [words]
-        text = " ".join(item for item in listed if isinstance(item, str)).lower()
-        if any(needle in text for needle in _CVT_WORDS):
-            kind = CVT
     if kind == "Manual" and (_text(detail.get("additionnal_mode")) or "").upper() == "A":
         kind = AUTOMATED_MANUAL
     return {"type": kind, "speeds": speeds}
@@ -297,7 +359,13 @@ def map_vehicle(
     kw = kw_raw if isinstance(kw_raw, (int, float)) and not isinstance(kw_raw, bool) else None
     displacement_cc = _int(pick("DISPLACEMENT"))
     fuel_raw = _text(pick("FUEL"))
-    fuel, fuel_secondary = _fuels(fuel_raw, _text(pick("SECOND_FUEL")))
+    fuel, fuel_secondary = _fuels(
+        (_text(pick("CODE_FUEL")) or "").upper(),
+        fuel_raw,
+        _text(pick("SECOND_FUEL")),
+        _text(pick("TYPE_HYBRID")),
+        pick("ELECTRIC_RANGE_MIN_MAX"),
+    )
     gearbox_code = (_text(row.get("CODE_GEARBOX")) or "").upper()
     model_text = (
         _text(pick("MODEL_RESOLVED")) or _text(pick("MODEL_LINE")) or _text(pick("MODEL_FULL"))
@@ -328,7 +396,7 @@ def map_vehicle(
             "fuel_type_normalized": fuel,
             "fuel_type_secondary": fuel_secondary,
         },
-        "transmission": _gearbox(gearbox_code, detail.get("GEARBOX_DETAILS"), pick("GEARBOX")),
+        "transmission": _gearbox(gearbox_code, detail.get("GEARBOX_DETAILS")),
         "drive_type": _drive_type(pick("CODE_DRIVETRAIN"), pick("DRIVETRAIN")),
         "manufacturer": _text(pick("MANUFACTURER")),
         "doors": _int(pick("DOORS")),

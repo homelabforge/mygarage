@@ -44,6 +44,7 @@ class TestNormalizeMake:
             ("CHEVY", "Chevrolet"),
             ("Chevy", "Chevrolet"),
             ("Mercedes", "Mercedes-Benz"),
+            ("BMW I", "BMW"),  # AutoRef files the i3 under BMW's i sub-brand
             ("  Honda  ", "Honda"),
         ],
     )

@@ -377,7 +377,7 @@ class TestMapping:
         [
             ("M", "Manual"),
             ("A", "Automatic"),
-            ("S", "Semi-Automatic"),
+            ("S", "Continuously Variable Transmission (CVT)"),
             ("H", "Hydrostatic"),
             ("h", "Hydrostatic"),
             ("X", None),
@@ -450,20 +450,11 @@ class TestMapping:
         detail = {"GEARBOX_DETAILS": details}
         assert map_vehicle(VIN, ROW, detail, multiple=False)["transmission"]["speeds"] is None
 
-    @pytest.mark.parametrize(
-        "words",
-        [
-            "Continuously Variable",
-            ["Continuously Variable"],
-            "CVT",
-            "Variation continue",
-            "e-CVT",
-        ],
-    )
-    def test_s_reads_cvt_when_the_words_say_so(self, words):
-        # S is AutoRef's "Semi-auto/CVT": one code for both, so the words decide.
+    def test_s_is_a_cvt_whatever_its_words_say(self):
+        # AutoRef support (2026-11-07): S is CVT only; the docs' "Semi-auto/CVT"
+        # was wrong. The Corolla's S also came with "Semi-automatic" words.
         row = {**ROW, "CODE_GEARBOX": "S", "GEARBOX": "Semi-automatic"}
-        detail = {"GEARBOX": words}
+        detail = {"GEARBOX": ["Semi-automatic"]}
         assert map_vehicle(VIN, row, detail, multiple=False)["transmission"]["type"] == (
             "Continuously Variable Transmission (CVT)"
         )
@@ -530,6 +521,111 @@ class TestMapping:
         engine = map_vehicle(VIN, row, {"SECOND_FUEL": "Diesel"}, multiple=False)["engine"]
         assert engine["fuel_type_normalized"] == "hybrid"
         assert engine["fuel_type_secondary"] == "diesel"
+
+    @pytest.mark.parametrize(
+        "code,expected",
+        [
+            ("B", ("gasoline", None)),
+            ("D", ("diesel", None)),
+            ("C", ("hybrid", "electric")),
+            ("F", ("hybrid", "electric")),
+            ("E", ("electric", None)),
+            ("R", ("electric", "gasoline")),
+            ("X", ("hydrogen", None)),
+            ("N", ("cng", None)),
+            ("Y", ("gasoline", "cng")),
+            ("L", ("propane_lpg", None)),
+            ("Z", ("gasoline", "propane_lpg")),
+            ("K", ("e85", "gasoline")),
+            ("J", ("e85", None)),
+            ("d", ("diesel", None)),
+        ],
+    )
+    def test_the_fuel_code_decides_the_fuel(self, code, expected):
+        # AutoRef's CODE_FUEL list (support, 2026-11-07). FUEL holds words
+        # no rule reads, so only the code can give the answer.
+        row = {**ROW, "FUEL": "Treibstoff"}
+        engine = map_vehicle(VIN, row, {"CODE_FUEL": code}, multiple=False)["engine"]
+        assert (engine["fuel_type_normalized"], engine["fuel_type_secondary"]) == expected
+
+    def test_the_fuel_code_wins_over_the_words(self):
+        row = {**ROW, "FUEL": "Gasoline"}
+        engine = map_vehicle(VIN, row, {"CODE_FUEL": "D"}, multiple=False)["engine"]
+        assert engine["fuel_type_normalized"] == "diesel"
+
+    @pytest.mark.parametrize("code", ["M", "P", "Q", ""])
+    def test_a_fuel_code_without_a_match_falls_back_to_the_words(self, code):
+        row = {**ROW, "FUEL": "Gasoline"}
+        engine = map_vehicle(VIN, row, {"CODE_FUEL": code}, multiple=False)["engine"]
+        assert engine["fuel_type_normalized"] == "gasoline"
+
+    @pytest.mark.parametrize(
+        "code,extra,expected",
+        [
+            ("C", {"TYPE_HYBRID": "Hybrid electric vehicle with charging station"}, "plugin_hybrid"),
+            ("C", {"TYPE_HYBRID": "Plug-in hybrid"}, "plugin_hybrid"),
+            ("F", {"TYPE_HYBRID": "plug-in hybrid"}, "plugin_hybrid"),
+            ("C", {"ELECTRIC_RANGE_MIN_MAX": "18.6"}, "plugin_hybrid"),
+            ("C", {"ELECTRIC_RANGE_MIN_MAX": 18.6}, "plugin_hybrid"),
+            ("C", {"TYPE_HYBRID": "", "ELECTRIC_RANGE_MIN_MAX": ""}, "hybrid"),
+            ("C", {"ELECTRIC_RANGE_MIN_MAX": 0}, "hybrid"),
+            ("C", {"ELECTRIC_RANGE_MIN_MAX": True}, "hybrid"),
+            ("C", {"TYPE_HYBRID": "Hybrid electric vehicle without charging station",
+                   "ELECTRIC_RANGE_MIN_MAX": "18.6"}, "hybrid"),
+            ("C", {"TYPE_HYBRID": "Non-rechargeable hybrid",
+                   "ELECTRIC_RANGE_MIN_MAX": "18.6"}, "hybrid"),
+            ("B", {"ELECTRIC_RANGE_MIN_MAX": "18.6"}, "gasoline"),
+            ("E", {"TYPE_HYBRID": "Plug-in hybrid"}, "electric"),
+        ],
+    )  # fmt: skip
+    def test_a_hybrid_that_plugs_in_reads_plugin_hybrid(self, code, extra, expected):
+        # AutoRef support: TYPE_HYBRID says so when it's filled; otherwise
+        # only plug-ins have ELECTRIC_RANGE_MIN_MAX (kWh/100 km, a 330e 18.6).
+        detail = {"CODE_FUEL": code, **extra}
+        engine = map_vehicle(VIN, ROW, detail, multiple=False)["engine"]
+        assert engine["fuel_type_normalized"] == expected
+
+    def test_hybrid_words_without_a_code_still_see_a_plug_in(self):
+        row = {**ROW, "FUEL": "Gasoline / Electric"}
+        detail = {"TYPE_HYBRID": "Plug-in hybrid"}
+        engine = map_vehicle(VIN, row, detail, multiple=False)["engine"]
+        assert (engine["fuel_type_normalized"], engine["fuel_type_secondary"]) == (
+            "plugin_hybrid",
+            "electric",
+        )
+
+    @pytest.mark.parametrize(
+        "code,fuel,type_hybrid,expected",
+        [
+            ("", "Gasoline", "Plug-in hybrid", ("plugin_hybrid", "electric")),
+            ("", "Diesel", "Hybrid electric vehicle with charging station", ("plugin_hybrid", "electric")),
+            ("", "Gasoline", "Non-rechargeable hybrid", ("hybrid", "electric")),
+            ("", "Gasoline", "Hybrid electric vehicle without charging station", ("hybrid", "electric")),
+            ("B", "Treibstoff", "Plug-in hybrid", ("plugin_hybrid", "electric")),
+            ("D", "Treibstoff", "Non-rechargeable hybrid", ("hybrid", "electric")),
+            ("Z", "Treibstoff", "Non-rechargeable hybrid", ("hybrid", "propane_lpg")),
+            ("", "Gasoline", "Fuel Cell Hybrid Vehicle without Charging Station", ("gasoline", None)),
+            ("", "Gasoline", "", ("gasoline", None)),
+        ],
+    )  # fmt: skip
+    def test_a_stated_hybrid_type_turns_plain_fuel_into_a_hybrid(
+        self, code, fuel, type_hybrid, expected
+    ):
+        # A real 330e (WBA8E1C56JA756703) and i3 REx come back as FUEL
+        # "Gasoline", no CODE_FUEL, and TYPE_HYBRID "Plug-in hybrid".
+        row = {**ROW, "FUEL": fuel}
+        detail = {"CODE_FUEL": code, "TYPE_HYBRID": type_hybrid}
+        engine = map_vehicle(VIN, row, detail, multiple=False)["engine"]
+        assert (engine["fuel_type_normalized"], engine["fuel_type_secondary"]) == expected
+
+    def test_a_second_fuel_autoref_names_wins_over_the_code(self):
+        row = {**ROW, "FUEL": "Treibstoff"}
+        detail = {"CODE_FUEL": "Y", "SECOND_FUEL": "LPG"}
+        engine = map_vehicle(VIN, row, detail, multiple=False)["engine"]
+        assert (engine["fuel_type_normalized"], engine["fuel_type_secondary"]) == (
+            "gasoline",
+            "propane_lpg",
+        )
 
     def test_best_guess_when_several_rows(self):
         assert NOTE_AUTOREF_BEST_GUESS in map_vehicle(VIN, ROW, {}, multiple=True)["notes"]
