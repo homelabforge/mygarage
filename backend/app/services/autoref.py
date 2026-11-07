@@ -23,7 +23,7 @@ import logging
 import re
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 
 import httpx
 
@@ -51,15 +51,19 @@ NOTE_AUTOREF_BEST_GUESS = "autoref_best_guess"
 #: The answer came from the UK or US registry, as written there.
 NOTE_AUTOREF_EXTERNAL = "autoref_external_record"
 
-#: S is German "stufenlos" (stepless), like the drivetrain codes: a Corolla
-#: hybrid's S came with the words "Continuously Variable" (live decode
-#: 2026-11-06). Spelled the way NHTSA spells it. H is still unseen and stays
-#: unmapped.
+#: AutoRef's gearbox codes, from its gearboxes endpoint: A automatic, M
+#: manual, S semi-auto or CVT, H hydrostatic (tractors, mowers).
 _GEARBOX_CODES = {
     "M": "Manual",
     "A": "Automatic",
-    "S": "Continuously Variable Transmission (CVT)",
+    "S": "Semi-Automatic",
+    "H": "Hydrostatic",
 }
+#: S is one code for two gearboxes, so its words decide: a Corolla hybrid's
+#: S came with "Continuously Variable" (live decode 2026-11-06). Spelled the
+#: way NHTSA spells it. English and French.
+CVT = "Continuously Variable Transmission (CVT)"
+_CVT_WORDS = ("continuously variable", "cvt", "variation continue")
 #: A manual with an automatic mode (``additionnal_mode`` A): a Porsche PDK
 #: reads this way.
 AUTOMATED_MANUAL = "Automated Manual"
@@ -247,8 +251,8 @@ def _fuels(fuel_raw: str | None, second_raw: str | None) -> tuple[str | None, st
     return (fuel.value if fuel else None, second.value if second else None)
 
 
-def _gearbox(code: str, details: Any) -> dict[str, str | None]:
-    """The transmission type and speeds from the code and the first gearbox detail."""
+def _gearbox(code: str, details: Any, words: Any) -> dict[str, str | None]:
+    """The transmission type and speeds from the code, its words and the first gearbox detail."""
     first = details[0] if isinstance(details, list) and details else None
     detail = first if isinstance(first, dict) else {}
     gears = detail.get("gears")
@@ -258,6 +262,11 @@ def _gearbox(code: str, details: Any) -> dict[str, str | None]:
         else None
     )
     kind = _GEARBOX_CODES.get(code)
+    if code == "S":
+        listed: list[Any] = cast(list[Any], words) if isinstance(words, list) else [words]
+        text = " ".join(item for item in listed if isinstance(item, str)).lower()
+        if any(needle in text for needle in _CVT_WORDS):
+            kind = CVT
     if kind == "Manual" and (_text(detail.get("additionnal_mode")) or "").upper() == "A":
         kind = AUTOMATED_MANUAL
     return {"type": kind, "speeds": speeds}
@@ -319,7 +328,7 @@ def map_vehicle(
             "fuel_type_normalized": fuel,
             "fuel_type_secondary": fuel_secondary,
         },
-        "transmission": _gearbox(gearbox_code, detail.get("GEARBOX_DETAILS")),
+        "transmission": _gearbox(gearbox_code, detail.get("GEARBOX_DETAILS"), pick("GEARBOX")),
         "drive_type": _drive_type(pick("CODE_DRIVETRAIN"), pick("DRIVETRAIN")),
         "manufacturer": _text(pick("MANUFACTURER")),
         "doors": _int(pick("DOORS")),
