@@ -179,6 +179,13 @@ class NotificationDispatcher:
             else:
                 if server and topic:
                     services.append(NtfyNotificationService(server, topic, api_key))
+                else:
+                    # No shared fallback topic any more (B2-4), so say why
+                    # nothing is sent rather than skip in silence.
+                    logger.warning(
+                        "Skipping ntfy: it is switched on but its %s is blank",
+                        "server" if not server else "topic",
+                    )
 
         # Check gotify
         if await self._get_setting_bool("gotify_enabled", default=False):

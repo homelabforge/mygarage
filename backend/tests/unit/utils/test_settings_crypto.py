@@ -32,7 +32,7 @@ from app.utils.settings_crypto import (
     encrypt,
     is_ciphertext,
     keyring_fix_advice,
-    unavailable_key_source,
+    keyring_status,
 )
 
 ENV_KEY = "MYGARAGE_SETTINGS_KEY"
@@ -525,7 +525,9 @@ class TestUnavailableIsNotCached:
             assert ("writable" in text) is (broken == "data_dir")
         # The backup refusal and the Settings banner name the same source (B2-21).
         assert keyring_fix_advice() == advice
-        assert unavailable_key_source() == {"file": "env_file"}.get(broken, broken)
+        status = keyring_status()
+        assert (status.kid, status.advice) == (None, advice)
+        assert status.source == {"file": "env_file"}.get(broken, broken)
 
 
 class TestGeneration:

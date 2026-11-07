@@ -410,3 +410,17 @@ def test_service_history_words_still_fit_their_columns() -> None:
     text = _extract_text(_every_report()[0][1])
 
     assert "Maintenance" in text
+
+
+def test_a_five_figure_total_stays_on_one_line() -> None:
+    """Narrowing the table must not break an amount: the Cost column wrapped
+    $1,234.56 as "$1,234.5" and "6" (Codex R1-M1)."""
+    generator = PDFReportGenerator(
+        render_context=METRIC_CTX, currency_code="USD", locale="en_US", date_order="mdy"
+    )
+    records = [{**_RECORD, "cost": Decimal("12345.67")}, {**_RECORD, "cost": Decimal("1.00")}]
+    pdf = generator.generate_service_history_pdf(_VEHICLE_INFO, records, None, None).read()
+    lines = _extract_text(pdf).splitlines()
+
+    assert "$12,345.67" in lines
+    assert "$12,346.67" in lines

@@ -76,9 +76,21 @@ def _fill_empty_key_file(path: Path, content: str) -> None:
         path.unlink()
         create_key_file(path, content)
         return
-    fd = os.open(path, os.O_WRONLY | os.O_TRUNC | os.O_NOFOLLOW | os.O_CLOEXEC)
+    try:
+        fd = os.open(path, os.O_WRONLY | os.O_TRUNC | os.O_NOFOLLOW | os.O_CLOEXEC)
+    except PermissionError:
+        # Not ours to write (a root-owned 0644 file in our directory): the
+        # old unlink-and-create still works there.
+        path.unlink()
+        create_key_file(path, content)
+        return
     with os.fdopen(fd, "w", encoding="ascii") as handle:
-        os.fchmod(handle.fileno(), 0o600)
+        try:
+            os.fchmod(handle.fileno(), 0o600)
+        except PermissionError:
+            # A file someone else owns but made writable (a chmod 666 bind
+            # mount): keep the key rather than fall back to memory.
+            logger.warning("Could not make %s owner-only; writing the key anyway", path)
         handle.write(content)
         handle.flush()
         os.fsync(handle.fileno())
@@ -92,12 +104,36 @@ def _read_key(path: Path) -> str | None:
         return None
 
 
+def _carry_over_legacy_key(key_file: Path) -> str | None:
+    """The key from ``/data/secret.key`` when the data dir moved and has none yet.
+
+    Before B2-6 the key was always at ``/data/secret.key``, whatever
+    ``MYGARAGE_DATA_DIR`` said. Copying it to the new place keeps every
+    session signed in. None when there is nothing to carry over.
+    """
+    if key_file == DEFAULT_KEY_FILE:
+        return None
+    try:
+        legacy = _read_key(DEFAULT_KEY_FILE)
+    except OSError, ValueError:
+        return None
+    if not legacy:
+        return None
+    create_key_file(key_file, legacy + "\n")
+    logger.warning("Copied the secret key from %s to %s", DEFAULT_KEY_FILE, key_file)
+    return legacy
+
+
 def _resolve_secret_key(key_file: Path) -> tuple[str, KeySource]:
     """Read, create or fall back to a JWT key, and say which happened."""
     try:
         existing = _read_key(key_file)
         if existing:
             return existing, "loaded"
+        if existing is None:
+            carried = _carry_over_legacy_key(key_file)
+            if carried:
+                return carried, "loaded"
         secret_key = secrets.token_urlsafe(32)
         if existing is not None:
             logger.warning("Secret key file at %s is empty, generating a new key", key_file)

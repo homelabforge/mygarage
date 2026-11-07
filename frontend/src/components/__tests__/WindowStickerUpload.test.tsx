@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '../../__tests__/test-utils'
+import { render, screen, waitFor } from '../../__tests__/test-utils'
 import userEvent from '@testing-library/user-event'
 
 const apiGet = vi.fn()
@@ -445,5 +445,41 @@ describe('WindowStickerUpload: the sticker and OCR switches', () => {
     expect(screen.getByRole('button', { name: 'windowSticker.uploadAndExtract' })).toBeInTheDocument()
     expect(screen.queryByText('windowSticker.ocrSwitchedOff')).not.toBeInTheDocument()
     expect(screen.queryByText('windowSticker.stickersSwitchedOff')).not.toBeInTheDocument()
+  })
+})
+
+// B5-7: the cap is the server's documents limit, served with the public
+// settings, not a hardcoded 10 MB.
+describe('WindowStickerUpload: the size cap (B5-7)', () => {
+  const bigPdf = (bytes: number) =>
+    new File([new Uint8Array(bytes)], 'sticker.pdf', { type: 'application/pdf' })
+
+  it('refuses a file over the served documents limit, naming it', async () => {
+    apiGet.mockResolvedValue({
+      data: { settings: [{ key: 'document_upload_max_bytes', value: String(1024 * 1024) }] },
+    })
+    const user = userEvent.setup()
+    render(<WindowStickerUpload vin="V1" onSuccess={vi.fn()} onClose={vi.fn()} />)
+    await waitFor(() => expect(apiGet).toHaveBeenCalledWith('/settings/public'))
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement
+
+    await user.upload(input, bigPdf(1024 * 1024 + 1))
+
+    expect(await screen.findByText('windowSticker.misc.fileTooLargeLimit')).toBeInTheDocument()
+  })
+
+  it('takes a 12 MB file the old fixed 10 MB cap refused, when the limit allows it', async () => {
+    apiGet.mockResolvedValue({
+      data: { settings: [{ key: 'document_upload_max_bytes', value: String(25 * 1024 * 1024) }] },
+    })
+    const user = userEvent.setup()
+    render(<WindowStickerUpload vin="V1" onSuccess={vi.fn()} onClose={vi.fn()} />)
+    await waitFor(() => expect(apiGet).toHaveBeenCalledWith('/settings/public'))
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement
+
+    await user.upload(input, bigPdf(12 * 1024 * 1024))
+
+    expect(screen.queryByText('windowSticker.misc.fileTooLargeLimit')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'windowSticker.uploadAndExtract' })).toBeEnabled()
   })
 })

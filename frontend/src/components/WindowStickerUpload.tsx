@@ -14,6 +14,7 @@ import { formatStickerValue } from '../utils/formatUtils'
 import { useUnitFormat } from '../hooks/useUnitFormat'
 import { usePublicSettings } from '../hooks/usePublicSettings'
 import { isSettingOn } from '../utils/settingSwitch'
+import { documentMaxBytes, megabytes } from '../utils/uploadLimits'
 import { seedUnitField, unitFieldUnchanged, type UnitFieldOrigin } from '../utils/unitFormat'
 import { num } from '../utils/wireNumber'
 import type { components } from '../types/api.generated'
@@ -140,9 +141,10 @@ function WindowStickerUpload({
       return
     }
 
-    // Validate file size (10MB)
-    if (selectedFile.size > 10 * 1024 * 1024) {
-      setError(t('windowSticker.misc.fileTooLarge'))
+    // The server's documents limit; unknown means the server checks alone.
+    const maxBytes = documentMaxBytes(publicSettings)
+    if (maxBytes !== null && selectedFile.size > maxBytes) {
+      setError(t('windowSticker.misc.fileTooLargeLimit', { size: megabytes(maxBytes) }))
       return
     }
 

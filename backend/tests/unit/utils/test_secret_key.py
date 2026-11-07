@@ -25,9 +25,12 @@ def _mode(path: Path) -> int:
 
 @pytest.fixture(autouse=True)
 def _keep_key_source(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Put the module's KEY_SOURCE and KEY_FILE back after each test."""
+    """Put the module's KEY_SOURCE and KEY_FILE back after each test, and
+    point the pre-B2-6 location somewhere empty, so a real /data/secret.key on
+    the test machine is never carried over."""
     monkeypatch.setattr(secret_key, "KEY_SOURCE", secret_key.KEY_SOURCE)
     monkeypatch.setattr(secret_key, "KEY_FILE", secret_key.KEY_FILE)
+    monkeypatch.setattr(secret_key, "DEFAULT_KEY_FILE", Path("/nonexistent-mygarage/secret.key"))
 
 
 @pytest.fixture
@@ -151,6 +154,62 @@ class TestGetOrCreateSecretKey:
             raise OSError(16, "Device or resource busy")
 
         monkeypatch.setattr(Path, "unlink", busy)
+
+        key = get_or_create_secret_key(path)
+
+        assert secret_key.KEY_SOURCE == "generated"
+        assert path.read_text().strip() == key
+
+    def test_a_writable_file_it_cannot_chmod_still_gets_the_key(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A chmod 666 bind mount owned by root: fchmod is EPERM, the write works."""
+        path = tmp_path / "secret.key"
+        path.write_text("")
+
+        def not_owner(fd: int, mode: int) -> None:
+            raise PermissionError(1, "Operation not permitted")
+
+        monkeypatch.setattr(secret_key.os, "fchmod", not_owner)
+
+        key = get_or_create_secret_key(path)
+
+        assert secret_key.KEY_SOURCE == "generated"
+        assert path.read_text().strip() == key
+
+    @skip_as_root
+    def test_an_empty_file_it_cannot_open_is_replaced(self, tmp_path: Path) -> None:
+        """Read-only to us in a directory we own: unlink-and-create, as before."""
+        path = tmp_path / "secret.key"
+        path.write_text("")
+        path.chmod(0o444)
+
+        key = get_or_create_secret_key(path)
+
+        assert secret_key.KEY_SOURCE == "generated"
+        assert path.read_text().strip() == key
+        assert _mode(path) == 0o600
+
+    def test_a_moved_data_dir_carries_the_old_key_over(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Before B2-6 the key sat at /data/secret.key whatever the data dir
+        said: copy it over so nobody is signed out (Fable F-5)."""
+        legacy = tmp_path / "old" / "secret.key"
+        legacy.parent.mkdir()
+        legacy.write_text("legacy-key\n")
+        monkeypatch.setattr(secret_key, "DEFAULT_KEY_FILE", legacy)
+        path = tmp_path / "new" / "secret.key"
+
+        assert get_or_create_secret_key(path) == "legacy-key"
+        assert secret_key.KEY_SOURCE == "loaded"
+        assert path.read_text().strip() == "legacy-key"
+        assert _mode(path) == 0o600
+
+    def test_no_old_key_means_a_new_one(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        path = tmp_path / "new" / "secret.key"
 
         key = get_or_create_secret_key(path)
 

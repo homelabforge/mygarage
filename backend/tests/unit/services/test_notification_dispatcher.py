@@ -439,7 +439,9 @@ class TestConvenienceMethods:
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(("topic", "sends"), [("", False), ("garage-k7q2x9", True)])
-async def test_ntfy_needs_a_topic_of_its_own(topic: str, sends: bool) -> None:
+async def test_ntfy_needs_a_topic_of_its_own(
+    topic: str, sends: bool, caplog: pytest.LogCaptureFixture
+) -> None:
     """No shared fallback topic: a blank one leaves ntfy off (B2-4)."""
     stored = {"ntfy_server": "https://ntfy.sh", "ntfy_topic": topic}
     d = NotificationDispatcher(AsyncMock())
@@ -461,6 +463,8 @@ async def test_ntfy_needs_a_topic_of_its_own(topic: str, sends: bool) -> None:
         services = await d._get_enabled_services()  # pyright: ignore[reportPrivateUsage]
 
     assert [s.service_name for s in services] == (["ntfy"] if sends else [])
+    # A blank topic is said out loud, not skipped in silence (Fable F-6).
+    assert ("its topic is blank" in caplog.text) is (not sends)
 
 
 @pytest.mark.asyncio

@@ -74,7 +74,29 @@ class TestSettingsRoutes:
                 # Computed per request from the household-zone fallback chain,
                 # never a stored row (every write path rejects the key).
                 "effective_timezone",
+                # Computed from MYGARAGE_MAX_DOCUMENT_SIZE_MB, never stored: the
+                # upload forms check the cap the server enforces (B5-7).
+                "document_upload_max_bytes",
             }
+
+    async def test_public_settings_serve_the_document_cap(self, client: AsyncClient):
+        """The sticker and document forms read the cap the server enforces (B5-7)."""
+        from app.config import settings as app_settings
+
+        response = await client.get("/api/settings/public")
+
+        served = {s["key"]: s["value"] for s in response.json()["settings"]}
+        assert served["document_upload_max_bytes"] == str(app_settings.max_document_size_bytes)
+
+    async def test_the_document_cap_cannot_be_written(self, client: AsyncClient, auth_headers):
+        """Computed from the environment: a stored row would be ignored, so refuse it."""
+        response = await client.post(
+            "/api/settings/batch",
+            json={"settings": {"document_upload_max_bytes": "1"}},
+            headers=auth_headers,
+        )
+
+        assert response.status_code == 422, response.text
 
     async def test_public_settings_serve_the_frontend_init_keys(
         self, client: AsyncClient, db_session

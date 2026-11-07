@@ -281,9 +281,9 @@ class PDFReportGenerator:
                     0.8 * inch,
                     0.85 * inch,
                     1.05 * inch,
-                    1.6 * inch,
-                    0.75 * inch,
-                    1.25 * inch,
+                    1.4 * inch,
+                    1.0 * inch,
+                    1.2 * inch,
                 ],
             )
             table.setStyle(

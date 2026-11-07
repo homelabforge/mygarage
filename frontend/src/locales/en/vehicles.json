@@ -466,7 +466,7 @@
     "uploading": "Uploading...",
     "misc": {
       "invalidFileType": "Invalid file type. Allowed: PDF, DOC, DOCX, TXT, JPG, PNG, WEBP, XLS, XLSX, CSV",
-      "fileTooLarge": "File size must be less than 25MB",
+      "fileTooLargeLimit": "File size must be {{size}} MB or less",
       "sizeZero": "0 Bytes",
       "unitBytes": "Bytes",
       "unitKb": "KB",
@@ -1891,7 +1891,7 @@
     "viewMode": "View Mode",
     "misc": {
       "invalidFileType": "Please select a valid file (PDF, JPG, or PNG)",
-      "fileTooLarge": "File size must be less than 10MB",
+      "fileTooLargeLimit": "File size must be {{size}} MB or less",
       "uploadSuccess": "Window sticker uploaded successfully! Review the extracted data below.",
       "saveSuccess": "Window sticker data saved successfully!",
       "errorOccurred": "An error occurred",
