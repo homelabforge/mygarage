@@ -8123,6 +8123,39 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/vin/autoref/version": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Decode Autoref Version
+         * @description Decode the version picked from an AutoRef decode's `candidates`.
+         *
+         *     Fetches that version's full record (1 AutoRef request), checks it still
+         *     belongs to the VIN and is still the version picked, then answers like a
+         *     decode.
+         *
+         *     **Raises:**
+         *     - **400**: Invalid VIN format
+         *     - **404**: AutoRef no longer has this version (its ids change when it rebuilds)
+         *     - **409**: AutoRef isn't configured
+         *     - **422**: A malformed pick
+         *     - **429**: AutoRef's quota is used up
+         *     - **502**: AutoRef rejected the key or failed
+         *     - **503/504**: AutoRef can't be reached or timed out
+         */
+        post: operations["decode_autoref_version_api_vin_autoref_version_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/vin/decode": {
         parameters: {
             query?: never;
@@ -8807,6 +8840,59 @@ export interface components {
             view_url: string;
         };
         /**
+         * AutoRefCandidate
+         * @description One version AutoRef matched for a VIN, to pick from.
+         */
+        AutoRefCandidate: {
+            /**
+             * Fuel Type
+             * @description Fuel normalized to FuelTypeEnum vocabulary
+             */
+            fuel_type?: string | null;
+            /**
+             * Gearbox Code
+             * @description AutoRef's gearbox code, echoed on a pick (the full record has none)
+             */
+            gearbox_code?: ("M" | "A" | "S" | "H") | null;
+            /**
+             * Grouped
+             * @description It stands for several configurations
+             * @default false
+             */
+            grouped: boolean;
+            /**
+             * Id
+             * @description The id of its full record (ephemeral: pick it right away)
+             */
+            id: string;
+            /**
+             * Kw
+             * @description Power in kW, echoed on a pick
+             */
+            kw?: number | null;
+            /**
+             * Label
+             * @description AutoRef's name for the version
+             */
+            label: string;
+            /**
+             * Model Full
+             * @description AutoRef's MODEL_FULL, echoed on a pick
+             */
+            model_full?: string | null;
+            /**
+             * Record Type
+             * @description The record type of its full record
+             * @enum {string}
+             */
+            record_type: "TG" | "COC" | "OLD" | "OC" | "X";
+            /**
+             * Transmission
+             * @description Transmission type
+             */
+            transmission?: string | null;
+        };
+        /**
          * AutoRefTestRequest
          * @description An AutoRef key to test; null or the mask tests the stored one.
          */
@@ -8829,6 +8915,41 @@ export interface components {
             remaining?: number | null;
             /** Valid */
             valid: boolean;
+        };
+        /**
+         * AutoRefVersionRequest
+         * @description A version picked from a decode's ``candidates``, echoed back to check it.
+         */
+        AutoRefVersionRequest: {
+            /**
+             * Expect Kw
+             * @description The candidate's kw
+             */
+            expect_kw?: number | null;
+            /**
+             * Expect Model
+             * @description The candidate's model_full
+             */
+            expect_model?: string | null;
+            /** Gearbox Code */
+            gearbox_code?: ("M" | "A" | "S" | "H") | null;
+            /**
+             * Grouped
+             * @default false
+             */
+            grouped: boolean;
+            /** Id */
+            id: string;
+            /**
+             * Record Type
+             * @enum {string}
+             */
+            record_type: "TG" | "COC" | "OLD" | "OC" | "X";
+            /**
+             * Vin
+             * @description The decoded VIN
+             */
+            vin: string;
         };
         /**
          * BackfillResultResponse
@@ -19930,6 +20051,11 @@ export interface components {
              */
             body_class?: string | null;
             /**
+             * Candidates
+             * @description AutoRef's versions for this VIN when it matched more than one, most registered first; pick one with POST /vin/autoref/version
+             */
+            candidates?: components["schemas"]["AutoRefCandidate"][] | null;
+            /**
              * Decode Quality
              * @description How much NHTSA itself decoded, before the WMI table fills anything. full: make and model; partial: make only; wmi_only: NHTSA named no make and the VIN's first three characters did; none: nothing
              */
@@ -19993,7 +20119,7 @@ export interface components {
             model?: string | null;
             /**
              * Notes
-             * @description What to check: eu_vin_no_model, year_unreliable, check_digit_not_applicable; autoref_best_guess, autoref_external_record; and when Automatic fell back to NHTSA, autoref_no_match, autoref_key_rejected, autoref_quota, autoref_unavailable
+             * @description What to check: eu_vin_no_model, year_unreliable, check_digit_not_applicable; autoref_best_guess, autoref_pick_version, autoref_external_record; and when Automatic fell back to NHTSA, autoref_no_match, autoref_key_rejected, autoref_quota, autoref_unavailable
              */
             notes?: string[];
             /**
@@ -35901,6 +36027,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AutoRefTestResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    decode_autoref_version_api_vin_autoref_version_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AutoRefVersionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VINDecodeResponse"];
                 };
             };
             /** @description Validation Error */

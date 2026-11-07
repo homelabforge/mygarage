@@ -1560,6 +1560,112 @@
         "title": "AttachmentResponse",
         "type": "object"
       },
+      "AutoRefCandidate": {
+        "description": "One version AutoRef matched for a VIN, to pick from.",
+        "properties": {
+          "fuel_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Fuel normalized to FuelTypeEnum vocabulary",
+            "title": "Fuel Type"
+          },
+          "gearbox_code": {
+            "anyOf": [
+              {
+                "enum": [
+                  "M",
+                  "A",
+                  "S",
+                  "H"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "AutoRef's gearbox code, echoed on a pick (the full record has none)",
+            "title": "Gearbox Code"
+          },
+          "grouped": {
+            "default": false,
+            "description": "It stands for several configurations",
+            "title": "Grouped",
+            "type": "boolean"
+          },
+          "id": {
+            "description": "The id of its full record (ephemeral: pick it right away)",
+            "title": "Id",
+            "type": "string"
+          },
+          "kw": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Power in kW, echoed on a pick",
+            "title": "Kw"
+          },
+          "label": {
+            "description": "AutoRef's name for the version",
+            "title": "Label",
+            "type": "string"
+          },
+          "model_full": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "AutoRef's MODEL_FULL, echoed on a pick",
+            "title": "Model Full"
+          },
+          "record_type": {
+            "description": "The record type of its full record",
+            "enum": [
+              "TG",
+              "COC",
+              "OLD",
+              "OC",
+              "X"
+            ],
+            "title": "Record Type",
+            "type": "string"
+          },
+          "transmission": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Transmission type",
+            "title": "Transmission"
+          }
+        },
+        "required": [
+          "record_type",
+          "id",
+          "label"
+        ],
+        "title": "AutoRefCandidate",
+        "type": "object"
+      },
       "AutoRefTestRequest": {
         "description": "An AutoRef key to test; null or the mask tests the stored one.",
         "properties": {
@@ -1629,6 +1735,90 @@
           "message"
         ],
         "title": "AutoRefTestResponse",
+        "type": "object"
+      },
+      "AutoRefVersionRequest": {
+        "description": "A version picked from a decode's ``candidates``, echoed back to check it.",
+        "properties": {
+          "expect_kw": {
+            "anyOf": [
+              {
+                "maximum": 2000.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The candidate's kw",
+            "title": "Expect Kw"
+          },
+          "expect_model": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The candidate's model_full",
+            "title": "Expect Model"
+          },
+          "gearbox_code": {
+            "anyOf": [
+              {
+                "enum": [
+                  "M",
+                  "A",
+                  "S",
+                  "H"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gearbox Code"
+          },
+          "grouped": {
+            "default": false,
+            "title": "Grouped",
+            "type": "boolean"
+          },
+          "id": {
+            "pattern": "^[A-Za-z0-9]{1,32}$",
+            "title": "Id",
+            "type": "string"
+          },
+          "record_type": {
+            "enum": [
+              "TG",
+              "COC",
+              "OLD",
+              "OC",
+              "X"
+            ],
+            "title": "Record Type",
+            "type": "string"
+          },
+          "vin": {
+            "description": "The decoded VIN",
+            "maxLength": 17,
+            "minLength": 17,
+            "title": "Vin",
+            "type": "string"
+          }
+        },
+        "required": [
+          "vin",
+          "record_type",
+          "id"
+        ],
+        "title": "AutoRefVersionRequest",
         "type": "object"
       },
       "BackfillResultResponse": {
@@ -29238,6 +29428,21 @@
             "description": "Body class/style",
             "title": "Body Class"
           },
+          "candidates": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/AutoRefCandidate"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "AutoRef's versions for this VIN when it matched more than one, most registered first; pick one with POST /vin/autoref/version",
+            "title": "Candidates"
+          },
           "decode_quality": {
             "anyOf": [
               {
@@ -29409,7 +29614,7 @@
             "title": "Model"
           },
           "notes": {
-            "description": "What to check: eu_vin_no_model, year_unreliable, check_digit_not_applicable; autoref_best_guess, autoref_external_record; and when Automatic fell back to NHTSA, autoref_no_match, autoref_key_rejected, autoref_quota, autoref_unavailable",
+            "description": "What to check: eu_vin_no_model, year_unreliable, check_digit_not_applicable; autoref_best_guess, autoref_pick_version, autoref_external_record; and when Automatic fell back to NHTSA, autoref_no_match, autoref_key_rejected, autoref_quota, autoref_unavailable",
             "items": {
               "type": "string"
             },
@@ -59073,6 +59278,53 @@
           }
         ],
         "summary": "Test Autoref Key",
+        "tags": [
+          "VIN"
+        ]
+      }
+    },
+    "/api/vin/autoref/version": {
+      "post": {
+        "description": "Decode the version picked from an AutoRef decode's `candidates`.\n\nFetches that version's full record (1 AutoRef request), checks it still\nbelongs to the VIN and is still the version picked, then answers like a\ndecode.\n\n**Raises:**\n- **400**: Invalid VIN format\n- **404**: AutoRef no longer has this version (its ids change when it rebuilds)\n- **409**: AutoRef isn't configured\n- **422**: A malformed pick\n- **429**: AutoRef's quota is used up\n- **502**: AutoRef rejected the key or failed\n- **503/504**: AutoRef can't be reached or timed out",
+        "operationId": "decode_autoref_version_api_vin_autoref_version_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AutoRefVersionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VINDecodeResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Decode Autoref Version",
         "tags": [
           "VIN"
         ]

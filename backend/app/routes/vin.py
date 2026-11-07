@@ -13,6 +13,7 @@ from app.models.user import User
 from app.schemas.vin import (
     AutoRefTestRequest,
     AutoRefTestResponse,
+    AutoRefVersionRequest,
     Provider,
     VINDecodeRequest,
     VINDecodeResponse,
@@ -23,6 +24,7 @@ from app.services import vin_decoder
 from app.services.auth import get_current_admin_user, require_auth
 from app.services.autoref import (
     AutoRefAuthError,
+    AutoRefError,
     AutoRefQuotaError,
     AutoRefService,
     AutoRefUnavailableError,
@@ -50,6 +52,26 @@ async def _resolve_country(
         if code:
             return code
     return await instance_default_country(db)
+
+
+def _autoref_http_error(exc: Exception) -> HTTPException | None:
+    """The status for an AutoRef failure, None for anything else.
+
+    A no-match isn't here: each route words its own 404.
+    """
+    if isinstance(exc, vin_decoder.AutoRefNotConfiguredError):
+        return HTTPException(status_code=409, detail="AutoRef is not configured")
+    if isinstance(exc, AutoRefAuthError):
+        return HTTPException(status_code=502, detail="AutoRef rejected the API key")
+    if isinstance(exc, AutoRefQuotaError):
+        return HTTPException(status_code=429, detail="AutoRef quota used up")
+    if isinstance(exc, AutoRefUnavailableError):
+        if exc.timed_out:
+            return HTTPException(status_code=504, detail="AutoRef request timed out")
+        if exc.status is None:
+            return HTTPException(status_code=503, detail="Cannot connect to AutoRef")
+        return HTTPException(status_code=502, detail="AutoRef error")
+    return None
 
 
 async def _decode_vin_helper(
@@ -85,20 +107,10 @@ async def _decode_vin_helper(
         )
         return VINDecodeResponse(**vehicle_info)
 
-    except vin_decoder.AutoRefNotConfiguredError:
-        raise HTTPException(status_code=409, detail="AutoRef is not configured")
     except vin_decoder.AutoRefNoMatchError:
         raise HTTPException(status_code=404, detail="AutoRef has no record for this VIN")
-    except AutoRefAuthError:
-        raise HTTPException(status_code=502, detail="AutoRef rejected the API key")
-    except AutoRefQuotaError:
-        raise HTTPException(status_code=429, detail="AutoRef quota used up")
-    except AutoRefUnavailableError as e:
-        if e.timed_out:
-            raise HTTPException(status_code=504, detail="AutoRef request timed out")
-        if e.status is None:
-            raise HTTPException(status_code=503, detail="Cannot connect to AutoRef")
-        raise HTTPException(status_code=502, detail="AutoRef error")
+    except (vin_decoder.AutoRefNotConfiguredError, AutoRefError) as e:
+        raise _autoref_http_error(e) or HTTPException(status_code=502, detail="AutoRef error")
 
     except ValueError as e:
         # Invalid VIN format
@@ -151,6 +163,44 @@ async def decode_vin(
             request.vin, provider=provider, autoref_key=key, fallback=True
         )
     return await _decode_vin_helper(request.vin, provider=request.provider, autoref_key=key)
+
+
+@router.post("/autoref/version", response_model=VINDecodeResponse)
+async def decode_autoref_version(
+    request: AutoRefVersionRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User | None = Depends(require_auth),
+):
+    """
+    Decode the version picked from an AutoRef decode's `candidates`.
+
+    Fetches that version's full record (1 AutoRef request), checks it still
+    belongs to the VIN and is still the version picked, then answers like a
+    decode.
+
+    **Raises:**
+    - **400**: Invalid VIN format
+    - **404**: AutoRef no longer has this version (its ids change when it rebuilds)
+    - **409**: AutoRef isn't configured
+    - **422**: A malformed pick
+    - **429**: AutoRef's quota is used up
+    - **502**: AutoRef rejected the key or failed
+    - **503/504**: AutoRef can't be reached or timed out
+    """
+    key = await vin_decoder.autoref_key(db)
+    try:
+        autoref = AutoRefService(key) if key else None
+        info = await vin_decoder.decode_version(request.vin, autoref, request)
+        return VINDecodeResponse(**info)
+    except vin_decoder.AutoRefNoMatchError:
+        raise HTTPException(
+            status_code=404, detail="AutoRef no longer has this version; decode the VIN again"
+        )
+    except (vin_decoder.AutoRefNotConfiguredError, AutoRefError) as e:
+        raise _autoref_http_error(e) or HTTPException(status_code=502, detail="AutoRef error")
+    except ValueError as e:
+        logger.warning("Invalid AutoRef version pick: %s", sanitize_for_log(str(e)))
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.get("/providers", response_model=VINProvidersResponse)

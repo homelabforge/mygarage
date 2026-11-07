@@ -336,3 +336,122 @@ class TestKeyTest:
         # logging is pinned in test_autoref.py::TestTheKeyNeverLeaks.
         assert all("typed-key-9" not in r.getMessage() for r in caplog.records)
         assert "typed-key-9" not in response.text
+
+
+GOLF_VIN = "WVWZZZAUZFW806653"
+PICK: dict[str, Any] = {
+    "vin": GOLF_VIN,
+    "record_type": "TG",
+    "id": "311017",
+    "gearbox_code": "M",
+    "expect_model": "Golf VII GTE",
+    "expect_kw": 110,
+    "grouped": False,
+}
+PICKED: dict[str, Any] = {
+    "vin": GOLF_VIN,
+    "year": None,
+    "make": "Volkswagen",
+    "model": "Golf",
+    "trim": "VII GTE",
+    "notes": [],
+}
+
+
+def _version_mock(cls: MagicMock, answer: Any = None, error: Exception | None = None) -> AsyncMock:
+    if error is not None:
+        cls.return_value.decode_version = AsyncMock(side_effect=error)
+    else:
+        cls.return_value.decode_version = AsyncMock(return_value=answer)
+    return cls.return_value.decode_version
+
+
+@patch("app.routes.vin.AutoRefService")
+class TestPickedVersion:
+    URL = "/api/vin/autoref/version"
+
+    async def test_a_picked_version_decodes(
+        self, autoref_cls, client: AsyncClient, auth_headers, db_session, keep_rows
+    ):
+        await _autoref_on(db_session, keep_rows)
+        version = _version_mock(autoref_cls, dict(PICKED))
+        response = await client.post(self.URL, json=PICK, headers=auth_headers)
+        assert response.status_code == 200
+        body = response.json()
+        assert body["decoded_by"] == "autoref"
+        assert (body["model"], body["trim"]) == ("Golf", "VII GTE")
+        autoref_cls.assert_called_once_with(KEY)
+        version.assert_awaited_once_with(
+            GOLF_VIN,
+            "TG",
+            "311017",
+            gearbox_code="M",
+            expect_model="Golf VII GTE",
+            expect_kw=110,
+            grouped=False,
+        )
+
+    async def test_a_version_without_a_key_is_409(
+        self, autoref_cls, client: AsyncClient, auth_headers, db_session, keep_rows
+    ):
+        await _autoref_on(db_session, keep_rows, key=None)
+        response = await client.post(self.URL, json=PICK, headers=auth_headers)
+        assert response.status_code == 409
+        assert response.json()["detail"] == "AutoRef is not configured"
+        autoref_cls.assert_not_called()
+
+    async def test_a_gone_version_is_404(
+        self, autoref_cls, client: AsyncClient, auth_headers, db_session, keep_rows
+    ):
+        await _autoref_on(db_session, keep_rows)
+        _version_mock(autoref_cls, None)
+        response = await client.post(self.URL, json=PICK, headers=auth_headers)
+        assert response.status_code == 404
+        assert response.json()["detail"] == (
+            "AutoRef no longer has this version; decode the VIN again"
+        )
+
+    @pytest.mark.parametrize(
+        ("error", "status", "detail"),
+        [
+            (AutoRefAuthError(403), 502, "AutoRef rejected the API key"),
+            (AutoRefQuotaError(), 429, "AutoRef quota used up"),
+            (AutoRefUnavailableError(500), 502, "AutoRef error"),
+            (AutoRefUnavailableError(timed_out=True), 504, "AutoRef request timed out"),
+            (AutoRefUnavailableError(), 503, "Cannot connect to AutoRef"),
+            (ValueError("Invalid VIN: check digit"), 400, "Invalid VIN: check digit"),
+        ],
+    )
+    async def test_version_errors_map_to_statuses(
+        self, autoref_cls, client: AsyncClient, auth_headers, db_session, keep_rows,
+        error, status, detail,
+    ):  # fmt: skip
+        await _autoref_on(db_session, keep_rows)
+        _version_mock(autoref_cls, error=error)
+        response = await client.post(self.URL, json=PICK, headers=auth_headers)
+        assert response.status_code == status
+        assert response.json()["detail"] == detail
+
+    @pytest.mark.parametrize(
+        "change",
+        [
+            {"record_type": "US"},
+            {"id": "../1"},
+            {"id": ""},
+            {"gearbox_code": "Q"},
+            {"expect_model": None, "expect_kw": None},
+            {"vin": "WVWZZZAUZFW80665"},
+        ],
+    )
+    async def test_a_bad_record_type_or_id_is_422(
+        self, autoref_cls, client: AsyncClient, auth_headers, db_session, keep_rows, change
+    ):
+        await _autoref_on(db_session, keep_rows)
+        response = await client.post(self.URL, json={**PICK, **change}, headers=auth_headers)
+        assert response.status_code == 422
+        autoref_cls.assert_not_called()
+
+    async def test_a_version_needs_auth(self, autoref_cls, client: AsyncClient):
+        response = await client.post(self.URL, json=PICK)
+        assert response.status_code == 401
+        autoref_cls.assert_not_called()
