@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - European VIN decoding with AutoRef (your own key; the free Test plan has 50 requests a month), set up in Settings > Integrations. Automatic asks AutoRef first for European countries and falls back to NHTSA, and the VIN step can pick the decoder (#219, thanks @marcomatrella)
+- When a VIN matches several versions, AutoRef lists them to pick from instead of filling the most common one
 - Make and model pickers with brand logos in Add Vehicle and the reference vehicle form (#219, thanks @marcomatrella)
 
 ### Changed
