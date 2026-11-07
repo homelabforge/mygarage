@@ -141,7 +141,7 @@ class FileUploadService:
 
         if file_size > config.max_size_bytes:
             raise HTTPException(
-                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                status_code=status.HTTP_413_CONTENT_TOO_LARGE,
                 detail=f"File size exceeds maximum of {config.max_size_bytes / (1024 * 1024):.1f}MB",
             )
 

@@ -127,6 +127,14 @@ class SecretsStatusResponse(BaseModel):
             "settings can't be saved, and encrypted ones can't be read."
         ),
     )
+    keyring_source: str | None = Field(
+        default=None,
+        description=(
+            "Which key source broke while the keyring is unavailable: 'env' "
+            "(MYGARAGE_SETTINGS_KEY), 'env_file' (MYGARAGE_SETTINGS_KEY_FILE) or 'data_dir' "
+            "(the data directory's key file); null while it is usable."
+        ),
+    )
     unreadable_keys: list[str] = Field(
         ...,
         description=(

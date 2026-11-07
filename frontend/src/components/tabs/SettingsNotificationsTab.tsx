@@ -57,7 +57,7 @@ const NOTIFICATION_SETTINGS_KEYS = [
 const DEFAULT_SETTINGS: Record<string, string> = {
   ntfy_enabled: 'false',
   ntfy_server: '',
-  ntfy_topic: 'mygarage',
+  ntfy_topic: '',
   ntfy_token: '',
   gotify_enabled: 'false',
   gotify_server: '',
@@ -138,9 +138,11 @@ export default function SettingsNotificationsTab() {
         }
       })
 
+      // A blank stored value reads as the default, as the backend reads it,
+      // so a blank switch shows the state notifications actually follow.
       const newFormData = { ...DEFAULT_SETTINGS }
       for (const key of NOTIFICATION_SETTINGS_KEYS) {
-        if (settingsMap[key] !== undefined) {
+        if (settingsMap[key] !== undefined && settingsMap[key].trim() !== '') {
           newFormData[key] = settingsMap[key]
         }
       }
@@ -163,13 +165,10 @@ export default function SettingsNotificationsTab() {
       refusedRef.current = true
       throw new SaveRefusedError(t('notifications.fixNumbers'))
     }
-    try {
-      await api.post('/settings/batch', {
-        settings: formData,
-      })
-    } catch {
-      throw new Error('Failed to save settings')
-    }
+    // A refusal reaches SettingsContext as it is, so its toast names the value.
+    await api.post('/settings/batch', {
+      settings: formData,
+    })
   }, [formData, invalidBoxes, t])
 
   // Register save handler

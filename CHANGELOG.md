@@ -13,11 +13,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Makes and models are saved in Title Case, so HONDA reads Honda and MERCEDES-BENZ reads Mercedes-Benz. Migration 159 rewrites the ones already stored
+- New installs start with a blank ntfy topic instead of the shared `mygarage`, since anyone who knows a topic can read it on ntfy.sh
+- The sign-in key file follows `MYGARAGE_DATA_DIR`; a key already at /data/secret.key is copied over, so nobody is signed out
+- Window sticker and document uploads follow `MYGARAGE_MAX_DOCUMENT_SIZE_MB` (25 MB by default) instead of a fixed 10 MB and 25 MB
 
 ### Fixed
 - Equipment (Standard/Optional) shows on every vehicle but plain trailers, on phones too, not only after a window sticker.
 - The Test buttons in Settings > Integrations show their result under the button, not at the top of the page where it was easy to miss.
 - Add Vehicle: a second VIN decode adds what it found to the nickname, and the European VIN notice only asks for the year when the VIN doesn't carry it.
+- Check NHTSA reports an NHTSA outage instead of "no new recalls".
+- The milestone and CarComplaints switches read the same on every screen when nothing is stored.
+- A setting the server refuses is named in the save message.
+- PDF tables fit the page, a cut description ends in "…", and the hours PDF fills its Source column.
+- The backup refusal and the Settings banner name the encryption key setting that is actually broken.
 
 ## [3.10.0] - 2026-11-05
 

@@ -11,7 +11,7 @@ from typing import Annotated
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
-from app.utils.secret_key import get_or_create_secret_key
+from app.utils.secret_key import KEY_FILE_NAME, get_or_create_secret_key
 
 
 def get_version() -> str:
@@ -244,7 +244,11 @@ class Settings(BaseSettings):
     }
 
     # JWT Authentication
-    secret_key: str = Field(default_factory=get_or_create_secret_key)
+    # In the data directory, so `MYGARAGE_DATA_DIR` moves the key with the
+    # rest of the data (B2-6). `data_dir` is declared above, so it's validated.
+    secret_key: str = Field(
+        default_factory=lambda data: get_or_create_secret_key(data["data_dir"] / KEY_FILE_NAME)
+    )
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 120  # 2 hours
 

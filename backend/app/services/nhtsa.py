@@ -25,7 +25,7 @@ RECALLS_BY_VEHICLE_PATH = "/recallsByVehicle"
 class NHTSAUnavailableError(Exception):
     """NHTSA didn't answer usably, so a recall lookup says nothing.
 
-    Raised by `get_vehicle_recalls(raise_on_error=True)` for any httpx request
+    Raised by `get_vehicle_recalls` for any httpx request
     error (timeouts, connect, read, protocol and proxy errors, a body httpx
     can't decode, too many redirects), any HTTP error status, or a 200 whose
     body isn't JSON (a maintenance page), from the vPIC decode and the
@@ -43,7 +43,7 @@ class _VPICBodyNotJSONError(ValueError):
     """
 
 
-#: What `get_vehicle_recalls(raise_on_error=True)` reads as NHTSA being down.
+#: What `get_vehicle_recalls` reads as NHTSA being down.
 #: RequestError, not just TransportError: DecodingError (a page served with a
 #: bad Content-Encoding) and TooManyRedirects are request errors outside
 #: TransportError, and either one is NHTSA not answering usably.
@@ -285,9 +285,7 @@ class NHTSAService:
         except ValueError, TypeError:
             return None
 
-    async def get_vehicle_recalls(
-        self, vin: str, db: AsyncSession, *, raise_on_error: bool = False
-    ) -> list[dict[str, Any]]:
+    async def get_vehicle_recalls(self, vin: str, db: AsyncSession) -> list[dict[str, Any]]:
         """
         Get recalls for a specific VIN from NHTSA.
 
@@ -298,27 +296,21 @@ class NHTSAService:
         Args:
             vin: The 17-character VIN
             db: Database session for fetching settings
-            raise_on_error: Raise NHTSAUnavailableError when NHTSA doesn't
-                answer, instead of the manual check's fallbacks (a decode
-                failure as ValueError, a failed recalls fetch as no recalls).
 
         Returns:
             List of recall dictionaries
 
         Raises:
             ValueError: If VIN is invalid or vehicle info cannot be decoded
-            NHTSAUnavailableError: Only with raise_on_error, when NHTSA times
-                out, can't be reached, answers an HTTP error, or answers a
+            NHTSAUnavailableError: When NHTSA times out, can't be reached, answers an HTTP error, or answers a
                 body that can't be decoded or isn't JSON
         """
-        # Empty unless asked, so `except ()` matches nothing and the manual
-        # check keeps the fallbacks below.
-        outage_errors = _OUTAGE_ERRORS if raise_on_error else ()
-
+        # An outage is never "no recalls": the manual check answers 502 and
+        # the scheduled one leaves nhtsa_last_check alone (B5-1).
         # First, decode the VIN to get make/model/year
         try:
             vehicle_info = await self.decode_vin(vin)
-        except outage_errors as e:
+        except _OUTAGE_ERRORS as e:
             raise NHTSAUnavailableError(f"NHTSA vPIC API unavailable ({type(e).__name__})") from e
         except Exception as e:
             logger.error(
@@ -416,33 +408,7 @@ class NHTSAService:
 
                 return recalls
 
-            except outage_errors as e:
+            except _OUTAGE_ERRORS as e:
                 raise NHTSAUnavailableError(
                     f"NHTSA recalls API unavailable ({type(e).__name__})"
                 ) from e
-            except httpx.TimeoutException:
-                logger.error(
-                    "NHTSA recalls API timeout for %s %s %s",
-                    year,
-                    sanitize_for_log(make),
-                    sanitize_for_log(model),
-                )
-                return []  # Intentional fallback: don't break UI for timeout
-            except httpx.ConnectError as e:
-                logger.error(
-                    "Cannot connect to NHTSA recalls API for %s %s %s: %s",
-                    year,
-                    sanitize_for_log(make),
-                    sanitize_for_log(model),
-                    sanitize_for_log(e),
-                )
-                return []  # Intentional fallback: don't break UI for connection issues
-            except httpx.HTTPStatusError as e:
-                logger.error(
-                    "NHTSA recalls API error for %s %s %s: %s",
-                    year,
-                    sanitize_for_log(make),
-                    sanitize_for_log(model),
-                    sanitize_for_log(e),
-                )
-                return []  # Intentional fallback: return empty list on API error

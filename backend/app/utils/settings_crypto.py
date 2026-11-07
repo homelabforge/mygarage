@@ -415,6 +415,38 @@ def is_ciphertext(stored: str | None) -> bool:
     return stored is not None and stored.startswith(CIPHERTEXT_PREFIX)
 
 
+@dataclass(frozen=True, slots=True)
+class KeyringStatus:
+    """One read of the keyring, so its parts can't disagree (an unavailable
+    keyring isn't cached, and the next load may succeed).
+
+    Attributes:
+        kid: The current key's id, or None when the keyring is unavailable.
+        source: Which key source broke (B2-21): "env" for
+            ``MYGARAGE_SETTINGS_KEY``, "env_file" for ``_FILE``, "data_dir"
+            for the data dir's key file; None while usable. Never a path.
+        advice: How to fix that source; None while usable.
+    """
+
+    kid: str | None
+    source: str | None
+    advice: str | None
+
+
+def keyring_status() -> KeyringStatus:
+    """The keyring's state from a single load attempt."""
+    keyring = _get_keyring()
+    if isinstance(keyring, _Keyring):
+        return KeyringStatus(kid=keyring.current_kid, source=None, advice=None)
+    source = {ENV_KEY: "env", ENV_KEY_FILE: "env_file"}.get(keyring.source, "data_dir")
+    return KeyringStatus(kid=None, source=source, advice=_fix_advice(keyring.source))
+
+
+def keyring_fix_advice() -> str | None:
+    """How to fix the keyring, for the source that broke; None while it's usable."""
+    return keyring_status().advice
+
+
 def current_kid() -> str | None:
     """The id of the key that ``encrypt`` uses now, or None when the keyring is unavailable."""
     keyring = _get_keyring()

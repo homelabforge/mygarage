@@ -199,6 +199,8 @@
   "secretsStatus": {
     "title": "Some secret settings can't be read",
     "keyringUnavailable": "The settings encryption key is unavailable, so secret settings can't be saved and encrypted ones can't be read. Set MYGARAGE_SETTINGS_KEY to a valid key, or make the data directory writable, then reload this page.",
+    "keyringUnavailableEnv": "The settings encryption key is unavailable, so secret settings can't be saved and encrypted ones can't be read. MYGARAGE_SETTINGS_KEY doesn't hold a valid key: fix it, then restart MyGarage.",
+    "keyringUnavailableEnvFile": "The settings encryption key is unavailable, so secret settings can't be saved and encrypted ones can't be read. MYGARAGE_SETTINGS_KEY_FILE doesn't point at a readable file holding a valid key: fix it, then restart MyGarage.",
     "unreadable": "These secrets can't be decrypted with the current settings key, so they read as unset. Add the key they were saved under back to MYGARAGE_SETTINGS_KEY, or re-enter them:"
   },
   "stats": {
@@ -486,7 +488,7 @@
       "subtitle": "Self-hosted or ntfy.sh push notifications",
       "serverUrlHint": "URL of your ntfy server (e.g., https://ntfy.sh or self-hosted)",
       "topicLabel": "Topic Name",
-      "topicHint": "Subscribe to this topic in your ntfy app to receive notifications",
+      "topicHint": "Subscribe to this topic in your ntfy app. Anyone who knows the name can read it on a public server, so pick one that is hard to guess.",
       "apiTokenLabel": "API Token",
       "apiTokenOptional": "(optional)",
       "apiTokenHint": "Required for authenticated topics or self-hosted servers with auth",

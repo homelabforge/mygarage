@@ -44,7 +44,7 @@ async def test_an_admin_gets_ok_and_no_keys_when_everything_reads(
     response = await client.get(URL, headers=auth_headers)
 
     assert response.status_code == 200, response.text
-    assert response.json() == {"keyring": "ok", "unreadable_keys": []}
+    assert response.json() == {"keyring": "ok", "keyring_source": None, "unreadable_keys": []}
 
 
 async def test_unreadable_rows_are_listed_sorted(
@@ -66,6 +66,7 @@ async def test_unreadable_rows_are_listed_sorted(
     assert response.status_code == 200, response.text
     assert response.json() == {
         "keyring": "ok",
+        "keyring_source": None,
         "unreadable_keys": ["gotify_token", "tomtom_api_key"],
     }
     assert CIPHERTEXT_PREFIX not in response.text
@@ -84,7 +85,7 @@ async def test_an_unavailable_keyring_is_reported_live(
         {"ntfy_token": encrypt("ntfy_token", "readable"), "gotify_token": "legacy-plaintext"},
     )
     response = await client.get(URL, headers=auth_headers)
-    assert response.json() == {"keyring": "ok", "unreadable_keys": []}
+    assert response.json() == {"keyring": "ok", "keyring_source": None, "unreadable_keys": []}
 
     # A present but broken source: unavailable, with no fallthrough.
     monkeypatch.setenv(ENV_KEY, "not-a-valid-key")
@@ -98,7 +99,12 @@ async def test_an_unavailable_keyring_is_reported_live(
     assert response.status_code == 200, response.text
     # Nothing opens without a keyring, so the ciphertext row is unreadable too;
     # the legacy plaintext row still reads.
-    assert response.json() == {"keyring": "unavailable", "unreadable_keys": ["ntfy_token"]}
+    assert response.json() == {
+        "keyring": "unavailable",
+        # The env var is what broke, so the banner names it (B2-21).
+        "keyring_source": "env",
+        "unreadable_keys": ["ntfy_token"],
+    }
 
 
 async def test_a_non_admin_gets_a_403_when_sign_in_is_on(
@@ -131,4 +137,8 @@ async def test_auth_mode_none_answers_without_sign_in(
     response = await client.get(URL)
 
     assert response.status_code == 200, response.text
-    assert response.json() == {"keyring": "ok", "unreadable_keys": ["gotify_token"]}
+    assert response.json() == {
+        "keyring": "ok",
+        "keyring_source": None,
+        "unreadable_keys": ["gotify_token"],
+    }

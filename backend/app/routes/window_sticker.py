@@ -37,7 +37,9 @@ STICKER_STORAGE_PATH = settings.documents_dir
 
 # Allowed file extensions
 ALLOWED_EXTENSIONS = {".pdf", ".jpg", ".jpeg", ".png"}
-MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+#: A sticker is stored with the documents, so it gets their limit
+#: (`MYGARAGE_MAX_DOCUMENT_SIZE_MB`), the one Settings > Files shows.
+MAX_FILE_SIZE = settings.max_document_size_bytes
 
 # The Settings > Files switches. Off stops new stickers and scans only: the
 # sticker on file can still be read, downloaded, edited and deleted (Fable F-12).

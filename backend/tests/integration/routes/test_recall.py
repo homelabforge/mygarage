@@ -12,6 +12,7 @@ from collections.abc import AsyncIterator, Awaitable, Callable
 from typing import Any
 from unittest.mock import AsyncMock, patch
 
+import httpx
 import pytest
 import pytest_asyncio
 from fastapi import HTTPException
@@ -470,9 +471,8 @@ class TestRecallRoutes:
         # 200: Success with recalls data
         # 400/422: VIN could not be decoded (make/model/year not determinable)
         # 500: Internal error
-        # 503: NHTSA unavailable
-        # 504: NHTSA timeout
-        assert response.status_code in [200, 400, 422, 500, 503, 504]
+        # 502: NHTSA unavailable
+        assert response.status_code in [200, 400, 422, 500, 502]
         if response.status_code == 200:
             data = response.json()
             assert "recalls" in data
@@ -1347,3 +1347,70 @@ class TestRecallPutRacesAVisitLink:
         async with test_sessionmaker() as s:
             stored = await s.get(Recall, rid)
             assert stored is not None and stored.notes == "from the tab"
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+class TestManualCheckOutage:
+    """The manual check never reads an NHTSA outage as "no new recalls" (B5-1)."""
+
+    @pytest.mark.parametrize(
+        "error",
+        [
+            httpx.ReadTimeout("timed out"),
+            httpx.ConnectError("refused"),
+            httpx.DecodingError("bad gzip stream"),
+            httpx.TooManyRedirects("redirect loop"),
+        ],
+    )
+    async def test_an_outage_is_a_502(
+        self,
+        client: AsyncClient,
+        auth_headers: dict[str, str],
+        test_vehicle: dict[str, Any],
+        monkeypatch: pytest.MonkeyPatch,
+        error: Exception,
+    ) -> None:
+        """Every request error is a 502, never a 500, a 504 or a 422 "Could
+        not decode VIN"; the scheduled check already read them as an outage."""
+        monkeypatch.setattr("app.utils.url_validation.resolve_hostname", lambda hostname: None)
+
+        async def fake_get(self: object, url: str, **kwargs: object) -> httpx.Response:
+            raise error
+
+        monkeypatch.setattr("httpx.AsyncClient.get", fake_get)
+
+        response = await client.post(
+            f"/api/vehicles/{test_vehicle['vin']}/recalls/check-nhtsa",
+            headers=auth_headers,
+        )
+
+        assert response.status_code == 502, response.text
+        assert response.json()["detail"] == "NHTSA isn't answering right now. Try again later."
+
+    async def test_a_failed_recalls_fetch_is_not_no_new_recalls(
+        self,
+        client: AsyncClient,
+        auth_headers: dict[str, str],
+        test_vehicle: dict[str, Any],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """vPIC decodes, then the recalls API times out: a 502, not a 200 with
+        nothing new. Red before B5-1, which answered 200."""
+        monkeypatch.setattr("app.utils.url_validation.resolve_hostname", lambda hostname: None)
+
+        async def fake_get(self: object, url: str, **kwargs: object) -> httpx.Response:
+            request = httpx.Request("GET", url)
+            if "DecodeVinValues" in url:
+                result = {"Make": "HONDA", "Model": "Accord", "ModelYear": "2020", "ErrorCode": "0"}
+                return httpx.Response(200, request=request, json={"Results": [result]})
+            raise httpx.ReadTimeout("timed out", request=request)
+
+        monkeypatch.setattr("httpx.AsyncClient.get", fake_get)
+
+        response = await client.post(
+            f"/api/vehicles/{test_vehicle['vin']}/recalls/check-nhtsa",
+            headers=auth_headers,
+        )
+
+        assert response.status_code == 502, response.text

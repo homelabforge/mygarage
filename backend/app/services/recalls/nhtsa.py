@@ -71,6 +71,6 @@ class NHTSARecallProvider:
     async def fetch(self, db: AsyncSession, vehicle: Vehicle) -> list[RecallHit]:
         # An outage raises NHTSAUnavailableError instead of reading as "no
         # recalls", so the scheduled check doesn't stamp nhtsa_last_check.
-        records = await self._client().get_vehicle_recalls(vehicle.vin, db, raise_on_error=True)
+        records = await self._client().get_vehicle_recalls(vehicle.vin, db)
         hits = [hit_from_nhtsa(record) for record in records]
         return [hit for hit in hits if hit is not None]

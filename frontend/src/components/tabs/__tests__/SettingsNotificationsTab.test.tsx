@@ -240,3 +240,59 @@ describe('SettingsNotificationsTab: a number box that is out of range', () => {
     }
   })
 })
+
+describe('SettingsNotificationsTab: a blank stored switch (B5-3)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockedApi.post.mockResolvedValue({ data: {} })
+  })
+
+  // The dispatcher reads blank as the seeded value, so the card must too.
+  it('shows notify_def_low stored blank as on, its default', async () => {
+    answerGet([
+      { key: 'ntfy_enabled', value: 'true' },
+      { key: 'notify_def_low', value: '' },
+    ])
+    renderTab()
+
+    await screen.findByText('events.defLow.group')
+    expect(screen.getByRole('checkbox', { name: 'events.defLow.label' })).toBeChecked()
+  })
+})
+
+describe('SettingsNotificationsTab: a value the server refuses (PR0-5)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    answerGet([{ key: 'ntfy_enabled', value: 'true' }])
+  })
+
+  it("names the refused setting in the toast, from the 422's detail", async () => {
+    const detail = "Setting 'notify_insurance_days' must be a whole number"
+    mockedApi.post.mockRejectedValue({
+      isAxiosError: true,
+      message: 'Request failed',
+      response: { status: 422, data: { detail } },
+    })
+    renderTab()
+
+    await screen.findByText('events.defLow.group')
+    fireEvent.click(screen.getByRole('checkbox', { name: 'events.defLow.label' }))
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalled(), { timeout: 3000 })
+    expect(toast.error).toHaveBeenLastCalledWith(
+      `settingsContext.saveError: ${detail}`,
+      { id: 'toast-id' },
+    )
+  })
+
+  it('keeps the plain message for a failure without a detail', async () => {
+    mockedApi.post.mockRejectedValue({ isAxiosError: true, message: 'Network Error' })
+    renderTab()
+
+    await screen.findByText('events.defLow.group')
+    fireEvent.click(screen.getByRole('checkbox', { name: 'events.defLow.label' }))
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalled(), { timeout: 3000 })
+    expect(toast.error).toHaveBeenLastCalledWith('settingsContext.saveError', { id: 'toast-id' })
+  })
+})

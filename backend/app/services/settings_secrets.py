@@ -34,6 +34,7 @@ from app.utils.settings_crypto import (
     SettingsKeyUnavailable,
     current_kid,
     decrypt,
+    keyring_fix_advice,
 )
 from app.utils.settings_errors import PlaintextSecretsRemain
 
@@ -250,14 +251,16 @@ async def ensure_secrets_encrypted(db: AsyncSession) -> SweepReport:
         report = await _encrypt_securely(db, sqlite=sqlite)
         remaining = await _plaintext_secret_keys(db)
         if remaining:
-            raise PlaintextSecretsRemain(remaining, keyring_unavailable=current_kid() is None)
+            raise PlaintextSecretsRemain(remaining, keyring_fix=keyring_fix_advice())
         await db.commit()
     except PlaintextSecretsRemain:
         await _rollback_quietly(db)
         raise
     except SettingsKeyUnavailable as exc:
         await _rollback_quietly(db)
-        raise PlaintextSecretsRemain(await _plaintext_secret_keys(db)) from exc
+        raise PlaintextSecretsRemain(
+            await _plaintext_secret_keys(db), keyring_fix=keyring_fix_advice()
+        ) from exc
     except SQLAlchemyError as exc:
         # Its message would carry the bound parameters: name the type only.
         logger.error(
@@ -266,9 +269,7 @@ async def ensure_secrets_encrypted(db: AsyncSession) -> SweepReport:
         await _rollback_quietly(db)
         remaining = await _plaintext_secret_keys(db)
         if remaining:
-            raise PlaintextSecretsRemain(
-                remaining, keyring_unavailable=current_kid() is None
-            ) from exc
+            raise PlaintextSecretsRemain(remaining, keyring_fix=keyring_fix_advice()) from exc
         raise
 
     if sqlite and report.changed:

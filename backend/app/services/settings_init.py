@@ -237,7 +237,9 @@ DEFAULT_SETTINGS = {
         "encrypted": False,
     },
     "ntfy_topic": {
-        "value": "mygarage",
+        # Blank, not a shared default: on a public server anyone who knows
+        # the topic can read it (B2-4).
+        "value": "",
         "category": "notifications",
         "description": "ntfy topic name",
         "encrypted": False,

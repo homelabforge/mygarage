@@ -7,9 +7,15 @@ vi.mock('../../hooks/queries/useDocuments', () => ({
   useUploadDocument: () => ({ mutateAsync: uploadMock }),
 }))
 
+const publicSettings = vi.hoisted(() => ({ values: {} as Record<string, string> }))
+vi.mock('../../hooks/usePublicSettings', () => ({ usePublicSettings: () => publicSettings.values }))
+
 import DocumentUpload from '../DocumentUpload'
 
-beforeEach(() => vi.clearAllMocks())
+beforeEach(() => {
+  vi.clearAllMocks()
+  publicSettings.values = {}
+})
 
 // The hidden <input type=file> is reachable THROUGH the sr-only <label htmlFor> the restyle adds;
 // getByLabelText resolves it via that label, so a dropped/unassociated htmlFor fails the test.
@@ -121,5 +127,27 @@ describe('DocumentUpload — centered upload modal: guard + upload', () => {
     expect(
       await screen.findByText('Failed to documentUpload.uploadAction. Please check your input.')
     ).toBeInTheDocument()
+  })
+})
+
+// B5-7: the cap is the server's documents limit, served with the public settings.
+describe('DocumentUpload: the size cap (B5-7)', () => {
+  it('refuses a file over the served documents limit', async () => {
+    publicSettings.values = { document_upload_max_bytes: String(1024 * 1024) }
+    const user = userEvent.setup()
+    render(<DocumentUpload vin="V1" onSuccess={vi.fn()} onClose={vi.fn()} />)
+
+    await user.upload(fileInput(), new File([new Uint8Array(1024 * 1024 + 1)], 'big.pdf', { type: 'application/pdf' }))
+
+    expect(screen.getByText('documentUpload.misc.fileTooLargeLimit')).toBeInTheDocument()
+  })
+
+  it('leaves the check to the server when the limit is unknown', async () => {
+    const user = userEvent.setup()
+    render(<DocumentUpload vin="V1" onSuccess={vi.fn()} onClose={vi.fn()} />)
+
+    await user.upload(fileInput(), new File([new Uint8Array(1024 * 1024 + 1)], 'big.pdf', { type: 'application/pdf' }))
+
+    expect(screen.queryByText('documentUpload.misc.fileTooLargeLimit')).not.toBeInTheDocument()
   })
 })

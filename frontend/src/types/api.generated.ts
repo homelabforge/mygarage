@@ -12417,6 +12417,12 @@ export interface components {
             date: string;
             /** Engine Hours */
             engine_hours: string;
+            /**
+             * Source
+             * @description Where the reading came from
+             * @default manual
+             */
+            source: string;
         };
         /**
          * HoursEconomyDataPoint
@@ -16316,6 +16322,11 @@ export interface components {
              * @enum {string}
              */
             keyring: "ok" | "unavailable";
+            /**
+             * Keyring Source
+             * @description Which key source broke while the keyring is unavailable: 'env' (MYGARAGE_SETTINGS_KEY), 'env_file' (MYGARAGE_SETTINGS_KEY_FILE) or 'data_dir' (the data directory's key file); null while it is usable.
+             */
+            keyring_source?: string | null;
             /**
              * Unreadable Keys
              * @description Secret setting keys, sorted, whose stored value can't be decrypted with the current keyring. Each reads as unset until its key is restored or it is re-entered.

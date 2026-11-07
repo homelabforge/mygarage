@@ -684,3 +684,17 @@ async def test_a_password_link_disarms_an_open_relink(
     stored = await _stored(test_sessionmaker, account.id)
     assert stored["oidc_subject"] == claims["sub"]
     assert stored["oidc_relink_until"] is None, "the password link left the relink open"
+
+
+async def test_an_unknown_link_token_is_not_logged(
+    db_session: AsyncSession, caplog: pytest.LogCaptureFixture
+):
+    """No part of a pending-link token reaches the log: an expired one was real (B2-5)."""
+    token = "Zq7" + "x" * 61
+
+    with caplog.at_level("WARNING", logger="app.services.oidc.linking"):
+        user, error = await validate_and_consume_pending_link(db_session, token, "whatever")
+
+    assert user is None and error is not None
+    assert "not found or expired" in caplog.text
+    assert "Zq7xxxx" not in caplog.text

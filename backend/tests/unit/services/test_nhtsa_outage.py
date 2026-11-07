@@ -1,12 +1,12 @@
-"""`get_vehicle_recalls(raise_on_error=True)`: an NHTSA outage is not "no recalls".
+"""`get_vehicle_recalls`: an NHTSA outage is not "no recalls".
 
-The scheduled recall check asks for this so it can leave `nhtsa_last_check`
-alone when NHTSA didn't answer. A timeout, any other transport error, a body
+The scheduled recall check leaves `nhtsa_last_check` alone when NHTSA didn't
+answer, and the manual check answers 502 (B5-1). A timeout, any other transport error, a body
 httpx can't decode, a redirect loop, an HTTP error status or a 200 whose body
 isn't JSON raises `NHTSAUnavailableError` from the vPIC decode and from the
 recalls fetch alike. A VIN vPIC can't
 resolve is still a `ValueError`: that vehicle can't be checked, which no
-retry fixes. Without the flag (the manual check) nothing changes.
+retry fixes.
 
 The name is looked up on the module inside each test, so on code without it
 each test fails on its own instead of the whole file failing to import.
@@ -82,14 +82,13 @@ _ORIGINAL = {
 
 @pytest.mark.parametrize("step", ["decode", "recalls"])
 @pytest.mark.parametrize("how", list(_ORIGINAL))
-async def test_an_outage_raises_unavailable_when_asked(
+async def test_an_outage_raises_unavailable(
     db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch, step: str, how: str
 ) -> None:
     """Every outage shape, at either step, is `NHTSAUnavailableError`, chained
     from the original error and carrying none of the response body.
 
-    Red on main: there was no such error and no `raise_on_error`. The
-    decoding-error and too-many-redirects rows were also red on the branch
+    The decoding-error and too-many-redirects rows were also red on the branch
     before the fix wave, whose outage set was `httpx.TransportError`: those
     two are `httpx.RequestError`s outside it, so the decode step wrapped them
     as a `ValueError` and the recalls step let them escape unclassified.
@@ -98,18 +97,18 @@ async def test_an_outage_raises_unavailable_when_asked(
     _serve(monkeypatch, step=step, how=how)
 
     with pytest.raises(unavailable) as caught:
-        await NHTSAService().get_vehicle_recalls(VIN, db_session, raise_on_error=True)
+        await NHTSAService().get_vehicle_recalls(VIN, db_session)
 
     assert not isinstance(caught.value, ValueError)
     assert isinstance(caught.value.__cause__, _ORIGINAL[how])
     assert "maintenance" not in str(caught.value)
 
 
-async def test_an_undecodable_vin_is_still_a_value_error_when_asked(
+async def test_an_undecodable_vin_is_still_a_value_error(
     db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """vPIC answering without a model is a vehicle that can't be checked, not
-    an outage. Red on main only because `raise_on_error` didn't exist."""
+    an outage."""
 
     async def fake_get(client: object, url: str, **kwargs: object) -> httpx.Response:
         return _decode_answer(httpx.Request("GET", url), model="")
@@ -118,52 +117,15 @@ async def test_an_undecodable_vin_is_still_a_value_error_when_asked(
     monkeypatch.setattr("app.utils.url_validation.resolve_hostname", lambda hostname: None)
 
     with pytest.raises(ValueError, match="make, model, and year"):
-        await NHTSAService().get_vehicle_recalls(VIN, db_session, raise_on_error=True)
-
-
-async def test_by_default_a_recalls_timeout_is_still_no_recalls(
-    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Regression guard: the manual check keeps its fallback (B5-1)."""
-    _serve(monkeypatch, step="recalls", how="timeout")
-
-    assert await NHTSAService().get_vehicle_recalls(VIN, db_session) == []
-
-
-async def test_by_default_a_decode_timeout_is_still_a_value_error(
-    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Regression guard: the manual check still maps it to its 422."""
-    _serve(monkeypatch, step="decode", how="timeout")
-
-    with pytest.raises(ValueError, match="Could not decode VIN"):
         await NHTSAService().get_vehicle_recalls(VIN, db_session)
-
-
-@pytest.mark.parametrize("step", ["decode", "recalls"])
-async def test_by_default_a_decoding_error_is_not_unavailable(
-    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch, step: str
-) -> None:
-    """Regression guard: without the flag a body httpx can't decode is what it
-    always was, a `ValueError` from the decode step and the httpx error itself
-    from the recalls fetch, never `NHTSAUnavailableError`."""
-    unavailable = nhtsa_module.NHTSAUnavailableError
-    expected = ValueError if step == "decode" else httpx.DecodingError
-    _serve(monkeypatch, step=step, how="decoding-error")
-
-    with pytest.raises(expected) as caught:
-        await NHTSAService().get_vehicle_recalls(VIN, db_session)
-
-    assert not isinstance(caught.value, unavailable)
 
 
 #: What api.nhtsa.gov sends for a make, model and year with no recalls.
 NO_RECALLS = {"Count": 0, "Message": "Results returned successfully", "results": []}
 
 
-@pytest.mark.parametrize("raise_on_error", [True, False])
 async def test_a_400_saying_no_recalls_is_no_recalls(
-    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch, raise_on_error: bool
+    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """NHTSA answers a car with a clean record with a 400 and an empty
     `results`. That's an answer: red on 3.10.0-rc1, where the scheduled check
@@ -178,9 +140,7 @@ async def test_a_400_saying_no_recalls_is_no_recalls(
     monkeypatch.setattr("httpx.AsyncClient.get", fake_get)
     monkeypatch.setattr("app.utils.url_validation.resolve_hostname", lambda hostname: None)
 
-    recalls = await NHTSAService().get_vehicle_recalls(
-        VIN, db_session, raise_on_error=raise_on_error
-    )
+    recalls = await NHTSAService().get_vehicle_recalls(VIN, db_session)
 
     assert recalls == []
 
@@ -204,4 +164,4 @@ async def test_any_other_400_is_still_an_outage(
     monkeypatch.setattr("app.utils.url_validation.resolve_hostname", lambda hostname: None)
 
     with pytest.raises(nhtsa_module.NHTSAUnavailableError):
-        await NHTSAService().get_vehicle_recalls(VIN, db_session, raise_on_error=True)
+        await NHTSAService().get_vehicle_recalls(VIN, db_session)

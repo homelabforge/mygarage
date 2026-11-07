@@ -36,6 +36,14 @@ export default function SecretsStatusBanner(): ReactElement | null {
   }, [])
 
   const keyringUnavailable = status?.keyring === 'unavailable'
+  // The fix depends on the source that broke: a bad MYGARAGE_SETTINGS_KEY or
+  // _FILE wins over the data dir, so a writable data dir fixes nothing (B2-21).
+  const keyringText =
+    status?.keyring_source === 'env'
+      ? t('secretsStatus.keyringUnavailableEnv')
+      : status?.keyring_source === 'env_file'
+        ? t('secretsStatus.keyringUnavailableEnvFile')
+        : t('secretsStatus.keyringUnavailable')
   const unreadable = Array.isArray(status?.unreadable_keys) ? status.unreadable_keys : []
   if (!keyringUnavailable && unreadable.length === 0) return null
 
@@ -48,7 +56,7 @@ export default function SecretsStatusBanner(): ReactElement | null {
         <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-warning" aria-hidden="true" />
         <div className="space-y-2">
           <p className="font-semibold">{t('secretsStatus.title')}</p>
-          {keyringUnavailable && <p>{t('secretsStatus.keyringUnavailable')}</p>}
+          {keyringUnavailable && <p>{keyringText}</p>}
           {unreadable.length > 0 && (
             <div>
               <p>{t('secretsStatus.unreadable')}</p>

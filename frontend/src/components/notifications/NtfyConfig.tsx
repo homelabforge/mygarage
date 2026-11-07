@@ -67,9 +67,9 @@ export function NtfyConfig({
           <input
             type="text"
             id="ntfy_topic"
-            value={String(settings.ntfy_topic ?? 'mygarage')}
+            value={String(settings.ntfy_topic ?? '')}
             onChange={(e) => onTextChange('ntfy_topic', e.target.value)}
-            placeholder="mygarage"
+            placeholder="garage-k7q2x9"
             disabled={saving || !isEnabled}
             className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-lg text-garage-text placeholder-garage-text-muted focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
           />

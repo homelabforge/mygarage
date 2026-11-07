@@ -22,6 +22,11 @@ logger = logging.getLogger(__name__)
 type KeySource = Literal["loaded", "generated", "memory"]
 
 DEFAULT_KEY_FILE = Path("/data/secret.key")
+#: The file name inside the data directory (`MYGARAGE_DATA_DIR`).
+KEY_FILE_NAME = "secret.key"
+
+#: The file the last get_or_create_secret_key call used, for the lifespan's log.
+KEY_FILE: Path = DEFAULT_KEY_FILE
 
 # What the last get_or_create_secret_key call did. Stays "memory" when
 # MYGARAGE_SECRET_KEY is set, because pydantic never calls the default factory
@@ -60,6 +65,37 @@ def create_key_file(path: Path, content: str) -> None:
         raise
 
 
+def _fill_empty_key_file(path: Path, content: str) -> None:
+    """Write ``content`` into the existing, empty key file at ``path``.
+
+    In place, not unlink-and-create: a single-file bind mount can't be
+    unlinked (EBUSY), which used to leave an in-memory key (B2-13). A symlink
+    is still replaced, since writing through it would land somewhere else.
+    """
+    if path.is_symlink():
+        path.unlink()
+        create_key_file(path, content)
+        return
+    try:
+        fd = os.open(path, os.O_WRONLY | os.O_TRUNC | os.O_NOFOLLOW | os.O_CLOEXEC)
+    except PermissionError:
+        # Not ours to write (a root-owned 0644 file in our directory): the
+        # old unlink-and-create still works there.
+        path.unlink()
+        create_key_file(path, content)
+        return
+    with os.fdopen(fd, "w", encoding="ascii") as handle:
+        try:
+            os.fchmod(handle.fileno(), 0o600)
+        except PermissionError:
+            # A file someone else owns but made writable (a chmod 666 bind
+            # mount): keep the key rather than fall back to memory.
+            logger.warning("Could not make %s owner-only; writing the key anyway", path)
+        handle.write(content)
+        handle.flush()
+        os.fsync(handle.fileno())
+
+
 def _read_key(path: Path) -> str | None:
     """The stripped contents of ``path``, or None when it doesn't exist."""
     try:
@@ -68,17 +104,42 @@ def _read_key(path: Path) -> str | None:
         return None
 
 
+def _carry_over_legacy_key(key_file: Path) -> str | None:
+    """The key from ``/data/secret.key`` when the data dir moved and has none yet.
+
+    Before B2-6 the key was always at ``/data/secret.key``, whatever
+    ``MYGARAGE_DATA_DIR`` said. Copying it to the new place keeps every
+    session signed in. None when there is nothing to carry over.
+    """
+    if key_file == DEFAULT_KEY_FILE:
+        return None
+    try:
+        legacy = _read_key(DEFAULT_KEY_FILE)
+    except OSError, ValueError:
+        return None
+    if not legacy:
+        return None
+    create_key_file(key_file, legacy + "\n")
+    logger.warning("Copied the secret key from %s to %s", DEFAULT_KEY_FILE, key_file)
+    return legacy
+
+
 def _resolve_secret_key(key_file: Path) -> tuple[str, KeySource]:
     """Read, create or fall back to a JWT key, and say which happened."""
     try:
         existing = _read_key(key_file)
         if existing:
             return existing, "loaded"
+        if existing is None:
+            carried = _carry_over_legacy_key(key_file)
+            if carried:
+                return carried, "loaded"
+        secret_key = secrets.token_urlsafe(32)
         if existing is not None:
             logger.warning("Secret key file at %s is empty, generating a new key", key_file)
-            key_file.unlink()
+            _fill_empty_key_file(key_file, secret_key + "\n")
+            return secret_key, "generated"
 
-        secret_key = secrets.token_urlsafe(32)
         try:
             create_key_file(key_file, secret_key + "\n")
         except FileExistsError:
@@ -105,7 +166,8 @@ def get_or_create_secret_key(key_file: Path = DEFAULT_KEY_FILE) -> str:
     couldn't be read or written.
 
     Args:
-        key_file: Path to the secret key file (default: /data/secret.key).
+        key_file: Path to the secret key file. `app.config` passes
+            ``<data_dir>/secret.key``, so `MYGARAGE_DATA_DIR` moves it (B2-6).
 
     Returns:
         The secret key as a string.
@@ -115,6 +177,7 @@ def get_or_create_secret_key(key_file: Path = DEFAULT_KEY_FILE) -> str:
         changes on restart, which logs every user out. That is acceptable for a
         JWT key; the settings encryption key never does this.
     """
-    global KEY_SOURCE
+    global KEY_SOURCE, KEY_FILE
+    KEY_FILE = key_file  # pyright: ignore[reportConstantRedefinition]
     key, KEY_SOURCE = _resolve_secret_key(key_file)  # pyright: ignore[reportConstantRedefinition]
     return key

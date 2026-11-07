@@ -69,7 +69,7 @@ from app.utils.household_time import (
     household_zone,
 )
 from app.utils.logging_utils import sanitize_for_log
-from app.utils.settings_crypto import CIPHERTEXT_PREFIX, current_kid
+from app.utils.settings_crypto import CIPHERTEXT_PREFIX, keyring_status
 
 logger = logging.getLogger(__name__)
 
@@ -151,6 +151,13 @@ def _after_write(keys: Container[str]) -> None:
     """
     if llm_client.LLM_BASE_URL_SETTING in keys:
         llm_client.clear_locality_cache()
+
+
+#: Computed and served with the public settings, never stored: the document
+#: upload cap in bytes (`MYGARAGE_MAX_DOCUMENT_SIZE_MB`), so the window sticker
+#: and document forms check the limit the server enforces (B5-7). Not in
+#: DEFAULT_SETTINGS, so no write route accepts it.
+DOCUMENT_MAX_BYTES_KEY = "document_upload_max_bytes"
 
 
 def _reject_reserved_key(key: str) -> None:
@@ -336,6 +343,17 @@ async def get_public_settings(db: AsyncSession = Depends(get_db)):
             value=household_zone().key,
             category="system",
             description="The household time zone in effect. Set 'timezone' to change it.",
+            encrypted=False,
+            created_at=now,
+            updated_at=now,
+        )
+    )
+    entries.append(
+        SettingResponse(
+            key=DOCUMENT_MAX_BYTES_KEY,
+            value=str(app_settings.max_document_size_bytes),
+            category="files",
+            description="The document and window sticker upload cap in bytes. Read-only.",
             encrypted=False,
             created_at=now,
             updated_at=now,
@@ -1055,13 +1073,16 @@ async def get_secrets_status(
     Computed live, so the Settings banner reflects a key fixed or a secret
     re-entered since the last start. Names setting keys only.
     """
+    # One read: an unavailable keyring isn't cached, so two could disagree.
+    keyring = keyring_status()
     rows = (
         (await db.execute(select(Setting).where(Setting.key.in_(SENSITIVE_SETTING_KEYS))))
         .scalars()
         .all()
     )
     return SecretsStatusResponse(
-        keyring="ok" if current_kid() is not None else "unavailable",
+        keyring="ok" if keyring.kid is not None else "unavailable",
+        keyring_source=keyring.source,
         unreadable_keys=sorted(row.key for row in rows if row.unreadable),
     )
 

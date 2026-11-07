@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useCallback, useRef, useEffect, ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { parseApiError } from '@/utils/httpErrorHandler'
 
 interface SettingsContextType {
   triggerSave: () => void
@@ -14,6 +15,16 @@ const SettingsContext = createContext<SettingsContextType | undefined>(undefined
 
 /** A save handler throws this to say why it won't save. Its message is the toast. */
 export class SaveRefusedError extends Error {}
+
+/**
+ * The toast for a failed save. A 422 from the server names the setting it
+ * refused and why, so that text rides along instead of being dropped (PR0-5).
+ */
+export function saveErrorText(error: unknown, fallback: string): string {
+  if (error instanceof SaveRefusedError) return error.message
+  const { status, detail } = parseApiError(error)
+  return status === 422 && detail ? `${fallback}: ${detail}` : fallback
+}
 
 export function SettingsProvider({ children }: { children: ReactNode }) {
   const { t } = useTranslation('settings')
@@ -43,8 +54,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       await handler()
       toast.success(t('settingsContext.saveSuccess'), { id: toastId })
     } catch (error) {
-      const text = error instanceof SaveRefusedError ? error.message : t('settingsContext.saveError')
-      toast.error(text, { id: toastId })
+      toast.error(saveErrorText(error, t('settingsContext.saveError')), { id: toastId })
     } finally {
       isSavingRef.current = false
     }

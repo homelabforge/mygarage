@@ -71,7 +71,7 @@ const DETAIL_STATUSES = [400, 401, 403, 404, 422, 503]
  *
  * The statuses whose detail `getActionErrorMessage` shows verbatim show it here too, and so does a
  * 503's: the backup preflight refuses a backup or restore with a 503 whose detail names the fix
- * (set MYGARAGE_SETTINGS_KEY, or make the data directory writable), and `getActionErrorMessage`
+ * for the key source that broke, and `getActionErrorMessage`
  * shows every 503 as a generic retry line, which hid it. Any other detail stays hidden.
  */
 function backupErrorMessage(err: unknown, fallback: string): string {

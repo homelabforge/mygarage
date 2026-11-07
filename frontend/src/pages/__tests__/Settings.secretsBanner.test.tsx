@@ -8,7 +8,7 @@
  * signed-in non-admin makes no request at all, rather than collecting a 403.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 
 const h = vi.hoisted(() => ({
   isAdmin: true,
@@ -30,7 +30,11 @@ import Settings from '../Settings'
 
 const STATUS_URL = '/settings/secrets/status'
 
-function answer(data: { keyring: 'ok' | 'unavailable'; unreadable_keys: string[] }): void {
+function answer(data: {
+  keyring: 'ok' | 'unavailable'
+  keyring_source?: string
+  unreadable_keys: string[]
+}): void {
   h.get.mockImplementation((url: string) =>
     url === STATUS_URL ? Promise.resolve({ data }) : Promise.reject(new Error(`unexpected ${url}`)),
   )
@@ -96,5 +100,22 @@ describe('Settings secrets banner', () => {
     await waitFor(() => expect(h.get).toHaveBeenCalledWith(STATUS_URL))
     await new Promise((resolve) => setTimeout(resolve, 0))
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  // B2-21: a broken env var wins over the data dir, so the banner names it.
+  it.each([
+    ['env', 'secretsStatus.keyringUnavailableEnv'],
+    ['env_file', 'secretsStatus.keyringUnavailableEnvFile'],
+    ['data_dir', 'secretsStatus.keyringUnavailable'],
+  ])('with the %s source broken it shows %s', async (source, text) => {
+    answer({ keyring: 'unavailable', keyring_source: source, unreadable_keys: [] })
+    render(<Settings />)
+
+    const banner = await screen.findByRole('alert')
+    // Exact matches: each key is a prefix of the next.
+    expect(within(banner).getByText(text)).toBeInTheDocument()
+    if (source !== 'data_dir') {
+      expect(within(banner).queryByText('secretsStatus.keyringUnavailable')).toBeNull()
+    }
   })
 })

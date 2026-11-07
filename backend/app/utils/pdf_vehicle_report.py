@@ -244,6 +244,14 @@ def _build_usage_efficiency_cards(
     return cards
 
 
+#: An hours reading's source as the PDF shows it; an unknown one prints as stored.
+_HOURS_SOURCE_LABELS = {
+    "manual": "Manual",
+    "fuel": "Fuel fill-up",
+    "service_visit": "Service visit",
+}
+
+
 def _build_hours_history_table(
     hours_accumulated: list[dict[str, Any]],
     styles: dict[str, Any],
@@ -255,10 +263,8 @@ def _build_hours_history_table(
     the most recent 20 readings to keep the report a reasonable length
     (mirrors the ``monthly_data[-12:]`` cap used for the spending chart).
 
-    ``source``/``notes`` are optional per-point keys (not part of the
-    ``HoursAccumulatedDataPoint`` analytics series today) — rendered when a
-    caller supplies them, "—" otherwise, so this table is forward-compatible
-    with a richer data source without further changes here.
+    ``source`` is the reading's origin from ``HoursAccumulatedDataPoint``
+    (G2c-108), shown as a label; a point without one shows "—".
     """
     cell_style = styles["TableCell"]
     amt_style = styles["TableAmount"]
@@ -272,7 +278,8 @@ def _build_hours_history_table(
     rows = []
     for point in ordered:
         engine_hours = _safe_decimal(point.get("engine_hours"))
-        source = point.get("source") or point.get("notes") or "—"
+        raw_source = point.get("source")
+        source = _HOURS_SOURCE_LABELS.get(raw_source, raw_source) if raw_source else "—"
         rows.append(
             [
                 Paragraph(_format_date(_parse_date(point.get("date")), date_order), cell_style),

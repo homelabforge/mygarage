@@ -37,6 +37,13 @@ def _esc(value: object) -> str:
     return "" if value is None else escape(str(value))
 
 
+def _clip(value: object, limit: int) -> str:
+    """``value`` as text, cut to ``limit`` characters with an ellipsis when it
+    was longer, so a cut reads as one (G1b-84)."""
+    text = str(value)
+    return text if len(text) <= limit else text[: limit - 1].rstrip() + "\u2026"
+
+
 class PDFReportGenerator:
     """Generate PDF reports for vehicle maintenance tracking.
 
@@ -242,7 +249,7 @@ class PDFReportGenerator:
                             self.styles["Normal"],
                         ),
                         Paragraph(
-                            _esc(str(record.get("service_type") or "N/A")[:50]),
+                            _esc(_clip(record.get("service_type") or "N/A", 50)),
                             self.styles["Normal"],
                         ),
                         self._format_currency(cost),
@@ -268,13 +275,15 @@ class PDFReportGenerator:
             # Create table
             table = Table(
                 table_data,
+                # 6.3 in: the 6.5 in between the margins less the frame's
+                # 6 pt padding each side (G1b-83).
                 colWidths=[
                     0.8 * inch,
-                    0.9 * inch,
-                    1.0 * inch,
-                    1.8 * inch,
-                    0.8 * inch,
+                    0.85 * inch,
+                    1.05 * inch,
                     1.4 * inch,
+                    1.0 * inch,
+                    1.2 * inch,
                 ],
             )
             table.setStyle(
@@ -351,10 +360,10 @@ class PDFReportGenerator:
                     [
                         self._format_date(record.get("date")),
                         self._format_odometer(record.get("odometer_km")),
-                        Paragraph(_esc(str(desc)[:80]), self.styles["Normal"]),
+                        Paragraph(_esc(_clip(desc, 80)), self.styles["Normal"]),
                     ]
                 )
-            table = Table(table_data, colWidths=[1.2 * inch, 1.4 * inch, 4.2 * inch])
+            table = Table(table_data, colWidths=[1.1 * inch, 1.3 * inch, 3.9 * inch])
             table.setStyle(
                 TableStyle(
                     [
@@ -472,7 +481,7 @@ class PDFReportGenerator:
             ]
         )
 
-        table = Table(table_data, colWidths=[3 * inch, 1 * inch, 1.5 * inch, 1.5 * inch])
+        table = Table(table_data, colWidths=[2.7 * inch, 0.9 * inch, 1.35 * inch, 1.35 * inch])
         table.setStyle(
             TableStyle(
                 [
@@ -578,7 +587,7 @@ class PDFReportGenerator:
                         self._format_date(record.get("date")),
                         record.get("category", "Service"),
                         Paragraph(
-                            _esc(str(record.get("description") or "")[:60]),
+                            _esc(_clip(record.get("description") or "", 60)),
                             self.styles["Normal"],
                         ),
                         self._format_currency(amount),
@@ -597,7 +606,9 @@ class PDFReportGenerator:
                 ]
             )
 
-            table = Table(table_data, colWidths=[1 * inch, 1.5 * inch, 3 * inch, 1.5 * inch])
+            table = Table(
+                table_data, colWidths=[0.95 * inch, 1.35 * inch, 2.65 * inch, 1.35 * inch]
+            )
             table.setStyle(
                 TableStyle(
                     [

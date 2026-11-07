@@ -16,7 +16,8 @@ from app.services.notifications.ntfy import NtfyNotificationService
 from app.services.notifications.pushover import PushoverNotificationService
 from app.services.notifications.slack import SlackNotificationService
 from app.services.notifications.telegram import TelegramNotificationService
-from app.services.settings_service import SecretUnreadableError, SettingsService
+from app.services.settings_init import DEFAULT_SETTINGS
+from app.services.settings_service import SecretUnreadableError, SettingsService, parse_bool
 from app.utils.render_context import RenderContext
 from app.utils.unit_formatting import format_forced_volume_pair, format_quantity
 
@@ -135,9 +136,11 @@ class NotificationDispatcher:
         if not any_service_enabled:
             return False
 
-        # Check specific event toggle
-        event_enabled = await self._get_setting_bool(event_key, default=True)
-        return event_enabled
+        # A missing or blank switch reads as its seeded value, the one the
+        # Settings screen shows, so milestones stay off (B5-3).
+        seed = DEFAULT_SETTINGS.get(event_key)
+        default = parse_bool(seed["value"], True) if seed else True
+        return await self._get_setting_bool(event_key, default=default)
 
     async def _has_any_service_enabled(self) -> bool:
         """Check if at least one notification service is enabled."""
@@ -163,7 +166,7 @@ class NotificationDispatcher:
         # Check ntfy
         if await self._get_setting_bool("ntfy_enabled", default=False):
             server = await self._get_setting("ntfy_server")
-            topic = await self._get_setting("ntfy_topic", default="mygarage")
+            topic = await self._get_setting("ntfy_topic")
             try:
                 # Optional: a blank token sends without auth, so an unreadable one
                 # must stop here rather than read as blank (R1-M1).
@@ -176,6 +179,13 @@ class NotificationDispatcher:
             else:
                 if server and topic:
                     services.append(NtfyNotificationService(server, topic, api_key))
+                else:
+                    # No shared fallback topic any more (B2-4), so say why
+                    # nothing is sent rather than skip in silence.
+                    logger.warning(
+                        "Skipping ntfy: it is switched on but its %s is blank",
+                        "server" if not server else "topic",
+                    )
 
         # Check gotify
         if await self._get_setting_bool("gotify_enabled", default=False):

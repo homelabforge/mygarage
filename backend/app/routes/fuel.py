@@ -115,7 +115,7 @@ async def parse_fuel_receipt(
 
     if text is not None and len(text) > MAX_RECEIPT_TEXT_CHARS:
         raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
             detail=f"Receipt text exceeds maximum of {MAX_RECEIPT_TEXT_CHARS} characters",
         )
 
@@ -133,7 +133,7 @@ async def parse_fuel_receipt(
         file.file.seek(0)
         if file_size > MAX_RECEIPT_UPLOAD_BYTES:
             raise HTTPException(
-                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                status_code=status.HTTP_413_CONTENT_TOO_LARGE,
                 detail=(
                     f"Receipt file exceeds maximum of {MAX_RECEIPT_UPLOAD_BYTES // (1024 * 1024)}MB"
                 ),

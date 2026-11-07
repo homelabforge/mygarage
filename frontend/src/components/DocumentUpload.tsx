@@ -4,6 +4,8 @@ import { Upload, X, FileText } from 'lucide-react'
 import { useUploadDocument } from '../hooks/queries/useDocuments'
 import { getActionErrorMessage } from '../utils/httpErrorHandler'
 import { applyControlledFieldErrors } from '../hooks/useApiFormErrors'
+import { usePublicSettings } from '../hooks/usePublicSettings'
+import { documentMaxBytes, megabytes } from '../utils/uploadLimits'
 import { Button, IconButton, Mono, Field, Input, Select, Textarea } from './ui'
 
 interface DocumentUploadProps {
@@ -15,6 +17,7 @@ interface DocumentUploadProps {
 export default function DocumentUpload({ vin, onSuccess, onClose }: DocumentUploadProps) {
   const { t } = useTranslation('vehicles')
   const uploadMutation = useUploadDocument(vin)
+  const publicSettings = usePublicSettings()
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
@@ -61,9 +64,10 @@ export default function DocumentUpload({ vin, onSuccess, onClose }: DocumentUplo
       return
     }
 
-    // Validate file size (25MB)
-    if (selectedFile.size > 25 * 1024 * 1024) {
-      setError(t('documentUpload.misc.fileTooLarge'))
+    // The server's documents limit; unknown means the server checks alone.
+    const maxBytes = documentMaxBytes(publicSettings)
+    if (maxBytes !== null && selectedFile.size > maxBytes) {
+      setError(t('documentUpload.misc.fileTooLargeLimit', { size: megabytes(maxBytes) }))
       return
     }
 
