@@ -377,9 +377,10 @@ class TestMapping:
         [
             ("M", "Manual"),
             ("A", "Automatic"),
-            ("S", "Continuously Variable Transmission (CVT)"),
-            ("s", "Continuously Variable Transmission (CVT)"),
-            ("H", None),
+            ("S", "Semi-Automatic"),
+            ("H", "Hydrostatic"),
+            ("h", "Hydrostatic"),
+            ("X", None),
             (None, None),
         ],
     )
@@ -448,6 +449,28 @@ class TestMapping:
     def test_gears_that_are_not_a_gear_count_read_as_missing(self, details):
         detail = {"GEARBOX_DETAILS": details}
         assert map_vehicle(VIN, ROW, detail, multiple=False)["transmission"]["speeds"] is None
+
+    @pytest.mark.parametrize(
+        "words",
+        [
+            "Continuously Variable",
+            ["Continuously Variable"],
+            "CVT",
+            "Variation continue",
+            "e-CVT",
+        ],
+    )
+    def test_s_reads_cvt_when_the_words_say_so(self, words):
+        # S is AutoRef's "Semi-auto/CVT": one code for both, so the words decide.
+        row = {**ROW, "CODE_GEARBOX": "S", "GEARBOX": "Semi-automatic"}
+        detail = {"GEARBOX": words}
+        assert map_vehicle(VIN, row, detail, multiple=False)["transmission"]["type"] == (
+            "Continuously Variable Transmission (CVT)"
+        )
+
+    def test_the_words_alone_never_make_a_cvt(self):
+        row = {**ROW, "CODE_GEARBOX": "A", "GEARBOX": "Continuously Variable"}
+        assert map_vehicle(VIN, row, {}, multiple=False)["transmission"]["type"] == "Automatic"
 
     def test_a_cvt_hybrid_reads_cvt_and_hybrid(self):
         # A 2020 Corolla 1.8 Hybrid as AutoRef answered it (live decode
