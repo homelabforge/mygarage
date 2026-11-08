@@ -1324,6 +1324,7 @@ async def test_two_restores_at_once_stage_one_after_the_other(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     test_sessionmaker: async_sessionmaker[AsyncSession],
+    init_test_db: None,
 ) -> None:
     """Two restores started together stage one at a time and leave one whole staging.
 

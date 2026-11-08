@@ -12,7 +12,7 @@ Plan tests 3, 4, 13 and the legacy-restore part of 14:
 - rotation (R1-H2): a backup under key A, restored after rotating to B, still
   reads once A is dropped;
 - every secret row the restore writes is marked `encrypted`, whatever the file says;
-- an unchanged legacy value restored over a plaintext row ends up encrypted (R1-H3).
+- a 2.0 plaintext file restores over the ciphertext of the same value, unchanged.
 
 Every assertion about a file reads the raw JSON text, and every assertion about
 the database reads the raw column through a fresh connection.
@@ -30,7 +30,7 @@ from app.models.settings import Setting
 from app.services.backup_service import BackupService
 from app.services.oidc import MASKED_SECRET_PLACEHOLDER
 from app.services.settings_secrets import ensure_secrets_encrypted, sweep_secret_settings
-from app.utils.settings_crypto import CIPHERTEXT_PREFIX, current_kid, decrypt, encrypt
+from app.utils.settings_crypto import CIPHERTEXT_PREFIX, decrypt, encrypt
 from tests.integration._secret_helpers import (
     Keep,
     UseKeys,
@@ -402,31 +402,32 @@ async def test_a_backup_under_an_old_key_survives_rotation(
         assert await read_back(test_sessionmaker, key) == plain, key
 
 
-# ---------------------------------------------------------------- test 14 (legacy restore)
+# ---------------------------------------------------------------- legacy restore over the same value
 
 
-async def test_an_unchanged_legacy_value_restored_over_plaintext_ends_encrypted(
+async def test_a_2_0_plaintext_file_restores_over_the_same_values_ciphertext(
     db_session: AsyncSession,
     test_sessionmaker: async_sessionmaker[AsyncSession],
     keep_rows: Keep,
     use_keys: UseKeys,
     tmp_path: Path,
 ) -> None:
-    """R1-H3: the same plaintext the row already holds is still written as ciphertext.
+    """The file's plaintext matches what the row already encrypts: restored, nothing skipped.
 
-    The service refuses to restore over a plaintext row, so the preflight runs
-    first, as the restore route runs it.
+    The setter sees the same value under the current key and leaves the bytes
+    alone, so the row doesn't churn. The preflight runs first, as the route runs it.
     """
     kid = use_keys(KEY_A)
     await only_these_secret_rows(db_session, keep_rows, {"ntfy_token": PLAIN_NTFY})
     service = _service(tmp_path)
     filename = _write_file(service, [{"key": "ntfy_token", "value": PLAIN_NTFY}], version="2.0")
     await ensure_secrets_encrypted(db_session)
+    before = await raw_column(test_sessionmaker, "ntfy_token")
+    assert before is not None and before.startswith(f"{CIPHERTEXT_PREFIX}{kid}:")
 
     details = await service.restore_settings_backup(filename, db_session, create_safety=False)
 
+    assert details["restored_count"] == 1
     assert details["skipped_secret_keys"] == []
-    stored = await raw_column(test_sessionmaker, "ntfy_token")
-    assert stored is not None and stored.startswith(f"{CIPHERTEXT_PREFIX}{kid}:")
-    assert current_kid() == kid
+    assert await raw_column(test_sessionmaker, "ntfy_token") == before
     assert await read_back(test_sessionmaker, "ntfy_token") == PLAIN_NTFY

@@ -292,7 +292,9 @@ async def plaintext_secret_keys(db: AsyncSession) -> tuple[str, ...]:
     """The secret keys whose raw column is non-empty and not ciphertext, sorted.
 
     The backup service checks this too, so a caller that skipped the preflight
-    still can't write a backup holding plaintext. A column select, so it reads the database (flushed rows included), not the
+    still can't write a backup holding plaintext.
+
+    A column select, so it reads the database (flushed rows included), not the
     identity map. The prefix is compared in Python: SQL ``LIKE`` is
     case-insensitive on SQLite.
     """

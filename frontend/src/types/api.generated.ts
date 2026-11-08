@@ -980,7 +980,7 @@ export interface paths {
          *     the archive copies the database.
          *
          *     Args:
-         *         db: Database session, for the preflight only
+         *         db: Database session, for the preflight and the service's plaintext check
          *
          *     Returns:
          *         Metadata about the created backup file
@@ -1090,6 +1090,9 @@ export interface paths {
          *     A settings restore that skipped secret keys (ciphertext no key in the keyring opens, or
          *     plaintext with no keyring to encrypt it) lists them in `details.skipped_secret_keys` and names
          *     them in `warning`; those keys keep their current values.
+         *
+         *     A bad name is a 400 and a missing backup a 404, both checked before the preflight, so neither
+         *     reads as a 503 while a secret can't be encrypted.
          *
          *     Args:
          *         filename: Name of the backup file to restore from
