@@ -14,7 +14,6 @@ from app.models.settings import Setting
 from app.services.setting_rules import (
     GENERIC_WRITABLE_KEYS,
     SWITCH_SETTING_KEYS,
-    _switch_keys,
     canonical_setting_value,
     check_setting_value,
 )
@@ -230,19 +229,6 @@ def test_a_seeded_switch_is_a_switch_key(key: str) -> None:
 @pytest.mark.parametrize("key", ["auth_mode", "nhtsa_recall_check_interval"])
 def test_a_seeded_non_switch_is_not_a_switch_key(key: str) -> None:
     assert key not in SWITCH_SETTING_KEYS
-
-
-@pytest.mark.unit
-def test_the_switch_keys_derive_from_the_seed() -> None:
-    """A newly seeded switch is canonicalized without a second edit; an entry with
-    no `value` (as `default_unit_prefs` is seeded) is skipped, not a KeyError."""
-    seed: dict[str, dict[str, str]] = {
-        "fake_feature_enabled": {"value": "false", "category": "general"},
-        "fake_other_switch": {"value": "true", "category": "general"},
-        "fake_number": {"value": "0", "category": "general"},
-        "fake_derived": {"category": "general"},
-    }
-    assert _switch_keys(seed) == {"fake_feature_enabled", "fake_other_switch"}
 
 
 @pytest.mark.unit

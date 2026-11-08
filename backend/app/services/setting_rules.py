@@ -23,7 +23,6 @@ made the daily prune delete every raw reading and location point.
 from __future__ import annotations
 
 import math
-from collections.abc import Mapping
 
 from app.constants.countries import (
     DEFAULT_COUNTRY_SETTING_KEY,
@@ -39,6 +38,7 @@ from app.services.llm_client import (
     is_http_url,
 )
 from app.services.recalls.rappelconso import API_URL_SETTING as RAPPELCONSO_API_URL_SETTING
+from app.services.setting_switches import SWITCH_SETTING_KEYS
 from app.services.settings_init import DEFAULT_SETTINGS
 from app.services.settings_service import SWITCH_OFF_VALUES, SWITCH_ON_VALUES
 from app.utils.household_time import TIMEZONE_SETTING_KEY
@@ -65,20 +65,6 @@ GENERIC_WRITABLE_KEYS: frozenset[str] = frozenset(
 ) | {TIMEZONE_SETTING_KEY}
 
 _AUTH_MODES = frozenset({"none", "local", "oidc"})
-
-
-def _switch_keys(seed: Mapping[str, Mapping[str, object]]) -> frozenset[str]:
-    """The keys in `seed` whose seeded value is "true" or "false".
-
-    An entry with no `value` (`default_unit_prefs` is derived at seed time) is
-    not a switch; `meta["value"]` there would be a KeyError at import.
-    """
-    return frozenset(key for key, meta in seed.items() if meta.get("value") in ("true", "false"))
-
-
-#: Every seeded on/off setting. Derived from the seed list, so a newly seeded
-#: switch is stored canonically without a second edit here.
-SWITCH_SETTING_KEYS: frozenset[str] = _switch_keys(DEFAULT_SETTINGS)
 
 
 def canonical_setting_value(key: str, value: str | None) -> str | None:
