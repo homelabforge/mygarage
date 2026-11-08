@@ -68,6 +68,8 @@ export default function SettingsFilesTab(): React.ReactElement {
       }
       setFormData(newFormData)
       setLoadedFormData(newFormData)
+      // A reload that works takes back the error a failed one left.
+      setMessage(null)
     } else {
       setMessage({ type: 'error', text: t('files.loadError') })
     }

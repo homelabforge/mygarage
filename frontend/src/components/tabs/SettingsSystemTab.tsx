@@ -162,6 +162,8 @@ export default function SettingsSystemTab() {
       }
       setFormData(newFormData)
       setLoadedFormData(newFormData)
+      // A mode switch re-reads, so a failed read before this one can't keep its error up.
+      setLoadFailed(false)
       setServerDefaultZone(settingsMap.timezone ? null : settingsMap.effective_timezone || null)
 
       const mode: AuthMode = AUTH_MODES.includes(settingsMap.auth_mode as AuthMode)

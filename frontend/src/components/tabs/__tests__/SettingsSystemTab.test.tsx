@@ -562,6 +562,25 @@ describe('SettingsSystemTab: switching the mode', () => {
     expect(toast.success).not.toHaveBeenCalled()
   })
 
+  it('a re-read that works clears the error a failed one left', async () => {
+    serveSettings('local')
+    // The first switch's re-read fails, the second one's works.
+    refreshUser.mockImplementationOnce(async () => {
+      failGet('/settings')
+    })
+    renderTab()
+    fireEvent.click(await screen.findByRole('button', { name: /auth\.none/ }))
+    await clickWhenEnabled('auth.switchToNone')
+    expect(await screen.findByText('common:errors.generic')).toBeInTheDocument()
+
+    serveSettings('none')
+    fireEvent.click(await screen.findByRole('button', { name: /auth\.none/ }))
+    await clickWhenEnabled('auth.switchToNone')
+
+    await waitFor(() => expect(refreshUser).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(screen.queryByText('common:errors.generic')).not.toBeInTheDocument())
+  })
+
   it('with the SSO config unreadable, sign-in can still be turned off', async () => {
     serveSettings('local')
     failGet('/auth/oidc/config/admin')

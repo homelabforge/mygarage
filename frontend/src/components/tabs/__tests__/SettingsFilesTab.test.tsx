@@ -7,7 +7,7 @@
 
 import { useEffect } from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within, type RenderResult } from '@testing-library/react'
 import { SettingsProvider, useSettings } from '@/contexts/SettingsContext'
 import type { components } from '@/types/api.generated'
 
@@ -17,13 +17,17 @@ vi.mock('@/services/api', () => ({
 
 // Same reason as SettingsSystemTab.test.tsx: pin one `t`, or the load effect
 // keyed on it re-fires forever. Interpolated values are appended after a `|`,
-// so a test can see what reached the string.
-vi.mock('react-i18next', () => {
-  const stableT = (key: string, opts?: Record<string, unknown>) =>
+// so a test can see what reached the string. A test swaps in a fresh `t` to
+// re-run the load once, the way a language switch does.
+const i18n = vi.hoisted(() => {
+  const makeT = () => (key: string, opts?: Record<string, unknown>): string =>
     opts ? [key, ...Object.values(opts).map(String)].join('|') : key
+  return { makeT, t: makeT() }
+})
+vi.mock('react-i18next', () => {
   return {
     useTranslation: () => ({
-      t: stableT,
+      t: i18n.t,
       i18n: { language: 'en', changeLanguage: () => Promise.resolve() },
     }),
     Trans: ({ children }: { children: React.ReactNode }) => children,
@@ -60,21 +64,33 @@ function ActiveFilesTab(): React.ReactElement {
   return <SettingsFilesTab />
 }
 
-function renderTab(): void {
-  render(
+function tree(): React.ReactElement {
+  return (
     <SettingsProvider>
       <ActiveFilesTab />
-    </SettingsProvider>,
+    </SettingsProvider>
   )
 }
 
-/** GET /settings answers `settings`; GET /settings/upload-limits answers `limits`, or fails. */
+function renderTab(): RenderResult {
+  return render(tree())
+}
+
+/** Load again with a fresh `t`, as a language switch would. */
+function reloadWithNewT(rerender: RenderResult['rerender']): void {
+  i18n.t = i18n.makeT()
+  rerender(tree())
+}
+
+/** GET /settings answers `settings`; GET /settings/upload-limits answers `limits`. Either can fail. */
 function serve(
-  settings: { key: string; value: string }[],
+  settings: { key: string; value: string }[] | Error,
   limits: typeof LIMITS | Error = LIMITS,
 ): void {
   mockedApi.get.mockImplementation((url: string) => {
-    if (url === '/settings') return Promise.resolve({ data: { settings } })
+    if (url === '/settings') {
+      return settings instanceof Error ? Promise.reject(settings) : Promise.resolve({ data: { settings } })
+    }
     if (url === '/settings/upload-limits') {
       return limits instanceof Error ? Promise.reject(limits) : Promise.resolve({ data: limits })
     }
@@ -138,6 +154,18 @@ describe('SettingsFilesTab: the upload limits', () => {
     expect(screen.getByRole('checkbox', { name: 'files.enableWindowSticker' })).toBeInTheDocument()
   })
 
+  it('a reload that gets the limits shows them, even after one that failed', async () => {
+    serve([], new Error('down'))
+    const { rerender } = renderTab()
+    expect(await screen.findByText('files.limitsLoadError')).toBeInTheDocument()
+
+    serve([])
+    reloadWithNewT(rerender)
+
+    expect(await screen.findByRole('table')).toBeInTheDocument()
+    expect(screen.queryByText('files.limitsLoadError')).not.toBeInTheDocument()
+  })
+
   it('has no size input or type grid left to edit', async () => {
     serve([])
     renderTab()
@@ -146,6 +174,22 @@ describe('SettingsFilesTab: the upload limits', () => {
     expect(screen.queryByRole('spinbutton')).not.toBeInTheDocument()
     // The two sticker switches are the only checkboxes on the tab.
     expect(screen.getAllByRole('checkbox')).toHaveLength(2)
+  })
+})
+
+describe('SettingsFilesTab: the settings load error', () => {
+  it('goes away once a reload gets the settings', async () => {
+    serve(new Error('down'))
+    const { rerender } = renderTab()
+    expect(await screen.findByText('files.loadError')).toBeInTheDocument()
+
+    serve([])
+    reloadWithNewT(rerender)
+
+    // Both GETs again, so the reload really ran.
+    await waitFor(() => expect(mockedApi.get).toHaveBeenCalledTimes(4))
+    await waitFor(() => expect(screen.queryByText('files.loadError')).not.toBeInTheDocument())
+    expect(screen.getByRole('checkbox', { name: 'files.enableWindowSticker' })).toBeInTheDocument()
   })
 })
 

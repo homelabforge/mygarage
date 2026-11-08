@@ -5,7 +5,11 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, BeforeValidator, Field, field_validator
 
-from app.models.livelink_parameter import DISPLAY_NAME_MAX_LENGTH
+from app.models.livelink_parameter import (
+    CATEGORY_MAX_LENGTH,
+    DISPLAY_NAME_MAX_LENGTH,
+    ICON_MAX_LENGTH,
+)
 from app.schemas._nullability import reject_null
 from app.utils.lenient_vocab import LenientVocab, lenient_reader
 
@@ -304,7 +308,9 @@ class LiveLinkParameterCreate(LiveLinkParameterBase):
     display_name: str | None = Field(
         None, max_length=DISPLAY_NAME_MAX_LENGTH, description="User-friendly display name"
     )
-    category: str | None = Field(None, max_length=50, description="Category for grouping")
+    category: str | None = Field(
+        None, max_length=CATEGORY_MAX_LENGTH, description="Category for grouping"
+    )
 
 
 class LiveLinkParameterUpdate(BaseModel):
@@ -315,8 +321,12 @@ class LiveLinkParameterUpdate(BaseModel):
     display_name: str | None = Field(
         None, max_length=DISPLAY_NAME_MAX_LENGTH, description="User-friendly display name"
     )
-    category: str | None = Field(None, max_length=50, description="Category for grouping")
-    icon: str | None = Field(None, max_length=50, description="Icon identifier for frontend")
+    category: str | None = Field(
+        None, max_length=CATEGORY_MAX_LENGTH, description="Category for grouping"
+    )
+    icon: str | None = Field(
+        None, max_length=ICON_MAX_LENGTH, description="Icon identifier for frontend"
+    )
     # The three alert lines: an explicit null switches a line off, an omitted
     # field leaves it as it is. Not NaN or infinity: NaN is a line no value
     # ever crosses. Lines are compared in the stored unit, so they're in it too.
