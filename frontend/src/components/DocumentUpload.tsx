@@ -4,7 +4,7 @@ import { Upload, X, FileText } from 'lucide-react'
 import { useUploadDocument } from '../hooks/queries/useDocuments'
 import { getActionErrorMessage } from '../utils/httpErrorHandler'
 import { applyControlledFieldErrors } from '../hooks/useApiFormErrors'
-import { usePublicSettings } from '../hooks/usePublicSettings'
+import { usePublicSettings } from '../hooks/queries/usePublicSettings'
 import { documentMaxBytes, megabytes } from '../utils/uploadLimits'
 import { Button, IconButton, Mono, Field, Input, Select, Textarea } from './ui'
 

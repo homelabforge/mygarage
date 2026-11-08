@@ -61,6 +61,7 @@ vi.mock('@/components/modals/FamilyManagementModal', () => ({ default: () => nul
 import api from '@/services/api'
 import { toast } from 'sonner'
 import SettingsSystemTab from '../SettingsSystemTab'
+import { SECRETS_STATUS_QUERY_KEY } from '@/hooks/queries/useSecretsStatus'
 
 const mockedApi = vi.mocked(api)
 
@@ -72,7 +73,7 @@ function ActiveSystemTab() {
   return <SettingsSystemTab />
 }
 
-function renderTab(): void {
+function renderTab(): QueryClient {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
     <QueryClientProvider client={queryClient}>
@@ -81,6 +82,7 @@ function renderTab(): void {
       </SettingsProvider>
     </QueryClientProvider>,
   )
+  return queryClient
 }
 
 function serveSettings(mode: string, hasUsers = true, oidc: Partial<Record<string, unknown>> = {}): void {
@@ -280,6 +282,7 @@ describe('SettingsSystemTab: switching the mode', () => {
     // behind, and the next test would get them.
     mockedApi.put.mockReset().mockResolvedValue({ data: {} })
     mockedApi.post.mockReset().mockResolvedValue({ data: {} })
+    refreshUser.mockReset()
     confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
   })
   afterEach(() => {
@@ -660,6 +663,17 @@ describe('SettingsSystemTab: the SSO modal waits for the re-read', () => {
     expect(settled).toBe(false)
     hold.release?.()
     await waitFor(() => expect(settled).toBe(true))
+  })
+
+  it('a saved SSO config marks the secrets banner stale, so a re-entered secret clears it', async () => {
+    serveSettings('oidc')
+    const client = renderTab()
+    await waitFor(() => expect(oidcModal.props).not.toBeNull())
+    client.setQueryData(SECRETS_STATUS_QUERY_KEY, { keyring: 'ok', unreadable_keys: ['oidc_client_secret'] })
+
+    await oidcModal.props?.onSaved()
+
+    expect(client.getQueryState(SECRETS_STATUS_QUERY_KEY)?.isInvalidated).toBe(true)
   })
 })
 

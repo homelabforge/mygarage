@@ -4,7 +4,8 @@
  * Another tab catches up on its next visibility refresh.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, waitFor, act } from '@testing-library/react'
+import { screen, waitFor, act } from '@testing-library/react'
+import { renderWithQueryClient } from '@/__tests__/queryClient'
 import { AuthProvider, useAuth } from '../AuthContext'
 
 vi.mock('../../services/api', () => ({
@@ -54,7 +55,7 @@ afterEach(() => {
 describe('AuthContext follows the sign-in mode', () => {
   it('a refresh that finds sign-in off drops the signed-in user', async () => {
     serve('local')
-    render(<AuthProvider><Probe /></AuthProvider>)
+    renderWithQueryClient(<AuthProvider><Probe /></AuthProvider>)
     await waitFor(() => expect(screen.getByTestId('state')).toHaveTextContent('local:true:true'))
 
     serve('none')
@@ -65,7 +66,7 @@ describe('AuthContext follows the sign-in mode', () => {
 
   it('a refresh that finds sign-in on tells the api before it asks for the user', async () => {
     serve('none')
-    render(<AuthProvider><Probe /></AuthProvider>)
+    renderWithQueryClient(<AuthProvider><Probe /></AuthProvider>)
     await waitFor(() => expect(screen.getByTestId('state')).toHaveTextContent('none:false:false'))
 
     serve('local')
@@ -83,7 +84,7 @@ describe('AuthContext follows the sign-in mode', () => {
 
   it('a visibility refresh that finds another mode reloads the user', async () => {
     serve('local')
-    render(<AuthProvider><Probe /></AuthProvider>)
+    renderWithQueryClient(<AuthProvider><Probe /></AuthProvider>)
     await waitFor(() => expect(screen.getByTestId('state')).toHaveTextContent('local:true:true'))
 
     serve('none')
@@ -98,7 +99,7 @@ describe('AuthContext follows the sign-in mode', () => {
 
   it('a visibility refresh with the same mode does not ask for the user again', async () => {
     serve('local')
-    render(<AuthProvider><Probe /></AuthProvider>)
+    renderWithQueryClient(<AuthProvider><Probe /></AuthProvider>)
     await waitFor(() => expect(screen.getByTestId('state')).toHaveTextContent('local:true:true'))
     const meCalls = () => mockedApi.get.mock.calls.filter(([u]) => u === '/auth/me').length
     const before = meCalls()

@@ -26,7 +26,17 @@ export function saveErrorText(error: unknown, fallback: string): string {
   return status === 422 && detail ? `${fallback}: ${detail}` : fallback
 }
 
-export function SettingsProvider({ children }: { children: ReactNode }) {
+interface SettingsProviderProps {
+  children: ReactNode
+  /**
+   * Runs after a tab's save succeeds and before the save reports done, to
+   * refresh what the save may have changed elsewhere (the public settings,
+   * the secrets banner).
+   */
+  onSaved?: () => Promise<void>
+}
+
+export function SettingsProvider({ children, onSaved }: SettingsProviderProps) {
   const { t } = useTranslation('settings')
   const [currentTabId, setCurrentTabId] = useState<string | null>(null)
   const saveHandlers = useRef<Map<string, () => Promise<void>>>(new Map())
@@ -52,13 +62,14 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
     try {
       await handler()
+      await onSaved?.()
       toast.success(t('settingsContext.saveSuccess'), { id: toastId })
     } catch (error) {
       toast.error(saveErrorText(error, t('settingsContext.saveError')), { id: toastId })
     } finally {
       isSavingRef.current = false
     }
-  }, [currentTabId, t])
+  }, [currentTabId, onSaved, t])
 
   const triggerSave = useCallback(() => {
     // Clear any existing timeout

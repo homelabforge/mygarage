@@ -100,6 +100,8 @@ function serve(
 
 beforeEach(() => {
   vi.clearAllMocks()
+  // A reload test swaps `t`; each test starts from its own.
+  i18n.t = i18n.makeT()
   mockedApi.post.mockResolvedValue({ data: { settings: [], total: 0 } })
 })
 

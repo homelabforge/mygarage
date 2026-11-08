@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { useState } from 'react'
 import { render, screen, waitFor, act } from '@testing-library/react'
+import { renderWithQueryClient } from '@/__tests__/queryClient'
 import { AuthProvider, useAuth } from '../AuthContext'
 
 // Mock the api module
@@ -84,7 +85,7 @@ describe('AuthContext', () => {
     // Use a never-resolving promise to stay in loading
     mockedApi.get.mockReturnValue(new Promise(() => {}))
 
-    render(
+    renderWithQueryClient(
       <AuthProvider>
         <AuthConsumer />
       </AuthProvider>
@@ -110,7 +111,7 @@ describe('AuthContext', () => {
       return Promise.reject(new Error('Not found'))
     })
 
-    render(
+    renderWithQueryClient(
       <AuthProvider>
         <AuthConsumer />
       </AuthProvider>
@@ -143,7 +144,7 @@ describe('AuthContext', () => {
       return Promise.reject(new Error('Not found'))
     })
 
-    render(
+    renderWithQueryClient(
       <AuthProvider>
         <AuthConsumer />
       </AuthProvider>
@@ -173,7 +174,7 @@ describe('AuthContext', () => {
       return Promise.reject(new Error('Not found'))
     })
 
-    render(
+    renderWithQueryClient(
       <AuthProvider>
         <AuthConsumer />
       </AuthProvider>
@@ -193,7 +194,7 @@ describe('AuthContext', () => {
     // Initial /auth/me fails
     mockedApi.get.mockRejectedValueOnce({ response: { status: 401 } })
 
-    render(
+    renderWithQueryClient(
       <AuthProvider>
         <AuthConsumer />
       </AuthProvider>
@@ -242,7 +243,7 @@ describe('AuthContext', () => {
       return Promise.reject(new Error('Not found'))
     })
 
-    render(
+    renderWithQueryClient(
       <AuthProvider>
         <AuthConsumer />
       </AuthProvider>
@@ -273,7 +274,7 @@ describe('AuthContext', () => {
       data: { settings: [{ key: 'auth_mode', value: 'none' }] },
     })
 
-    render(
+    renderWithQueryClient(
       <AuthProvider>
         <AuthConsumer />
       </AuthProvider>
@@ -308,7 +309,7 @@ describe('AuthContext', () => {
       data: { settings: [{ key: 'auth_mode', value: 'none' }] },
     })
 
-    render(
+    renderWithQueryClient(
       <AuthProvider>
         <AuthConsumer />
       </AuthProvider>
@@ -346,7 +347,7 @@ describe('AuthContext', () => {
       data: { settings: [{ key: 'auth_mode', value: 'none' }] },
     })
 
-    render(
+    renderWithQueryClient(
       <AuthProvider>
         <AuthConsumer />
       </AuthProvider>
@@ -389,7 +390,7 @@ describe('AuthContext', () => {
       return Promise.reject(new Error('Not found'))
     })
 
-    render(
+    renderWithQueryClient(
       <AuthProvider>
         <AuthConsumer />
       </AuthProvider>
@@ -398,5 +399,59 @@ describe('AuthContext', () => {
     await waitFor(() => {
       expect(screen.getByTestId('admin')).toHaveTextContent('true')
     })
+  })
+
+  it('asks for public settings before /auth/me, and only once they answer', async () => {
+    // Bug #98: probing /auth/me before the mode is known 401s into /login.
+    let answerSettings: (value: unknown) => void = () => {}
+    mockedApi.get.mockImplementation((url: string) => {
+      if (url === '/settings/public') {
+        return new Promise((resolve) => {
+          answerSettings = resolve
+        })
+      }
+      if (url === '/auth/me') {
+        return Promise.resolve({ data: { id: 1, username: 'testuser', is_admin: false } })
+      }
+      return Promise.reject(new Error('Not found'))
+    })
+
+    renderWithQueryClient(
+      <AuthProvider>
+        <AuthConsumer />
+      </AuthProvider>
+    )
+
+    await waitFor(() => expect(mockedApi.get).toHaveBeenCalledWith('/settings/public'))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(mockedApi.get).not.toHaveBeenCalledWith('/auth/me')
+
+    await act(async () => {
+      answerSettings({ data: { settings: [{ key: 'auth_mode', value: 'local' }] } })
+    })
+    await waitFor(() => expect(screen.getByTestId('username')).toHaveTextContent('testuser'))
+    const urls = mockedApi.get.mock.calls.map((call: unknown[]) => call[0])
+    expect(urls.indexOf('/settings/public')).toBeLessThan(urls.indexOf('/auth/me'))
+  })
+
+  it('boots into the shared public settings query, not a private copy', async () => {
+    const rows = [
+      { key: 'auth_mode', value: 'none' },
+      { key: 'nhtsa_enabled', value: 'false' },
+    ]
+    mockedApi.get.mockImplementation((url: string) =>
+      url === '/settings/public'
+        ? Promise.resolve({ data: { settings: rows } })
+        : Promise.reject(new Error('Not found')),
+    )
+
+    const { client } = renderWithQueryClient(
+      <AuthProvider>
+        <AuthConsumer />
+      </AuthProvider>
+    )
+
+    await waitFor(() => expect(screen.getByTestId('loading')).toHaveTextContent('false'))
+    expect(client.getQueryData(['settings', 'public'])).toEqual(rows)
   })
 })

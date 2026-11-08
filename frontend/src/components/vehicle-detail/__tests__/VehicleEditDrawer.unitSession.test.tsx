@@ -8,7 +8,8 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { ReactElement, ReactNode } from 'react'
-import { act, render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { act, screen, fireEvent, waitFor } from '@testing-library/react'
+import { renderWithQueryClient } from '@/__tests__/queryClient'
 import { MemoryRouter } from 'react-router-dom'
 import type { Vehicle } from '../../../types/vehicle'
 import type { UnitSet } from '../../../types/units'
@@ -103,7 +104,7 @@ beforeEach(() => {
 
 describe('VehicleEditDrawer holds the account units while open', () => {
   it('a flip to metric mid-edit keeps gal and stores the typed gallons', async () => {
-    render(drawer(true))
+    renderWithQueryClient(drawer(true))
     await waitFor(() => expect(capacity().value).toBe('10'))
     expect(capacityLabel()).toMatch(/\(gal\)/)
 
@@ -121,7 +122,7 @@ describe('VehicleEditDrawer holds the account units while open', () => {
   })
 
   it('guard: it stays mounted through a close, and the next open takes the new units', async () => {
-    const { rerender } = render(drawer(true))
+    const { rerender } = renderWithQueryClient(drawer(true))
     await waitFor(() => expect(capacity().value).toBe('10'))
     rerender(drawer(false))
     flipToMetric()

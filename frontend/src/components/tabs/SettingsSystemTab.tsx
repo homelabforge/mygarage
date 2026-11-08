@@ -1,9 +1,11 @@
 import { useState, useCallback, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useQueryClient } from '@tanstack/react-query'
 import { Server, AlertCircle, Info, Shield, Users, AlertTriangle, Key, Wrench, Fuel, Bell, FileText, StickyNote, Camera, Archive, Smartphone } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useSettings } from '@/contexts/SettingsContext'
 import { useCanManageInstance } from '@/hooks/useCanManageInstance'
+import { SECRETS_STATUS_QUERY_KEY } from '@/hooks/queries/useSecretsStatus'
 import type { DashboardResponse } from '@/types/dashboard'
 import type { components } from '@/types/api.generated'
 import api from '@/services/api'
@@ -51,7 +53,7 @@ function ssoPayload(config: OIDCAdminConfigResponse, enabled: boolean): Omit<OID
  */
 export default function SettingsSystemTab() {
   const { t } = useTranslation('settings')
-  const { isAuthenticated, isAdmin, user: currentUser, refreshUser, refreshPublicSettings } = useAuth()
+  const { isAuthenticated, isAdmin, user: currentUser, refreshUser } = useAuth()
   const canManageInstance = useCanManageInstance()
   const { triggerSave, registerSaveHandler, unregisterSaveHandler } = useSettings()
   const [formData, setFormData] = useState({
@@ -142,6 +144,14 @@ export default function SettingsSystemTab() {
       return null
     }
   }, [])
+
+  // The modal saves on its own button, outside the tab's auto-save, and it can
+  // re-enter the client secret, so the secrets banner reads again too.
+  const queryClient = useQueryClient()
+  const handleOidcSaved = useCallback(async (): Promise<void> => {
+    void queryClient.invalidateQueries({ queryKey: SECRETS_STATUS_QUERY_KEY })
+    await loadOidcConfig()
+  }, [loadOidcConfig, queryClient])
 
   // Load settings. Returns what it read, so a mode switch can tell what landed.
   const loadSettings = useCallback(async (): Promise<{ mode: AuthMode; oidc: OIDCAdminConfigResponse | null } | null> => {
@@ -250,15 +260,11 @@ export default function SettingsSystemTab() {
     if (Object.keys(changed).length > 0) {
       await api.post('/settings/batch', { settings: changed })
     }
-    // What's saved is the new baseline for the next diff.
+    // What's saved is the new baseline for the next diff. The Settings page
+    // re-reads public settings after every save, a new zone included, before
+    // the save reports done.
     setLoadedFormData(formData)
-
-    if ('timezone' in changed) {
-      // The saved zone changes what "today" means for every open form;
-      // update the browser store before leaving the saving state.
-      await refreshPublicSettings()
-    }
-  }, [formData, loadedFormData, refreshPublicSettings])
+  }, [formData, loadedFormData])
 
   const saveAutoArchiveDays = async () => {
     // Blank means off, as before. Anything else has to be a whole number of
@@ -890,7 +896,7 @@ export default function SettingsSystemTab() {
           isOpen={showOIDCModal}
           onClose={() => setShowOIDCModal(false)}
           config={oidcConfig}
-          onSaved={loadOidcConfig}
+          onSaved={handleOidcSaved}
         />
       )}
     </div>

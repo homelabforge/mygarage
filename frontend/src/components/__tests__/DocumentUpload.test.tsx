@@ -8,7 +8,7 @@ vi.mock('../../hooks/queries/useDocuments', () => ({
 }))
 
 const publicSettings = vi.hoisted(() => ({ values: {} as Record<string, string> }))
-vi.mock('../../hooks/usePublicSettings', () => ({ usePublicSettings: () => publicSettings.values }))
+vi.mock('../../hooks/queries/usePublicSettings', () => ({ usePublicSettings: () => publicSettings.values }))
 
 import DocumentUpload from '../DocumentUpload'
 

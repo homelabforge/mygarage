@@ -1,8 +1,10 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import api, { setCSRFToken, getCSRFToken, clearCSRFToken, setApiAuthMode } from '../services/api'
+import { publicSettingsQuery } from '../hooks/queries/usePublicSettings'
 import type { components } from '../types/api.generated'
 import type { UnitSet } from '../types/units'
-import { readPublicUnitDefaults, type PublicSetting } from '../utils/publicUnitDefaults'
+import { readPublicUnitDefaults } from '../utils/publicUnitDefaults'
 import { readPublicDefaultCountry } from '../utils/publicCountryDefault'
 import { setHouseholdTimeZone } from '../constants/i18n'
 
@@ -61,10 +63,11 @@ interface AuthContextType {
   logout: () => void
   refreshUser: () => Promise<void>
   /**
-   * Refetch `/settings/public` and update the stores it feeds (the instance
-   * unit defaults and the household time zone). The System tab awaits it
-   * after a save whose batch included `timezone`; the Backup tab after a
-   * restore; every client calls it on `visibilitychange`, rate-limited.
+   * Refetch `/settings/public` and update the stores it feeds (the shared
+   * query every reader selects from, the instance unit defaults and the
+   * household time zone). The Settings page awaits it after every save; the
+   * Backup tab after a restore; every client calls it on `visibilitychange`,
+   * rate-limited.
    */
   refreshPublicSettings: () => Promise<void>
   /**
@@ -87,6 +90,16 @@ export function AuthProvider({ children }: { children: ReactNode}) {
   const [defaultUnitPrefs, setDefaultUnitPrefs] = useState<UnitSet | null>(null)
   const [defaultCountry, setDefaultCountry] = useState<string | null>(null)
   const [publicSettingsLoaded, setPublicSettingsLoaded] = useState(false)
+  // The tree's client, not the module one, so a test's cache is the one used.
+  const queryClient = useQueryClient()
+
+  // Always a real request (staleTime 0), and it throws on failure so the
+  // callers' catches still run. No retry: a failed boot read must reach
+  // loadUser's catch now, not a second later.
+  const fetchPublicSettings = useCallback(
+    () => queryClient.fetchQuery({ ...publicSettingsQuery, staleTime: 0, retry: false }),
+    [queryClient],
+  )
 
   // Logout function - calls backend to clear cookie and CSRF token
   const logout = useCallback(async () => {
@@ -119,8 +132,7 @@ export function AuthProvider({ children }: { children: ReactNode}) {
   // the user when auth is enabled.
   const loadUser = useCallback(async () => {
     try {
-      const settingsResponse = await api.get('/settings/public')
-      const publicSettings: PublicSetting[] = settingsResponse.data?.settings ?? []
+      const publicSettings = await fetchPublicSettings()
 
       // Read BEFORE the auth_mode short-circuit below, not after. auth_mode
       // 'none' is the one mode with no user to carry a unit preference, so it
@@ -167,7 +179,7 @@ export function AuthProvider({ children }: { children: ReactNode}) {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [fetchPublicSettings])
 
   // Load user info on mount (cookie-based auth)
   useEffect(() => {
@@ -179,8 +191,7 @@ export function AuthProvider({ children }: { children: ReactNode}) {
 
   const refreshPublicSettings = useCallback(async () => {
     try {
-      const settingsResponse = await api.get('/settings/public')
-      const publicSettings: PublicSetting[] = settingsResponse.data?.settings ?? []
+      const publicSettings = await fetchPublicSettings()
       setDefaultUnitPrefs(readPublicUnitDefaults(publicSettings))
       setDefaultCountry(readPublicDefaultCountry(publicSettings))
       {
@@ -200,7 +211,7 @@ export function AuthProvider({ children }: { children: ReactNode}) {
       // date it fills in or judges; the browser catches up on the next
       // successful refetch or reload.
     }
-  }, [loadUser])
+  }, [fetchPublicSettings, loadUser])
 
   // Another client (or a restore) can change the household zone while this
   // tab sits in the background: refetch when the document becomes visible,

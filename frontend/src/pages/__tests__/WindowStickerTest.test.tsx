@@ -11,7 +11,8 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
+import { screen, fireEvent, waitFor, act } from '@testing-library/react'
+import { renderWithQueryClient } from '@/__tests__/queryClient'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { toast } from 'sonner'
 
@@ -54,7 +55,7 @@ const SUCCESS_RESULT = {
 
 /** Renders the page at its real route and waits for the parser list load to settle. */
 async function renderPage(): Promise<HTMLElement> {
-  const { container } = render(
+  const { container } = renderWithQueryClient(
     <MemoryRouter initialEntries={['/vehicles/1HGCM82633A004352/window-sticker-test']}>
       <Routes>
         <Route path="/vehicles/:vin/window-sticker-test" element={<WindowStickerTest />} />

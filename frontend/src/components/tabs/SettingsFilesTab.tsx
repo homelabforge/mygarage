@@ -39,7 +39,7 @@ export default function SettingsFilesTab(): React.ReactElement {
   const { t } = useTranslation('settings')
   const [loading, setLoading] = useState(true)
   const { triggerSave, registerSaveHandler, unregisterSaveHandler } = useSettings()
-  const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
   // The limits in force, read-only: set on the server, not in this tab. Still
   // null once loading is done means the fetch failed, and the card says so
   // instead of showing numbers that may not be the ones in force.
@@ -69,9 +69,9 @@ export default function SettingsFilesTab(): React.ReactElement {
       setFormData(newFormData)
       setLoadedFormData(newFormData)
       // A reload that works takes back the error a failed one left.
-      setMessage(null)
+      setLoadError(null)
     } else {
-      setMessage({ type: 'error', text: t('files.loadError') })
+      setLoadError(t('files.loadError'))
     }
 
     setLimits(limitsResult.status === 'fulfilled' ? limitsResult.value.data : null)
@@ -133,16 +133,10 @@ export default function SettingsFilesTab(): React.ReactElement {
 
   return (
     <div className="space-y-6">
-      {/* Success/Error Messages */}
-      {message && (
-        <div
-          className={`p-4 rounded-lg border ${
-            message.type === 'success'
-              ? 'bg-success-500/10 border-success-500 text-success-500'
-              : 'bg-danger-500/10 border-danger-500 text-danger-500'
-          }`}
-        >
-          {message.text}
+      {/* The settings read failed. */}
+      {loadError && (
+        <div className="p-4 rounded-lg border bg-danger-500/10 border-danger-500 text-danger-500">
+          {loadError}
         </div>
       )}
 

@@ -20,7 +20,7 @@ import { canonicalFromUnitField, seedUnitField, type UnitFieldOrigin } from '../
 import { getUsageTracking } from '../../utils/usageTracking'
 import { applyServerErrors } from '../../hooks/useApiFormErrors'
 import { getActionErrorMessage } from '../../utils/httpErrorHandler'
-import { usePublicSettings } from '../../hooks/usePublicSettings'
+import { usePublicSettings } from '../../hooks/queries/usePublicSettings'
 import { isSettingOn } from '../../utils/settingSwitch'
 import { hasVin } from '../../utils/vehicleIdentifier'
 import { UnitSession } from '../../contexts/UnitSession'
@@ -164,7 +164,8 @@ function VehicleEditForm({
   // Settings > Files can switch new stickers off. The one on file stays
   // viewable; only upload and replace go. On until the public read says off
   // (the backend's default), so a failed read hides nothing and the 409 rules.
-  const publicSettings = usePublicSettings()
+  // The drawer stays mounted while closed, and a closed one has nothing to show.
+  const publicSettings = usePublicSettings({ enabled: open })
   const stickersOn = isSettingOn(publicSettings.window_sticker_enabled, true)
 
   // Zod bakes its messages in at construction, so the schema is rebuilt when

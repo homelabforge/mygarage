@@ -5,7 +5,8 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, waitFor, act } from '@testing-library/react'
+import { screen, waitFor, act } from '@testing-library/react'
+import { renderWithQueryClient } from '@/__tests__/queryClient'
 import { AuthProvider, useAuth } from '../AuthContext'
 import { getHouseholdTimeZone, setHouseholdTimeZone } from '../../constants/i18n'
 
@@ -60,7 +61,7 @@ const publicCalls = () =>
 describe('AuthContext household zone', () => {
   it('boot reads effective_timezone into the store; refreshPublicSettings picks up a change', async () => {
     mockedApi.get.mockResolvedValue(publicPayload('America/Chicago'))
-    render(
+    renderWithQueryClient(
       <AuthProvider>
         <Probe />
       </AuthProvider>,
@@ -72,9 +73,43 @@ describe('AuthContext household zone', () => {
     await waitFor(() => expect(getHouseholdTimeZone()).toBe('Europe/Warsaw'))
   })
 
+  it('refreshPublicSettings asks the server even while the cache is fresh, and updates it', async () => {
+    mockedApi.get.mockResolvedValue(publicPayload('America/Chicago'))
+    const { client } = renderWithQueryClient(
+      <AuthProvider>
+        <Probe />
+      </AuthProvider>,
+    )
+    await waitFor(() => expect(getHouseholdTimeZone()).toBe('America/Chicago'))
+    expect(publicCalls()).toBe(1)
+
+    // Date.now is pinned, so the boot answer is as fresh as it gets.
+    mockedApi.get.mockResolvedValue(publicPayload('Europe/Warsaw'))
+    screen.getByRole('button').click()
+    await waitFor(() => expect(getHouseholdTimeZone()).toBe('Europe/Warsaw'))
+    expect(publicCalls()).toBe(2)
+    expect(client.getQueryData(['settings', 'public'])).toEqual(publicPayload('Europe/Warsaw').data.settings)
+  })
+
+  it('a failed refresh keeps the current values', async () => {
+    mockedApi.get.mockResolvedValue(publicPayload('America/Chicago'))
+    renderWithQueryClient(
+      <AuthProvider>
+        <Probe />
+      </AuthProvider>,
+    )
+    await waitFor(() => expect(getHouseholdTimeZone()).toBe('America/Chicago'))
+
+    mockedApi.get.mockRejectedValue(new Error('offline'))
+    screen.getByRole('button').click()
+    await waitFor(() => expect(publicCalls()).toBe(2))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(getHouseholdTimeZone()).toBe('America/Chicago')
+  })
+
   it('visibilitychange refetches once outside the 60s window and not inside it', async () => {
     mockedApi.get.mockResolvedValue(publicPayload('America/Chicago'))
-    render(
+    renderWithQueryClient(
       <AuthProvider>
         <Probe />
       </AuthProvider>,

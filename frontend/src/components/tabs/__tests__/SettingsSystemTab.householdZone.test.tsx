@@ -2,8 +2,9 @@
  * System tab, household-timezone behavior (plan 4.4):
  * - the select shows the real configuration even when the zone is not in the
  *   fixed list (R1-F1);
- * - a save whose batch included `timezone` awaits refreshPublicSettings, so
- *   the next form opened in this tab seeds the new zone's date.
+ * - a save whose batch included `timezone` waits for the page's post-save
+ *   refresh (which re-reads public settings) before it reports done, so the
+ *   next form opened in this tab seeds the new zone's date.
  */
 
 import { useEffect } from 'react'
@@ -29,6 +30,7 @@ vi.mock('react-i18next', () => {
 })
 
 const refreshPublicSettingsMock = vi.hoisted(() => vi.fn())
+const onSaved = vi.hoisted(() => vi.fn())
 vi.mock('@/contexts/AuthContext', () => ({
   useAuth: () => ({
     isAuthenticated: true,
@@ -39,11 +41,16 @@ vi.mock('@/contexts/AuthContext', () => ({
   }),
 }))
 
+vi.mock('sonner', () => ({
+  toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn(), loading: vi.fn(() => 'id') },
+}))
+
 vi.mock('@/components/ArchivedVehiclesList', () => ({ default: () => null }))
 vi.mock('@/components/modals/OIDCModal', () => ({ default: () => null }))
 vi.mock('@/components/modals/FamilyManagementModal', () => ({ default: () => null }))
 
 import api from '@/services/api'
+import { toast } from 'sonner'
 import SettingsSystemTab from '../SettingsSystemTab'
 
 const mockedApi = vi.mocked(api)
@@ -60,7 +67,7 @@ function renderTab(): void {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
     <QueryClientProvider client={queryClient}>
-      <SettingsProvider>
+      <SettingsProvider onSaved={onSaved}>
         <ActiveSystemTab />
       </SettingsProvider>
     </QueryClientProvider>,
@@ -87,6 +94,7 @@ function mockSettings(timezone: string): void {
 beforeEach(() => {
   vi.clearAllMocks()
   refreshPublicSettingsMock.mockResolvedValue(undefined)
+  onSaved.mockResolvedValue(undefined)
 })
 
 describe('SettingsSystemTab household timezone', () => {
@@ -96,7 +104,14 @@ describe('SettingsSystemTab household timezone', () => {
     expect(await screen.findByDisplayValue('Pacific/Kiritimati')).toBeInTheDocument()
   })
 
-  it('a save whose batch included timezone awaits refreshPublicSettings', async () => {
+  it('a save whose batch included timezone waits for the post-save refresh before it reports done', async () => {
+    let finishRefresh: () => void = () => {}
+    onSaved.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          finishRefresh = resolve
+        }),
+    )
     mockSettings('UTC')
     renderTab()
     const timezone = await screen.findByDisplayValue('UTC')
@@ -112,6 +127,12 @@ describe('SettingsSystemTab household timezone', () => {
         ),
       { timeout: 3000 },
     )
-    await waitFor(() => expect(refreshPublicSettingsMock).toHaveBeenCalled())
+    await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1))
+    expect(toast.success).not.toHaveBeenCalled()
+
+    finishRefresh()
+    await waitFor(() => expect(toast.success).toHaveBeenCalledTimes(1))
+    // One refresh per save, the page's; the tab no longer asks on its own.
+    expect(refreshPublicSettingsMock).not.toHaveBeenCalled()
   })
 })

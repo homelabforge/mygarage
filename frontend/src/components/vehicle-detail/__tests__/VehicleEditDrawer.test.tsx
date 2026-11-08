@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import type { ComponentProps } from 'react'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { screen, fireEvent, waitFor } from '@testing-library/react'
+import { renderWithQueryClient } from '@/__tests__/queryClient'
 import { MemoryRouter } from 'react-router-dom'
 import { FUEL_TYPE_VALUES } from '../../../constants/fuel'
 import type { Vehicle, VehicleDetailStats } from '../../../types/vehicle'
@@ -115,7 +116,7 @@ function renderVehicleEdit(
   })
   const onClose = vi.fn()
   const onUpdated = vi.fn()
-  render(drawerEl({ open: true, vin: vehicle.vin, vehicle, onClose, onUpdated }))
+  renderWithQueryClient(drawerEl({ open: true, vin: vehicle.vin, vehicle, onClose, onUpdated }))
   return { onClose, onUpdated }
 }
 
@@ -453,7 +454,7 @@ describe('VehicleEditDrawer — seeds from a fresh fetch, not the stale prop', (
       if (url.includes('detail-stats')) return Promise.resolve({ data: baseDetailStats })
       return Promise.resolve({ data: fresh })
     })
-    render(
+    renderWithQueryClient(
       drawerEl({ open: true, vin: stale.vin, vehicle: stale, onClose: vi.fn(), onUpdated: vi.fn() }),
     )
     const nickname = (await screen.findByLabelText('edit.nickname *')) as HTMLInputElement
@@ -473,7 +474,7 @@ describe('VehicleEditDrawer — seeds from a fresh fetch, not the stale prop', (
       if (url.includes('detail-stats')) return Promise.resolve({ data: baseDetailStats })
       return Promise.resolve({ data: freshNonMotorized })
     })
-    render(
+    renderWithQueryClient(
       drawerEl({ open: true, vin: staleProp.vin, vehicle: staleProp as Vehicle, onClose: vi.fn(), onUpdated: vi.fn() }),
     )
     await screen.findByLabelText('edit.nickname *')
@@ -541,7 +542,7 @@ describe('VehicleEditDrawer — conversion behaviour', () => {
       if (url.includes('detail-stats')) return Promise.resolve({ data: baseDetailStats })
       return Promise.resolve({ data: baseVehicle })
     })
-    const { rerender } = render(
+    const { rerender } = renderWithQueryClient(
       drawerEl({ open: true, vin: baseVehicle.vin, vehicle: baseVehicle, onClose: vi.fn(), onUpdated: vi.fn() }),
     )
 
@@ -693,7 +694,7 @@ describe('VehicleEditDrawer — window sticker section', () => {
       if (url.includes('detail-stats')) return Promise.resolve({ data: baseDetailStats })
       return Promise.resolve({ data: { ...baseVehicle, vehicle_type: 'Trailer' } })
     })
-    render(drawerEl({ open: true, vin: staleProp.vin, vehicle: staleProp, onClose: vi.fn(), onUpdated: vi.fn() }))
+    renderWithQueryClient(drawerEl({ open: true, vin: staleProp.vin, vehicle: staleProp, onClose: vi.fn(), onUpdated: vi.fn() }))
     await screen.findByLabelText('edit.nickname *')
 
     expect(screen.queryByRole('heading', { name: 'detail.windowSticker' })).not.toBeInTheDocument()
@@ -711,7 +712,7 @@ describe('VehicleEditDrawer — window sticker section', () => {
       // The seed source has NO sticker; the prop does.
       return Promise.resolve({ data: baseVehicle })
     })
-    render(drawerEl({ open: true, vin: withSticker.vin, vehicle: withSticker, onClose: vi.fn(), onUpdated: vi.fn() }))
+    renderWithQueryClient(drawerEl({ open: true, vin: withSticker.vin, vehicle: withSticker, onClose: vi.fn(), onUpdated: vi.fn() }))
     await screen.findByLabelText('edit.nickname *')
 
     expect(screen.getByText('detail.viewWindowSticker')).toBeInTheDocument()
@@ -724,7 +725,7 @@ describe('VehicleEditDrawer — window sticker section', () => {
       if (url.includes('detail-stats')) return Promise.resolve({ data: baseDetailStats })
       return Promise.resolve({ data: withSticker })
     })
-    render(
+    renderWithQueryClient(
       drawerEl({
         open: true,
         vin: withSticker.vin,
@@ -770,7 +771,7 @@ describe('VehicleEditDrawer — window sticker section', () => {
         if (url === '/settings/public') return Promise.resolve({ data: { settings: OFF } })
         return Promise.resolve({ data: withSticker })
       })
-      render(
+      renderWithQueryClient(
         drawerEl({
           open: true,
           vin: withSticker.vin,
@@ -805,7 +806,7 @@ describe('VehicleEditDrawer — window sticker section', () => {
         if (url === '/settings/public') return Promise.reject(new Error('down'))
         return Promise.resolve({ data: baseVehicle })
       })
-      render(drawerEl({ open: true, vin: baseVehicle.vin, vehicle: baseVehicle, onClose: vi.fn(), onUpdated: vi.fn() }))
+      renderWithQueryClient(drawerEl({ open: true, vin: baseVehicle.vin, vehicle: baseVehicle, onClose: vi.fn(), onUpdated: vi.fn() }))
       await screen.findByLabelText('edit.nickname *')
 
       await waitFor(() => expect(mockedApi.get).toHaveBeenCalledWith('/settings/public'))
@@ -826,7 +827,7 @@ describe('VehicleEditDrawer — connected devices (Torque sources)', () => {
       if (url.includes('detail-stats')) return Promise.resolve({ data: baseDetailStats })
       return Promise.resolve({ data: baseVehicle })
     })
-    render(
+    renderWithQueryClient(
       drawerEl({
         open: true,
         vin: baseVehicle.vin,
@@ -985,7 +986,7 @@ describe('VehicleEditDrawer — the DEF tank capacity is the eighth gallon write
         : Promise.resolve({ data: served })
     )
 
-    const view = render(
+    const view = renderWithQueryClient(
       drawerEl({ open: true, vin: dieselWithCapacity.vin, vehicle: dieselWithCapacity, onClose: vi.fn(), onUpdated: vi.fn() })
     )
     const first = (await screen.findByLabelText('edit.defTankCapacity (gal (UK))')) as HTMLInputElement
@@ -1077,7 +1078,7 @@ describe('VehicleEditDrawer: an untouched save writes nothing new', () => {
       if (url.includes('detail-stats')) return Promise.reject(new Error('stats down'))
       return Promise.resolve({ data: dual })
     })
-    render(drawerEl({ open: true, vin: dual.vin, vehicle: dual, onClose: vi.fn(), onUpdated: vi.fn() }))
+    renderWithQueryClient(drawerEl({ open: true, vin: dual.vin, vehicle: dual, onClose: vi.fn(), onUpdated: vi.fn() }))
     await screen.findByLabelText('edit.nickname *')
     fireEvent.click(screen.getByRole('button', { name: 'edit.saveChanges' }))
     await waitFor(() => expect(mockedApi.put).toHaveBeenCalled())
@@ -1197,5 +1198,34 @@ describe('VehicleEditDrawer: window sticker without a VIN (#226)', () => {
     expect(screen.queryByText('detail.replaceSticker')).not.toBeInTheDocument()
     expect(screen.queryByText(/detail\.misc\.vinVerified/)).not.toBeInTheDocument()
     expect(screen.queryByText('detail.misc.testOcr')).not.toBeInTheDocument()
+  })
+})
+
+describe('VehicleEditDrawer: public settings', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  const publicCalls = (): number =>
+    mockedApi.get.mock.calls.filter(([url]) => url === '/settings/public').length
+
+  it('a closed drawer asks for nothing; opening it reads the switches', async () => {
+    mockedApi.get.mockImplementation((url: string) => {
+      if (url.includes('detail-stats')) return Promise.resolve({ data: baseDetailStats })
+      if (url === '/settings/public') return Promise.resolve({ data: { settings: [] } })
+      return Promise.resolve({ data: baseVehicle })
+    })
+    const { rerender } = renderWithQueryClient(
+      drawerEl({ open: false, vin: baseVehicle.vin, vehicle: baseVehicle, onClose: vi.fn(), onUpdated: vi.fn() }),
+    )
+
+    // VehicleDetail keeps the drawer mounted while closed.
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(publicCalls()).toBe(0)
+
+    rerender(
+      drawerEl({ open: true, vin: baseVehicle.vin, vehicle: baseVehicle, onClose: vi.fn(), onUpdated: vi.fn() }),
+    )
+    await waitFor(() => expect(publicCalls()).toBe(1))
   })
 })

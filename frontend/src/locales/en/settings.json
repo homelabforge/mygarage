@@ -201,7 +201,27 @@
     "keyringUnavailable": "The settings encryption key is unavailable, so secret settings can't be saved and encrypted ones can't be read. Set MYGARAGE_SETTINGS_KEY to a valid key, or make the data directory writable, then reload this page.",
     "keyringUnavailableEnv": "The settings encryption key is unavailable, so secret settings can't be saved and encrypted ones can't be read. MYGARAGE_SETTINGS_KEY doesn't hold a valid key: fix it, then restart MyGarage.",
     "keyringUnavailableEnvFile": "The settings encryption key is unavailable, so secret settings can't be saved and encrypted ones can't be read. MYGARAGE_SETTINGS_KEY_FILE doesn't point at a readable file holding a valid key: fix it, then restart MyGarage.",
-    "unreadable": "These secrets can't be decrypted with the current settings key, so they read as unset. Add the key they were saved under back to MYGARAGE_SETTINGS_KEY, or re-enter them:"
+    "unreadable": "These secrets can't be decrypted with the current settings key, so they read as unset. Add the key they were saved under back to MYGARAGE_SETTINGS_KEY, or re-enter them:",
+    "labels": {
+      "oidcClientSecret": "SSO client secret",
+      "ntfyToken": "ntfy access token",
+      "gotifyToken": "Gotify app token",
+      "pushoverUserKey": "Pushover user key",
+      "pushoverApiToken": "Pushover API token",
+      "slackWebhookUrl": "Slack webhook URL",
+      "discordWebhookUrl": "Discord webhook URL",
+      "matrixAccessToken": "Matrix access token",
+      "telegramBotToken": "Telegram bot token",
+      "emailSmtpPassword": "Email SMTP password",
+      "webhookIngestToken": "Webhook ingest token",
+      "llmApiKey": "AI provider API key",
+      "autorefApiKey": "AutoRef API key",
+      "livelinkMqttPassword": "LiveLink MQTT password",
+      "tomtomApiKey": "TomTom API key",
+      "googlePlacesApiKey": "Google Places API key",
+      "yelpApiKey": "Yelp API key",
+      "foursquareApiKey": "Foursquare API key"
+    }
   },
   "stats": {
     "serviceRecords": "Service Records",

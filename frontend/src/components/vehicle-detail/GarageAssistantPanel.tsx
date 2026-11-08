@@ -2,10 +2,12 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { MessageSquare, Send, Sparkles } from 'lucide-react'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation } from '@tanstack/react-query'
 import { Card, CardHeader, Button, Textarea } from '../ui'
 import api from '@/services/api'
 import { isSettingOn } from '@/utils/settingSwitch'
+import type { PublicSetting } from '@/utils/publicUnitDefaults'
+import { usePublicSettingsQuery } from '@/hooks/queries/usePublicSettings'
 import { getActionErrorMessage } from '@/utils/httpErrorHandler'
 
 type ChatRole = 'user' | 'assistant'
@@ -41,6 +43,10 @@ const SUGGESTED_KEYS = [
   'explainCode',
 ] as const
 
+function selectAssistantEnabled(rows: PublicSetting[]): boolean {
+  return isSettingOn(rows.find((row) => row.key === 'llm_garage_assistant_enabled')?.value)
+}
+
 /**
  * Vehicle-scoped Ask My Garage chat. Client-held history only; answers are
  * grounded in garage records + DTC enrichment when the integration is enabled.
@@ -52,19 +58,9 @@ export default function GarageAssistantPanel({ vin, onEditSpecs }: GarageAssista
   const [lastCitations, setLastCitations] = useState<Citation[]>([])
   const [lastMissing, setLastMissing] = useState<string[]>([])
 
-  const enabledQuery = useQuery({
-    queryKey: ['settings', 'public', 'llm_garage_assistant_enabled'],
-    queryFn: async () => {
-      // /settings is admin-only; the flag is on the public whitelist so every
-      // user can see Ask My Garage when enabled (same pattern as receipt parse).
-      const { data } = await api.get<{ settings: { key: string; value: string | null }[] }>(
-        '/settings/public',
-      )
-      const row = data.settings.find((s) => s.key === 'llm_garage_assistant_enabled')
-      return isSettingOn(row?.value)
-    },
-    staleTime: 60_000,
-  })
+  // /settings is admin-only; the flag is on the public whitelist so every
+  // user can see Ask My Garage when enabled (same pattern as receipt parse).
+  const enabledQuery = usePublicSettingsQuery(selectAssistantEnabled)
 
   const chatMutation = useMutation({
     mutationFn: async (payload: { message: string; history: HistoryTurn[] }) => {
