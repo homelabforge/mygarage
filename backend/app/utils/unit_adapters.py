@@ -46,7 +46,7 @@ _IN32_TO_MM = Decimal("25.4") / Decimal("32")
 # Not an app-specific conversion factor, so it has no name in `units.py`.
 _KM_L_NUMERATOR = Decimal("100")
 
-# 1 bar = 100 kPa exactly, by SI definition (not derived from PSI_TO_BAR).
+# 1 bar = 100 kPa exactly, by SI definition.
 _BAR_TO_KPA = Decimal("100")
 
 

@@ -1,7 +1,7 @@
 """
 Unit tests for unit conversion utilities.
 
-Tests imperial/metric conversions for volume, distance, fuel economy, etc.
+Tests the canonical write path, `miles_to_km`, the factor table and gallon flavour.
 """
 
 import asyncio
@@ -49,121 +49,22 @@ class TestUnitConverterHelpers:
 
 
 @pytest.mark.unit
-class TestVolumeConversions:
-    """Test volume conversions (gallons/liters)."""
-
-    def test_gallons_to_liters(self):
-        """Test gallons to liters conversion."""
-        result = UnitConverter.gallons_to_liters(10)
-        assert result == pytest.approx(37.85, rel=0.01)
-
-    def test_liters_to_gallons(self):
-        """Test liters to gallons conversion."""
-        result = UnitConverter.liters_to_gallons(37.85)
-        assert result == pytest.approx(10.0, rel=0.01)
-
-    def test_gallons_to_liters_roundtrip(self):
-        """Test that conversion roundtrips correctly."""
-        original = 15.0
-        liters = UnitConverter.gallons_to_liters(original)
-        back = UnitConverter.liters_to_gallons(liters)
-        assert back == pytest.approx(original, rel=0.01)
-
-    def test_gallons_to_liters_with_none(self):
-        """Test None handling."""
-        assert UnitConverter.gallons_to_liters(None) is None
-        assert UnitConverter.liters_to_gallons(None) is None
-
-
-@pytest.mark.unit
 class TestDistanceConversions:
-    """Test distance conversions (miles/km)."""
+    """`miles_to_km`, the one float helper left (mile odometer readings)."""
 
     def test_miles_to_km(self):
         """Test miles to kilometers conversion."""
         result = UnitConverter.miles_to_km(100)
         assert result == pytest.approx(160.93, rel=0.01)
 
-    def test_km_to_miles(self):
-        """Test kilometers to miles conversion."""
-        result = UnitConverter.km_to_miles(160.93)
-        assert result == pytest.approx(100.0, rel=0.01)
-
-    def test_miles_to_km_roundtrip(self):
-        """Test that conversion roundtrips correctly."""
-        original = 250.0
-        km = UnitConverter.miles_to_km(original)
-        back = UnitConverter.km_to_miles(km)
-        assert back == pytest.approx(original, rel=0.01)
-
     def test_miles_to_km_with_none(self):
         """Test None handling."""
         assert UnitConverter.miles_to_km(None) is None
-        assert UnitConverter.km_to_miles(None) is None
-
-
-@pytest.mark.unit
-class TestFuelEconomyConversions:
-    """Test fuel economy conversions (MPG/L100km)."""
-
-    def test_mpg_to_l100km(self):
-        """Test MPG to L/100km conversion."""
-        # 25 MPG ≈ 9.4 L/100km
-        result = UnitConverter.mpg_to_l100km(25)
-        assert result == pytest.approx(9.4, rel=0.1)
-
-    def test_l100km_to_mpg(self):
-        """Test L/100km to MPG conversion."""
-        # 9.4 L/100km ≈ 25 MPG
-        result = UnitConverter.l100km_to_mpg(9.4)
-        assert result == pytest.approx(25.0, rel=0.1)
-
-    def test_mpg_to_l100km_roundtrip(self):
-        """Test that conversion roundtrips correctly."""
-        original = 30.0
-        l100km = UnitConverter.mpg_to_l100km(original)
-        back = UnitConverter.l100km_to_mpg(l100km)
-        assert back == pytest.approx(original, rel=0.1)
-
-    def test_mpg_to_l100km_with_zero(self):
-        """Test that zero MPG returns None (division by zero)."""
-        result = UnitConverter.mpg_to_l100km(0)
-        assert result is None
-
-    def test_l100km_to_mpg_with_zero(self):
-        """Test that zero L/100km returns None (division by zero)."""
-        result = UnitConverter.l100km_to_mpg(0)
-        assert result is None
-
-    def test_fuel_economy_with_none(self):
-        """Test None handling."""
-        assert UnitConverter.mpg_to_l100km(None) is None
-        assert UnitConverter.l100km_to_mpg(None) is None
-
-    def test_l100km_to_kmpl(self):
-        """Test L/100km to km/L conversion."""
-        # 7.84 L/100km -> 100 / 7.84 = 12.76 km/L
-        assert UnitConverter.l100km_to_kmpl(7.84) == 12.76
-
-    def test_l100km_to_kmpl_none_and_zero_return_none(self):
-        """Test None/zero handling (division by zero)."""
-        assert UnitConverter.l100km_to_kmpl(None) is None
-        assert UnitConverter.l100km_to_kmpl(0) is None
 
 
 @pytest.mark.unit
 class TestDecimalPrecision:
     """Test that Decimal precision is maintained."""
-
-    def test_decimal_input_precision(self):
-        """Test that Decimal inputs maintain precision."""
-        value = Decimal("10.123456789")
-        result = UnitConverter.gallons_to_liters(value)
-        # Result should be rounded to 2 decimal places
-        assert isinstance(result, float)
-        # But the calculation should use full precision internally
-        expected = float(value * Decimal("3.785411784"))
-        assert result == pytest.approx(expected, rel=0.001)
 
     def test_float_input_precision(self):
         """Test that float inputs are converted properly."""
@@ -209,7 +110,7 @@ class TestGoldenConversions:
         assert result == expected
 
 
-async def _convert_after_yield(gallons: int, flavour: GallonFlavour) -> float | None:
+async def _convert_after_yield(gallons: int, flavour: GallonFlavour) -> Decimal | None:
     """Perform one gallons-to-liters conversion with real yield points around it.
 
     Mimics one coroutine's slice of concurrent request handling: yield to the
@@ -218,7 +119,7 @@ async def _convert_after_yield(gallons: int, flavour: GallonFlavour) -> float | 
     never shared -- that's exactly the property under test.
     """
     await asyncio.sleep(0)
-    result = UnitConverter.gallons_to_liters(gallons, flavour=flavour)
+    result = UnitConverter.to_canonical_decimal(gallons, "gal", flavour=flavour)
     await asyncio.sleep(0)
     return result
 
@@ -228,18 +129,21 @@ class TestGallonFlavour:
     """Gallon flavour is an argument, never ambient class state."""
 
     def test_us_is_the_default(self) -> None:
-        assert UnitConverter.gallons_to_liters(1) == pytest.approx(3.79, rel=1e-3)
+        assert UnitConverter.to_canonical_decimal(1, "gal") == Decimal("3.785411784")
 
     def test_uk_gallon_is_larger(self) -> None:
-        assert UnitConverter.gallons_to_liters(1, flavour="uk") == pytest.approx(4.55, rel=1e-3)
-
-    def test_liters_to_gallons_honours_flavour(self) -> None:
-        assert UnitConverter.liters_to_gallons(10, flavour="us") == pytest.approx(2.64, rel=1e-3)
-        assert UnitConverter.liters_to_gallons(10, flavour="uk") == pytest.approx(2.20, rel=1e-3)
+        assert UnitConverter.to_canonical_decimal(1, "gal", flavour="uk") == Decimal("4.54609")
+        assert UnitConverter.to_canonical_decimal(1, "gal", flavour="us") == Decimal("3.785411784")
 
     def test_mpg_numerator_follows_flavour(self) -> None:
-        assert UnitConverter.mpg_to_l100km(30, flavour="us") == pytest.approx(7.8, rel=1e-2)
-        assert UnitConverter.mpg_to_l100km(30, flavour="uk") == pytest.approx(9.4, rel=1e-2)
+        us = UnitConverter.to_canonical_decimal(30, "MPG", flavour="us")
+        uk = UnitConverter.to_canonical_decimal(30, "MPG", flavour="uk")
+        assert us is not None and uk is not None
+        assert us == UnitConverter.US_MPG_TO_L100KM_NUMERATOR / 30
+        assert uk == UnitConverter.UK_MPG_TO_L100KM_NUMERATOR / 30
+        # 7.84 and 9.42 L/100km: a 30 MPG reading on the wrong gallon is 20% off.
+        assert round(us, 2) == Decimal("7.84")
+        assert round(uk, 2) == Decimal("9.42")
 
     def test_canonical_gal_honours_flavour(self) -> None:
         assert UnitConverter.to_canonical_decimal(1, "gal", flavour="uk") == Decimal("4.54609")
@@ -260,7 +164,7 @@ class TestGallonFlavour:
         """
         flavours: list[GallonFlavour] = ["us", "uk"] * 10
         results = await asyncio.gather(*(_convert_after_yield(1, flavour) for flavour in flavours))
-        expected = {"us": pytest.approx(3.79, rel=1e-3), "uk": pytest.approx(4.55, rel=1e-3)}
+        expected = {"us": Decimal("3.785411784"), "uk": Decimal("4.54609")}
         for flavour, result in zip(flavours, results, strict=True):
             assert result == expected[flavour], (
                 f"flavour {flavour!r} produced {result}: another coroutine's flavour leaked "
@@ -300,9 +204,6 @@ class TestExactFactors:
         # 4.4482216152605 / 0.00064516 / 1000
         assert (
             abs(UnitConverter.PSI_TO_KPA - Decimal("6.89475729316836133672267344535")) < tolerance
-        )
-        assert (
-            abs(UnitConverter.PSI_TO_BAR - Decimal("0.0689475729316836133672267344535")) < tolerance
         )
         # 378.5411784 / 1.609344 and 454.609 / 1.609344
         assert (

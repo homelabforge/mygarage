@@ -31,7 +31,6 @@ from app.services.mqtt_subscriber import MQTTSubscriber
 from app.services.notifications.dispatcher import NotificationDispatcher
 from app.services.oidc.config import get_oidc_config
 from app.services.poi.registry import POIProviderRegistry
-from app.services.poi_discovery import POIDiscoveryService
 from app.services.settings_service import reenter_message
 from app.utils.settings_crypto import encrypt
 from tests.integration._secret_helpers import REENTER, Keep, seed_rows, unreadable_ciphertext
@@ -296,31 +295,13 @@ async def test_the_poi_registry_configures_no_provider_on_an_unreadable_key(
     configs = await registry._load_provider_configs()  # pyright: ignore[reportPrivateUsage]
     assert [c["name"] for c in configs] == ["osm"]
 
-    # Positive control: readable, the same seed configures every provider.
+    # Positive control: readable, the same seed configures every provider,
+    # and each one gets the decrypted key, not the ciphertext.
     for key in POI.values():
         await _set_raw(db_session, key, encrypt(key, f"readable-{key}"))
     configs = await registry._load_provider_configs()  # pyright: ignore[reportPrivateUsage]
     assert [c["name"] for c in configs] == [*POI, "osm"]
-
-
-async def test_poi_search_leaves_tomtom_off_on_an_unreadable_key(
-    db_session: AsyncSession, keep_rows: Keep
-) -> None:
-    await seed_rows(
-        db_session,
-        keep_rows,
-        {"tomtom_enabled": "true", "tomtom_api_key": unreadable_ciphertext("tomtom_api_key")},
-    )
-    service = POIDiscoveryService(db_session)
-
-    configs = await service.registry._load_provider_configs()  # pyright: ignore[reportPrivateUsage]
-    assert "tomtom" not in [c["name"] for c in configs]
-
-    # Positive control: readable, the same seed turns TomTom on with that key.
-    await _set_raw(db_session, "tomtom_api_key", encrypt("tomtom_api_key", "readable-key"))
-    configs = await service.registry._load_provider_configs()  # pyright: ignore[reportPrivateUsage]
-    tomtom = [c for c in configs if c["name"] == "tomtom"]
-    assert [c["api_key"] for c in tomtom] == ["readable-key"]
+    assert [c["api_key"] for c in configs[:-1]] == [f"readable-{key}" for key in POI.values()]
 
 
 async def test_an_unreadable_webhook_token_is_a_503_not_a_match(

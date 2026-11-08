@@ -63,7 +63,7 @@ const IN32_TO_MM = 25.4 / 32
 /** L/100km per (km/L), i.e. the definition of "litres per hundred kilometres". */
 const KM_L_NUMERATOR = 100
 
-/** 1 bar = 100 kPa exactly, by SI definition (not derived from PSI_TO_BAR). */
+/** 1 bar = 100 kPa exactly, by SI definition. */
 const BAR_TO_KPA = 100
 
 /** Celsius per Fahrenheit degree; the offset is applied separately. */

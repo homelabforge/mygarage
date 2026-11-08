@@ -1,8 +1,7 @@
 """Tests for the canonical unit conversion utility.
 
-Covers the new SI-metric write path (to_canonical_decimal) plus regression
-checks on the existing display-time conversions to make sure the canonical
-flip didn't change their math.
+Covers the SI-metric write path (to_canonical_decimal) plus regression checks
+on the float helpers left, so the canonical flip didn't change their math.
 """
 
 from decimal import Decimal
@@ -89,12 +88,9 @@ class TestToCanonicalDecimal:
 
 
 class TestDisplayConversionsUnchanged:
-    """Regression: the existing float-returning helpers still produce the
-    same display values they did pre-flip. These methods are still used by
-    UI rendering and PDF generators."""
-
-    def test_gallons_to_liters(self) -> None:
-        assert UnitConverter.gallons_to_liters(10) == 37.85
+    """Regression: the float helpers left still give the values they did
+    pre-flip. `miles_to_km` converts a device's mile odometer reading
+    (`odometer_units.py`); display otherwise goes through `unit_adapters.py`."""
 
     def test_miles_to_km(self) -> None:
         assert UnitConverter.miles_to_km(100) == 160.93

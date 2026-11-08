@@ -209,8 +209,8 @@ class Settings(BaseSettings):
     # NHTSA API
     nhtsa_api_base_url: str = "https://vpic.nhtsa.dot.gov/api"
 
-    # TomTom Places API (optional - falls back to OSM if not configured)
-    tomtom_api_key: str = ""  # Empty by default - graceful degradation
+    # TomTom Places API base URL. The key and the on/off switch are settings
+    # rows (Settings > Integrations); with TomTom off, POI search uses OSM.
     tomtom_api_base_url: str = "https://api.tomtom.com/search/2"
 
     # File Upload Limits

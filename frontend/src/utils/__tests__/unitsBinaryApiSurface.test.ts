@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { execFileSync } from 'node:child_process'
-import { readFileSync, readdirSync, statSync } from 'node:fs'
-import { join, relative, resolve } from 'node:path'
+import { readFileSync } from 'node:fs'
+import { relative, resolve } from 'node:path'
 import * as ts from 'typescript'
 
 /**
@@ -33,20 +33,19 @@ import * as ts from 'typescript'
  * when they expire. When task 6 migrates the last `formatDistance(km, system)`
  * call site, this test fails and the method has to go.
  *
- * ★ AST, NOT `grep`, and the difference is not theoretical. `TireList.tsx:410`
- * carries the comment "Through the adapter, not UnitFormatter.formatPressure",
- * and `unitAdapters.ts:171` says "`UnitFormatter.getTemperatureUnit` still
- * does". A text scan reads both as call sites and reports two dead methods as
- * live, which is this test failing open on exactly the two methods it exists to
- * catch. Property accesses come from the parser, so a mention in prose is not a
- * caller.
+ * ★ THE CALLER SCAN IS GONE, and the condition did its job first. This file
+ * used to walk every production file for `UnitFormatter.<method>` accesses (an
+ * AST walk, so a mention in prose wasn't a caller) and fail on a binary method
+ * nobody called. Task 7 emptied the binary set, and the gate's set is now
+ * pinned to `[]` below, so a binary method fails before any caller check could
+ * run. The scan could never fail again, so it went. What's left pins each
+ * surface by name.
  */
 
-// Several tests here parse every production source file, so their cost grows
-// with the tree and with CPU contention rather than with the code under test.
-// Measured on the heaviest: 558ms alone, 2.1s under v8 coverage, and 5.4s
-// under full-suite coverage, which failed the 5s default. The budget is for a
-// scan, not a unit test; a genuine hang still fails.
+// Several tests here shell out to a full units-gate walk of the tree, so their
+// cost grows with the tree and with CPU contention rather than with the code
+// under test. The budget is for a scan, not a unit test; a genuine hang still
+// fails.
 vi.setConfig({ testTimeout: 30_000 })
 
 const FRONTEND = resolve(__dirname, '../../..')
@@ -135,8 +134,7 @@ function gateDerivedSet(label: string): string[] {
  * file yields no property accesses at all, which this test would otherwise read
  * as "nobody calls anything in here".
  */
-function parse(path: string): ts.SourceFile {
-  const text = readFileSync(path, 'utf-8')
+function parse(path: string, text: string = readFileSync(path, 'utf-8')): ts.SourceFile {
   const kind = path.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS
   const source = ts.createSourceFile(path, text, ts.ScriptTarget.Latest, true, kind)
   // `parseDiagnostics` is real but internal, so it is not on the public type.
@@ -189,56 +187,6 @@ function decimalSafeExports(): string[] {
   return exportedFunctions(DECIMAL_SAFE)
 }
 
-/**
- * Every production `.ts`/`.tsx` under `src/`, minus tests and units.ts itself.
- *
- * units.ts is excluded because a method calling a sibling on its own class is
- * not a production CALLER of the binary API: `formatVolumeTotal` delegating to
- * `formatVolumeShort` would keep a dead method looking alive.
- */
-function productionSources(): string[] {
-  const out: string[] = []
-  const walk = (dir: string): void => {
-    for (const entry of readdirSync(dir).sort()) {
-      if (entry === '__tests__' || entry === 'node_modules') continue
-      const path = join(dir, entry)
-      if (statSync(path).isDirectory()) {
-        walk(path)
-        continue
-      }
-      if (!/\.tsx?$/.test(entry) || /\.test\.tsx?$/.test(entry)) continue
-      if (path === UNITS) continue
-      out.push(path)
-    }
-  }
-  walk(SRC)
-  return out
-}
-
-/** Files where `<className>.<method>` is actually accessed, by method. */
-function callersByMethod(methods: string[], className = FORMATTER_CLASS): Map<string, string[]> {
-  const wanted = new Set(methods)
-  const callers = new Map<string, string[]>(methods.map((m) => [m, []]))
-  for (const path of productionSources()) {
-    const source = parse(path)
-    const walk = (node: ts.Node): void => {
-      if (
-        ts.isPropertyAccessExpression(node) &&
-        ts.isIdentifier(node.expression) &&
-        node.expression.text === className &&
-        wanted.has(node.name.text)
-      ) {
-        const seen = callers.get(node.name.text)!
-        const rel = relative(FRONTEND, path)
-        if (!seen.includes(rel)) seen.push(rel)
-      }
-      ts.forEachChild(node, walk)
-    }
-    walk(source)
-  }
-  return callers
-}
-
 /** The class that used to hold the instance-driven gallon and MPG factors. */
 const CONVERTER_CLASS = 'UnitConverter'
 
@@ -261,29 +209,41 @@ function exportedFunctions(path: string): string[] {
 }
 
 /**
- * `UnitConverter`'s static surface: its methods, and which of its static
- * properties are writable.
+ * A class's static surface: its methods, and which of its static members are
+ * writable.
  *
  * A RECEIPT like `formatterStatics`: it lists names and asks nothing about
  * types, so a walk that stopped visiting the class comes back empty and the
- * pinned lists below fail first.
+ * pinned lists below fail first. A static getter, setter or `accessor` counts
+ * as writable: a setter writes class state and a getter can hand back state
+ * something else wrote, so none of them is a `readonly` constant.
  */
-function converterStatics(): { methods: string[]; readonly: string[]; mutable: string[] } {
-  const source = parse(UNITS)
+function staticSurface(
+  source: ts.SourceFile,
+  className: string
+): { methods: string[]; readonly: string[]; mutable: string[] } {
   const methods = new Set<string>()
   const readonlyProps = new Set<string>()
   const mutable = new Set<string>()
   const has = (modifiers: readonly ts.ModifierLike[] | undefined, kind: ts.SyntaxKind): boolean =>
     (modifiers ?? []).some((m) => m.kind === kind)
   const walk = (node: ts.Node): void => {
-    if (ts.isClassDeclaration(node) && node.name?.text === CONVERTER_CLASS) {
+    if (ts.isClassDeclaration(node) && node.name?.text === className) {
       for (const member of node.members) {
-        if (ts.isMethodDeclaration(member) && has(member.modifiers, ts.SyntaxKind.StaticKeyword)) {
-          methods.add(member.name.getText(source))
+        if (
+          !(ts.isMethodDeclaration(member) || ts.isPropertyDeclaration(member) || ts.isAccessor(member)) ||
+          !has(member.modifiers, ts.SyntaxKind.StaticKeyword)
+        ) {
+          continue
         }
-        if (ts.isPropertyDeclaration(member) && has(member.modifiers, ts.SyntaxKind.StaticKeyword)) {
-          const bucket = has(member.modifiers, ts.SyntaxKind.ReadonlyKeyword) ? readonlyProps : mutable
-          bucket.add(member.name.getText(source))
+        const name = member.name.getText(source)
+        if (ts.isMethodDeclaration(member)) {
+          methods.add(name)
+        } else if (ts.isPropertyDeclaration(member) && has(member.modifiers, ts.SyntaxKind.ReadonlyKeyword)) {
+          // tsc refuses `readonly accessor` (TS1243), so an auto-accessor never lands here.
+          readonlyProps.add(name)
+        } else {
+          mutable.add(name)
         }
       }
     }
@@ -324,7 +284,7 @@ describe('the mutable gallon statics (plan 3b task 8)', () => {
     // look at, and the component tests that pinned the instance gallon to
     // `us` before every gallon case lost the thing they pinned. This is what
     // holds the guard now: a writable static here is process-wide state again.
-    const { methods, readonly, mutable } = converterStatics()
+    const { methods, readonly, mutable } = staticSurface(parse(UNITS), CONVERTER_CLASS)
     expect(mutable).toEqual([])
 
     // The receipt the empty list needs: the walk saw the class's properties.
@@ -332,6 +292,32 @@ describe('the mutable gallon statics (plan 3b task 8)', () => {
     // And the whole method surface, so a converter added back has to come
     // through this line. Every raw one went for having no production caller.
     expect(methods).toEqual(['litersToVolumeUnit', 'roundResult'])
+  })
+
+  it('counts a static getter, setter or accessor as writable, not just a bare field', () => {
+    // A static setter over a private field is the same process-wide gallon
+    // with nicer syntax, so the walk above must not wave it through.
+    const fixture = parse(
+      'fixture.ts',
+      [
+        'class Probe {',
+        '  static readonly FACTOR = 1',
+        '  static bare = 1',
+        '  static get gallon(): number { return 1 }',
+        '  static set gallon(v: number) { void v }',
+        '  static get reading(): number { return 1 }',
+        '  static set writing(v: number) { void v }',
+        '  static accessor flavour = 1',
+        '  static convert(): number { return 1 }',
+        '  instanceField = 1',
+        '}',
+      ].join('\n')
+    )
+    expect(staticSurface(fixture, 'Probe')).toEqual({
+      methods: ['convert'],
+      readonly: ['FACTOR'],
+      mutable: ['bare', 'flavour', 'gallon', 'reading', 'writing'],
+    })
   })
 })
 
@@ -538,7 +524,7 @@ describe('the binary UnitFormatter surface', () => {
     ])
   })
 
-  it('★ contributes no binary method to the gate\'s vocabulary, and keeps no dead one', () => {
+  it('★ contributes no binary method to the gate\'s vocabulary', () => {
     // ★ EMPTY IS THE GOAL STATE, reached by task 7. Every method on this class
     // now takes the resolved `UnitSet`. A `UnitSystem` parameter added back
     // here puts the method into the gate's derived vocabulary and fails this
@@ -549,17 +535,11 @@ describe('the binary UnitFormatter surface', () => {
     // gate because it shared the gate's floor, which is a parity check that
     // cannot fail. The receipt above is what makes this emptiness mean
     // something, and it needs no predicate to compute.
-    const binary = gateDerivedSet('BINARY_FORMATTER_METHODS')
-    expect(binary).toEqual([])
-
-    // And the rule that emptied it, kept live for whatever is added next: a
-    // binary method with no caller left is not dead code to tidy up later, it
-    // is a `system` parameter waiting for somebody to pass it a value collapsed
-    // from volume. Delete it, and reach for `useUnitFormat()` /
+    //
+    // A binary method is a `system` parameter waiting for somebody to pass it a
+    // value collapsed from volume. Reach for `useUnitFormat()` /
     // `makeUnitFormat()` instead.
-    const callers = callersByMethod(binary)
-    const dead = [...callers].filter(([, files]) => files.length === 0).map(([name]) => name)
-    expect(dead).toEqual([])
+    expect(gateDerivedSet('BINARY_FORMATTER_METHODS')).toEqual([])
   })
 })
 
