@@ -5,7 +5,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { screen, within } from '@testing-library/react'
-import { renderWithQueryClient } from '@/__tests__/queryClient'
+import { createTestQueryClient, renderWithQueryClient } from '@/__tests__/queryClient'
 import SecretsStatusBanner from '../SecretsStatusBanner'
 
 vi.mock('react-i18next', async () => (await import('@/__tests__/i18nEn')).reactI18nextEn())
@@ -40,5 +40,21 @@ describe('SecretsStatusBanner labels', () => {
     const banner = await screen.findByRole('alert')
     const items = within(banner).getAllByRole('listitem').map((li) => li.textContent)
     expect(items).toEqual(['some_future_secret', 'ntfy access token'])
+  })
+
+  it('a remount shows nothing until the fresh read lands, not the last list', async () => {
+    // A key re-entered off the Settings page (a POI provider) never marks it
+    // stale, so a cached list would show it as unreadable again.
+    const client = createTestQueryClient()
+    answer(['yelp_api_key'])
+    const first = renderWithQueryClient(<SecretsStatusBanner />, { client })
+    await screen.findByRole('alert')
+    first.unmount()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    h.get.mockReturnValue(new Promise(() => {}))
+    renderWithQueryClient(<SecretsStatusBanner />, { client })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 })

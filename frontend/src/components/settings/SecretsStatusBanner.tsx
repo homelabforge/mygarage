@@ -6,9 +6,10 @@ import { useSecretsStatus } from '@/hooks/queries/useSecretsStatus'
 /**
  * The label for each secret setting, worded like the field it's entered in
  * (with the provider, since several fields are just "Token"). A key missing
- * here (a newer backend) shows as its raw name.
+ * here (a newer backend) shows as its raw name. A test pins the keys to the
+ * backend's SECRET_SETTING_KEYS.
  */
-const SECRET_LABELS: ReadonlyArray<{ key: string; labelKey: string }> = [
+export const SECRET_LABELS: ReadonlyArray<{ key: string; labelKey: string }> = [
   { key: 'oidc_client_secret', labelKey: 'secretsStatus.labels.oidcClientSecret' },
   { key: 'ntfy_token', labelKey: 'secretsStatus.labels.ntfyToken' },
   { key: 'gotify_token', labelKey: 'secretsStatus.labels.gotifyToken' },

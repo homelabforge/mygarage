@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import api, { setCSRFToken, getCSRFToken, clearCSRFToken, setApiAuthMode } from '../services/api'
-import { publicSettingsQuery } from '../hooks/queries/usePublicSettings'
+import { fetchPublicSettingRows, publicSettingsQuery } from '../hooks/queries/usePublicSettings'
 import type { components } from '../types/api.generated'
 import type { UnitSet } from '../types/units'
 import { readPublicUnitDefaults } from '../utils/publicUnitDefaults'
@@ -93,9 +93,9 @@ export function AuthProvider({ children }: { children: ReactNode}) {
   // The tree's client, not the module one, so a test's cache is the one used.
   const queryClient = useQueryClient()
 
-  // Always a real request (staleTime 0), and it throws on failure so the
-  // callers' catches still run. No retry: a failed boot read must reach
-  // loadUser's catch now, not a second later.
+  // loadUser's read: a real request unless one is already out (staleTime 0),
+  // and it throws on failure so loadUser's catch still runs. No retry: a failed
+  // boot read must reach that catch now, not a second later.
   const fetchPublicSettings = useCallback(
     () => queryClient.fetchQuery({ ...publicSettingsQuery, staleTime: 0, retry: false }),
     [queryClient],
@@ -189,9 +189,23 @@ export function AuthProvider({ children }: { children: ReactNode}) {
   const lastPublicRefreshRef = useRef(0)
   const [householdTimeZone, setHouseholdTimeZoneState] = useState<string | null>(null)
 
+  // Its own GET, never fetchQuery: a refresh after a save has to show the save,
+  // and fetchQuery would hand back a read that was already out. Throws like
+  // fetchQuery, so the catch below still keeps the current values.
   const refreshPublicSettings = useCallback(async () => {
     try {
-      const publicSettings = await fetchPublicSettings()
+      const key = publicSettingsQuery.queryKey
+      const query = queryClient.getQueryCache().find({ queryKey: key, exact: true })
+      const older = query?.state.fetchStatus === 'fetching' ? query.promise : undefined
+      const publicSettings = await fetchPublicSettingRows()
+      queryClient.setQueryData(key, publicSettings)
+      // That older read can land after this one and put its answer back.
+      if (older) {
+        void older.then(
+          () => queryClient.setQueryData(key, publicSettings),
+          () => {},
+        )
+      }
       setDefaultUnitPrefs(readPublicUnitDefaults(publicSettings))
       setDefaultCountry(readPublicDefaultCountry(publicSettings))
       {
@@ -211,7 +225,7 @@ export function AuthProvider({ children }: { children: ReactNode}) {
       // date it fills in or judges; the browser catches up on the next
       // successful refetch or reload.
     }
-  }, [fetchPublicSettings, loadUser])
+  }, [loadUser, queryClient])
 
   // Another client (or a restore) can change the household zone while this
   // tab sits in the background: refetch when the document becomes visible,

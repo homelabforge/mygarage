@@ -1,5 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { screen, fireEvent, waitFor } from '@testing-library/react'
+import type { QueryClient } from '@tanstack/react-query'
+import { renderWithQueryClient } from '@/__tests__/queryClient'
+import { SECRETS_STATUS_QUERY_KEY } from '@/hooks/queries/useSecretsStatus'
 import type { IntegrationTab } from '@/types/livelink'
 
 const getMQTTSettings = vi.fn()
@@ -33,10 +36,12 @@ const SETTINGS = {
 const STATUS = { running: true, connection_status: 'connected', messages_processed: 12, last_message_at: null }
 const TAB = { id: 'broker', label: 'Mosquitto', kind: null } as unknown as IntegrationTab
 
-const renderDrawer = () => {
+const renderDrawer = (): { onChanged: ReturnType<typeof vi.fn>; client: QueryClient } => {
   const onChanged = vi.fn()
-  render(<MosquittoSettingsDrawer open tab={TAB} onClose={vi.fn()} onChanged={onChanged} />)
-  return { onChanged }
+  const { client } = renderWithQueryClient(
+    <MosquittoSettingsDrawer open tab={TAB} onClose={vi.fn()} onChanged={onChanged} />,
+  )
+  return { onChanged, client }
 }
 
 beforeEach(() => {
@@ -74,6 +79,36 @@ describe('MosquittoSettingsDrawer', () => {
     fireEvent.click(screen.getByRole('button', { name: 'modal.livelink.save' }))
     await waitFor(() => expect(updateMQTTSettings).toHaveBeenLastCalledWith({ password: 's3cret' }))
     await waitFor(() => expect(password).toHaveValue(''))
+  })
+
+  it('a saved password marks the secrets banner stale; a save without one leaves it', async () => {
+    // Settings > Integrations mounts this drawer, so a re-entered password
+    // has to clear the banner there too.
+    const { client } = renderDrawer()
+    client.setQueryData(SECRETS_STATUS_QUERY_KEY, { keyring: 'ok', unreadable_keys: ['livelink_mqtt_password'] })
+    const password = await screen.findByLabelText('modal.password')
+
+    fireEvent.change(screen.getByLabelText('modal.username'), { target: { value: 'rv' } })
+    fireEvent.click(screen.getByRole('button', { name: 'modal.livelink.save' }))
+    await waitFor(() => expect(updateMQTTSettings).toHaveBeenCalledWith({ username: 'rv' }))
+    expect(client.getQueryState(SECRETS_STATUS_QUERY_KEY)?.isInvalidated).toBe(false)
+
+    fireEvent.change(password, { target: { value: 's3cret' } })
+    fireEvent.click(screen.getByRole('button', { name: 'modal.livelink.save' }))
+    await waitFor(() => expect(updateMQTTSettings).toHaveBeenLastCalledWith({ password: 's3cret' }))
+    await waitFor(() => expect(client.getQueryState(SECRETS_STATUS_QUERY_KEY)?.isInvalidated).toBe(true))
+  })
+
+  it('a failed password save leaves the banner as it was', async () => {
+    const { client } = renderDrawer()
+    client.setQueryData(SECRETS_STATUS_QUERY_KEY, { keyring: 'ok', unreadable_keys: ['livelink_mqtt_password'] })
+    updateMQTTSettings.mockRejectedValueOnce(new Error('nope'))
+
+    fireEvent.change(await screen.findByLabelText('modal.password'), { target: { value: 's3cret' } })
+    fireEvent.click(screen.getByRole('button', { name: 'modal.livelink.save' }))
+    await waitFor(() => expect(updateMQTTSettings).toHaveBeenCalledTimes(1))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(client.getQueryState(SECRETS_STATUS_QUERY_KEY)?.isInvalidated).toBe(false)
   })
 
   it('holds Test and Restart until the draft is saved', async () => {

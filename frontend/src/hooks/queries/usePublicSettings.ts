@@ -5,6 +5,13 @@ import type { PublicSetting } from '@/utils/publicUnitDefaults'
 /** The `/settings/public` rows as a key-to-value map. */
 export type PublicSettingValues = Readonly<Record<string, string | null | undefined>>
 
+/** One GET of `/settings/public`, as rows (none when the payload has no list). Throws on failure. */
+export async function fetchPublicSettingRows(): Promise<PublicSetting[]> {
+  const response = await api.get<{ settings?: PublicSetting[] }>('/settings/public')
+  const rows = response?.data?.settings
+  return Array.isArray(rows) ? rows : []
+}
+
 /**
  * `/settings/public`, cached once for the whole app. AuthContext and every
  * reader below select from this one query, so a page with several readers
@@ -15,11 +22,7 @@ export type PublicSettingValues = Readonly<Record<string, string | null | undefi
  */
 export const publicSettingsQuery = queryOptions({
   queryKey: ['settings', 'public'] as const,
-  queryFn: async (): Promise<PublicSetting[]> => {
-    const response = await api.get<{ settings?: PublicSetting[] }>('/settings/public')
-    const rows = response?.data?.settings
-    return Array.isArray(rows) ? rows : []
-  },
+  queryFn: fetchPublicSettingRows,
   // An admin's change refreshes it straight away (see Settings), so this only
   // covers another client's change.
   staleTime: 60_000,

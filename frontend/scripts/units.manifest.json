@@ -2288,8 +2288,8 @@
     {
       "path": "src/components/livelink/settings/MosquittoSettingsDrawer.tsx",
       "disposition": "no unit behaviour",
-      "digest": "5a886cfa869f606d5bbbc41ed7606a3f58950a6010324096fee6f7361584a8bb",
-      "reason": "no unit behaviour: the MQTT broker connection moved from LiveLinkSettingsModal.tsx (2026-09-22, sidecars Task 6): host, port, username, password, TLS, status, test, restart. The port is a network port number, not a quantity; nothing is converted or unit-labelled. Read in full. 2026-09-22 (visual review): the subscription hint key no longer names WiCAN. Copy only. 2026-10-25 (b6 T10): the connection chip says its state through a literal-key table. Words only; no unit behaviour. 2026-11-01 (b12 T2): accent text moves off the base accent so it stays readable in light mode (G2a-31): one accent text class to text-(--accent-fg). Class names only; no unit behaviour."
+      "digest": "529b96a96bb8fe522ff46ff7b7e3936d1380a1faaeb435953a5ca0e2014e889f",
+      "reason": "no unit behaviour: the MQTT broker connection moved from LiveLinkSettingsModal.tsx (2026-09-22, sidecars Task 6): host, port, username, password, TLS, status, test, restart. The port is a network port number, not a quantity; nothing is converted or unit-labelled. Read in full. 2026-09-22 (visual review): the subscription hint key no longer names WiCAN. Copy only. 2026-10-25 (b6 T10): the connection chip says its state through a literal-key table. Words only; no unit behaviour. 2026-11-01 (b12 T2): accent text moves off the base accent so it stays readable in light mode (G2a-31): one accent text class to text-(--accent-fg). Class names only; no unit behaviour. 2026-11-08 (low sweep b, fix 1): a saved broker password marks the Settings secrets banner stale."
     },
     {
       "path": "src/components/livelink/settings/MqttDeviceDrawer.tsx",
@@ -2631,8 +2631,8 @@
     {
       "path": "src/components/settings/SecretsStatusBanner.tsx",
       "disposition": "no unit behaviour",
-      "digest": "b9fd37517b57660f6bd5ee5454e4a8b1761e2b81ca3a0fe1829166376fc7af26",
-      "reason": "no unit behaviour: new 2026-10-23 (settings secrets at rest, Task 5). Reads GET /settings/secrets/status and renders one warning naming the keyring state and the unreadable secret setting keys as code. No quantity, unit label or conversion. 2026-11-08 (low sweep b): reads the secrets status through react-query (a Settings save marks it stale) and names each unreadable secret by a label, falling back to the raw key."
+      "digest": "e2cfadf6a038e875d50db85f1840701c5ffb9eb2c2ee6814d1a950c93e1e8a84",
+      "reason": "no unit behaviour: new 2026-10-23 (settings secrets at rest, Task 5). Reads GET /settings/secrets/status and renders one warning naming the keyring state and the unreadable secret setting keys as code. No quantity, unit label or conversion. 2026-11-08 (low sweep b): reads the secrets status through react-query (a Settings save marks it stale) and names each unreadable secret by a label, falling back to the raw key. 2026-11-08 (low sweep b, fix 1): the label list is exported so a test pins it to the backend secret keys."
     },
     {
       "path": "src/components/settings/TimeFormatControl.tsx",
@@ -3352,8 +3352,8 @@
     {
       "path": "src/contexts/AuthContext.tsx",
       "disposition": "audited",
-      "digest": "f0f3e3eca062567deb38b1e5c83cd047dd7ff00db6af9981a9f21b20e4e586e3",
-      "reason": "carries the instance UnitSet default; makes no conversion of its own. FIX ROUND AFTER TASK 5 added `publicSettingsLoaded`, which is a unit decision even though it converts nothing: `defaultUnitPrefs === null` cannot tell 'the instance published no row' from '/settings/public never answered', and the two need opposite treatment by a WRITER. A failed boot fetch also leaves `authMode` on its 'none' initial value, so the `isAdmin || authMode === 'none'` gate that `components/settings/InstanceUnitDefaultsCard.tsx` uses reads OPEN, and that card falls back to the imperial preset for display exactly as it does for a genuinely absent row. Its Custom control writes on the first click with no confirmation, so an admin on a UK or metric `auth_mode=none` instance could publish US imperial to everyone having chosen nothing. The flag is set from the same payload, in the same statement order as `setDefaultUnitPrefs`, and never returns to false: a later failed refresh keeps the last good answer rather than blanking a control mid-session, which is the rule `defaultUnitPrefs` itself follows. `contexts/__tests__/AuthContext.unitDefaults.test.tsx` pins both states (fetch rejected vs payload without the row) against the SAME null `defaultUnitPrefs`. 2026-09-18: re-reviewed for the household-timezone change: date defaults, the zone store and copy only; no unit-bearing value, conversion or label touched. 2026-09-18 codex R1: calendar follows the household zone reactively (Schedule-X timezone config, remount on change, memo anchor); no unit behaviour touched. 2026-10-07 (country setting, #211): reads `default_country` off the same /settings/public payload as the unit defaults and exposes it as `defaultCountry`; the unit defaults read is unchanged. 2026-11-08 (low sweep b): public settings come through the shared query (fetchQuery, always a real request) instead of a direct GET; the unit default parsing is unchanged.",
+      "digest": "782646ca371108e0b40558bc035fa185e8bad2dfa16c24d70b0bf0a59dae3f2a",
+      "reason": "carries the instance UnitSet default; makes no conversion of its own. FIX ROUND AFTER TASK 5 added `publicSettingsLoaded`, which is a unit decision even though it converts nothing: `defaultUnitPrefs === null` cannot tell 'the instance published no row' from '/settings/public never answered', and the two need opposite treatment by a WRITER. A failed boot fetch also leaves `authMode` on its 'none' initial value, so the `isAdmin || authMode === 'none'` gate that `components/settings/InstanceUnitDefaultsCard.tsx` uses reads OPEN, and that card falls back to the imperial preset for display exactly as it does for a genuinely absent row. Its Custom control writes on the first click with no confirmation, so an admin on a UK or metric `auth_mode=none` instance could publish US imperial to everyone having chosen nothing. The flag is set from the same payload, in the same statement order as `setDefaultUnitPrefs`, and never returns to false: a later failed refresh keeps the last good answer rather than blanking a control mid-session, which is the rule `defaultUnitPrefs` itself follows. `contexts/__tests__/AuthContext.unitDefaults.test.tsx` pins both states (fetch rejected vs payload without the row) against the SAME null `defaultUnitPrefs`. 2026-09-18: re-reviewed for the household-timezone change: date defaults, the zone store and copy only; no unit-bearing value, conversion or label touched. 2026-09-18 codex R1: calendar follows the household zone reactively (Schedule-X timezone config, remount on change, memo anchor); no unit behaviour touched. 2026-10-07 (country setting, #211): reads `default_country` off the same /settings/public payload as the unit defaults and exposes it as `defaultCountry`; the unit defaults read is unchanged. 2026-11-08 (low sweep b): public settings come through the shared query (fetchQuery, always a real request) instead of a direct GET; the unit default parsing is unchanged. 2026-11-08 (low sweep b, fix 1): refreshPublicSettings makes its own GET and writes it into the shared query instead of joining a read already out; boot still uses fetchQuery.",
       "tests": [
         "contexts/__tests__/AuthContext.unitDefaults.test.tsx"
       ]
@@ -3496,8 +3496,8 @@
     {
       "path": "src/hooks/queries/usePublicSettings.ts",
       "disposition": "no unit behaviour",
-      "digest": "576b429902cc8b7b08e018ae01dac68f5937309ee2ae77b907786033c76d03e7",
-      "reason": "no unit behaviour: 2026-11-08 (low sweep b): replaces hooks/usePublicSettings.ts. The one cached /settings/public query (key settings/public) that AuthContext and every reader select from: a key-to-value map for the feature switches and limits, and a select hook for single flags. The unit defaults on the same payload are still parsed by AuthContext (readPublicUnitDefaults), not here."
+      "digest": "0b74b18ec466f315cc2b5cf72cec0d88a4e886e0406e119b0d683911d4d152a6",
+      "reason": "no unit behaviour: 2026-11-08 (low sweep b): replaces hooks/usePublicSettings.ts. The one cached /settings/public query (key settings/public) that AuthContext and every reader select from: a key-to-value map for the feature switches and limits, and a select hook for single flags. The unit defaults on the same payload are still parsed by AuthContext (readPublicUnitDefaults), not here. 2026-11-08 (low sweep b, fix 1): the GET is a named function AuthContext reuses for its refresh."
     },
     {
       "path": "src/hooks/queries/useQuickEntryVehicles.ts",
@@ -3514,8 +3514,8 @@
     {
       "path": "src/hooks/queries/useSecretsStatus.ts",
       "disposition": "no unit behaviour",
-      "digest": "bfd09fd95a12e2ddbe7c805ec188c4264b0112502a34875ea3ff67a3fa7d83ff",
-      "reason": "no unit behaviour: 2026-11-08 (low sweep b): new. The admin-only secrets status query (keyring state and unreadable secret keys) behind the Settings banner, and its key so a save can mark it stale."
+      "digest": "306d52b0de051e6ce1b74a41dfec9d53c8c4e1d5c7aa8f56284c8446d146c796",
+      "reason": "no unit behaviour: 2026-11-08 (low sweep b): new. The admin-only secrets status query (keyring state and unreadable secret keys) behind the Settings banner, and its key so a save can mark it stale. 2026-11-08 (low sweep b, fix 1): gcTime 0, so a remount never shows a cached list."
     },
     {
       "path": "src/hooks/queries/useServiceVisits.ts",
