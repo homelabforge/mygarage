@@ -212,8 +212,6 @@ class Settings(BaseSettings):
     # TomTom Places API (optional - falls back to OSM if not configured)
     tomtom_api_key: str = ""  # Empty by default - graceful degradation
     tomtom_api_base_url: str = "https://api.tomtom.com/search/2"
-    shop_search_radius_meters: int = 8000  # ~5 miles
-    shop_search_max_results: int = 20
 
     # File Upload Limits
     max_upload_size_mb: int = 10

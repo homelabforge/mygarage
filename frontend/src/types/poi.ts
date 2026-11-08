@@ -19,10 +19,3 @@ export type EVChargingMetadata = components['schemas']['EVChargingMetadata']
 
 // Derive POICategory from generated schema (POISearchRequest.categories element type)
 export type POICategory = POISearchRequest['categories'][number]
-
-// Backward compatibility: Re-export old types
-export type PlaceResult = components['schemas']['PlaceResult']
-export type ShopSearchRequest = components['schemas']['ShopSearchRequest']
-export type ShopSearchResponse = components['schemas']['ShopSearchResponse']
-export type ShopRecommendation = components['schemas']['ShopRecommendation']
-export type ShopRecommendationsResponse = components['schemas']['ShopRecommendationsResponse']

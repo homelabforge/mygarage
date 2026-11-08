@@ -239,11 +239,8 @@ function callersByMethod(methods: string[], className = FORMATTER_CLASS): Map<st
   return callers
 }
 
-/** The class holding the instance-driven gallon and MPG factors. */
+/** The class that used to hold the instance-driven gallon and MPG factors. */
 const CONVERTER_CLASS = 'UnitConverter'
-
-/** The two mutable statics that carry defect L1's mechanism. */
-const MUTABLE_GALLON_FACTORS = ['gallonsToLitersFactor', 'mpgToL100kmFactor']
 
 /** Every exported function DECLARATION of one module, sorted. */
 function exportedFunctions(path: string): string[] {
@@ -264,61 +261,40 @@ function exportedFunctions(path: string): string[] {
 }
 
 /**
- * Every `UnitConverter` static that touches the mutable gallon factors.
+ * `UnitConverter`'s static surface: its methods, and which of its static
+ * properties are writable.
  *
- * ★ TRANSITIVELY, and that is the whole reason this is derived rather than
- * listed. `lPer100kmToMpg` names neither factor: it delegates to
- * `l100kmToMpg`, which does. A list built by grepping the factor names is a
- * FLOOR, and this workstream has produced sixteen of those; a list built by
- * hand is worse. So a method touches the factors when it names one OR calls a
- * sibling that does, iterated to a fixpoint.
+ * A RECEIPT like `formatterStatics`: it lists names and asks nothing about
+ * types, so a walk that stopped visiting the class comes back empty and the
+ * pinned lists below fail first.
  */
-function factorTouchers(): string[] {
+function converterStatics(): { methods: string[]; readonly: string[]; mutable: string[] } {
   const source = parse(UNITS)
-  const mentions = new Map<string, boolean>()
-  const calls = new Map<string, Set<string>>()
+  const methods = new Set<string>()
+  const readonlyProps = new Set<string>()
+  const mutable = new Set<string>()
+  const has = (modifiers: readonly ts.ModifierLike[] | undefined, kind: ts.SyntaxKind): boolean =>
+    (modifiers ?? []).some((m) => m.kind === kind)
   const walk = (node: ts.Node): void => {
     if (ts.isClassDeclaration(node) && node.name?.text === CONVERTER_CLASS) {
       for (const member of node.members) {
-        if (!ts.isMethodDeclaration(member)) continue
-        if (!(member.modifiers ?? []).some((m) => m.kind === ts.SyntaxKind.StaticKeyword)) continue
-        const name = member.name.getText(source)
-        let direct = false
-        const siblings = new Set<string>()
-        const body = (child: ts.Node): void => {
-          if (ts.isIdentifier(child) && MUTABLE_GALLON_FACTORS.includes(child.text)) direct = true
-          if (
-            ts.isPropertyAccessExpression(child) &&
-            (child.expression.kind === ts.SyntaxKind.ThisKeyword ||
-              (ts.isIdentifier(child.expression) && child.expression.text === CONVERTER_CLASS))
-          ) {
-            siblings.add(child.name.text)
-          }
-          ts.forEachChild(child, body)
+        if (ts.isMethodDeclaration(member) && has(member.modifiers, ts.SyntaxKind.StaticKeyword)) {
+          methods.add(member.name.getText(source))
         }
-        ts.forEachChild(member, body)
-        mentions.set(name, direct)
-        calls.set(name, siblings)
+        if (ts.isPropertyDeclaration(member) && has(member.modifiers, ts.SyntaxKind.StaticKeyword)) {
+          const bucket = has(member.modifiers, ts.SyntaxKind.ReadonlyKeyword) ? readonlyProps : mutable
+          bucket.add(member.name.getText(source))
+        }
       }
     }
     ts.forEachChild(node, walk)
   }
   walk(source)
-  if (mentions.size === 0) {
-    throw new Error(`walked ${CONVERTER_CLASS} and saw no static method; refusing to conclude`)
+  return {
+    methods: [...methods].sort(),
+    readonly: [...readonlyProps].sort(),
+    mutable: [...mutable].sort(),
   }
-  for (let pass = 0; pass < mentions.size; pass += 1) {
-    let grew = false
-    for (const [name, touches] of mentions) {
-      if (touches) continue
-      if ([...(calls.get(name) ?? [])].some((s) => mentions.get(s) === true)) {
-        mentions.set(name, true)
-        grew = true
-      }
-    }
-    if (!grew) break
-  }
-  return [...mentions].filter(([, t]) => t).map(([n]) => n).sort()
 }
 
 describe('the mutable gallon statics (plan 3b task 8)', () => {
@@ -337,58 +313,25 @@ describe('the mutable gallon statics (plan 3b task 8)', () => {
     expect(exportedFunctions(UNITS)).toEqual(['detectUnitSystemFromTimezone'])
   })
 
-  it('★ leaves NO production caller on the factor surface at all', () => {
-    // ★ DEFECT L1's MECHANISM, enumerated rather than asserted about. These are
-    // the statics whose answer moves with the INSTANCE gallon setting, which is
-    // what made a `gal_uk` account store 10 gal as 37.85 L.
+  it('★ keeps no writable static on the converter, so there is no instance gallon to read', () => {
+    // ★ DEFECT L1's MECHANISM, DELETED RATHER THAN GUARDED. Two writable
+    // statics (`gallonsToLitersFactor`, `mpgToL100kmFactor`) followed the
+    // INSTANCE gallon setting, which is what made a `gal_uk` account store 10
+    // gal as 37.85 L. Phase 4 task 5 took their last writer, and they went
+    // with `setGallonStandard` and the six methods that read them.
     //
-    // ★ THE LIST WAS `['setGallonStandard']` UNTIL PHASE 4 TASK 5, and the one
-    // caller was `utils/gallonStandardStore.ts`, which wrote these factors from
-    // the instance setting while nothing read them. Task 5 deleted that store
-    // and `hooks/useGallonStandardSync.ts` with it, so the mutable fields below
-    // now have no writer in production and the six methods that read them no
-    // caller: the whole apparatus is dead to the app and live only to the tests
-    // that still set a flavour before asserting a conversion.
-    //
-    // ★ WHICH LEAVES A STATED RESIDUAL rather than a silent one. Deleting the
-    // mutable statics and their six methods outright rewrites nine unrelated
-    // test files whose `UnitConverter.setGallonStandard('us')` lines are
-    // deliberate defect-L1 guards, so task 5 stopped at the store and recorded
-    // the emptiness here instead. `[]` is not a weaker assertion than the old
-    // one: a name reappearing on this line is a module that has started
-    // rendering off process-global state again, which is the defect rather than
-    // a style point, and it is also the day the deleted repaint loop would be
-    // needed again.
-    const touchers = factorTouchers()
-    expect(touchers).toEqual([
-      'gallonsToLiters',
-      'getGallonStandard',
-      'l100kmToMpg',
-      'lPer100kmToMpg',
-      'litersToGallons',
-      'mpgToL100km',
-      'setGallonStandard',
-      'toCanonicalMetricString',
-    ])
-    const live = [...callersByMethod(touchers, CONVERTER_CLASS)]
-      .filter(([, files]) => files.length > 0)
-      .map(([name]) => name)
-    expect(live).toEqual([])
+    // So the old "nobody calls the factor surface" check had nothing left to
+    // look at, and the component tests that pinned the instance gallon to
+    // `us` before every gallon case lost the thing they pinned. This is what
+    // holds the guard now: a writable static here is process-wide state again.
+    const { methods, readonly, mutable } = converterStatics()
+    expect(mutable).toEqual([])
 
-    // ★ AND THE RECEIPT THE EMPTY LIST NEEDS, because emptying it took this
-    // file's only one away. While the pin read `['setGallonStandard']` the
-    // NON-empty answer was itself the proof that `productionSources()` walks
-    // anything and that `callersByMethod` finds a caller: make either return
-    // nothing and the assertion above still passes, along with every other case
-    // in this file. So the same walk and the same scan are pointed at the class
-    // that emphatically still has callers. `[]` above means "nothing calls the
-    // factor surface" only while this passes; without it, it means "the scanner
-    // is broken" just as readily.
-    expect(productionSources().length).toBeGreaterThan(200)
-    const formatterCallers = [...callersByMethod(formatterStatics())]
-      .filter(([, files]) => files.length > 0)
-      .map(([name]) => name)
-    expect(formatterCallers.length).toBeGreaterThan(0)
+    // The receipt the empty list needs: the walk saw the class's properties.
+    expect(readonly).toContain('US_GALLONS_TO_LITERS')
+    // And the whole method surface, so a converter added back has to come
+    // through this line. Every raw one went for having no production caller.
+    expect(methods).toEqual(['litersToVolumeUnit', 'roundResult'])
   })
 })
 

@@ -108,7 +108,6 @@ import { toast } from 'sonner'
 import { IMPERIAL_UNITS, METRIC_UNITS, UK_IMPERIAL_UNITS } from '../../__tests__/factories'
 import vehiclesEn from '../../locales/en/vehicles.json'
 import { binarySystemFor } from '../../types/units'
-import { UnitConverter } from '../../utils/units'
 import FuelRecordList from '../FuelRecordList'
 
 const record: FuelRecord = {
@@ -141,7 +140,6 @@ beforeEach(() => {
   unitPrefMock.units = null
   unitPrefMock.accountUnits = null
   currencyMock.code = 'USD'
-  UnitConverter.setGallonStandard('us')
   vi.spyOn(window, 'confirm').mockReturnValue(true)
   useFuelRecordsMock.mockReturnValue({
     data: { records: [record], total: 1, average_l_per_100km: '8.5' },
@@ -519,8 +517,11 @@ describe('FuelRecordList — one gallon per page, taken from the user', () => {
   // read $3.79/gal, because `formatCostPerVolume` held its own hardcoded
   // 3.78541. The row's volume, the row's price and both volume cards have to
   // come from one resolved set, and the instance's own flavour is not it.
+  //
+  // These used to pin the instance gallon to the other flavour first. That
+  // gallon is deleted, so the user's set is the only one a page can read and
+  // there's nothing left to pin.
   it('renders the header, the volume cell, the price cell and both volume cards on the imperial gallon', async () => {
-    UnitConverter.setGallonStandard('us')
     unitPrefMock.system = 'imperial'
     unitPrefMock.units = UK_IMPERIAL_UNITS
 
@@ -537,11 +538,9 @@ describe('FuelRecordList — one gallon per page, taken from the user', () => {
     expect(screen.getByText('fuelList.volumeTotal (10.4 gal (UK))')).toBeInTheDocument()
     expect(screen.getByText('fuelList.avgCostPerVolume (gal (UK))')).toBeInTheDocument()
     expect(screen.getByText('$4.20')).toBeInTheDocument()
-    expect(UnitConverter.getGallonStandard()).toBe('us')
   })
 
-  it('renders litres everywhere for a metric set, even on a UK-default instance', async () => {
-    UnitConverter.setGallonStandard('uk')
+  it('renders litres everywhere for a metric set', async () => {
     unitPrefMock.system = 'metric'
     unitPrefMock.units = null
 

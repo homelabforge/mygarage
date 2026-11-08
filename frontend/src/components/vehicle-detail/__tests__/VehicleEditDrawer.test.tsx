@@ -38,7 +38,6 @@ vi.mock('../../../hooks/useUnitPreference', async () => {
 
 import { IMPERIAL_UNITS, UK_IMPERIAL_UNITS, makeDetailStats } from '../../../__tests__/factories'
 import { binarySystemFor } from '../../../types/units'
-import { UnitConverter } from '../../../utils/units'
 import { toast } from 'sonner'
 import { registeredFieldNames, submitAndSettle, validationError, dropQueuedOnces } from '../../../__tests__/serverErrors'
 import api from '../../../services/api'
@@ -896,15 +895,16 @@ describe('VehicleEditDrawer — the DEF tank capacity is the eighth gallon write
     def_tank_capacity_liters: '19.0',
   }
 
+  // These used to pin the instance gallon to the other flavour first. That
+  // gallon is deleted, so the user's set is the only one the drawer can read
+  // and there's nothing left to pin.
   beforeEach(() => {
     vi.clearAllMocks()
     unitPrefMock.system = 'metric'
     unitPrefMock.units = null
-    UnitConverter.setGallonStandard('us')
   })
 
-  it('seeds and submits the capacity on the USER\'s gallon, on a US-default instance', async () => {
-    UnitConverter.setGallonStandard('us')
+  it('seeds and submits the capacity on the USER\'s gallon', async () => {
     unitPrefMock.system = 'imperial'
     unitPrefMock.units = UK_IMPERIAL_UNITS
 
@@ -925,7 +925,6 @@ describe('VehicleEditDrawer — the DEF tank capacity is the eighth gallon write
     // an untouched field posts what it was seeded from.
     expect(payload.def_tank_capacity_liters).toBe(19)
     expect(payload.def_tank_capacity_liters).not.toBe(19.003)
-    expect(UnitConverter.getGallonStandard()).toBe('us')
   })
 
   it('★ a TYPED capacity converts on the user\'s gallon, which the origin case cannot see', async () => {
@@ -942,7 +941,6 @@ describe('VehicleEditDrawer — the DEF tank capacity is the eighth gallon write
     // So this case TYPES a value. 5.00 imperial gallons x 4.54609 = 22.73045,
     // which the wire precision rounds to 22.730. Through `u.mass` it would be
     // 5 x 0.45359237 = 2.268, and through the US gallon 18.927.
-    UnitConverter.setGallonStandard('us')
     unitPrefMock.system = 'imperial'
     unitPrefMock.units = UK_IMPERIAL_UNITS
 
@@ -960,7 +958,6 @@ describe('VehicleEditDrawer — the DEF tank capacity is the eighth gallon write
     expect(payload.def_tank_capacity_liters).not.toBe(2.268)
     expect(payload.def_tank_capacity_liters).not.toBe(18.927)
     expect(payload.def_tank_capacity_liters).not.toBe(19)
-    expect(UnitConverter.getGallonStandard()).toBe('us')
   })
 
   it('★ REOPENING on a vehicle whose capacity was cleared does not keep the last one\'s origin', async () => {
@@ -974,7 +971,6 @@ describe('VehicleEditDrawer — the DEF tank capacity is the eighth gallon write
     // then type `4.18`. With a stale origin the typed value matches the
     // remembered display and posts the remembered 19; with a reset one it
     // converts, 4.18 x 4.54609 = 19.0026562 -> 19.003.
-    UnitConverter.setGallonStandard('us')
     unitPrefMock.system = 'imperial'
     unitPrefMock.units = UK_IMPERIAL_UNITS
 
@@ -1023,7 +1019,6 @@ describe('VehicleEditDrawer — the DEF tank capacity is the eighth gallon write
     // `system === 'imperial'` ternary, so a UK account read a US-gallon example
     // for a unit 20 percent larger. One physical tank, three vocabularies:
     // 19 L is 5.0 US gallons and 4.2 imperial ones.
-    UnitConverter.setGallonStandard('us')
     unitPrefMock.system = 'imperial'
     unitPrefMock.units = UK_IMPERIAL_UNITS
 
@@ -1036,8 +1031,7 @@ describe('VehicleEditDrawer — the DEF tank capacity is the eighth gallon write
     expect(binarySystemFor(IMPERIAL_UNITS.volume)).toBe('imperial')
   })
 
-  it('labels and converts in litres for a metric set, on a UK-default instance', async () => {
-    UnitConverter.setGallonStandard('uk')
+  it('labels and converts in litres for a metric set', async () => {
     unitPrefMock.system = 'metric'
     unitPrefMock.units = null
 

@@ -34,7 +34,6 @@ vi.mock('../../hooks/useUnitPreference', async () => {
 vi.mock('../../hooks/useCurrencySymbol', () => ({ useCurrencySymbol: () => '$' }))
 
 import { UK_IMPERIAL_UNITS } from '../../__tests__/factories'
-import { UnitConverter } from '../../utils/units'
 import DEFRecordForm from '../DEFRecordForm'
 import { OVERWRITE_CHECK_MS } from '../ui/NumberInput'
 
@@ -45,7 +44,6 @@ beforeEach(() => {
   vi.clearAllMocks()
   unitPrefMock.system = 'metric'
   unitPrefMock.units = null
-  UnitConverter.setGallonStandard('us')
 })
 
 describe('DEFRecordForm — structure', () => {
@@ -156,11 +154,13 @@ describe('DEFRecordForm — edit round-trip', () => {
 })
 
 describe('DEFRecordForm — the gallon comes from the user, not the instance', () => {
-  it('CREATE: a gal_uk user on a US-default instance stores volume AND price on the imperial gallon', async () => {
+  // These used to pin the instance gallon to the other flavour first. That
+  // gallon is deleted, so the user's set is the only one a form can read and
+  // there's nothing left to pin.
+  it('CREATE: a gal_uk user stores volume AND price on the imperial gallon', async () => {
     // Defect L1: `toCanonicalLiters` used UnitConverter's instance-wide factor
     // while `priceToCanonical` used a hardcoded US gallon. Splitting the two
     // writes one payload with two gallons in it.
-    UnitConverter.setGallonStandard('us')
     unitPrefMock.system = 'imperial'
     unitPrefMock.units = UK_IMPERIAL_UNITS
 
@@ -174,7 +174,6 @@ describe('DEFRecordForm — the gallon comes from the user, not the instance', (
     const payload = createMock.mock.calls[0][0] as Record<string, unknown>
     expect(payload.liters).toBe(45.461)             // 10 x 4.54609, at the schema's 3 dp
     expect(payload.price_per_unit).toBe(1.31981548979)  // 6 / 4.54609
-    expect(UnitConverter.getGallonStandard()).toBe('us')
     // The row reconciles: the cost the user saw is price x volume in canonical
     // units too, which is only true when both used the same gallon.
     const ratio = (payload.price_per_unit as number) * (payload.liters as number) / (payload.cost as number)
@@ -216,7 +215,6 @@ describe('DEFRecordForm — the gallon comes from the user, not the instance', (
     //           5 * 4.54609      = 22.73045  -> 3 wire decimals -> 22.73
     //   price   1.32 * 4.54609   = 6.00084   -> 3 display dp    -> 6.001
     //           6.001 / 4.54609  = 1.32003545904 at 12 significant digits
-    UnitConverter.setGallonStandard('us')
     unitPrefMock.system = 'imperial'
     unitPrefMock.units = UK_IMPERIAL_UNITS
 
@@ -241,7 +239,6 @@ describe('DEFRecordForm — the gallon comes from the user, not the instance', (
   it('EDIT: a gal_uk record already on the entry grid is a fixed point too', async () => {
     // The negative control: a pair the naive reconversion gets right on its
     // own, kept so the case above is not the only evidence.
-    UnitConverter.setGallonStandard('us')
     unitPrefMock.system = 'imperial'
     unitPrefMock.units = UK_IMPERIAL_UNITS
 

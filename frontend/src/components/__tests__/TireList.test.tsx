@@ -171,8 +171,7 @@ describe('TireList', () => {
 
     // 100 mi x 1.609344 = 160.9344 km. The adapter does not round a canonical
     // write to two decimals the way `UnitConverter.milesToKm` did; it keeps the
-    // exact conversion, as `UnitConverter.toCanonicalMetricString` already does
-    // for every other form. The column is Numeric(10,2), so the server stores
+    // exact conversion. The column is Numeric(10,2), so the server stores
     // 160.93 either way.
     expect(mutate.mock.calls[0][0].odometer_km).toBe(160.9344)
   })

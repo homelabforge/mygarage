@@ -81,7 +81,6 @@ vi.mock('../../hooks/useCurrencyPreference', () => ({
 }))
 
 import { METRIC_UNITS, UK_IMPERIAL_UNITS } from '../../__tests__/factories'
-import { UnitConverter } from '../../utils/units'
 import DEFRecordList from '../DEFRecordList'
 
 const mockRecord: DEFRecord = {
@@ -192,8 +191,10 @@ describe('DEFRecordList — DataTable structure + unit-aware header (M3/B7)', ()
 })
 
 describe('DEFRecordList — one gallon per page, taken from the user', () => {
+  // These used to pin the instance gallon to the other flavour first. That
+  // gallon is deleted, so the user's set is the only one a page can read and
+  // there's nothing left to pin.
   beforeEach(() => {
-    UnitConverter.setGallonStandard('us')
     unitPrefMock.system = 'metric'
     unitPrefMock.units = null
     useDEFAnalyticsMock.mockReturnValue({
@@ -242,7 +243,6 @@ describe('DEFRecordList — one gallon per page, taken from the user', () => {
   })
 
   it('puts the consumption card, the cost card and the volume total on the imperial gallon', () => {
-    UnitConverter.setGallonStandard('us')
     unitPrefMock.system = 'imperial'
     unitPrefMock.units = UK_IMPERIAL_UNITS
 
@@ -258,11 +258,9 @@ describe('DEFRecordList — one gallon per page, taken from the user', () => {
     expect(screen.getByText('defList.volumeTotal (4.6 gal (UK))')).toBeInTheDocument()
     // And the row cell agrees with all three.
     expect(within(screen.getByRole('table', { name: 'defList.tableCaption' })).getByText('4.58 gal (UK)')).toBeInTheDocument()
-    expect(UnitConverter.getGallonStandard()).toBe('us')
   })
 
-  it('stays in litres for a metric set even on a UK-default instance', () => {
-    UnitConverter.setGallonStandard('uk')
+  it('stays in litres for a metric set', () => {
     render(<DEFRecordList vin="TEST12345678901234" />)
 
     expect(screen.getByText('4.7')).toBeInTheDocument()

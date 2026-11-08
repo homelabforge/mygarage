@@ -9,12 +9,11 @@
  * through the same wrong factor so nothing on screen disagreed.
  *
  * Substituting the dynamic `UnitConverter.gallonsToLiters` would NOT have been
- * the fix: its flavour came from the instance-wide gallon setting (which phase
- * 4 task 5 retired, leaving these statics writable only from a test), while
- * phase 1 gave each account its own
- * `resolved_units`. Every test below that names a gallon therefore pins the
- * INSTANCE standard to `us` first, so a helper still reading the global cannot
- * pass a `gal_uk` case.
+ * the fix: its flavour came from the instance-wide gallon setting, while phase
+ * 1 gave each account its own `resolved_units`. These tests used to pin that
+ * instance gallon to `us` so a helper still reading it couldn't pass a `gal_uk`
+ * case. The instance gallon and that converter are deleted now, so there's
+ * nothing left to pin and nothing a helper could read instead of the set.
  *
  * ★ WHAT PLAN 3b TASK 7 CHANGED ABOUT THIS FILE. `toCanonicalLiters` and the
  * exported `priceToCanonical` are gone: each took the value a form field
@@ -26,7 +25,7 @@
  * form runs.
  */
 
-import { beforeEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { makeUnitSet } from '@/__tests__/factories'
 import {
   canonicalFromPriceField,
@@ -38,12 +37,11 @@ import {
   type PriceFieldOrigin,
 } from '../decimalSafe'
 import { canonicalFromUnitField, makeUnitFormat, type UnitFieldOrigin } from '../unitFormat'
-import { UnitConverter } from '../units'
 import type { UnitSet } from '@/types/units'
 
 const METRIC = makeUnitSet()
 const US = makeUnitSet({ volume: 'gal_us', mass: 'lb', secondary_gallon: 'us' })
-/** A UK-gallon user. On this instance the global standard stays `us` below. */
+/** A UK-gallon user. */
 const UK = makeUnitSet({ volume: 'gal_uk', mass: 'lb', secondary_gallon: 'uk' })
 
 /** A field nobody has seeded: every entry into it is an edit. */
@@ -76,20 +74,12 @@ const enteredPrice = (
 ): number | null =>
   canonicalFromPriceField(String(typed ?? ''), unseededPrice(basis ?? null), units, basis)
 
-beforeEach(() => {
-  // The instance-wide flavour, as the retired `useGallonStandardSync` would
-  // have left it on a US-default install. Nothing here may consult it.
-  UnitConverter.setGallonStandard('us')
-})
-
 describe('an entered volume, through the adapter and the wire precision', () => {
-  it('converts on the resolved volume token, not the instance gallon standard', () => {
+  it('converts on the resolved volume token', () => {
     // 10 x 3.785411784 = 37.85411784 -> 37.854 at the API contract's 3 decimal places.
     expect(enteredVolume(10, US)).toBe(37.854)
-    // 10 x 4.54609 = 45.4609 -> 45.461. The instance standard is `us`, so a
-    // path reading the global would answer 37.854 here.
+    // 10 x 4.54609 = 45.4609 -> 45.461. A US gallon would answer 37.854.
     expect(enteredVolume(10, UK)).toBe(45.461)
-    expect(UnitConverter.getGallonStandard()).toBe('us')
   })
 
   it('leaves a litre entry as it was typed, apart from the wire precision', () => {

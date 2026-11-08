@@ -35,7 +35,6 @@ vi.mock('../../hooks/useUnitPreference', async () => {
 vi.mock('../../hooks/useCurrencySymbol', () => ({ useCurrencySymbol: () => '$' }))
 
 import { UK_IMPERIAL_UNITS } from '../../__tests__/factories'
-import { UnitConverter } from '../../utils/units'
 import PropaneRecordForm from '../PropaneRecordForm'
 
 const DEFAULT_PROPS = { vin: 'TEST12345678901234', onClose: vi.fn(), onSuccess: vi.fn() }
@@ -45,7 +44,6 @@ beforeEach(() => {
   vi.clearAllMocks()
   unitPrefMock.system = 'metric'
   unitPrefMock.units = null
-  UnitConverter.setGallonStandard('us')
 })
 
 // A rejection a failed test queued but never used mustn't reach the next one.
@@ -212,8 +210,10 @@ describe('PropaneRecordForm — edit round-trip', () => {
 })
 
 describe('PropaneRecordForm — the gallon comes from the user, not the instance', () => {
-  it('CREATE: a gal_uk user on a US-default instance stores volume AND price on the imperial gallon', async () => {
-    UnitConverter.setGallonStandard('us')
+  // These used to pin the instance gallon to the other flavour first. That
+  // gallon is deleted, so the user's set is the only one a form can read and
+  // there's nothing left to pin.
+  it('CREATE: a gal_uk user stores volume AND price on the imperial gallon', async () => {
     unitPrefMock.system = 'imperial'
     unitPrefMock.units = UK_IMPERIAL_UNITS
 
@@ -230,13 +230,11 @@ describe('PropaneRecordForm — the gallon comes from the user, not the instance
     // Propane deliberately leaves `liters` unset and uses its own column, which
     // is why the corruption detector coalesces the two.
     expect(payload.liters).toBeUndefined()
-    expect(UnitConverter.getGallonStandard()).toBe('us')
   })
 
   it('the tank auto-calc lands in the SAME unit the volume field is submitted in', async () => {
     // The tank row writes straight into propane_liters, so a volume computed
     // on the instance gallon would be submitted back through the user's one.
-    UnitConverter.setGallonStandard('us')
     unitPrefMock.system = 'imperial'
     unitPrefMock.units = UK_IMPERIAL_UNITS
 
@@ -271,7 +269,6 @@ describe('PropaneRecordForm — the gallon comes from the user, not the instance
     //           5 * 4.54609      = 22.73045  -> 3 wire decimals -> 22.73
     //   price   1.32 * 4.54609   = 6.00084   -> 3 display dp    -> 6.001
     //           6.001 / 4.54609  = 1.32003545904 at 12 significant digits
-    UnitConverter.setGallonStandard('us')
     unitPrefMock.system = 'imperial'
     unitPrefMock.units = UK_IMPERIAL_UNITS
 
@@ -297,7 +294,6 @@ describe('PropaneRecordForm — the gallon comes from the user, not the instance
     // unconverted and the submit re-reads it as per_volume. That
     // reinterpretation is the intended migration; an origin that only compared
     // the NUMBER would call the field untouched and store 6 as a $/L price.
-    UnitConverter.setGallonStandard('us')
     unitPrefMock.system = 'imperial'
     unitPrefMock.units = UK_IMPERIAL_UNITS
 
@@ -320,7 +316,6 @@ describe('PropaneRecordForm — the gallon comes from the user, not the instance
   it('EDIT: a gal_uk record already on the entry grid is a fixed point too', async () => {
     // The negative control: a pair the naive reconversion gets right on its
     // own, kept so the case above is not the only evidence.
-    UnitConverter.setGallonStandard('us')
     unitPrefMock.system = 'imperial'
     unitPrefMock.units = UK_IMPERIAL_UNITS
 

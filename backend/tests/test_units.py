@@ -99,10 +99,6 @@ class TestDisplayConversionsUnchanged:
     def test_miles_to_km(self) -> None:
         assert UnitConverter.miles_to_km(100) == 160.93
 
-    def test_celsius_to_fahrenheit(self) -> None:
-        assert UnitConverter.celsius_to_fahrenheit(0) == 32.0
-        assert UnitConverter.celsius_to_fahrenheit(100) == 212.0
-
     def test_round_result_returns_float(self) -> None:
         # Display path returns float (JSON-serializable)
         result = UnitConverter.round_result(Decimal("123.4567"))

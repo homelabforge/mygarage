@@ -1,29 +1,19 @@
 /**
  * Unit conversion utilities for imperial/metric conversion.
  *
- * Canonical: SI metric (km, L, kg, m, L/100km, °C, bar, Nm)
+ * Canonical: SI metric (km, L, kg, m, L/100km, °C, kPa, Nm)
  *
  * - All database values are stored in SI metric units (canonical).
  * - Conversion happens at render time for imperial-preferring users.
  * - UnitFormatter.formatX methods accept a METRIC value and convert to imperial for display.
- * - Form submissions should use UnitConverter.toCanonicalMetricString() to convert
- *   user input back to canonical metric before sending to the API.
+ * - Form submissions convert user input back to canonical metric through the
+ *   unit field protocol in `utils/unitFormat.ts` (prices through
+ *   `utils/decimalSafe.ts`) before sending it to the API.
  *
- * Supported conversions:
- * - Volume: liters ↔ gallons
- * - Fuel Economy: L/100km ↔ MPG
- * - Dimensions: meters ↔ feet
- * - Pressure: kPa ↔ PSI (bar = kPa/100)
- * - Weight: kilograms ↔ pounds
- * - Torque: Nm ↔ lb-ft
- * - Electric: kWh, kW, voltage (no conversion needed, universal)
- *
- * ★ DISTANCE IS NOT ON THAT LIST ANY MORE, and its absence is a statement.
- * `UNIT_ADAPTERS` in `utils/unitAdapters.ts` is where km ↔ mi happens now, off
- * the resolved `units.distance` token; plan 3b task 6 migrated the last call
- * site and deleted `formatDistance`, `getDistanceUnit`, `kmToMiles` and
- * `milesToKm`. The factor `MILES_TO_KM` stays here because that table is built
- * from it.
+ * ★ THERE ARE NO RAW CONVERTERS LEFT HERE. `UNIT_ADAPTERS` in
+ * `utils/unitAdapters.ts` converts every quantity off the reader's own token.
+ * This class keeps the factor table that adapter table is built from, plus
+ * the volume token maps and `litersToVolumeUnit`.
  */
 
 // TYPE-ONLY, and it has to stay that way. `utils/unitAdapters.ts` imports
@@ -44,7 +34,7 @@ export type GallonStandard = 'us' | 'uk';
  * `getConverterGallon`, `getConverterGallonServerSnapshot`,
  * `hooks/useResolvedGallonSync.ts` and one `useSyncExternalStore` in
  * `useUnitPreference` used to sit here. They existed so a mounted component
- * repainted when the mutable gallon factors below moved: every consumption and
+ * repainted when the mutable gallon factors moved: every consumption and
  * fuel-rate reader took the binary `system` and read those statics, so a
  * changed flavour changed the next conversion and repainted nothing.
  *
@@ -57,31 +47,16 @@ export type GallonStandard = 'us' | 'uk';
  * subscription.
  *
  * ★ That mutable gallon IS defect L1's mechanism, the instance-driven factor
- * that made a `gal_uk` user store 10 gal as 37.85 L. What survives here is the
- * INSTANCE setting's write path and the six methods that read the factors, all
- * six of which have zero production callers.
- * `utils/__tests__/unitsBinaryApiSurface.test.ts` enumerates them and holds the
- * loop deleted.
- *
- * ★ AND SINCE PHASE 4 TASK 5 THE WRITE PATH HAS NO CALLER EITHER.
- * `utils/gallonStandardStore.ts` was the one production module that called
- * `setGallonStandard`, and task 5 deleted it with the `imperial_gallon_standard`
- * control it served; the instance default is the whole `default_unit_prefs` set
- * now. So the two mutable fields below are frozen at their US initialisers for
- * the life of the process, and the only writer left is a test arranging a
- * flavour. That enumeration is `[]` now, and taking the statics and the six
- * methods out with it is the follow-up, held open because doing it rewrites nine
- * test files whose flavour lines are deliberate defect-L1 guards.
+ * that made a `gal_uk` user store 10 gal as 37.85 L. Phase 4 task 5 deleted its
+ * last writer, so it sat frozen on the US gallon with six readers nobody
+ * called. The statics, `setGallonStandard` and those six readers are gone now,
+ * so there's no process-wide gallon left for anything to read: every gallon
+ * comes off the reader's resolved set.
  */
 type Numeric = number | null | undefined;
 
 /**
- * Unit conversion between imperial and metric systems.
- *
- * These bidirectional helpers keep their imperial-named signatures
- * (gallonsToLiters, litersToGallons, etc.) — they're utility functions used
- * in both directions, not tied to canonical storage. The distance pair that
- * used to be named here is gone; see the DISTANCE CONVERSIONS marker below.
+ * The imperial/metric factor table and the resolved-set volume helpers.
  */
 export class UnitConverter {
   // Conversion factors (imperial to metric).
@@ -91,12 +66,10 @@ export class UnitConverter {
   // `backend/app/utils/unit_adapters.py` imports them from the backend's
   // `UnitConverter`. A duplicated factor table is the defect this workstream
   // keeps finding (`telemetryUnits.ts` has four of them); one more would be a
-  // fifth. The two MUTABLE fields below stay private on purpose: they are
-  // process-global state driven by the instance gallon setting, and an adapter
-  // resolved from a user's own `UnitSet` must never read them.
+  // fifth.
   //
   // ★ THE ONLY PLACE IN THIS FILE THE RAW-CONSTANT RULE IS OFF, and it is these
-  // twelve lines rather than the whole module (plan 3b, task 2). Until now
+  // lines rather than the whole module (plan 3b, task 2). Until now
   // `eslint.config.js` silenced `no-restricted-syntax` for `utils/units.ts`
   // outright, in a block meant for the i18n guards, and the entry in
   // `UNITS_CONSTANT_EXEMPT` beside `unitAdapters.ts` and `supplyUnits.ts` was
@@ -116,26 +89,22 @@ export class UnitConverter {
   static readonly INCH_TO_METERS = 0.0254;
   static readonly US_GALLONS_TO_LITERS = 3.785411784;
   static readonly UK_GALLONS_TO_LITERS = 4.54609;
-  private static gallonsToLitersFactor = UnitConverter.US_GALLONS_TO_LITERS;
   static readonly LBS_TO_KG = 0.45359237;
   static readonly STANDARD_GRAVITY = 9.80665;
   static readonly LBF_TO_N = UnitConverter.LBS_TO_KG * UnitConverter.STANDARD_GRAVITY;
   static readonly PSI_TO_KPA =
     UnitConverter.LBF_TO_N / (UnitConverter.INCH_TO_METERS * UnitConverter.INCH_TO_METERS) / 1000;
-  private static readonly PSI_TO_BAR = UnitConverter.PSI_TO_KPA / 100;
   static readonly LBFT_TO_NM = UnitConverter.LBF_TO_N * UnitConverter.FEET_TO_METERS;
   static readonly US_MPG_TO_L100KM = (100 * UnitConverter.US_GALLONS_TO_LITERS) / UnitConverter.MILES_TO_KM;
   static readonly UK_MPG_TO_L100KM = (100 * UnitConverter.UK_GALLONS_TO_LITERS) / UnitConverter.MILES_TO_KM;
-  private static mpgToL100kmFactor = UnitConverter.US_MPG_TO_L100KM;
   /* eslint-enable no-restricted-syntax */
 
   // ── Resolved-set dispatch ────────────────────────────────────────────────
   //
-  // The two mutable fields above follow the INSTANCE gallon setting, which is
-  // not the same thing as the client's own units: phase 1 gave every account a
-  // `resolved_units` set, so a user resolving `gal_uk` on a US-default instance
-  // must get the imperial gallon regardless of what the instance holds. The
-  // maps below are how a resolved token becomes a factor.
+  // Phase 1 gave every account a `resolved_units` set, so a user resolving
+  // `gal_uk` on a US-default instance must get the imperial gallon regardless
+  // of what the instance holds. The maps below are how a resolved token
+  // becomes a factor.
   //
   // They ARE a second dispatch of a decision `utils/unitAdapters.ts` also
   // makes, and duplicated unit knowledge is exactly what this workstream keeps
@@ -184,30 +153,6 @@ export class UnitConverter {
   };
 
   /**
-   * Select US or UK imperial gallon (also updates MPG conversion).
-   *
-   * It used to notify a `subscribeToConverterGallon` listener set so a mounted
-   * component could repaint. Nothing renders off these statics since plan 3b
-   * task 6b, so there is nothing to repaint and task 8 deleted the whole loop;
-   * see the note above `type Numeric`. Phase 4 task 5 then deleted
-   * `gallonStandardStore`, the last production caller, so no production module
-   * calls this or the six methods below.
-   */
-  static setGallonStandard(standard: GallonStandard): void {
-    if (standard === 'uk') {
-      this.gallonsToLitersFactor = this.UK_GALLONS_TO_LITERS;
-      this.mpgToL100kmFactor = this.UK_MPG_TO_L100KM;
-    } else {
-      this.gallonsToLitersFactor = this.US_GALLONS_TO_LITERS;
-      this.mpgToL100kmFactor = this.US_MPG_TO_L100KM;
-    }
-  }
-
-  static getGallonStandard(): GallonStandard {
-    return this.gallonsToLitersFactor === this.UK_GALLONS_TO_LITERS ? 'uk' : 'us';
-  }
-
-  /**
    * Round result to specified decimal places.
    */
   private static roundResult(value: number | null, decimals: number = 2): number | null {
@@ -217,36 +162,14 @@ export class UnitConverter {
     return parseFloat(value.toFixed(decimals));
   }
 
-  // ========== VOLUME CONVERSIONS ==========
-
-  /**
-   * Convert gallons to liters (uses active US/UK gallon standard).
-   */
-  static gallonsToLiters(gallons: Numeric): number | null {
-    if (gallons === null || gallons === undefined) {
-      return null;
-    }
-    return this.roundResult(gallons * this.gallonsToLitersFactor);
-  }
-
-  /**
-   * Convert liters to gallons (uses active US/UK gallon standard).
-   */
-  static litersToGallons(liters: Numeric): number | null {
-    if (liters === null || liters === undefined) {
-      return null;
-    }
-    return this.roundResult(liters / this.gallonsToLitersFactor);
-  }
-
   /**
    * Convert canonical litres into the volume unit a resolved set names.
    *
-   * The resolved-set counterpart of `litersToGallons`, and the reason the
-   * flavour is right for a `gal_uk` user on a US-default instance. A litre set
-   * returns the value untouched rather than passing it through `roundResult`:
-   * this feeds form fields, and re-rounding a stored value a metric user never
-   * edited would rewrite it on save.
+   * It reads the flavour off the resolved set, which is why it's right for a
+   * `gal_uk` user on a US-default instance. A litre set returns the value
+   * untouched rather than passing it through `roundResult`: this feeds form
+   * fields, and re-rounding a stored value a metric user never edited would
+   * rewrite it on save.
    *
    * @param liters Canonical litres.
    * @param units The client's resolved unit set.
@@ -261,265 +184,6 @@ export class UnitConverter {
       return liters;
     }
     return this.roundResult(liters / UnitConverter.LITERS_PER_VOLUME_UNIT[units.volume]);
-  }
-
-  // ========== DISTANCE CONVERSIONS ==========
-  //
-  // ★ There are none left here, and the gap is deliberate rather than an
-  // oversight. `milesToKm` and `kmToMiles` were the raw pair a call site
-  // reached for when it wanted to make the imperial/metric decision itself,
-  // and plan 3b task 6 migrated the last two such sites (Calendar's
-  // remaining-distance badge and the DEF card's estimate) onto the resolved
-  // `units.distance` adapter. Both then had zero callers. Deleting them makes
-  // "convert this to miles regardless of what the reader chose" inexpressible,
-  // which is the same call R8 made one module over for the three
-  // `toCanonical*` helpers. `MILES_TO_KM` stays: `UNIT_ADAPTERS` builds the
-  // `mi` and `mph` adapters from it, which is the one place the conversion
-  // should happen.
-
-  // ========== FUEL ECONOMY CONVERSIONS ==========
-
-  /**
-   * Convert MPG to L/100km (US 235.2145833... or UK 282.4809363..., the numerators
-   * derived above, per active gallon standard).
-   */
-  static mpgToL100km(mpg: Numeric): number | null {
-    if (mpg === null || mpg === undefined || mpg === 0) {
-      return null;
-    }
-    return this.roundResult(this.mpgToL100kmFactor / mpg, 1);
-  }
-
-  /**
-   * Convert L/100km to MPG (US 235.2145833... or UK 282.4809363..., the numerators
-   * derived above, per active gallon standard).
-   */
-  static l100kmToMpg(l100km: Numeric): number | null {
-    if (l100km === null || l100km === undefined || l100km === 0) {
-      return null;
-    }
-    return this.roundResult(this.mpgToL100kmFactor / l100km, 1);
-  }
-
-  /**
-   * Convert L/100km to MPG.
-   *
-   * Alias of l100kmToMpg, named for the new metric-canonical
-   * convention so callers can read top-down: "L per 100km to MPG".
-   */
-  static lPer100kmToMpg(value: Numeric): number | null {
-    return this.l100kmToMpg(value);
-  }
-
-  // ========== DIMENSION CONVERSIONS ==========
-
-  /**
-   * Convert feet to meters.
-   */
-  static feetToMeters(feet: Numeric): number | null {
-    if (feet === null || feet === undefined) {
-      return null;
-    }
-    return this.roundResult(feet * this.FEET_TO_METERS);
-  }
-
-  /**
-   * Convert meters to feet.
-   */
-  static metersToFeet(meters: Numeric): number | null {
-    if (meters === null || meters === undefined) {
-      return null;
-    }
-    return this.roundResult(meters / this.FEET_TO_METERS);
-  }
-
-  // ========== TEMPERATURE CONVERSIONS ==========
-  //
-  // Gone, with `formatTemperature`, the only thing that called either of them.
-  // `celsiusToFahrenheit` held the `c * 9 / 5 + 32` idiom the ESLint leg
-  // matches STRUCTURALLY (there is no constant in it distinctive enough to
-  // list), so it was one of the twelve findings the whole-file exemption was
-  // covering. `UNIT_ADAPTERS.f` is the live implementation and always was the
-  // one with the offset spelled out; a dead second copy of a conversion is the
-  // shape defect L1 took.
-
-  // ========== PRESSURE CONVERSIONS ==========
-
-  /**
-   * Convert PSI to bar.
-   */
-  static psiToBar(psi: Numeric): number | null {
-    if (psi === null || psi === undefined) {
-      return null;
-    }
-    return this.roundResult(psi * this.PSI_TO_BAR);
-  }
-
-  /**
-   * Convert bar to PSI.
-   */
-  static barToPsi(bar: Numeric): number | null {
-    if (bar === null || bar === undefined) {
-      return null;
-    }
-    return this.roundResult(bar / this.PSI_TO_BAR);
-  }
-
-  /**
-   * Convert PSI to kPa.
-   */
-  static psiToKPa(psi: Numeric): number | null {
-    if (psi === null || psi === undefined) {
-      return null;
-    }
-    return this.roundResult(psi * this.PSI_TO_KPA);
-  }
-
-  /**
-   * Convert kPa to PSI.
-   */
-  static kPaToPsi(kPa: Numeric): number | null {
-    if (kPa === null || kPa === undefined) {
-      return null;
-    }
-    return this.roundResult(kPa / this.PSI_TO_KPA);
-  }
-
-  // ========== WEIGHT CONVERSIONS ==========
-
-  /**
-   * Convert pounds to kilograms.
-   */
-  static lbsToKg(lbs: Numeric): number | null {
-    if (lbs === null || lbs === undefined) {
-      return null;
-    }
-    return this.roundResult(lbs * this.LBS_TO_KG);
-  }
-
-  /**
-   * Convert kilograms to pounds.
-   */
-  static kgToLbs(kg: Numeric): number | null {
-    if (kg === null || kg === undefined) {
-      return null;
-    }
-    return this.roundResult(kg / this.LBS_TO_KG);
-  }
-
-  // ========== TORQUE CONVERSIONS ==========
-
-  /**
-   * Convert lb-ft to Newton-meters.
-   */
-  static lbftToNm(lbft: Numeric): number | null {
-    if (lbft === null || lbft === undefined) {
-      return null;
-    }
-    return this.roundResult(lbft * this.LBFT_TO_NM);
-  }
-
-  /**
-   * Convert Newton-meters to lb-ft.
-   */
-  static nmToLbft(nm: Numeric): number | null {
-    if (nm === null || nm === undefined) {
-      return null;
-    }
-    return this.roundResult(nm / this.LBFT_TO_NM);
-  }
-
-  // ========== CANONICAL CONVERSION (FORM SUBMIT) ==========
-
-  /**
-   * Convert a user-entered value in `fromUnit` to its canonical SI metric
-   * representation, returned as a string to preserve precision through the
-   * API boundary (avoids parseFloat round-trip loss).
-   *
-   * Mirrors the backend's `to_canonical_decimal()` helper.
-   *
-   * Pass-through (returns the input as a string, untouched) when fromUnit
-   * is already the canonical unit. For imperial units, performs an exact
-   * conversion using string-friendly arithmetic and returns a string with
-   * sufficient precision (12 significant digits) to round-trip cleanly.
-   *
-   * Supported `fromUnit` values:
-   *   km, mi, L, gal, kg, lb, m, ft, C, F, kPa, PSI, Nm, lbft, L/100km, MPG
-   */
-  static toCanonicalMetricString(
-    value: number | string | null | undefined,
-    fromUnit:
-      | 'km'
-      | 'mi'
-      | 'L'
-      | 'gal'
-      | 'kg'
-      | 'lb'
-      | 'm'
-      | 'ft'
-      | 'C'
-      | 'F'
-      | 'kPa'
-      | 'PSI'
-      | 'Nm'
-      | 'lbft'
-      | 'L/100km'
-      | 'MPG'
-  ): string | null {
-    if (value === null || value === undefined || value === '') {
-      return null;
-    }
-
-    const trimmed = typeof value === 'string' ? value.trim() : value;
-    if (trimmed === '') return null;
-
-    const num = typeof trimmed === 'string' ? parseFloat(trimmed) : trimmed;
-    if (isNaN(num)) return null;
-
-    // Canonical pass-through: preserve original string form (no parseFloat loss).
-    const canonicalUnits = new Set(['km', 'L', 'kg', 'm', 'C', 'kPa', 'Nm', 'L/100km']);
-    if (canonicalUnits.has(fromUnit)) {
-      return typeof trimmed === 'string' ? trimmed : String(trimmed);
-    }
-
-    // Imperial → metric
-    let result: number;
-    switch (fromUnit) {
-      case 'mi':
-        result = num * UnitConverter.MILES_TO_KM;
-        break;
-      case 'gal':
-        result = num * UnitConverter.gallonsToLitersFactor;
-        break;
-      case 'lb':
-        result = num * UnitConverter.LBS_TO_KG;
-        break;
-      case 'ft':
-        result = num * UnitConverter.FEET_TO_METERS;
-        break;
-      case 'F':
-        result = (num - 32) * 5 / 9;
-        break;
-      case 'PSI':
-        result = num * UnitConverter.PSI_TO_KPA;
-        break;
-      case 'lbft':
-        result = num * UnitConverter.LBFT_TO_NM;
-        break;
-      case 'MPG':
-        if (num === 0) return null;
-        result = UnitConverter.mpgToL100kmFactor / num;
-        break;
-      default:
-        return null;
-    }
-
-    // 12 significant digits is enough to losslessly round-trip the conversion
-    // factors used here while still being a clean decimal string. Strip
-    // trailing zeros after the decimal point (but keep integer trailing zeros).
-    const precise = result.toPrecision(12);
-    if (!precise.includes('.')) return precise;
-    return precise.replace(/\.?0+$/, '');
   }
 }
 
@@ -575,7 +239,7 @@ export class UnitFormatter {
    *
    * Takes the client's resolved `UnitSet` rather than a binary system: the
    * gallon flavour belongs to the user (`resolved_units.volume`), not to the
-   * instance-wide setting `UnitConverter`'s mutable factor follows.
+   * instance.
    *
    * @param liters - Value in liters (canonical metric)
    * @param units - The client's resolved unit set

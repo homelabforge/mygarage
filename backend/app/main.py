@@ -442,7 +442,6 @@ from app.routes import (
     reports_router,
     service_visits_router,
     settings_router,
-    shop_discovery_router,
     spot_rental_billing_router,
     spot_rental_router,
     supplies_router,
@@ -514,8 +513,7 @@ app.include_router(address_book_router)
 app.include_router(calendar_router)
 app.include_router(window_sticker_router)
 app.include_router(notifications_router)
-app.include_router(poi_router)  # New POI router
-app.include_router(shop_discovery_router)  # Backward compatibility (deprecated)
+app.include_router(poi_router)
 app.include_router(vendors_router)
 app.include_router(service_visits_router)
 app.include_router(reminders_router)

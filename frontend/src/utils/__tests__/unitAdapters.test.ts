@@ -134,8 +134,7 @@ describe('linear conversion', () => {
   it('trims binary float noise to twelve significant digits', () => {
     // 34.8 x 6.894757293168361 evaluates to 239.93755380225895 in IEEE 754.
     // Sending that through the API is how a stored value ends up one ulp off
-    // its own conversion, so the boundary normalises it the way
-    // `UnitConverter.toCanonicalMetricString` already does.
+    // its own conversion, so the boundary normalises it.
     expect(UNIT_ADAPTERS.psi.toCanonical(34.8)).toBe(239.937553802)
   })
 

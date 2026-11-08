@@ -37,7 +37,7 @@ from app.services.livelink_service import LiveLinkService
 from app.services.mqtt_subscriber import MQTTSubscriber
 from app.services.oidc import create_or_update_user_from_oidc
 from app.services.poi.registry import POIProviderRegistry
-from app.services.shop_discovery import ShopDiscoveryService
+from app.services.poi_discovery import POIDiscoveryService
 from app.tasks import livelink_tasks
 from app.utils.settings_crypto import encrypt
 from tests.integration._secret_helpers import Keep, seed_rows
@@ -162,15 +162,16 @@ async def test_the_poi_registry_reads_a_stored_one_as_enabled(
     assert name in [c["name"] for c in configs]
 
 
-async def test_shop_discovery_reads_a_stored_one_as_tomtom_on(
+async def test_poi_search_reads_a_stored_one_as_tomtom_on(
     db_session: AsyncSession, keep_rows: Keep
 ) -> None:
+    # The service behind /api/poi/search, so the search path sees the same switch.
     await seed_rows(db_session, keep_rows, _provider_rows("tomtom"))
-    service = ShopDiscoveryService(db_session)
+    service = POIDiscoveryService(db_session)
 
-    await service._load_settings()  # pyright: ignore[reportPrivateUsage]
+    configs = await service.registry._load_provider_configs()  # pyright: ignore[reportPrivateUsage]
 
-    assert service.tomtom_enabled is True
+    assert "tomtom" in [c["name"] for c in configs]
 
 
 async def test_the_poi_provider_list_reads_a_stored_one_as_enabled(
