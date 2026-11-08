@@ -283,7 +283,6 @@
     "creatingBackup": "Tworzenie...",
     "createSettingsBackup": "Utwórz kopię zapasową ustawień",
     "uploadSettingsBackup": "Prześlij kopię zapasową ustawień",
-    "createSettingsError": "Nie udało się utworzyć kopii zapasowej ustawień",
     "filename": "Nazwa pliku",
     "size": "Rozmiar",
     "created": "Utworzono",
@@ -299,7 +298,6 @@
     "creatingFullBackup": "Tworzenie...",
     "createFullBackup": "Utwórz pełną kopię zapasową",
     "uploadFullBackup": "Prześlij pełną kopię zapasową",
-    "createFullError": "Nie udało się utworzyć pełnej kopii zapasowej",
     "restoreOverwrite": "Przywróć (nadpisuje wszystkie dane)",
     "noFullBackups": "Brak pełnych kopii zapasowych. Utwórz pierwszą, aby rozpocząć."
   },

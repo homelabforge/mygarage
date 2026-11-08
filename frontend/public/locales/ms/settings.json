@@ -579,7 +579,6 @@
     "creatingBackup": "Sedang mencipta...",
     "createSettingsBackup": "Cipta Sandaran Tetapan",
     "uploadSettingsBackup": "Muat Naik Sandaran Tetapan",
-    "createSettingsError": "Gagal mencipta sandaran tetapan",
     "filename": "Nama Fail",
     "size": "Saiz",
     "created": "Dicipta",
@@ -595,7 +594,6 @@
     "creatingFullBackup": "Sedang mencipta...",
     "createFullBackup": "Cipta Sandaran Penuh",
     "uploadFullBackup": "Muat Naik Sandaran Penuh",
-    "createFullError": "Gagal mencipta sandaran penuh",
     "restoreOverwrite": "Pulihkan (menimpa semua data)",
     "noFullBackups": "Belum ada sandaran penuh. Cipta satu untuk bermula."
   },

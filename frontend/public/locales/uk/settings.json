@@ -283,7 +283,6 @@
     "creatingBackup": "Створення...",
     "createSettingsBackup": "Створити резервну копію налаштувань",
     "uploadSettingsBackup": "Завантажити резервну копію налаштувань",
-    "createSettingsError": "Не вдалося створити резервну копію налаштувань",
     "filename": "Ім'я файлу",
     "size": "Розмір",
     "created": "Створено",
@@ -299,7 +298,6 @@
     "creatingFullBackup": "Створення...",
     "createFullBackup": "Створити повну резервну копію",
     "uploadFullBackup": "Завантажити повну резервну копію",
-    "createFullError": "Не вдалося створити повну резервну копію",
     "restoreOverwrite": "Відновити (перезаписати всі дані)",
     "noFullBackups": "Повних резервних копій поки немає. Створіть першу."
   },
