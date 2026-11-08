@@ -186,6 +186,10 @@ async def test_a_secret_write_without_a_keyring_is_a_503(
     before = encrypt(key, BEFORE) if row_first else None
     await _seed_raw(db_session, key, before)
     await _seed_raw(db_session, "ntfy_topic", "Before")
+    # Values none of these routes would write, so a non-secret row the route
+    # saved before the secret failed shows up as a change.
+    for other in also:
+        await _seed_raw(db_session, other, f"before-{other}")
     make_keyring_unavailable()
 
     response = await write(client, auth_headers, key, PLAIN)
@@ -196,6 +200,9 @@ async def test_a_secret_write_without_a_keyring_is_a_503(
     assert "writable" in detail
     assert PLAIN not in response.text
     assert await raw_column(test_sessionmaker, key) == before
+    # All or nothing: the other rows the route writes are left alone too.
+    for other in also:
+        assert await raw_column(test_sessionmaker, other) == f"before-{other}", other
 
     response = await _put(client, auth_headers, "ntfy_topic", "After")
     assert response.status_code == 200, response.text

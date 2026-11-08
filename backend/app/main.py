@@ -3,6 +3,7 @@
 import logging
 import os
 import re
+import traceback
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -225,8 +226,6 @@ async def lifespan(app: FastAPI):
         logger.info("Shutting down MyGarage application (maintenance mode)...")
         return
 
-    # After the maintenance-mode stop, since it writes. A failure keeps the
-    # list, so the next start tries again.
     from sqlalchemy.exc import SQLAlchemyError
 
     from app.services import session_repair
@@ -234,17 +233,22 @@ async def lifespan(app: FastAPI):
 
     # Encrypts leftover plaintext secrets and re-keys old ones. It logs and
     # swallows its own failures; this guard only keeps a bug in it from
-    # stopping the start (D5a: never fatal). Type name only: an exception's
-    # text could carry a setting value.
+    # stopping the start (it is never fatal). Type name and where it was
+    # raised only: an exception's text could carry a setting value.
     try:
         async with get_db_context() as db:
             await sweep_secret_settings(db)
     except Exception as exc:
+        frames = traceback.extract_tb(exc.__traceback__)
+        where = f"{frames[-1].filename}:{frames[-1].lineno}" if frames else "unknown"
         logger.error(
-            "The secret settings sweep stopped (%s); the next start tries again",
+            "The secret settings sweep stopped (%s at %s); the next start tries again",
             type(exc).__name__,
+            where,
         )
 
+    # After the maintenance-mode stop, since it writes. A failure keeps the
+    # list, so the next start tries again.
     try:
         async with get_db_context() as db:
             await session_repair.recompute_pending_sessions(db)

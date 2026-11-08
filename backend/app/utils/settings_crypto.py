@@ -29,10 +29,14 @@ Keyring sources, in order; the first one present wins, even when it is broken:
 
 Each source holds one or more base64url-encoded 32-byte keys separated by commas
 or newlines. The first encrypts; the rest only decrypt, which is how a key is
-rotated. A source that is present but malformed (or a ``_FILE`` path that
-doesn't exist) makes the keyring unavailable. It never falls through to a
-lower-priority source, and never generates a key over a file that exists. An
-empty env var counts as unset.
+rotated. Two different keys with the same key id make the source malformed. A
+source that is present but malformed (or a ``_FILE`` path that doesn't exist)
+makes the keyring unavailable. It never falls through to a lower-priority
+source, and never generates a key over a file that holds anything. The one
+exception is the data dir's own ``settings.key`` holding nothing at all (zero
+bytes or only whitespace, as a crash between creating and writing it leaves):
+there's no key in it to lose, so a new one is written into it, with a WARNING.
+An empty env var counts as unset.
 
 When the keyring is unavailable, ``encrypt`` raises ``SettingsKeyUnavailable``,
 legacy plaintext still reads, and ciphertext reads as unreadable. There is never
@@ -59,7 +63,7 @@ from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from app.config import settings
-from app.utils.secret_key import create_key_file
+from app.utils.secret_key import create_key_file, fill_after_create_race, fill_empty_key_file
 
 __all__ = [
     "CIPHERTEXT_PREFIX",
@@ -229,6 +233,7 @@ def _parse_keys(source: str, text: str) -> _Keyring:
     if not entries:
         raise _MalformedSourceError("it holds no keys")
     keys: dict[str, AESGCM] = {}
+    seen: dict[str, tuple[int, bytes]] = {}
     kids: list[str] = []
     for position, entry in enumerate(entries, start=1):
         try:
@@ -240,13 +245,27 @@ def _parse_keys(source: str, text: str) -> _Keyring:
                 f"key {position} of {len(entries)} is not a base64url-encoded {_KEY_BYTES}-byte key"
             )
         kid = _kid_of(raw)
+        first = seen.setdefault(kid, (position, raw))
+        if first[1] != raw:
+            # A kid is only 32 bits, so two keys can share one. Merged, the second
+            # key's ciphertext would be tried against the first and read as unreadable.
+            raise _MalformedSourceError(
+                f"keys {first[0]} and {position} of {len(entries)} are different keys with "
+                "the same key id; replace one of them"
+            )
         kids.append(kid)
         keys.setdefault(kid, AESGCM(raw))
     return _Keyring(source=source, current_kid=kids[0], keys=keys)
 
 
-def _read_key_file(source: str, path: Path) -> _Keyring | _Unavailable:
-    """Load the keyring from a file that is expected to exist."""
+def _read_key_file(
+    source: str, path: Path, *, refill_empty: bool = False
+) -> _Keyring | _Unavailable:
+    """Load the keyring from a file that is expected to exist.
+
+    With ``refill_empty`` (the data dir's own file only), a file that holds
+    nothing gets a new key written into it first.
+    """
     try:
         data = path.read_bytes()
     except FileNotFoundError:
@@ -257,27 +276,60 @@ def _read_key_file(source: str, path: Path) -> _Keyring | _Unavailable:
         text = data.decode("ascii")
     except UnicodeDecodeError:
         return _Unavailable(source, "the file is not ASCII text")
+    if refill_empty and not text.strip():
+        return _refill_empty_key_file(source, path)
     try:
         return _parse_keys(source, text)
     except _MalformedSourceError as e:
         return _Unavailable(source, str(e))
 
 
+def _new_key_text() -> str:
+    return _b64url_encode(os.urandom(_KEY_BYTES))
+
+
 def _generate_key_file(source: str, path: Path) -> _Keyring | _Unavailable:
     """Create the data-dir key file with a new key, then load it back from disk."""
+    candidate = _new_key_text()
     try:
-        create_key_file(path, _b64url_encode(os.urandom(_KEY_BYTES)) + "\n")
-    except FileExistsError:
-        # Another process created it first; whatever it wrote is the key now.
-        pass
+        try:
+            key = create_key_file(path, candidate + "\n")
+        except FileExistsError:
+            # Another process created it first. It may not have written yet, so fill
+            # it under the lock if it's still empty; otherwise its key is the key.
+            key = fill_after_create_race(path, candidate + "\n")
     except OSError as e:
         return _Unavailable(
             source, f"a new key file can't be created ({e.strerror or type(e).__name__})"
         )
-    else:
+    except UnicodeDecodeError:
+        key = None  # Something that isn't a key landed there; the read below says so.
+    if key == candidate:
         logger.warning(
             "Generated a new settings encryption key at %s. Keep a copy: without it, "
             "the secrets stored in this database can't be read.",
+            path,
+        )
+    return _read_key_file(source, path)
+
+
+def _refill_empty_key_file(source: str, path: Path) -> _Keyring | _Unavailable:
+    """Write a new key into the data-dir key file that holds nothing, then load it."""
+    candidate = _new_key_text()
+    try:
+        key = fill_empty_key_file(path, candidate + "\n")
+    except OSError as e:
+        return _Unavailable(
+            source,
+            f"the file is empty and a key can't be written ({e.strerror or type(e).__name__})",
+        )
+    except UnicodeDecodeError:
+        key = None  # Something that isn't a key landed there; the read below says so.
+    if key == candidate:
+        logger.warning(
+            "The settings encryption key file %s was empty, so a new key was written to it. "
+            "Secrets saved under the lost key can't be read: re-enter them, or put the lost "
+            "key back in the file as a second, comma-separated entry after the new one.",
             path,
         )
     return _read_key_file(source, path)
@@ -312,7 +364,7 @@ def _load() -> _Keyring | _Unavailable:
         return _generate_key_file(source, path)
     except OSError as e:
         return _Unavailable(source, f"the file can't be checked ({e.strerror or type(e).__name__})")
-    return _read_key_file(source, path)
+    return _read_key_file(source, path, refill_empty=True)
 
 
 def _get_keyring() -> _Keyring | _Unavailable:
@@ -377,8 +429,10 @@ def encrypt(name: str, plaintext: str) -> str:
 def _unreadable(name: str, kid: str | None, why: str) -> DecryptResult:
     """Build an UNREADABLE result, logging once per (setting key, kid) per process."""
     marker = (name, kid)
-    if marker not in _unreadable_logged:
+    with _lock:
+        first = marker not in _unreadable_logged
         _unreadable_logged.add(marker)
+    if first:
         logger.warning(
             "Secret setting %s can't be decrypted (key id %s): %s. It reads as unset until "
             "the right key is added back to the keyring or the value is re-entered.",

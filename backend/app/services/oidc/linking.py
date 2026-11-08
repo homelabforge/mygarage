@@ -22,7 +22,7 @@ from app.models.oidc_pending_link import OIDCPendingLink
 from app.models.settings import Setting
 from app.models.user import User
 from app.services.auth import verify_password
-from app.services.hashed_tokens import hash_token
+from app.services.hashed_tokens import TOKEN_BYTES, hash_token
 from app.services.oidc.config import effective_oidc_value, get_oidc_config
 from app.utils.datetime_utils import utc_now
 from app.utils.logging_utils import sanitize_for_log
@@ -68,7 +68,7 @@ async def create_pending_link_token(
     await _cleanup_expired_pending_links(db)
 
     # Generate cryptographically random token
-    token = secrets.token_urlsafe(48)  # 48 bytes = 64 URL-safe chars
+    token = secrets.token_urlsafe(TOKEN_BYTES)
 
     # Get expiration from settings (default 5 minutes)
     expire_minutes = int(config.get("link_token_expire_minutes", "5"))

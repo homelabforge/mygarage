@@ -12,7 +12,9 @@ Plan test 5, and the sweep half of test 17:
   backup preflight builds on that);
 - on a file-backed WAL database, the plaintext is gone from both `mygarage.db`
   and `mygarage.db-wal` afterwards, and a checkpoint that comes back busy is
-  logged without failing the sweep.
+  logged without failing the sweep, and without waiting out the busy timeout;
+- a connection whose PRAGMAs couldn't be turned back (a failed flush, a failed
+  busy_timeout restore) is dropped rather than going back to the pool.
 
 The plaintext rows are seeded with raw SQL, not through the model: a Core
 `insert()` or `update()`, or an old backup, writes the column as is, and the
@@ -22,6 +24,7 @@ test key in MYGARAGE_SETTINGS_KEY, reset before and after.
 
 import logging
 import sqlite3
+import time
 from pathlib import Path
 from typing import Any
 from unittest.mock import patch
@@ -397,4 +400,89 @@ async def test_a_busy_checkpoint_is_logged_and_the_sweep_still_commits(
     finally:
         reader.execute("ROLLBACK")
         reader.close()
+        await engine.dispose()
+
+
+async def _pooled_pragma(engine: AsyncEngine, pragma: str) -> int:
+    """The PRAGMA's value on the connection the pool hands out next."""
+    async with engine.connect() as conn:
+        return int((await conn.execute(text(f"PRAGMA {pragma}"))).scalar_one())
+
+
+async def test_a_failed_flush_does_not_leave_secure_delete_on_in_the_pool(
+    tmp_path: Path, use_keys: UseKeys, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The session refuses the PRAGMA that would turn it back, so the connection goes."""
+    use_keys(KEY_A)
+    engine, _path = await _file_db(tmp_path)
+    try:
+        sessionmaker = async_sessionmaker(engine, expire_on_commit=False)
+        failure = OperationalError("UPDATE settings", {}, Exception("disk I/O error"))
+
+        with caplog.at_level(logging.INFO, logger="app.services.settings_secrets"):
+            async with sessionmaker() as db:
+                with patch.object(db, "flush", side_effect=failure):
+                    report = await sweep_secret_settings(db)
+
+        assert report == SweepReport()
+        assert await raw_column(sessionmaker, "ntfy_token") == REMNANT
+        assert "next start" in caplog.text
+        assert await _pooled_pragma(engine, "secure_delete") == 0
+    finally:
+        await engine.dispose()
+
+
+async def test_a_busy_checkpoint_does_not_wait_out_the_busy_timeout(
+    tmp_path: Path, use_keys: UseKeys
+) -> None:
+    """Boot shouldn't stall on a reader; the checkpoint just tries again later."""
+    use_keys(KEY_A)
+    engine, path = await _file_db(tmp_path, timeout=10)
+    reader = sqlite3.connect(path, isolation_level=None)
+    try:
+        reader.execute("BEGIN")
+        reader.execute("SELECT count(*) FROM settings").fetchall()
+        sessionmaker = async_sessionmaker(engine, expire_on_commit=False)
+
+        started = time.monotonic()
+        async with sessionmaker() as db:
+            report = await sweep_secret_settings(db)
+        elapsed = time.monotonic() - started
+
+        assert report == SweepReport(encrypted=("ntfy_token",))
+        assert elapsed < 5, f"the sweep waited {elapsed:.1f}s on a busy checkpoint"
+        # Turned back afterwards, so later writers still wait for a lock.
+        assert await _pooled_pragma(engine, "busy_timeout") == 10_000
+    finally:
+        reader.execute("ROLLBACK")
+        reader.close()
+        await engine.dispose()
+
+
+async def test_a_busy_timeout_that_cannot_be_restored_drops_the_connection(
+    tmp_path: Path, use_keys: UseKeys, caplog: pytest.LogCaptureFixture
+) -> None:
+    use_keys(KEY_A)
+    engine, _path = await _file_db(tmp_path, timeout=10)
+    try:
+        sessionmaker = async_sessionmaker(engine, expire_on_commit=False)
+
+        with caplog.at_level(logging.INFO, logger="app.services.settings_secrets"):
+            async with sessionmaker() as db:
+                real_execute = db.execute
+
+                async def restore_fails(statement: Any, *args: Any, **kwargs: Any) -> Any:
+                    if str(statement) == "PRAGMA busy_timeout=10000":
+                        raise OperationalError(str(statement), {}, Exception("disk I/O error"))
+                    return await real_execute(statement, *args, **kwargs)
+
+                with patch.object(db, "execute", side_effect=restore_fails):
+                    report = await sweep_secret_settings(db)
+
+        assert report == SweepReport(encrypted=("ntfy_token",))
+        assert await read_back(sessionmaker, "ntfy_token") == REMNANT
+        assert "checkpoint" in caplog.text
+        # A fresh connection, with the engine's own timeout, not the 0 left behind.
+        assert await _pooled_pragma(engine, "busy_timeout") == 10_000
+    finally:
         await engine.dispose()

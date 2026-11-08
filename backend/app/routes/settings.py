@@ -100,9 +100,10 @@ def _stored_secret_mask(setting: Setting | None) -> str:
     """
     if setting is None:
         return ""
-    if setting.unreadable:
+    result = setting.decrypted()
+    if result.unreadable:
         return MASKED_SECRET_PLACEHOLDER
-    return display_mask_secret(setting.value or "")
+    return display_mask_secret(result.plaintext or "")
 
 
 class _KeepStored(Enum):

@@ -205,10 +205,7 @@ class MQTTSubscriber:
                 # must stop here rather than read as unset (R1-M1).
                 password = await SettingsService.get_secret(db, "livelink_mqtt_password")
             except SecretUnreadableError as e:
-                logger.error(
-                    "MQTT enabled but the stored %s can't be decrypted; re-enter it in Settings",
-                    e.key,
-                )
+                logger.error("MQTT is on but can't connect. %s in Settings", reenter_message(e.key))
                 raise MqttNotConfiguredError(reenter_message("MQTT password")) from e
             topic_prefix = await SettingsService.get(db, "livelink_mqtt_topic_prefix")
             use_tls = await SettingsService.get_bool(db, "livelink_mqtt_use_tls", default=False)

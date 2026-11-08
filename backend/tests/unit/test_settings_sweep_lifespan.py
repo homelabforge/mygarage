@@ -81,6 +81,9 @@ def test_a_sweep_that_raises_does_not_stop_the_start(
     assert order == ["sweep", "repair"]
     assert "ValueError" in caplog.text
     assert "some-ciphertext" not in caplog.text
+    # Where it was raised, so the bug can be found without the message.
+    raised_at = _sweep.__code__.co_firstlineno + 2
+    assert f"{__file__}:{raised_at}" in caplog.text
 
 
 def test_maintenance_mode_skips_the_sweep(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

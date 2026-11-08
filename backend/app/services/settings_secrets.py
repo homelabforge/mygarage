@@ -24,7 +24,7 @@ from dataclasses import dataclass
 
 from sqlalchemy import select, text
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncConnection, AsyncSession
 
 from app.models.settings import Setting
 from app.utils.secret_setting_keys import SECRET_SETTING_KEYS
@@ -131,7 +131,8 @@ async def sweep_secret_settings(db: AsyncSession) -> SweepReport:
     With no usable keyring it logs an ERROR and writes nothing. On SQLite the
     writes run with ``secure_delete`` on, so the freed plaintext cells are
     zeroed, and when a row changed a ``wal_checkpoint(TRUNCATE)`` follows the
-    commit, so the old pages don't linger in the WAL. A busy checkpoint is a
+    commit, so the old pages don't linger in the WAL. The checkpoint doesn't
+    wait for a busy lock, so a reader can't hold up the start; a busy one is a
     WARNING. A database error is logged and swallowed, leaving the rows as they
     were for the next start. Never raises for either.
 
@@ -200,20 +201,23 @@ async def _encrypt_securely(db: AsyncSession, *, sqlite: bool) -> SweepReport:
     plaintext doesn't survive in a freed cell, where a backup's page-by-page
     snapshot would copy it. It is turned back to its previous value after the
     flush, on the same connection (the session holds one until the commit),
-    rather than left on a pooled one. Not on a failed flush: the session then
-    refuses any statement until it is rolled back, and trying would hide the
-    real error. That leaves it on for one pooled connection, which costs only
-    speed. A missing keyring is raised before the flush, so it is turned back
-    then too.
+    rather than left on a pooled one. A failed flush can't turn it back: the
+    session refuses any statement until it is rolled back. So that connection
+    is invalidated instead, and the pool opens a fresh one. A missing keyring is
+    raised before the flush, so it is turned back then too.
     """
     if not sqlite:
         return await encrypt_secret_rows(db)
+    conn = await db.connection()
     previous = int((await db.execute(text("PRAGMA secure_delete"))).scalar_one())
     await db.execute(text("PRAGMA secure_delete=ON"))
     try:
         report = await encrypt_secret_rows(db)
     except SettingsKeyUnavailable:
         await db.execute(text(f"PRAGMA secure_delete={previous}"))
+        raise
+    except SQLAlchemyError:
+        await _invalidate_quietly(conn)
         raise
     await db.execute(text(f"PRAGMA secure_delete={previous}"))
     return report
@@ -301,9 +305,25 @@ async def _plaintext_secret_keys(db: AsyncSession) -> tuple[str, ...]:
 
 
 async def _checkpoint_wal(db: AsyncSession) -> None:
-    """Fold the WAL into the database file and truncate it. Never raises."""
+    """Fold the WAL into the database file and truncate it. Never raises.
+
+    Runs with ``busy_timeout`` at 0, so a reader holding the WAL makes it come
+    back busy at once instead of after the engine's 30 seconds. The timeout is
+    turned back afterwards; if that fails, the connection is invalidated so a
+    pooled writer never runs without one.
+    """
     try:
-        row = (await db.execute(text("PRAGMA wal_checkpoint(TRUNCATE)"))).one()
+        conn = await db.connection()
+        previous = int((await db.execute(text("PRAGMA busy_timeout"))).scalar_one())
+        await db.execute(text("PRAGMA busy_timeout=0"))
+        try:
+            row = (await db.execute(text("PRAGMA wal_checkpoint(TRUNCATE)"))).one()
+        finally:
+            try:
+                await db.execute(text(f"PRAGMA busy_timeout={previous}"))
+            except SQLAlchemyError:
+                await _invalidate_quietly(conn)
+                raise
         await db.commit()
     except SQLAlchemyError as exc:
         logger.warning(
@@ -317,6 +337,17 @@ async def _checkpoint_wal(db: AsyncSession) -> None:
         logger.warning(
             "The WAL checkpoint after encrypting the secret settings was busy (another "
             "connection is reading); the old values stay in the WAL until a later checkpoint."
+        )
+
+
+async def _invalidate_quietly(conn: AsyncConnection) -> None:
+    """Drop a connection whose PRAGMAs couldn't be turned back, so the pool doesn't reuse it."""
+    try:
+        await conn.invalidate()
+    except SQLAlchemyError as exc:
+        logger.warning(
+            "Dropping a database connection after the secret settings sweep failed (%s)",
+            type(exc).__name__,
         )
 
 

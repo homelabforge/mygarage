@@ -31,13 +31,12 @@ from app.services.mqtt_subscriber import MQTTSubscriber
 from app.services.notifications.dispatcher import NotificationDispatcher
 from app.services.oidc.config import get_oidc_config
 from app.services.poi.registry import POIProviderRegistry
+from app.services.settings_service import reenter_message
 from app.services.shop_discovery import ShopDiscoveryService
 from app.utils.settings_crypto import encrypt
-from tests.integration._secret_helpers import Keep, seed_rows, unreadable_ciphertext
+from tests.integration._secret_helpers import REENTER, Keep, seed_rows, unreadable_ciphertext
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
-
-REENTER = "can't be decrypted; re-enter it"
 
 
 async def _set_raw(db: AsyncSession, key: str, raw: str) -> None:
@@ -84,8 +83,10 @@ async def test_the_dispatcher_skips_ntfy_with_an_unreadable_token(
     ):
         await dispatcher._get_enabled_services()  # pyright: ignore[reportPrivateUsage]
         ntfy.assert_not_called()
+        # The same wording as everywhere else, from the one helper.
         assert any(
-            r.levelno == logging.ERROR and "ntfy_token" in r.getMessage() for r in caplog.records
+            r.levelno == logging.ERROR and reenter_message("ntfy_token") in r.getMessage()
+            for r in caplog.records
         )
         assert "the-real-secret" not in caplog.text
         assert "enc:v1:" not in caplog.text
@@ -180,7 +181,8 @@ async def test_the_mqtt_subscriber_stops_on_an_unreadable_password(
     ):
         assert await subscriber._get_config() is None  # pyright: ignore[reportPrivateUsage]
         assert any(
-            r.levelno == logging.ERROR and "livelink_mqtt_password" in r.getMessage()
+            r.levelno == logging.ERROR
+            and reenter_message("livelink_mqtt_password") in r.getMessage()
             for r in caplog.records
         )
         assert "the-real-secret" not in caplog.text

@@ -26,6 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.settings import Setting
 from app.utils.settings_crypto import encrypt
 from tests.integration._secret_helpers import (
+    REENTER,
     Keep,
     raw_column,
     read_back,
@@ -36,7 +37,6 @@ from tests.integration._secret_helpers import (
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
 PLACEHOLDER = "********"
-REENTER = "can't be decrypted; re-enter it"
 
 
 # ------------------------------------------------------------------ settings GET

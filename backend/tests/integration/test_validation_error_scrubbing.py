@@ -9,13 +9,18 @@ too-long password, OIDC client secret or API key landed in the server log.
   segment) contains `password`, `secret`, `token` or `key`, in any case (F-2).
 - It drops `input` for any field when that is a dict or a list: on a missing
   field it is the whole parent object, which holds the secret fields (T6 m3).
+- A custom validator's message lands in `msg` too ("Value error, ..."), so a
+  secret-named field's `value_error` or `assertion_error` gets a generic `msg`
+  in the body and the log.
 """
 
 import logging
 
 import pytest
+from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
-from httpx import AsyncClient
+from httpx import ASGITransport, AsyncClient
+from pydantic import BaseModel, field_validator
 from starlette.requests import Request
 
 from app.utils.error_handlers import handle_validation_error
@@ -167,3 +172,66 @@ async def test_a_missing_field_does_not_echo_the_whole_body(
     assert error["type"] == "missing"
     assert "input" not in error
     assert ECHOED_PASSWORD not in caplog.text
+
+
+QUOTED = "quoted-by-the-validator-81d4"
+
+
+class _Probe(BaseModel):
+    """A throwaway body whose validators quote what they were given."""
+
+    api_token: str = "tk_fine"
+    nickname: str = "fine"
+    access_token: str = "tk_fine"
+
+    @field_validator("api_token", "nickname")
+    @classmethod
+    def _value_error(cls, value: str) -> str:
+        if value != "tk_fine" and value != "fine":
+            raise ValueError(f"{value!r} is not allowed")
+        return value
+
+    @field_validator("access_token")
+    @classmethod
+    def _assertion(cls, value: str) -> str:
+        assert value == "tk_fine", f"{value!r} is not allowed"
+        return value
+
+
+def _probe_app() -> FastAPI:
+    probe = FastAPI()
+    probe.add_exception_handler(RequestValidationError, handle_validation_error)  # type: ignore[arg-type]
+
+    @probe.post("/probe")
+    async def _post(body: _Probe) -> dict[str, str]:  # pyright: ignore[reportUnusedFunction]
+        return {"ok": body.nickname}
+
+    return probe
+
+
+@pytest.mark.parametrize(
+    ("field", "error_type", "kept"),
+    [
+        ("api_token", "value_error", False),
+        ("access_token", "assertion_error", False),
+        ("nickname", "value_error", True),
+    ],
+)
+async def test_a_validator_quoting_a_secret_gets_a_generic_msg(
+    field: str, error_type: str, kept: bool, caplog: pytest.LogCaptureFixture
+) -> None:
+    async with AsyncClient(transport=ASGITransport(app=_probe_app()), base_url="http://t") as probe:
+        with caplog.at_level(logging.DEBUG):
+            response = await probe.post("/probe", json={field: QUOTED})
+
+    assert response.status_code == 422, response.text
+    (error,) = response.json()["details"]
+    assert error["loc"] == ["body", field]
+    assert error["type"] == error_type
+    # A field that isn't a secret keeps the validator's own words.
+    assert (QUOTED in error["msg"]) is kept
+    assert (QUOTED in response.text) is kept
+    assert _validation_records(caplog), "the handler logs a validation error"
+    if not kept:
+        assert error["msg"] == "Invalid value"
+        assert QUOTED not in caplog.text

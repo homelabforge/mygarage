@@ -6,6 +6,8 @@ key someone else already wrote. `get_or_create_secret_key` records what it did
 in `KEY_SOURCE`, which the lifespan logs once logging is configured.
 """
 
+import errno
+import fcntl
 import logging
 import os
 import stat
@@ -17,6 +19,9 @@ import pytest
 from app import main as app_main
 from app.utils import secret_key
 from app.utils.secret_key import create_key_file, get_or_create_secret_key
+from tests.unit.utils._key_race_child import jwt_key_child, run_race
+
+RACERS = 8
 
 
 def _mode(path: Path) -> int:
@@ -278,6 +283,175 @@ class TestGetOrCreateSecretKey:
 
         assert len(key) >= 43
         assert secret_key.KEY_SOURCE == "memory"
+
+
+def _warnings(caplog: pytest.LogCaptureFixture) -> list[str]:
+    return [
+        r.getMessage()
+        for r in caplog.records
+        if r.name == secret_key.logger.name and r.levelno >= logging.WARNING
+    ]
+
+
+class TestKeyFileWriters:
+    """Every writer fills under an exclusive lock, so whoever locks first writes
+    and everyone else reads that key back. Nobody keeps a key that isn't on disk."""
+
+    def test_processes_racing_for_a_missing_key_all_keep_the_one_on_disk(
+        self, tmp_path: Path
+    ) -> None:
+        path = tmp_path / "secret.key"
+
+        results = run_race(jwt_key_child, str(path), RACERS)
+
+        assert [r for r in results if r[1] == "error"] == []
+        assert len({r[0] for r in results}) == RACERS
+        assert {r[1] for r in results} == {path.read_text().strip()}
+        sources = [r[2] for r in results]
+        # Each child really used the file: one wrote it, the rest read it back.
+        assert sources.count("generated") == 1
+        assert set(sources) <= {"generated", "loaded"}
+
+    def test_a_create_race_loser_waits_for_the_creator_to_fill_the_file(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The creator has made the file but not locked it yet, so it's empty.
+
+        A loser that only read the file would find nothing there. It fills it
+        under the lock instead, and the creator then reads that key back.
+        """
+        path = tmp_path / "secret.key"
+        real_flock = fcntl.flock
+        real_read = secret_key._read_key  # pyright: ignore[reportPrivateUsage]
+        loser: dict[str, object] = {}
+
+        def read_before_the_create(target: Path) -> str | None:
+            if target == path and "read" not in loser:
+                loser["read"] = True
+                return None
+            return real_read(target)
+
+        def flock(fd: int, operation: int) -> None:
+            if not loser:
+                monkeypatch.setattr(secret_key, "_read_key", read_before_the_create)
+                loser["key"] = get_or_create_secret_key(path)
+                loser["source"] = secret_key.KEY_SOURCE
+                monkeypatch.setattr(secret_key, "_read_key", real_read)
+            real_flock(fd, operation)
+
+        monkeypatch.setattr(secret_key.fcntl, "flock", flock)
+
+        creator = get_or_create_secret_key(path)
+
+        assert loser["key"]
+        assert creator == loser["key"] == path.read_text().strip()
+        assert loser["source"] == "generated"
+        assert secret_key.KEY_SOURCE == "loaded"
+
+    def test_two_fillers_of_an_empty_file_end_with_the_same_key(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """One filler read the empty file, then the other filled it before the first
+        opened it. The first must not wipe that key and write its own."""
+        path = tmp_path / "secret.key"
+        path.write_text("")
+        real_fill = secret_key.fill_empty_key_file
+        other: dict[str, object] = {}
+
+        def paused_fill(target: Path, content: str) -> str:
+            if not other:
+                other["running"] = True
+                other["key"] = get_or_create_secret_key(target)
+                other["source"] = secret_key.KEY_SOURCE
+            return real_fill(target, content)
+
+        monkeypatch.setattr(secret_key, "fill_empty_key_file", paused_fill)
+
+        with caplog.at_level(logging.DEBUG, logger=secret_key.logger.name):
+            first = get_or_create_secret_key(path)
+
+        assert first == other["key"] == path.read_text().strip()
+        assert other["source"] == "generated"
+        assert secret_key.KEY_SOURCE == "loaded"
+        # Only the filler whose key landed says it generated one.
+        assert len([m for m in _warnings(caplog) if "empty" in m]) == 1
+
+    @pytest.mark.parametrize("existing", [None, b""], ids=["missing", "empty"])
+    @pytest.mark.parametrize("written", [0, 5], ids=["nothing-written", "short-write"])
+    def test_a_failed_write_leaves_an_empty_file_the_next_start_fills(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, existing: bytes | None, written: int
+    ) -> None:
+        """A full disk mid-write leaves zero bytes, not a missing file or half a key."""
+        path = tmp_path / "secret.key"
+        if existing is not None:
+            path.write_bytes(existing)
+        real_pwrite = os.pwrite
+
+        def disk_full(fd: int, data: bytes, offset: int) -> int:
+            if written:
+                real_pwrite(fd, data[:written], offset)
+            raise OSError(errno.ENOSPC, "No space left on device")
+
+        monkeypatch.setattr(secret_key.os, "pwrite", disk_full)
+        get_or_create_secret_key(path)
+        assert secret_key.KEY_SOURCE == "memory"
+        assert path.read_bytes() == b""
+
+        monkeypatch.setattr(secret_key.os, "pwrite", real_pwrite)
+        key = get_or_create_secret_key(path)
+        assert secret_key.KEY_SOURCE == "generated"
+        assert path.read_text().strip() == key
+
+    def test_create_key_file_keeps_the_empty_file_when_the_write_fails(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        path = tmp_path / "k.key"
+
+        def disk_full(fd: int, data: bytes, offset: int) -> int:
+            raise OSError(errno.ENOSPC, "No space left on device")
+
+        monkeypatch.setattr(secret_key.os, "pwrite", disk_full)
+
+        with pytest.raises(OSError):
+            create_key_file(path, "abc\n")
+
+        assert path.read_bytes() == b""
+
+    def test_a_carry_over_that_loses_the_race_keeps_the_key_on_disk(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        legacy = tmp_path / "old" / "secret.key"
+        legacy.parent.mkdir()
+        legacy.write_text("legacy-key\n")
+        monkeypatch.setattr(secret_key, "DEFAULT_KEY_FILE", legacy)
+        path = tmp_path / "new" / "secret.key"
+        real_create = secret_key.create_key_file
+
+        def _lose_the_race(target: Path, content: str) -> str:
+            real_create(target, "winner-key\n")
+            return real_create(target, content)  # raises FileExistsError, as the race would
+
+        monkeypatch.setattr(secret_key, "create_key_file", _lose_the_race)
+
+        with caplog.at_level(logging.DEBUG, logger=secret_key.logger.name):
+            key = get_or_create_secret_key(path)
+
+        assert key == "winner-key" == path.read_text().strip()
+        assert secret_key.KEY_SOURCE == "loaded"
+        assert not [m for m in _warnings(caplog) if "Copied" in m]
+
+    @pytest.mark.parametrize("content", ["existing-key\n", "existing-key", "  existing-key \n\n"])
+    def test_an_existing_key_loads_and_the_file_is_untouched(
+        self, tmp_path: Path, content: str
+    ) -> None:
+        path = tmp_path / "secret.key"
+        path.write_text(content)
+        inode = path.stat().st_ino
+
+        assert get_or_create_secret_key(path) == "existing-key"
+        assert secret_key.KEY_SOURCE == "loaded"
+        assert path.read_text() == content
+        assert path.stat().st_ino == inode
 
 
 class TestLifespanKeyStatus:

@@ -20,6 +20,9 @@ from app.models.settings import Setting
 from app.utils.secret_setting_keys import SECRET_SETTING_KEYS
 from app.utils.settings_crypto import encrypt
 
+#: The tail of the advice a secret that can't be decrypted gets, wherever it's shown.
+REENTER = "can't be decrypted; re-enter it"
+
 #: The `keep_rows` fixture's callable: snapshot these keys, restore them at teardown.
 Keep = Callable[..., Awaitable[None]]
 

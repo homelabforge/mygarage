@@ -19,7 +19,7 @@ from app.models.csrf_token import CSRFToken
 from app.services.hashed_tokens import hash_token
 from tests.integration._csrf import assert_csrf_hashed_and_enforced, sha256_hex
 
-pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
+pytestmark = [pytest.mark.integration]
 
 
 @pytest_asyncio.fixture

@@ -118,6 +118,13 @@ async def handle_generic_exception(request: Request, exc: Exception) -> JSONResp
 #: 422 (L2, F-2).
 _SECRET_FIELD_MARKERS = ("password", "secret", "token", "key")
 
+#: Error types whose `msg` is a validator's own text ("Value error, <its message>"),
+#: which can quote the value it rejected.
+_VALIDATOR_MESSAGE_TYPES = frozenset({"value_error", "assertion_error"})
+
+#: What a secret-named field's validator message is replaced with.
+GENERIC_VALIDATOR_MSG = "Invalid value"
+
 #: All the log line keeps of each error. `input` is the rejected value (for a
 #: missing field, the whole parent object) and `ctx` the constraint, which can
 #: carry it too; neither is logged, for any field (L2).
@@ -141,8 +148,9 @@ async def handle_validation_error(request: Request, exc: RequestValidationError)
     The 422 body keeps each error's `input` and `ctx`, except for a field named
     like a secret, which loses both, and except for an `input` that is a dict
     or a list (the whole parent object, on a missing field), which is dropped
-    for any field. The log line keeps only `type`, `loc` and `msg`, so no
-    rejected value reaches the log.
+    for any field. A secret-named field's validator error also gets a generic
+    `msg`, since the validator's text can quote the value. The log line keeps
+    only `type`, `loc` and `msg`, so no rejected secret reaches the log.
 
     Args:
         request: The request that caused the exception
@@ -174,6 +182,8 @@ async def handle_validation_error(request: Request, exc: RequestValidationError)
             # `ctx` too: a validator's exception lands in `ctx.error`, value and all (F-2).
             json_error.pop("input", None)
             json_error.pop("ctx", None)
+            if error.get("type") in _VALIDATOR_MESSAGE_TYPES:
+                json_error["msg"] = GENERIC_VALIDATOR_MSG
         elif isinstance(error.get("input"), dict | list | tuple):
             # A whole object, not one value: on a missing field it is the parent
             # body, whatever secret fields that holds (T6 m3).
