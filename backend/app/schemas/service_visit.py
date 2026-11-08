@@ -20,7 +20,7 @@ from app.schemas._figures import to_stored_tenth
 from app.schemas._money import OptionalMoney
 from app.schemas._nullability import reject_null
 from app.schemas.maintenance import validate_maintenance_type
-from app.schemas.reminder import ReminderCreate  # noqa: F401 — used in type annotations
+from app.schemas.reminder import ReminderCreate  # noqa: F401 (used in type annotations)
 from app.schemas.supply import SupplyUsageInput, SupplyUsageResponse
 from app.utils.lenient_vocab import LenientVocab, lenient_reader
 
@@ -484,7 +484,7 @@ class ServiceVisitUpdate(BaseModel):
                 if ref == item.temp_id:
                     raise ValueError(f"line item with temp_id {ref} cannot link to itself")
                 if ref > 0 and item.id and ref not in existing_ids:
-                    # Positive ref to a real ID that's not in this payload is fine —
+                    # Positive ref to a real ID that's not in this payload is fine:
                     # it could be an existing DB ID not being edited in this payload.
                     pass
         return self

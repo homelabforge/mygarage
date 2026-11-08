@@ -51,7 +51,9 @@ class RecurrenceSpec(BaseModel):
     interval_km: Decimal | None = Field(None, gt=0, le=99999999.99)
     interval_months: int | None = Field(None, gt=0, le=600)
     interval_days: int | None = Field(None, gt=0, le=36500)
-    interval_hours: Decimal | None = Field(None, gt=0, le=999999999.9)
+    interval_hours: Annotated[Decimal | None, AfterValidator(to_stored_tenth)] = Field(
+        None, gt=0, le=999999999.9
+    )
 
     @model_validator(mode="after")
     def validate_intervals(self) -> RecurrenceSpec:
@@ -87,7 +89,9 @@ class AnchorSpec(BaseModel):
 
     date: date_type | None = None
     odometer_km: Decimal | None = Field(None, ge=0, le=99999999.99)
-    hours: Decimal | None = Field(None, ge=0, le=9999999.9)
+    hours: Annotated[Decimal | None, AfterValidator(to_stored_tenth)] = Field(
+        None, ge=0, le=9999999.9
+    )
 
 
 class MaintenanceTypeResponse(BaseModel):

@@ -119,7 +119,7 @@ def _validate_octane_scale(v: str | None) -> str | None:
 
 
 def _validate_diesel_grade(v: str | None) -> str | None:
-    """'onroad' | 'offroad' — the US clear-vs-dyed (farm) distinction."""
+    """'onroad' | 'offroad': the US clear-vs-dyed (farm) distinction."""
     if v is not None and v not in DIESEL_GRADE_VALUES:
         raise ValueError(f"diesel_grade must be one of {DIESEL_GRADE_VALUES}, got {v!r}")
     return v
@@ -345,7 +345,7 @@ class FuelRecordBase(BaseModel):
     is_hauling: bool = Field(False, description="Vehicle was towing/hauling during this fuel cycle")
     notes: str | None = Field(None, description="Additional notes")
 
-    # Issue #69 — extended fuel tracking
+    # Issue #69: extended fuel tracking
     station_address_book_id: int | None = Field(
         None,
         description=(
@@ -519,7 +519,7 @@ class FuelRecordCreate(FuelRecordBase):
             refill (see ``is_tank_refill`` below).
           - At least one of ``liters``, ``propane_liters``, ``kwh``, or
             the propane ``tank_size_kg`` + ``tank_quantity`` pair is
-            required, EXCEPT when ``missed_fillup=True`` — that's the
+            required, EXCEPT when ``missed_fillup=True``; that's the
             explicit "I noticed the odometer but I don't have the
             fuel amount" escape hatch.
 
@@ -617,7 +617,7 @@ class FuelRecordUpdate(BaseModel):
         description="Actual fuel dispensed (canonical enum)",
         max_length=20,
     )
-    # #164 — same shape as on FuelRecordBase; validators wired below.
+    # #164: same shape as on FuelRecordBase; validators wired below.
     octane: int | None = Field(
         None, description="Octane rating for gasoline/E85 fill-ups (AKI or RON)"
     )
@@ -649,7 +649,7 @@ class FuelRecordUpdate(BaseModel):
         le=Decimal("1.00"),
     )
 
-    # Issue #69 — extended fuel tracking
+    # Issue #69: extended fuel tracking
     station_address_book_id: int | None = Field(None, ge=1)
     station_name_freetext: str | None = Field(None, max_length=150)
     one_time_visit: bool | None = Field(

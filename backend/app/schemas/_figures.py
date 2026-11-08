@@ -12,21 +12,28 @@ just past one is refused instead of rounded back inside it:
 Pydantic runs the assigned Field's bounds before the Annotated validator.
 """
 
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 
 _TENTH = Decimal("0.1")
 _HUNDREDTH = Decimal("0.01")
 
 
-def to_stored_tenth(value: Decimal | None) -> Decimal | None:
-    """Round to the tenth a NUMERIC(p, 1) column keeps. A null passes through."""
+def _rounded(value: Decimal | None, step: Decimal) -> Decimal | None:
     if value is None:
         return None
-    return value.quantize(_TENTH, rounding=ROUND_HALF_UP)
+    try:
+        return value.quantize(step, rounding=ROUND_HALF_UP)
+    except InvalidOperation:
+        # Too many digits to round, only reachable on a field with no `le`. Leave
+        # it for the database to refuse, like ScaledNumeric does, not a 500 here.
+        return value
+
+
+def to_stored_tenth(value: Decimal | None) -> Decimal | None:
+    """Round to the tenth a NUMERIC(p, 1) column keeps. A null passes through."""
+    return _rounded(value, _TENTH)
 
 
 def to_stored_hundredth(value: Decimal | None) -> Decimal | None:
     """Round to the hundredth a NUMERIC(p, 2) column keeps. A null passes through."""
-    if value is None:
-        return None
-    return value.quantize(_HUNDREDTH, rounding=ROUND_HALF_UP)
+    return _rounded(value, _HUNDREDTH)
