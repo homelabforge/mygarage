@@ -12,10 +12,18 @@ The ``use_keys`` fixture that swaps the keyring for isolated test keys lives in
 import base64
 import hashlib
 from collections.abc import Awaitable, Callable
+from pathlib import Path
+from typing import Any
 
-from sqlalchemy import delete, select, text
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from sqlalchemy import delete, event, select, text
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 
+from app.database import configure_sqlite_engine
 from app.models.settings import Setting
 from app.utils.secret_setting_keys import SECRET_SETTING_KEYS
 from app.utils.settings_crypto import encrypt
@@ -85,3 +93,57 @@ async def only_these_secret_rows(db: AsyncSession, keep: Keep, rows: dict[str, s
     await db.execute(delete(Setting).where(Setting.key.in_(sorted({*secrets, *rows}))))
     await db.commit()
     await insert_raw(db, rows)
+
+
+#: The plaintext secret `file_db` seeds, left in the main file and the WAL.
+REMNANT = "WAL-REMNANT-plaintext-5e1d07"
+
+
+async def file_db(tmp_path: Path, *, timeout: float = 30) -> tuple[AsyncEngine, Path]:
+    """A file-backed WAL database holding one plaintext secret, in the main file and the WAL.
+
+    The connections start with secure_delete OFF, whatever the build default, so
+    only the sweep's own PRAGMA can scrub the freed cell.
+    """
+    path = tmp_path / "mygarage.db"
+    engine = create_async_engine(f"sqlite+aiosqlite:///{path}", connect_args={"timeout": timeout})
+    configure_sqlite_engine(engine)
+
+    @event.listens_for(engine.sync_engine, "connect")
+    def _secure_delete_off(dbapi_connection: Any, _record: Any) -> None:  # pyright: ignore[reportUnusedFunction]
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA secure_delete=OFF")
+        cursor.close()
+
+    async with engine.begin() as conn:
+        await conn.run_sync(Setting.__table__.create)  # pyright: ignore[reportUnknownMemberType, reportUnknownArgumentType]
+    async with engine.connect() as conn:
+        # The secret first, so later rows sit between it and the free space and
+        # its freed cell isn't simply reused by the longer ciphertext.
+        await conn.execute(
+            text("INSERT INTO settings (key, value, encrypted) VALUES ('ntfy_token', :v, 0)"),
+            {"v": REMNANT},
+        )
+        for n in range(8):
+            await conn.execute(
+                text("INSERT INTO settings (key, value, encrypted) VALUES (:k, :v, 0)"),
+                {"k": f"plain_{n}", "v": f"value-{n}"},
+            )
+        await conn.commit()
+        await conn.execute(text("PRAGMA wal_checkpoint(TRUNCATE)"))
+        # Touch the page again, so the plaintext is in a WAL frame as well.
+        await conn.execute(text("UPDATE settings SET value = 'changed' WHERE key = 'plain_0'"))
+        await conn.commit()
+    return engine, path
+
+
+def holding(path: Path, needle: bytes) -> list[str]:
+    """Which of the database file and its WAL hold `needle`, by file name."""
+    files = (path, path.with_name(path.name + "-wal"))
+    return [f.name for f in files if f.exists() and needle in f.read_bytes()]
+
+
+async def pooled_pragma(engine: AsyncEngine, pragma: str) -> int:
+    """The PRAGMA's value on the connection the pool hands out next."""
+    async with engine.connect() as conn:
+        return int((await conn.execute(text(f"PRAGMA {pragma}"))).scalar_one())

@@ -43,6 +43,7 @@ __all__ = [
     "SweepReport",
     "encrypt_secret_rows",
     "ensure_secrets_encrypted",
+    "plaintext_secret_keys",
     "sweep_secret_settings",
 ]
 
@@ -253,7 +254,7 @@ async def ensure_secrets_encrypted(db: AsyncSession) -> SweepReport:
     sqlite = db.get_bind().dialect.name == "sqlite"
     try:
         report = await _encrypt_securely(db, sqlite=sqlite)
-        remaining = await _plaintext_secret_keys(db)
+        remaining = await plaintext_secret_keys(db)
         if remaining:
             raise PlaintextSecretsRemain(remaining, keyring_fix=keyring_fix_advice())
         await db.commit()
@@ -263,7 +264,7 @@ async def ensure_secrets_encrypted(db: AsyncSession) -> SweepReport:
     except SettingsKeyUnavailable as exc:
         await _rollback_quietly(db)
         raise PlaintextSecretsRemain(
-            await _plaintext_secret_keys(db), keyring_fix=keyring_fix_advice()
+            await plaintext_secret_keys(db), keyring_fix=keyring_fix_advice()
         ) from exc
     except SQLAlchemyError as exc:
         # Its message would carry the bound parameters: name the type only.
@@ -271,7 +272,7 @@ async def ensure_secrets_encrypted(db: AsyncSession) -> SweepReport:
             "Encrypting the secret settings before a backup failed (%s)", type(exc).__name__
         )
         await _rollback_quietly(db)
-        remaining = await _plaintext_secret_keys(db)
+        remaining = await plaintext_secret_keys(db)
         if remaining:
             raise PlaintextSecretsRemain(remaining, keyring_fix=keyring_fix_advice()) from exc
         raise
@@ -287,10 +288,11 @@ async def ensure_secrets_encrypted(db: AsyncSession) -> SweepReport:
     return report
 
 
-async def _plaintext_secret_keys(db: AsyncSession) -> tuple[str, ...]:
+async def plaintext_secret_keys(db: AsyncSession) -> tuple[str, ...]:
     """The secret keys whose raw column is non-empty and not ciphertext, sorted.
 
-    A column select, so it reads the database (flushed rows included), not the
+    The backup service checks this too, so a caller that skipped the preflight
+    still can't write a backup holding plaintext. A column select, so it reads the database (flushed rows included), not the
     identity map. The prefix is compared in Python: SQL ``LIKE`` is
     case-insensitive on SQLite.
     """

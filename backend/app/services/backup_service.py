@@ -32,13 +32,20 @@ from app.services.setting_rules import (
     check_setting_value,
 )
 from app.services.setting_switches import stored_switch_value
+from app.services.settings_secrets import PlaintextSecretsRemain, plaintext_secret_keys
 from app.services.settings_service import SettingsService
 from app.utils.backup_names import backup_stamp
 from app.utils.datetime_utils import utc_from_timestamp
 from app.utils.household_time import EFFECTIVE_TIMEZONE_KEY
 from app.utils.logging_utils import sanitize_for_log
 from app.utils.secret_setting_keys import SECRET_SETTING_KEYS
-from app.utils.settings_crypto import DecryptStatus, current_kid, decrypt, is_ciphertext
+from app.utils.settings_crypto import (
+    DecryptStatus,
+    current_kid,
+    decrypt,
+    is_ciphertext,
+    keyring_fix_advice,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -72,6 +79,25 @@ def _settings_backup_rows(settings: list[Setting]) -> list[dict[str, Any]]:
         }
         for s in settings
     ]
+
+
+async def _require_no_plaintext_secrets(db: AsyncSession) -> None:
+    """Refuse a backup while any secret row is still stored as plaintext.
+
+    The routes run the preflight (`ensure_secrets_encrypted`) first, which
+    encrypts what it can. This is the backstop for a caller that skipped it, so
+    it only reads: no encrypt, no commit, no rollback.
+
+    Raises:
+        PlaintextSecretsRemain: Names the plaintext keys, never their values.
+    """
+    remaining = await plaintext_secret_keys(db)
+    if remaining:
+        logger.error(
+            "Refused to write a backup: these secret settings are stored unencrypted: %s",
+            ", ".join(remaining),
+        )
+        raise PlaintextSecretsRemain(remaining, keyring_fix=keyring_fix_advice())
 
 
 class BackupService:
@@ -304,7 +330,11 @@ class BackupService:
 
         Returns:
             Metadata about created backup
+
+        Raises:
+            PlaintextSecretsRemain: A secret row is still plaintext; no file is written.
         """
+        await _require_no_plaintext_secrets(db)
         self.ensure_backup_dir()
 
         # Get all settings from database
@@ -337,15 +367,22 @@ class BackupService:
             "created": utc_from_timestamp(stat.st_mtime).isoformat(),
         }
 
-    async def create_full_backup(self) -> dict[str, Any]:
+    async def create_full_backup(self, db: AsyncSession) -> dict[str, Any]:
         """Create a full backup including database and all uploaded files.
 
         For SQLite: archives a consistent snapshot of the database file (none for in-memory).
         For PostgreSQL: runs pg_dump and archives the dump file.
 
+        Args:
+            db: A session on the database being backed up, for the plaintext check only.
+
         Returns:
             Metadata about created backup
+
+        Raises:
+            PlaintextSecretsRemain: A secret row is still plaintext; no file is written.
         """
+        await _require_no_plaintext_secrets(db)
         self.ensure_backup_dir()
 
         filename = f"mygarage-full-{backup_stamp()}.tar.gz"
@@ -427,7 +464,8 @@ class BackupService:
 
         Secret settings are restored per value, whatever the file's version or
         `encrypted` flag says; see `_restore_secret`. Call the backup preflight
-        (`ensure_secrets_encrypted`) first, so the safety backup holds no plaintext.
+        (`ensure_secrets_encrypted`) first: a plaintext secret row is refused here,
+        so the safety backup never holds one.
 
         Takes the sign-in settings lock before its first read, so `db` must not be
         inside a transaction. When the file touched a sign-in key and the result
@@ -436,6 +474,8 @@ class BackupService:
 
         Raises:
             AuthSettingsConflictError: The restore would leave SSO mode unusable.
+            PlaintextSecretsRemain: A secret row is still plaintext. Raised before
+                the safety backup, after rolling back to let go of the lock.
         """
         # A name in the backup folder, as download and delete take it: `../` can't reach past it.
         backup_path = self.validate_filename(filename)
@@ -458,6 +498,12 @@ class BackupService:
 
         # Before the safety backup's read, so it copies what the restore replaces.
         await lock_auth_settings(db)
+        # Under the lock, so it checks the rows the safety backup would copy.
+        try:
+            await _require_no_plaintext_secrets(db)
+        except PlaintextSecretsRemain:
+            await db.rollback()
+            raise
 
         # Create safety backup first if requested
         safety_filename = None
@@ -713,14 +759,20 @@ class BackupService:
         await db.flush()
 
     async def restore_full_backup(
-        self, filename: str, create_safety: bool = True
+        self, filename: str, db: AsyncSession, create_safety: bool = True
     ) -> dict[str, Any]:
         """Stage a full backup (SQLite only); MyGarage swaps it in at its next start.
 
         Nothing live changes here but the new safety backup. PostgreSQL restores with
         pg_restore instead.
 
+        Args:
+            filename: Name of the backup file in the backup folder
+            db: A session on the live database, for the plaintext check only
+            create_safety: Whether to archive the live data first
+
         Raises:
+            PlaintextSecretsRemain: a secret row is still plaintext; nothing is written
             RuntimeError: on PostgreSQL
             ValueError: in-memory SQLite, a bad name, a media folder on another filesystem,
                 a live database the safety archive can't read, an archive tarfile can't read,
@@ -740,6 +792,8 @@ class BackupService:
         backup_path = self.validate_filename(filename)
         if not backup_path.exists():
             raise FileNotFoundError(f"Backup file not found: {backup_path.name}")
+        # The safety archive copies the live database, and the start's pre-restore archive does too.
+        await _require_no_plaintext_secrets(db)
         self._refuse_media_on_another_filesystem()
         # Seconds to minutes of tar, gzip and SQLite work: in a thread, so the app keeps answering.
         return await asyncio.to_thread(
@@ -837,8 +891,8 @@ class BackupService:
 
         The one backup the preflight (`ensure_secrets_encrypted`) doesn't cover: it is
         written at start, before the database opens. Its database is the one the
-        preflight checked when the restore was staged, and every secret write since then
-        has gone through the encrypting setter.
+        preflight and `restore_full_backup` checked when the restore was staged, and
+        every secret write since then has gone through the encrypting setter.
         """
         archive = self.validate_filename(filename)
         if not archive.exists():

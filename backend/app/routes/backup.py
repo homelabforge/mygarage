@@ -183,7 +183,7 @@ async def create_full_backup(
     the archive copies the database.
 
     Args:
-        db: Database session, for the preflight only
+        db: Database session, for the preflight and the service's plaintext check
 
     Returns:
         Metadata about the created backup file
@@ -193,7 +193,7 @@ async def create_full_backup(
     await ensure_secrets_encrypted(db)
     try:
         backup_service = get_backup_service()
-        backup_info = await backup_service.create_full_backup()
+        backup_info = await backup_service.create_full_backup(db)
 
         return {
             "success": True,
@@ -278,6 +278,9 @@ async def restore_backup(
     plaintext with no keyring to encrypt it) lists them in `details.skipped_secret_keys` and names
     them in `warning`; those keys keep their current values.
 
+    A bad name is a 400 and a missing backup a 404, both checked before the preflight, so neither
+    reads as a 503 while a secret can't be encrypted.
+
     Args:
         filename: Name of the backup file to restore from
         db: Database session
@@ -285,13 +288,19 @@ async def restore_backup(
     Returns:
         Success message with details about restore operation
     """
+    backup_service = get_backup_service()
+    # Ahead of the try too, so they raise their own statuses rather than go through its excepts.
+    try:
+        backup_path = backup_service.validate_filename(filename)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    if not backup_path.exists():
+        raise HTTPException(status_code=404, detail=f"Backup file not found: {backup_path.name}")
     # Before the try: its broad excepts must not see the refusal (R2-2).
     await ensure_secrets_encrypted(db)
     try:
-        backup_service = get_backup_service()
-
-        # Determine backup type from filename
-        if filename.endswith(".json"):
+        # validate_filename lets only .json and .tar.gz through.
+        if backup_path.name.endswith(".json"):
             # Settings backup (works on all backends)
             details = await backup_service.restore_settings_backup(filename, db)
 
@@ -303,8 +312,8 @@ async def restore_backup(
             if skipped := details["skipped_secret_keys"]:
                 response["warning"] = _skipped_secrets_warning(skipped)
             return response
-        elif filename.endswith(".tar.gz"):
-            # Full backup restore — guard PostgreSQL
+        else:
+            # Full backup restore: guard PostgreSQL
             if not is_sqlite:
                 raise HTTPException(
                     status_code=501,
@@ -316,7 +325,7 @@ async def restore_backup(
                     ),
                 )
 
-            details = await backup_service.restore_full_backup(filename)
+            details = await backup_service.restore_full_backup(filename, db)
 
             return {
                 "success": True,
@@ -327,8 +336,6 @@ async def restore_backup(
                     "and anything changed before the restart is replaced by the backup."
                 ),
             }
-        else:
-            raise HTTPException(status_code=400, detail="Invalid backup file type")
 
     except HTTPException:
         raise

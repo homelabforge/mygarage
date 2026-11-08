@@ -12,6 +12,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services.backup_service import BackupService
 from app.services.settings_service import SettingsService
@@ -60,16 +61,16 @@ def test_the_database_stats_serve_utc(tmp_path: Path) -> None:
 
 
 async def test_a_new_settings_backup_serves_utc(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, db_session: AsyncSession
 ) -> None:
     async def no_settings(_db: object) -> list[object]:
         return []
 
     monkeypatch.setattr(SettingsService, "get_all", staticmethod(no_settings))
-    created = (await _service(tmp_path).create_settings_backup(db=None))["created"]  # type: ignore[arg-type]
+    created = (await _service(tmp_path).create_settings_backup(db_session))["created"]
     assert _just_now(created), created
 
 
-async def test_a_new_full_backup_serves_utc(tmp_path: Path) -> None:
-    created = (await _service(tmp_path).create_full_backup())["created"]
+async def test_a_new_full_backup_serves_utc(tmp_path: Path, db_session: AsyncSession) -> None:
+    created = (await _service(tmp_path).create_full_backup(db_session))["created"]
     assert _just_now(created), created

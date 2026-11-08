@@ -503,7 +503,7 @@ class TestBackupRoutes:
         )
 
         assert response.status_code == 400
-        assert "Invalid backup file type" in response.json()["detail"]
+        assert "Invalid file type" in response.json()["detail"]
 
     async def test_a_full_restore_is_staged_and_says_to_restart(
         self, client: AsyncClient, auth_headers, monkeypatch: pytest.MonkeyPatch, tmp_path: Path

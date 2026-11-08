@@ -31,7 +31,8 @@ PATTERNS = (
     re.compile(r"\bSetting\.__table__"),
     # The table looked up by name, as the tools do for other tables.
     re.compile(r"metadata\.tables(\[|\.get\()\s*(Setting\.__tablename__|[\"']settings[\"'])"),
-    re.compile(r"\btable\(\s*[\"']settings[\"']"),
+    # Core's lightweight table(), and a Table() built over the same name.
+    re.compile(r"\b[Tt]able\(\s*[\"']settings[\"']"),
     re.compile(rf"\bINSERT{_GAP}(OR{_GAP}\w+{_GAP})?INTO{_GAP}settings\b", re.IGNORECASE),
     re.compile(rf"\bUPDATE{_GAP}settings\b", re.IGNORECASE),
 )
@@ -74,6 +75,7 @@ def test_the_scan_sees_the_settings_writers() -> None:
         "_SETTINGS = Base.metadata.tables['settings']",
         'table = metadata.tables.get("settings")',
         'settings_table = table("settings", column("value"))',
+        'settings_table = Table("settings", metadata, autoload_with=conn)',
         "text('INSERT INTO settings (key, value) VALUES (:k, :v)')",
         "text('INSERT OR REPLACE INTO settings VALUES (:k, :v)')",
         'text("UPDATE " "settings SET value = :v")',
