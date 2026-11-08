@@ -369,7 +369,7 @@ class TestSettingsRestoreAppliesTheValueRules:
     async def test_a_json_switch_is_stored_as_the_lowercase_word(
         self, db_session: AsyncSession, tmp_path: Path, keep_rows
     ) -> None:
-        """`LiveLinkService.is_enabled` matches exactly "true", so `str(True)` would read as off."""
+        """Stored switches are canonical "true"/"false", so a JSON true can't land as `str(True)`."""
         await keep_rows("livelink_enabled")
         service = _service(tmp_path)
         filename = _write_backup(

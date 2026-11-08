@@ -25,6 +25,7 @@ from sqlalchemy.types import TypeDecorator
 from app.models.vehicle import Vehicle
 from app.routes import window_sticker as window_sticker_route
 from app.services.settings_service import SettingsService
+from tests._keep_rows import Keep
 from tests.integration.routes._legacy_reads import read_ok
 
 
@@ -952,7 +953,7 @@ Switches = Callable[..., Awaitable[None]]
 
 
 @pytest_asyncio.fixture
-async def sticker_switches(db_session: AsyncSession, keep_rows) -> Switches:
+async def sticker_switches(db_session: AsyncSession, keep_rows: Keep) -> Switches:
     """Set both switches for one test; `keep_rows` puts the rows back after."""
     await keep_rows("window_sticker_enabled", "window_sticker_ocr_enabled")
 

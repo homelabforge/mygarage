@@ -11,7 +11,7 @@ The ``use_keys`` fixture that swaps the keyring for isolated test keys lives in
 
 import base64
 import hashlib
-from collections.abc import Awaitable, Callable
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -27,12 +27,10 @@ from app.database import configure_sqlite_engine
 from app.models.settings import Setting
 from app.utils.secret_setting_keys import SECRET_SETTING_KEYS
 from app.utils.settings_crypto import encrypt
+from tests._keep_rows import Keep
 
 #: The tail of the advice a secret that can't be decrypted gets, wherever it's shown.
 REENTER = "can't be decrypted; re-enter it"
-
-#: The `keep_rows` fixture's callable: snapshot these keys, restore them at teardown.
-Keep = Callable[..., Awaitable[None]]
 
 #: The `use_keys` fixture's callable: takes keyring entries (first is current), returns its kid.
 UseKeys = Callable[..., str | None]

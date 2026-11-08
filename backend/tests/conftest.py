@@ -65,6 +65,7 @@ from app.routes.registration_certificate import limiter as registration_certific
 from app.routes.webhooks import limiter as webhooks_limiter
 from app.services.widget_auth import widget_limiter
 from app.utils.pg_session import create_utc_async_engine
+from tests._keep_rows import Keep
 from tests._shard import apply_shard
 from tests._users import TEST_PASSWORD_HASH
 
@@ -324,7 +325,7 @@ def local_clock_off_utc() -> Iterator[None]:
 
 
 @pytest_asyncio.fixture
-async def keep_rows(db_session: AsyncSession):
+async def keep_rows(db_session: AsyncSession) -> AsyncGenerator[Keep]:
     """Snapshot settings rows by key and put them back afterwards.
 
     The stored value, category, description and the encrypted flag come back;

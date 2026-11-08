@@ -237,18 +237,16 @@ def _reject_unwritable_value(key: str, value: str | None) -> None:
 
 
 @router.get("/public", response_model=SettingsListResponse)
-async def get_public_settings(db: AsyncSession = Depends(get_db)):
-    """Get public settings (no authentication required).
+async def get_public_settings(db: AsyncSession = Depends(get_db)) -> SettingsListResponse:
+    """The settings every client reads at start-up. Anyone may call it, signed in or not.
 
-    Returns only non-sensitive settings required for frontend initialization:
-    - auth_mode: Authentication mode (local/oidc)
-    - app_name: Application name
-    - theme: UI theme preference
-    - family_friends_enabled: garage section feature flag
-    - the other feature flags and unit defaults every user's UI reads
-
-    Security: This endpoint is intentionally public to allow frontend
-    initialization before login. All sensitive settings are excluded.
+    No login and no role check: the app reads it before it knows whether
+    there's a user, and non-admins read it after, since `GET /settings` is
+    admin-only. So it answers only the allowlisted rows that exist (auth_mode,
+    app_name, theme, the feature switches, the unit and country defaults),
+    never a secret, plus two read-only computed entries:
+    `effective_timezone`, the household zone in effect, and
+    `document_upload_max_bytes`, the document upload cap.
     """
     # Whitelist of public settings safe for unauthenticated access
     public_keys = {
@@ -767,11 +765,12 @@ async def get_upload_limits(
         photos=_upload_kind_limits(PHOTO_UPLOAD_CONFIG),
         attachments=_upload_kind_limits(ATTACHMENT_UPLOAD_CONFIG),
         documents=_upload_kind_limits(DOCUMENT_UPLOAD_CONFIG),
+        # The directories each kind is written under, from the same configs.
         storage=UploadStorageDirs(
             data_dir=str(app_settings.data_dir),
-            photos_dir=str(app_settings.photos_dir),
-            attachments_dir=str(app_settings.attachments_dir),
-            documents_dir=str(app_settings.documents_dir),
+            photos_dir=str(PHOTO_UPLOAD_CONFIG.base_dir),
+            attachments_dir=str(ATTACHMENT_UPLOAD_CONFIG.base_dir),
+            documents_dir=str(DOCUMENT_UPLOAD_CONFIG.base_dir),
         ),
     )
 

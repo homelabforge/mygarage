@@ -5,6 +5,7 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, BeforeValidator, Field, field_validator
 
+from app.models.livelink_parameter import DISPLAY_NAME_MAX_LENGTH
 from app.schemas._nullability import reject_null
 from app.utils.lenient_vocab import LenientVocab, lenient_reader
 
@@ -298,15 +299,24 @@ class LiveLinkParameterBase(BaseModel):
 class LiveLinkParameterCreate(LiveLinkParameterBase):
     """Schema for auto-registering a new parameter from WiCAN config block."""
 
-    category: str | None = Field(None, description="Category for grouping")
+    # Held to the columns here and not on the base, which the response shares:
+    # a long name already stored on SQLite shouldn't turn a read into a 500.
+    display_name: str | None = Field(
+        None, max_length=DISPLAY_NAME_MAX_LENGTH, description="User-friendly display name"
+    )
+    category: str | None = Field(None, max_length=50, description="Category for grouping")
 
 
 class LiveLinkParameterUpdate(BaseModel):
     """Schema for updating parameter settings."""
 
-    display_name: str | None = Field(None, description="User-friendly display name")
-    category: str | None = Field(None, description="Category for grouping")
-    icon: str | None = Field(None, description="Icon identifier for frontend")
+    # The column widths. PostgreSQL refuses a longer value at commit, a 500;
+    # SQLite would store it whole.
+    display_name: str | None = Field(
+        None, max_length=DISPLAY_NAME_MAX_LENGTH, description="User-friendly display name"
+    )
+    category: str | None = Field(None, max_length=50, description="Category for grouping")
+    icon: str | None = Field(None, max_length=50, description="Icon identifier for frontend")
     # The three alert lines: an explicit null switches a line off, an omitted
     # field leaves it as it is. Not NaN or infinity: NaN is a line no value
     # ever crosses. Lines are compared in the stored unit, so they're in it too.

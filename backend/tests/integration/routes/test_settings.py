@@ -1476,6 +1476,14 @@ class TestUploadLimits:
         # An odd size no setting or env default produces, so the number can only
         # have come from the config the document validator checks against.
         monkeypatch.setattr(uploads.DOCUMENT_UPLOAD_CONFIG, "max_size_bytes", 7_340_033)
+        # Same for the directories: paths no setting holds, so each one can only
+        # have come from the config that kind's uploads are written under.
+        for config, name in (
+            (uploads.PHOTO_UPLOAD_CONFIG, "photos"),
+            (uploads.ATTACHMENT_UPLOAD_CONFIG, "attachments"),
+            (uploads.DOCUMENT_UPLOAD_CONFIG, "documents"),
+        ):
+            monkeypatch.setattr(config, "base_dir", Path(f"/elsewhere/{name}-uploads"))
         await set_auth_mode("local")
 
         response = await client.get("/api/settings/upload-limits", headers=auth_headers)
@@ -1495,9 +1503,9 @@ class TestUploadLimits:
         assert "jpg" in body["photos"]["extensions"]
         assert body["storage"] == {
             "data_dir": str(app_settings.data_dir),
-            "photos_dir": str(app_settings.photos_dir),
-            "attachments_dir": str(app_settings.attachments_dir),
-            "documents_dir": str(app_settings.documents_dir),
+            "photos_dir": "/elsewhere/photos-uploads",
+            "attachments_dir": "/elsewhere/attachments-uploads",
+            "documents_dir": "/elsewhere/documents-uploads",
         }
 
     async def test_a_non_admin_is_a_403(

@@ -3894,17 +3894,15 @@ export interface paths {
         };
         /**
          * Get Public Settings
-         * @description Get public settings (no authentication required).
+         * @description The settings every client reads at start-up. Anyone may call it, signed in or not.
          *
-         *     Returns only non-sensitive settings required for frontend initialization:
-         *     - auth_mode: Authentication mode (local/oidc)
-         *     - app_name: Application name
-         *     - theme: UI theme preference
-         *     - family_friends_enabled: garage section feature flag
-         *     - the other feature flags and unit defaults every user's UI reads
-         *
-         *     Security: This endpoint is intentionally public to allow frontend
-         *     initialization before login. All sensitive settings are excluded.
+         *     No login and no role check: the app reads it before it knows whether
+         *     there's a user, and non-admins read it after, since `GET /settings` is
+         *     admin-only. So it answers only the allowlisted rows that exist (auth_mode,
+         *     app_name, theme, the feature switches, the unit and country defaults),
+         *     never a secret, plus two read-only computed entries:
+         *     `effective_timezone`, the household zone in effect, and
+         *     `document_upload_max_bytes`, the document upload cap.
          */
         get: operations["get_public_settings_api_settings_public_get"];
         put?: never;

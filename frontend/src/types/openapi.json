@@ -13166,6 +13166,7 @@
           "category": {
             "anyOf": [
               {
+                "maxLength": 50,
                 "type": "string"
               },
               {
@@ -13190,6 +13191,7 @@
           "display_name": {
             "anyOf": [
               {
+                "maxLength": 100,
                 "type": "string"
               },
               {
@@ -13215,6 +13217,7 @@
           "icon": {
             "anyOf": [
               {
+                "maxLength": 50,
                 "type": "string"
               },
               {
@@ -46125,7 +46128,7 @@
     },
     "/api/settings/public": {
       "get": {
-        "description": "Get public settings (no authentication required).\n\nReturns only non-sensitive settings required for frontend initialization:\n- auth_mode: Authentication mode (local/oidc)\n- app_name: Application name\n- theme: UI theme preference\n- family_friends_enabled: garage section feature flag\n- the other feature flags and unit defaults every user's UI reads\n\nSecurity: This endpoint is intentionally public to allow frontend\ninitialization before login. All sensitive settings are excluded.",
+        "description": "The settings every client reads at start-up. Anyone may call it, signed in or not.\n\nNo login and no role check: the app reads it before it knows whether\nthere's a user, and non-admins read it after, since `GET /settings` is\nadmin-only. So it answers only the allowlisted rows that exist (auth_mode,\napp_name, theme, the feature switches, the unit and country defaults),\nnever a secret, plus two read-only computed entries:\n`effective_timezone`, the household zone in effect, and\n`document_upload_max_bytes`, the document upload cap.",
         "operationId": "get_public_settings_api_settings_public_get",
         "responses": {
           "200": {

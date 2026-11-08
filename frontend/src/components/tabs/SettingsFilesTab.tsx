@@ -40,11 +40,10 @@ export default function SettingsFilesTab(): React.ReactElement {
   const [loading, setLoading] = useState(true)
   const { triggerSave, registerSaveHandler, unregisterSaveHandler } = useSettings()
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
-  // The limits in force, read-only: set on the server, not in this tab. Null
-  // with `limitsFailed` means the fetch failed, and the card says so instead
-  // of showing numbers that may not be the ones in force.
+  // The limits in force, read-only: set on the server, not in this tab. Still
+  // null once loading is done means the fetch failed, and the card says so
+  // instead of showing numbers that may not be the ones in force.
   const [limits, setLimits] = useState<UploadLimits | null>(null)
-  const [limitsFailed, setLimitsFailed] = useState(false)
 
   const [formData, setFormData] = useState({
     window_sticker_enabled: 'true',
@@ -73,11 +72,7 @@ export default function SettingsFilesTab(): React.ReactElement {
       setMessage({ type: 'error', text: t('files.loadError') })
     }
 
-    if (limitsResult.status === 'fulfilled') {
-      setLimits(limitsResult.value.data)
-    } else {
-      setLimitsFailed(true)
-    }
+    setLimits(limitsResult.status === 'fulfilled' ? limitsResult.value.data : null)
     setLoading(false)
   }, [t])
 
@@ -164,7 +159,7 @@ export default function SettingsFilesTab(): React.ReactElement {
             </div>
           </div>
 
-          {limitsFailed || !limits ? (
+          {!limits ? (
             <div className="p-4 rounded-lg border bg-danger-500/10 border-danger-500 text-danger-500">
               {t('files.limitsLoadError')}
             </div>
