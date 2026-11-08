@@ -431,6 +431,8 @@ class TestNoFallthrough:
         assert str(path) in warning
         assert "re-enter" in warning
         assert "comma-separated" in warning
+        # Hedged: on a cold start a racing process may land here with nothing lost.
+        assert "Any secrets saved under an earlier key" in warning
 
     def test_an_empty_key_file_variable_still_refuses(
         self, monkeypatch: pytest.MonkeyPatch, data_dir: Path, tmp_path: Path

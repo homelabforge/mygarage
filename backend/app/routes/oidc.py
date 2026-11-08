@@ -657,7 +657,9 @@ async def test_oidc_connection(
     client_secret = test_request.client_secret
     if not client_secret or oidc_service.is_masked_secret(client_secret):
         stored = await SettingsService.get(db, OIDC_CLIENT_SECRET_KEY)
-        if stored is not None and stored.unreadable:
+        # One decrypt for both questions: can it be read, and what is it.
+        read = stored.decrypted() if stored is not None else None
+        if read is not None and read.unreadable:
             # Testing with "" would report a provider failure for what is a
             # local one; answer in the §5.4(4) envelope instead (R2-1).
             return OIDCTestResult(
@@ -665,7 +667,7 @@ async def test_oidc_connection(
                 error="secret_unreadable",
                 detail=reenter_message("OIDC client secret"),
             )
-        client_secret = (stored.value if stored is not None else None) or ""
+        client_secret = (read.plaintext if read is not None else None) or ""
 
     issuer_url = test_request.issuer_url.strip().rstrip("/")
 

@@ -311,7 +311,7 @@ app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)  # typ
 # still a `BaseHTTPMiddleware` subclass, which buffers the response body
 # through an asyncio queue and stalls streaming responses (proven on backup
 # downloads: ~20 KB/s sustained with bursty 2s-on / 20s-off pattern). The
-# middleware only enforces the global `default_limits` value — every
+# middleware only enforces the global `default_limits` value; every
 # rate-sensitive endpoint (auth, OIDC, exports, uploads, widget) already
 # has an explicit `@limiter.limit(...)` decorator that does not depend on
 # this middleware, and the Traefik `common-rates` chain provides the global

@@ -40,7 +40,7 @@ def settings_key_child(data_dir: str, start: Barrier, results: Queue[tuple[objec
     """Load the settings keyring from a data dir that has no key file yet.
 
     Puts ``(pid, current kid, keyring source, warnings)`` on ``results``, or
-    ``(pid, "error", traceback)`` if anything raised.
+    ``(pid, "error", traceback, [])`` if anything raised.
     """
     try:
         os.environ.pop("MYGARAGE_SETTINGS_KEY", None)
@@ -67,7 +67,7 @@ def jwt_key_child(key_file: str, start: Barrier, results: Queue[tuple[object, ..
     """Get the JWT key from a path that has no file yet.
 
     Puts ``(pid, key, KEY_SOURCE, warnings)`` on ``results``, or
-    ``(pid, "error", traceback)`` if anything raised.
+    ``(pid, "error", traceback, [])`` if anything raised.
     """
     try:
         handler = _listen()

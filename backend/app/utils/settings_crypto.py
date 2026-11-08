@@ -328,7 +328,7 @@ def _refill_empty_key_file(source: str, path: Path) -> _Keyring | _Unavailable:
     if key == candidate:
         logger.warning(
             "The settings encryption key file %s was empty, so a new key was written to it. "
-            "Secrets saved under the lost key can't be read: re-enter them, or put the lost "
+            "Any secrets saved under an earlier key can't be read: re-enter them, or put that "
             "key back in the file as a second, comma-separated entry after the new one.",
             path,
         )
