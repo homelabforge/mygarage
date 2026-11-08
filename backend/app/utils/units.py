@@ -6,8 +6,9 @@ Canonical storage format: SI METRIC (kilometers, liters, kilograms, etc.)
 - Write callers (forms, importers, migrations) use `to_canonical_decimal()`
   to avoid float precision loss when storing user input
 - Display goes through `unit_adapters.py`, which is built from the factors here
-- `miles_to_km` is the one float helper left: a device's mile odometer reading
-  (`odometer_units.py`) and one repair tool
+- `miles_to_km` is the one float conversion left, for a device's mile
+  odometer reading (`odometer_units.py`) and one repair tool. `round_result`
+  is just its rounding step
 
 `to_canonical_decimal` takes gallons (US or UK), miles, MPG (US or UK), feet,
 °F, PSI (to kPa, not bar), pounds and lb-ft into metric. Electric units (kWh,

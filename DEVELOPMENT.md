@@ -224,7 +224,7 @@ pip install -e ".[dev]"
 python -m granian app.main:app --port 8686 --reload
 
 # Run with debug mode
-DEBUG=true python -m granian app.main:app --port 8686 --reload
+MYGARAGE_DEBUG=true python -m granian app.main:app --port 8686 --reload
 
 # Run tests
 pytest
@@ -233,21 +233,20 @@ pytest
 pytest --cov=app --cov-report=term-missing
 
 # Run specific test file
-pytest tests/unit/test_vehicles.py
+pytest tests/unit/test_config.py
 
-# Database migrations
-alembic upgrade head
-alembic revision --autogenerate -m "description"
+# Database migrations run on startup; no separate command.
+# New ones go in app/migrations/ (see its README.md).
 ```
 
 ### Technology Stack
 
 - **Framework**: FastAPI
 - **Database ORM**: SQLAlchemy 2.0+
-- **Migrations**: Alembic
+- **Migrations**: custom scripts in `app/migrations/`, run on startup
 - **ASGI Server**: Granian (Rust-based, fast)
 - **Authentication**: JWT + Argon2 password hashing
-- **OAuth2/OIDC**: Authlib
+- **OIDC**: joserfc for ID token verification
 - **Testing**: pytest + pytest-asyncio
 - **Database**: SQLite (default) or PostgreSQL
 
@@ -256,16 +255,21 @@ alembic revision --autogenerate -m "description"
 ```
 backend/
 ├── app/
-│   ├── api/             # API route handlers
+│   ├── routes/          # API route handlers
 │   ├── models/          # SQLAlchemy models
 │   ├── schemas/         # Pydantic schemas
-│   ├── core/            # Core functionality (auth, config, db)
 │   ├── services/        # Business logic
+│   ├── migrations/      # Database migrations (custom, not Alembic)
+│   ├── tasks/           # Scheduled jobs
+│   ├── utils/           # Shared helpers (units, time, CSV)
+│   ├── config.py        # Settings from MYGARAGE_* env vars
+│   ├── database.py      # Engine, sessions, startup migrations
 │   └── main.py          # FastAPI application entry
 ├── tests/
 │   ├── unit/            # Unit tests
-│   └── integration/     # Integration tests
-├── alembic/             # Database migrations
+│   ├── integration/     # Integration tests
+│   └── migrations/      # Migration tests
+├── tools/               # Maintenance, repair and dev scripts
 ├── pyproject.toml       # Python dependencies
 └── pytest.ini           # Pytest configuration
 ```
@@ -279,7 +283,8 @@ Interactive API docs:
 
 ### Database
 
-Default: SQLite at `./data/mygarage.db`
+Default: SQLite at `/data/mygarage.db` (the container path). For a local run, point
+`MYGARAGE_DATABASE_URL` somewhere writable.
 
 To use PostgreSQL:
 ```bash
@@ -293,18 +298,13 @@ python -m granian app.main:app --port 8686 --reload
 # Database
 MYGARAGE_DATABASE_URL=sqlite+aiosqlite:///./data/mygarage.db
 
-# Authentication
-MYGARAGE_AUTH_MODE=local  # Options: none, local, oidc
-MYGARAGE_JWT_SECRET_KEY=auto-generated-on-first-run
-
-# OIDC (if using auth_mode='oidc')
-MYGARAGE_OIDC_ISSUER=https://auth.example.com/application/o/mygarage/
-MYGARAGE_OIDC_CLIENT_ID=your-client-id
-MYGARAGE_OIDC_CLIENT_SECRET=your-client-secret
-
-# Debug
-DEBUG=true
+# Debug (SQL echo and debug logging)
+MYGARAGE_DEBUG=true
 ```
+
+The auth mode (none, local or OIDC) and the OIDC client details aren't env vars. Set
+them in Settings; they live in the database. The JWT secret is generated on first run
+and kept in `secret.key` in the data directory (`/data` by default).
 
 ---
 
@@ -356,7 +356,7 @@ docker run -d \
   --name mygarage-test \
   -p 8687:8686 \
   -v $(pwd)/data:/data \
-  -e DEBUG=true \
+  -e MYGARAGE_DEBUG=true \
   mygarage:test
 
 # Test
@@ -519,9 +519,8 @@ pip install --force-reinstall -e ".[dev]"
 
 #### Migration errors
 ```bash
-# Reset database (WARNING: deletes data)
+# Reset database (WARNING: deletes data). Migrations rerun on the next start.
 rm data/mygarage.db
-alembic upgrade head
 ```
 
 ### Docker Issues

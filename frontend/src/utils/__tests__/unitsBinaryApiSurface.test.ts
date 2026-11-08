@@ -29,9 +29,8 @@ import * as ts from 'typescript'
  * So the exemption carries a CONDITION, and this test is the condition. R1 asks
  * for exemptions that are structural rather than prose, because the gate's
  * `// units-exempt(<kind>):` pragma accepts any reason-bearing comment
- * (`EXEMPT_PRAGMA` in `validate-units.ts`). The pragmas on the survivors say why; this says
- * when they expire. When task 6 migrates the last `formatDistance(km, system)`
- * call site, this test fails and the method has to go.
+ * (`EXEMPT_PRAGMA` in `validate-units.ts`). The pragmas on the survivors said why;
+ * this said when they expired, and every one of them has.
  *
  * ★ THE CALLER SCAN IS GONE, and the condition did its job first. This file
  * used to walk every production file for `UnitFormatter.<method>` accesses (an

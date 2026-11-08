@@ -74,14 +74,12 @@ limiter = Limiter(key_func=get_remote_address)
 #       carries the canonical enum. NOT additive, so the version moves; the
 #       importer still reads "Fuel Type" from v4-and-older files.
 #
-# From v5 the two diverge. Bumping the CSV schema for the per-quantity unit
-# headers landing later in this phase (#152) must not silently move the JSON
-# backup contract too, so the constant is split:
-# - CSV_SCHEMA_VERSION = "6": reserved for unit-preference-aware headers
-#   landing in later tasks of this phase. Nothing in the CSV row shape
-#   changes yet; only the version cell does (Task 1, #152).
-# - JSON_SCHEMA_VERSION = "5": unchanged. The JSON backup's shape is not part
-#   of this phase.
+# From v5 the two diverge, so the per-column unit headers (#152) could move
+# the CSV schema without dragging the JSON backup contract along:
+# - CSV "6": every unit-bearing column names its unit in the header, e.g.
+#   `Odometer (mi)` or `Volume (gal_uk)` (`app/utils/csv_units.py`), and
+#   `unit_system` never says `imperial_uk` again.
+# - JSON "5": unchanged. The per-column headers are a CSV thing.
 #
 # CSV exports prepend a `units_version` column with CSV_SCHEMA_VERSION to
 # every row; JSON exports include a top-level `"export_version"` set to

@@ -1,12 +1,11 @@
 """Verify ``baselines/pre_054.sql`` loads cleanly and represents the
 post-053, pre-054 schema on PostgreSQL.
 
-What we cover here is just the baseline mechanism — the dump loads, the
+What we cover here is just the baseline mechanism: the dump loads, the
 expected schema_migrations rows are present, and the columns migration
 054 will add are NOT yet present. Migration 054's actual behavior
 (types, constraints, backfill) is exercised in
-``test_054_extended_fuel_tracking.py`` once Phase 1 lands the migration
-fixes.
+``test_054_extended_fuel_tracking.py``.
 
 Skipped on SQLite (baselines are inherently PG).
 """

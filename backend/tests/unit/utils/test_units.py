@@ -145,9 +145,6 @@ class TestGallonFlavour:
         assert round(us, 2) == Decimal("7.84")
         assert round(uk, 2) == Decimal("9.42")
 
-    def test_canonical_gal_honours_flavour(self) -> None:
-        assert UnitConverter.to_canonical_decimal(1, "gal", flavour="uk") == Decimal("4.54609")
-
     @pytest.mark.asyncio
     async def test_interleaved_concurrent_conversions_keep_each_callers_flavour(self) -> None:
         """Genuinely concurrent conversions never cross-contaminate flavour.

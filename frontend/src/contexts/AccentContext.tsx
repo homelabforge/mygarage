@@ -32,17 +32,16 @@ function readStoredAccent(): AccentKey {
 /**
  * Accent state.
  *
- * Persistence is localStorage-only (design D13): the `settings` table is keyed
- * on `key` alone with no user_id, its writes are admin-gated, and pre-login
- * reads require membership in a hardcoded public whitelist — so there is no
- * per-user preference mechanism to persist to. Per-account accent is deferred
- * to a follow-up spec.
+ * localStorage seeds it so the accent is right on first paint, before any user
+ * loads. A signed-in account keeps its own accent in `accent_color` (the quick
+ * settings drawer writes it via PUT /auth/me), and `useAccentSync` applies that
+ * over the seed once the user arrives.
  *
  * The custom properties go on document.documentElement and nowhere else. @theme
  * resolves `--color-primary: var(--accent)` against :root, so a descendant
  * carrier element cannot re-resolve it: the ~589 *-primary utilities would stay
  * blue while the raw --accent* consumers (focus rings, glows) switched
- * correctly — a silent, partial failure.
+ * correctly, a silent and partial failure.
  */
 export const AccentProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { theme } = useTheme()

@@ -11,7 +11,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { ReactNode } from 'react'
 import { render, screen, fireEvent, waitFor } from '../../../__tests__/test-utils'
-import type { User } from '@/types/user'
+import { makeUser, type User } from '@/__tests__/factories'
 
 const { put, post, t, i18n } = vi.hoisted(() => ({
   put: vi.fn(),
@@ -31,7 +31,7 @@ vi.mock('react-i18next', () => ({
 
 import AddEditUserModal from '../AddEditUserModal'
 
-const account = (overrides: Partial<User> = {}): User => ({
+const account = (overrides: Partial<User> = {}): User => makeUser({
   id: 7,
   username: 'dana',
   email: 'dana@example.com',

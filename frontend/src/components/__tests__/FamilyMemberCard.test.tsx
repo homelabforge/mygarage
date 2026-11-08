@@ -16,7 +16,7 @@ import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import FamilyMemberCard from '../FamilyMemberCard'
 import type { FamilyMemberData } from '@/types/family'
-import type { User } from '@/types/user'
+import { makeUser, type User } from '@/__tests__/factories'
 import { formatTime } from '@/utils/parseAPITimestamp'
 import commonEn from '@/locales/en/common.json'
 
@@ -55,7 +55,7 @@ const member: FamilyMemberData = {
   family_dashboard_order: 0,
 }
 
-const user = (overrides: Partial<User> = {}): User => ({
+const user = (overrides: Partial<User> = {}): User => makeUser({
   id: 7,
   username: 'dana',
   email: 'dana@example.com',

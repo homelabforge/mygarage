@@ -68,9 +68,9 @@ def test_intrinsically_us_conversions_ignore_the_setting() -> None:
 
     This exercises the real class-3 call site -- `WindowStickerOCRService.
     _sticker_data_to_dict`'s MPG -> L/100km conversion -- rather than
-    `UnitConverter.mpg_to_l100km(..., flavour="us")` directly. That call site
-    never resolves a flavour at all; it multiplies by a fixed US numerator
-    unconditionally. Asserting against `UnitConverter` with `flavour="us"`
+    `UnitConverter.to_canonical_decimal(..., "MPG", flavour="us")` directly.
+    That call site never resolves a flavour at all; it divides a fixed US
+    numerator by the MPG figure unconditionally. Asserting against `UnitConverter` with `flavour="us"`
     pinned in the *test* would still pass even if phase 1 rewired the call
     site itself to resolve a per-user flavour, so it would not catch that
     regression. Pinning the actual call site is what stops phase 1 from

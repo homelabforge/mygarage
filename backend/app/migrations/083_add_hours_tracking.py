@@ -19,9 +19,10 @@ non-FATAL failure, so a silent skip would boot the app against a missing column.
 
 Dialect-aware + idempotent:
   - ``hours_records`` and the column adds are state-checked (skip if already in
-    the desired state). In production ``Base.metadata.create_all()`` creates
-    ``hours_records`` and the new columns before the runner, so those steps
-    no-op there; the migration exists for existing-DB convergence and PG-CI.
+    the desired state). ``Base.metadata.create_all()`` runs before the runner
+    and creates a missing ``hours_records`` table, so that step no-ops. It
+    never adds columns to an existing table, though, so on an existing DB the
+    column adds do the real work; only a fresh DB gets them from create_all.
   - The ``reminder_type`` CHECK widening is NAME-AGNOSTIC and PARITY-PRESERVING:
     it acts only when a legacy ``reminder_type`` CHECK *without* ``'hours'`` is
     present. The ``Reminder`` model declares no such CHECK, so on a fresh
