@@ -1,4 +1,4 @@
-# End-to-end test stack — exercised by `tests/release-smoke/run.sh`.
+# End-to-end test stack, exercised by `tests/release-smoke/run.sh`.
 # Brings up Postgres + two mygarage instances (one PG-backed, one SQLite-backed)
 # from a freshly built image, then runs smoke.py against each.
 #
@@ -8,7 +8,7 @@
 # Image tag is parameterized: run.sh builds and tests `mygarage:release-smoke`
 # by default. Ad-hoc invocations can override with `MYGARAGE_E2E_IMAGE=...` to
 # test a pre-built image (e.g. a GHCR pull during a soak), but the default
-# MUST match the tag `run.sh` builds — otherwise the gate silently exercises
+# MUST match the tag `run.sh` builds, otherwise the gate silently exercises
 # a stale image and lets bad releases through.
 
 services:
@@ -59,7 +59,7 @@ services:
       retries: 30
       start_period: 30s
 
-  # Smoke runner — invoked via `docker compose run --rm smoke <target-url>`.
+  # Smoke runner, invoked via `docker compose run --rm smoke <target-url>`.
   # Lives in the same compose network so it reaches the apps by service name.
   smoke:
     image: python:3.15-slim

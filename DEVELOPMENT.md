@@ -166,7 +166,7 @@ frontend/
 │   ├── types/           # Type definitions, including the generated API types
 │   └── __tests__/       # Shared test helpers and app-wide tests
 ├── e2e/                 # Playwright specs
-├── scripts/             # i18n, units and codegen gates
+├── scripts/             # i18n and units gates, plus generators
 ├── public/              # Static assets and translated locales
 ├── package.json         # Bun dependencies
 ├── bun.lock             # Bun lockfile
@@ -310,7 +310,7 @@ uv run python -m granian --interface asgi --port 8686 app.main:app
 
 ### Environment Variables
 
-All of them are `MYGARAGE_`-prefixed fields in `backend/app/config.py`. The app
+The ones below are `MYGARAGE_`-prefixed fields in `backend/app/config.py`. The app
 doesn't read a `.env` file itself.
 
 ```bash
@@ -345,9 +345,8 @@ own checkout, build a local image and point a copy of it there. `compose.yaml` a
 # Build image from your checkout
 docker build -t mygarage:dev .
 
-# Copy the example and swap in the local image
+# Copy the example, then edit its image: line to mygarage:dev
 cp compose.example.yml compose.yaml
-sed -i 's#ghcr.io/homelabforge/mygarage:latest#mygarage:dev#' compose.yaml
 
 # The container runs as UID 1000; give it ./data
 mkdir -p data && sudo chown 1000:1000 data
@@ -387,6 +386,9 @@ The Dockerfile uses a multi-stage build:
 ```bash
 # Build
 docker build -t mygarage:test .
+
+# The container runs as UID 1000; give it ./data
+mkdir -p data && sudo chown 1000:1000 data
 
 # Run
 docker run -d \
@@ -607,7 +609,7 @@ bundle.
 1. Fork the repository
 2. Create a feature branch: `git checkout -b feature/my-feature`
 3. Make changes
-4. Run the gates: `bin/ci-check` from the repo root (needs Docker and Bun)
+4. Run the gates: `bin/ci-check` from the repo root (needs Docker, Bun and Node; see [Prerequisites](#prerequisites))
 5. Run linters: `cd frontend && bun run lint`
 6. Commit changes: `git commit -m "feat: add my feature"`
 7. Push: `git push origin feature/my-feature`
