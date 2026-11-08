@@ -14,7 +14,6 @@ from datetime import datetime
 from pathlib import Path, PurePosixPath
 from typing import Any, Literal
 from urllib.parse import quote, unquote, urlparse
-from zoneinfo import ZoneInfo
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -26,17 +25,17 @@ from app.services.auth_settings import (
     ensure_sso_mode_usable,
     lock_auth_settings,
 )
-from app.services.oidc.config import OIDC_REDIRECT_URI_KEY, checked_redirect_uri
 from app.services.oidc.tokens import MASKED_SECRET_PLACEHOLDER
-from app.services.setting_rules import canonical_setting_value, check_setting_value
+from app.services.setting_rules import (
+    RETIRED_MAP_KEYS,
+    canonical_setting_value,
+    check_setting_value,
+)
+from app.services.setting_switches import stored_switch_value
 from app.services.settings_service import SettingsService
 from app.utils.backup_names import backup_stamp
 from app.utils.datetime_utils import utc_from_timestamp
-from app.utils.default_unit_prefs import (
-    DEFAULT_UNIT_PREFS_KEY,
-    validate_default_unit_prefs_value,
-)
-from app.utils.household_time import EFFECTIVE_TIMEZONE_KEY, TIMEZONE_SETTING_KEY
+from app.utils.household_time import EFFECTIVE_TIMEZONE_KEY
 from app.utils.logging_utils import sanitize_for_log
 from app.utils.secret_setting_keys import SECRET_SETTING_KEYS
 from app.utils.settings_crypto import DecryptStatus, current_kid, decrypt, is_ciphertext
@@ -497,6 +496,10 @@ class BackupService:
                     logger.warning("Skipping setting with no key during restore")
                     continue
 
+                if key in RETIRED_MAP_KEYS:
+                    logger.info("Skipping %s during restore: retired", sanitize_for_log(key))
+                    continue
+
                 # A hand-edited file can hold JSON other than a string, and the
                 # column is Text, which asyncpg refuses anything else into. A
                 # switch gets the spelling the exact readers match ("true", not
@@ -513,23 +516,6 @@ class BackupService:
                     )
                     continue
 
-                # ★ THE FOURTH WRITER OF A SETTINGS VALUE, and the only one that
-                # is not on `app.routes.settings.router`. That router refuses a
-                # `default_unit_prefs` the reader could not use, on all three of
-                # its write paths; an uploaded backup reaches
-                # `SettingsService.set` directly, so a hand-edited or pre-093
-                # file was a back door onto the exact row that validator exists
-                # to protect. `parse_default_unit_prefs` degrades WHOLE and only
-                # logs, so an unreadable value here silently hands every
-                # anonymous client the imperial preset: on a UK or metric
-                # instance, about a 20 percent error in every volume, price per
-                # volume and fuel economy, with a success response on top.
-                #
-                # SKIPPED, NOT FATAL. A restore that aborts partway leaves the
-                # instance half-configured, which is worse than one row not
-                # coming back; the row reseeds from
-                # `default_unit_prefs_for_instance` on the next boot if it is
-                # missing, and keeps its current value if it is not.
                 if key == EFFECTIVE_TIMEZONE_KEY:
                     logger.warning(
                         "Skipping %s during restore: computed, never stored",
@@ -537,9 +523,17 @@ class BackupService:
                     )
                     continue
 
-                # The value rules the settings routes apply too (setting_rules).
-                # A 0-day telemetry retention here would make the daily prune
-                # delete every raw reading (O-T1).
+                # A pre-160 file can hold switch junk. It read as off, so it
+                # comes back as "false" instead of tripping the switch rule.
+                value = stored_switch_value(key, value)
+
+                # The value rules the settings routes apply too (setting_rules),
+                # so a hand-edited file can't store what the API refuses. A
+                # 0-day telemetry retention would make the daily prune delete
+                # every raw reading; a bad `default_unit_prefs` silently hands
+                # every anonymous client the imperial preset. Skipped, not
+                # fatal: a restore that aborts partway is worse than one row
+                # not coming back.
                 try:
                     check_setting_value(key, value)
                 except ValueError as exc:
@@ -549,39 +543,6 @@ class BackupService:
                         sanitize_for_log(str(exc)),
                     )
                     continue
-
-                if key == TIMEZONE_SETTING_KEY and value:
-                    try:
-                        ZoneInfo(value)
-                    except Exception:
-                        logger.warning(
-                            "Skipping %s during restore: not a valid IANA time zone",
-                            sanitize_for_log(key),
-                        )
-                        continue
-
-                # The SSO settings re-send this pin with every save, so a bad
-                # one would 422 all of them, the auth-mode switch included.
-                if key == OIDC_REDIRECT_URI_KEY:
-                    try:
-                        checked_redirect_uri(value or "")
-                    except ValueError:
-                        logger.warning(
-                            "Skipping %s during restore: not a blank or absolute http(s) URL",
-                            sanitize_for_log(key),
-                        )
-                        continue
-
-                if key == DEFAULT_UNIT_PREFS_KEY:
-                    try:
-                        validate_default_unit_prefs_value(value)
-                    except ValueError as exc:
-                        logger.warning(
-                            "Skipping %s during restore: value %s",
-                            sanitize_for_log(key),
-                            sanitize_for_log(str(exc)),
-                        )
-                        continue
 
                 if key in SECRET_SETTING_KEYS:
                     outcome = await self._restore_secret(

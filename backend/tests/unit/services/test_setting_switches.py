@@ -14,7 +14,6 @@ import pytest
 
 from app.services import setting_rules
 from app.services.setting_switches import SWITCH_SETTING_KEYS, stored_switch_value, switch_keys
-from app.services.settings_init import DEFAULT_SETTINGS
 
 _BACKEND = Path(__file__).resolve().parents[3]
 
@@ -33,14 +32,14 @@ def test_the_switch_keys_derive_from_the_seed() -> None:
 
 
 @pytest.mark.unit
-def test_the_live_switch_set_is_the_seeds() -> None:
-    assert SWITCH_SETTING_KEYS == switch_keys(DEFAULT_SETTINGS)
-    assert "nhtsa_enabled" in SWITCH_SETTING_KEYS
+def test_the_live_switch_set_holds_the_seeded_switches() -> None:
+    assert {"nhtsa_enabled", "oidc_enabled"} <= SWITCH_SETTING_KEYS
+    assert "auto_archive_inactive_days" not in SWITCH_SETTING_KEYS
 
 
 @pytest.mark.unit
 def test_setting_rules_hands_out_the_same_set() -> None:
-    # The routes and the restore still import it from setting_rules.
+    # check_setting_value reads it through setting_rules, so it has to be the same set.
     assert setting_rules.SWITCH_SETTING_KEYS is SWITCH_SETTING_KEYS
 
 

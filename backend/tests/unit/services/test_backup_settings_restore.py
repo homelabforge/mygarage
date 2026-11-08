@@ -255,7 +255,8 @@ class TestSettingsRestoreValidatesOidcRedirectUri:
             if r.name == "app.services.backup_service" and r.levelno == logging.WARNING
         ]
         assert warnings == [
-            f"Skipping {REDIRECT_URI_KEY} during restore: not a blank or absolute http(s) URL"
+            f"Skipping {REDIRECT_URI_KEY} during restore: "
+            "must be blank or an absolute http(s) URL with no #fragment"
         ]
 
     @pytest.mark.parametrize(
@@ -440,13 +441,14 @@ class TestSettingsRestoreCanonicalizesSwitches:
         assert await _stored(db_session, _SWITCH_KEY) == stored
         assert details["restored_count"] == 1
 
-    async def test_an_unrecognised_switch_value_is_restored_as_found(
+    async def test_an_unrecognised_switch_value_is_restored_as_false(
         self, db_session: AsyncSession, tmp_path: Path, keep_rows
     ) -> None:
-        """Regression guard, passes on main too: "maybe" is not skipped or rewritten."""
+        """A pre-160 backup can hold junk; it read as off, so it comes back as "false"
+        rather than being skipped by the switch rule."""
         details = await self._restore_one(db_session, tmp_path, keep_rows, _SWITCH_KEY, "maybe")
 
-        assert await _stored(db_session, _SWITCH_KEY) == "maybe"
+        assert await _stored(db_session, _SWITCH_KEY) == "false"
         assert details["restored_count"] == 1
 
     async def test_a_non_switch_key_keeps_a_switch_like_value(
@@ -530,3 +532,86 @@ class TestSettingsRestoreValidatesLlmRows:
         assert await _stored(db_session, LLM_URL_KEY) == "https://openrouter.ai/api/v1"
         assert await _stored(db_session, LLM_PRESET_KEY) == "openrouter"
         assert details["restored_count"] == 3
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_a_bad_time_zone_is_skipped_with_the_rule_message(
+    db_session: AsyncSession, tmp_path: Path, keep_rows, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Same rule and wording as the settings routes now, not a copy of its own."""
+    await keep_rows("timezone")
+    await db_session.execute(delete(Setting).where(Setting.key == "timezone"))
+    db_session.add(Setting(key="timezone", value="Europe/London", category="general"))
+    await db_session.commit()
+    service = _service(tmp_path)
+    filename = _write_backup(
+        service,
+        [
+            {"key": "timezone", "value": "Mars/Olympus_Mons", "category": "general"},
+            {"key": COMPANION_KEY, "value": "restored", "category": "general"},
+        ],
+    )
+
+    with caplog.at_level(logging.WARNING, logger="app.services.backup_service"):
+        details = await service.restore_settings_backup(filename, db_session, create_safety=False)
+
+    assert await _stored(db_session, "timezone") == "Europe/London"
+    assert await _stored(db_session, COMPANION_KEY) == "restored"
+    assert details["restored_count"] == 1
+    assert "Skipping timezone during restore: must be a valid IANA time zone name" in [
+        r.getMessage() for r in caplog.records if r.name == "app.services.backup_service"
+    ]
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_text_that_cannot_be_stored_is_skipped(
+    db_session: AsyncSession, tmp_path: Path, keep_rows, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A lone surrogate in the file made the driver choke mid-restore."""
+    await keep_rows("ntfy_topic")
+    service = _service(tmp_path)
+    filename = _write_backup(
+        service,
+        [
+            {"key": "ntfy_topic", "value": "a\ud800b", "category": "notifications"},
+            {"key": COMPANION_KEY, "value": "restored", "category": "general"},
+        ],
+    )
+
+    with caplog.at_level(logging.WARNING, logger="app.services.backup_service"):
+        details = await service.restore_settings_backup(filename, db_session, create_safety=False)
+
+    assert await _stored(db_session, COMPANION_KEY) == "restored"
+    assert details["restored_count"] == 1
+    assert "Skipping ntfy_topic during restore: must be valid Unicode text" in [
+        r.getMessage() for r in caplog.records if r.name == "app.services.backup_service"
+    ]
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_the_retired_map_keys_are_not_restored(
+    db_session: AsyncSession, tmp_path: Path, keep_rows
+) -> None:
+    """Migration 160 dropped them; an old backup would just put them back."""
+    retired = ("google_maps_api_key", "geoapify_api_key", "mapbox_api_key")
+    await keep_rows(*retired)
+    await db_session.execute(delete(Setting).where(Setting.key.in_(retired)))
+    await db_session.commit()
+    service = _service(tmp_path)
+    filename = _write_backup(
+        service,
+        [
+            *({"key": key, "value": "", "category": "poi"} for key in retired),
+            {"key": COMPANION_KEY, "value": "restored", "category": "general"},
+        ],
+    )
+
+    details = await service.restore_settings_backup(filename, db_session, create_safety=False)
+
+    for key in retired:
+        assert await _stored(db_session, key) is None, key
+    assert await _stored(db_session, COMPANION_KEY) == "restored"
+    assert details["restored_count"] == 1

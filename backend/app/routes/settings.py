@@ -7,7 +7,6 @@ import time
 from collections.abc import Container
 from enum import Enum
 from typing import Final
-from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy import func, select, text
@@ -49,7 +48,6 @@ from app.services.file_upload_service import (
     FileUploadConfig,
 )
 from app.services.oidc import MASKED_SECRET_PLACEHOLDER, display_mask_secret
-from app.services.oidc.config import OIDC_REDIRECT_URI_KEY, checked_redirect_uri
 from app.services.setting_rules import (
     GENERIC_WRITABLE_KEYS,
     canonical_setting_value,
@@ -58,14 +56,9 @@ from app.services.setting_rules import (
 from app.services.settings_init import SENSITIVE_SETTING_KEYS
 from app.services.settings_service import SettingsService
 from app.utils.datetime_utils import utc_now
-from app.utils.default_unit_prefs import (
-    DEFAULT_UNIT_PREFS_KEY,
-    validate_default_unit_prefs_value,
-)
 from app.utils.error_handlers import ciphertext_value_detail
 from app.utils.household_time import (
     EFFECTIVE_TIMEZONE_KEY,
-    TIMEZONE_SETTING_KEY,
     household_zone,
 )
 from app.utils.logging_utils import sanitize_for_log
@@ -170,12 +163,12 @@ def _reject_reserved_key(key: str) -> None:
 
 
 def _reject_unwritable_key(key: str) -> None:
-    """Refuse a key the generic write routes do not own (G3b-20). Raises 422.
+    """Refuse a key the generic write routes do not own. Raises 422.
 
-    Called first on all three write paths, before any lookup, so an unknown key
-    is a 422 whether or not a row happens to exist. The list and its reasons
-    live in `app.services.setting_rules`; the reserved-key check runs first so
-    `effective_timezone` keeps its own message.
+    Called first on all three write paths and the delete, before any lookup, so
+    an unknown key is a 422 whether or not a row happens to exist. The list and
+    its reasons live in `app.services.setting_rules`; the reserved-key check
+    runs first so `effective_timezone` keeps its own message.
     """
     _reject_reserved_key(key)
     if key not in GENERIC_WRITABLE_KEYS:
@@ -221,18 +214,9 @@ def _reject_unwritable_value(key: str, value: str | None) -> None:
     that already starts with `enc:v1:` is refused next (R2-9): the model would
     refuse it anyway, but here it is a 422 before any row is touched, which
     keeps the batch all-or-nothing. A `KEEP_STORED` resolve writes nothing, so
-    callers skip this for it. The value rules shared with
-    the restore (`app.services.setting_rules`) run next. Three more keys have a
-    shape checked here: `timezone` must be a valid IANA name or the reader
-    would skip it (see `app.utils.household_time.resolve_zone`);
-    `oidc_redirect_uri` must be blank or an absolute http(s) URL, since the SSO
-    settings re-send the stored pin and a bad one 422s every SSO save from the
-    modal, the auth-mode switch included; and
-    `default_unit_prefs` is checked because
-    `parse_default_unit_prefs` degrades WHOLE: an unparseable row hands every
-    anonymous client the imperial preset, which on a UK or metric instance is a
-    silent 20 percent error in every volume and every fuel economy, and the
-    write that caused it returned 200.
+    callers skip this for it. The value rules shared with the restore
+    (`app.services.setting_rules.check_setting_value`) run next; every refusal
+    there is logged as a WARNING.
 
     Args:
         key: The settings key being written.
@@ -246,38 +230,9 @@ def _reject_unwritable_value(key: str, value: str | None) -> None:
     try:
         check_setting_value(key, value)
     except ValueError as exc:
+        # The message names the rule, never the value.
+        logger.warning("Rejected a %s write: %s", sanitize_for_log(key), sanitize_for_log(str(exc)))
         raise HTTPException(status_code=422, detail=f"Setting '{key}' {exc}") from exc
-    if key == TIMEZONE_SETTING_KEY and value:
-        try:
-            ZoneInfo(value)
-        except Exception as exc:
-            raise HTTPException(
-                status_code=422,
-                detail=f"Setting '{key}' must be a valid IANA time zone name",
-            ) from exc
-    if key == OIDC_REDIRECT_URI_KEY:
-        # Only refused, not stripped: the reader strips (services/oidc/users.py).
-        try:
-            checked_redirect_uri(value or "")
-        except ValueError as exc:
-            raise HTTPException(
-                status_code=422,
-                detail=f"Setting '{key}' must be blank or an absolute http(s) URL with no #fragment",
-            ) from exc
-    if key != DEFAULT_UNIT_PREFS_KEY:
-        return
-    try:
-        validate_default_unit_prefs_value(value)
-    except ValueError as exc:
-        logger.warning(
-            "Rejected a %s write: value %s",
-            sanitize_for_log(key),
-            sanitize_for_log(str(exc)),
-        )
-        raise HTTPException(
-            status_code=422,
-            detail=f"Setting '{key}' {exc}",
-        ) from exc
 
 
 @router.get("/public", response_model=SettingsListResponse)
@@ -1044,6 +999,9 @@ async def delete_setting(
     current_user: User | None = Depends(get_current_admin_user),
 ):
     """Delete a setting (admin only)."""
+    # Same keys as the writes: deleting the Telegram offset or the telemetry
+    # retention is a write too.
+    _reject_unwritable_key(key)
     if key in AUTH_KEYS:
         await lock_auth_settings(db)
     result = await db.execute(select(Setting).where(Setting.key == key))

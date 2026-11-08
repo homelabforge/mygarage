@@ -8,6 +8,8 @@ module pins the rule set itself.
 
 from __future__ import annotations
 
+import re
+
 import pytest
 
 from app.models.settings import Setting
@@ -18,6 +20,7 @@ from app.services.setting_rules import (
     check_setting_value,
 )
 from app.services.settings_init import DEFAULT_SETTINGS
+from app.services.settings_service import SWITCH_OFF_VALUES, SWITCH_ON_VALUES
 
 # Every key a settings screen or E2E spec sends through `/settings/batch` today,
 # grouped by the file that sends it. If one of these stops being writable, that
@@ -276,3 +279,78 @@ def test_an_unrecognised_switch_value_passes_through_unchanged(raw: str | None) 
 )
 def test_a_non_switch_key_passes_through_unchanged(key: str, raw: str | None) -> None:
     assert canonical_setting_value(key, raw) == raw
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("key", sorted(SWITCH_SETTING_KEYS))
+def test_a_switch_refuses_a_word_that_is_not_on_or_off(key: str) -> None:
+    """Migration 160 rewrote stored junk first, so a tab resave can't trip on this."""
+    with pytest.raises(ValueError, match="must be true or false"):
+        check_setting_value(key, "enabled")
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("key", sorted(SWITCH_SETTING_KEYS))
+def test_a_switch_takes_every_on_off_word_and_blank(key: str) -> None:
+    words = sorted(SWITCH_ON_VALUES | SWITCH_OFF_VALUES)
+    for raw in [*words, *(w.upper() for w in words), " On ", "", "   ", None]:
+        check_setting_value(key, raw)
+
+
+# Moved into the shared rules from the route and the restore, which each had a copy.
+_GOOD_UNIT_PREFS = (
+    '{"consumption": "l_100km", "distance": "km", "length": "m", "mass": "kg", '
+    '"pressure": "kpa", "secondary_gallon": "us", "speed": "kmh", '
+    '"temperature": "c", "torque": "nm", "tread": "mm", "volume": "L"}'
+)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("key", "value", "message"),
+    [
+        ("timezone", "Mars/Olympus_Mons", "must be a valid IANA time zone name"),
+        ("timezone", "../etc/passwd", "must be a valid IANA time zone name"),
+        (
+            "oidc_redirect_uri",
+            "ftp://garage.example.com/cb",
+            "must be blank or an absolute http(s) URL with no #fragment",
+        ),
+        (
+            "oidc_redirect_uri",
+            "https://garage.example.com\n.evil.example/cb",
+            "must be blank or an absolute http(s) URL with no #fragment",
+        ),
+        ("default_unit_prefs", '{"distance": "km"}', "complete unit set"),
+        ("default_unit_prefs", "", "complete unit set"),
+        ("default_unit_prefs", None, "complete unit set"),
+    ],
+)
+def test_a_shape_rule_refuses_with_its_message(key: str, value: str | None, message: str) -> None:
+    with pytest.raises(ValueError, match=re.escape(message)):
+        check_setting_value(key, value)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("key", "value"),
+    [
+        ("timezone", "America/Chicago"),
+        ("timezone", ""),
+        ("timezone", None),
+        ("oidc_redirect_uri", "https://garage.example.com/api/auth/oidc/callback"),
+        ("oidc_redirect_uri", ""),
+        ("oidc_redirect_uri", None),
+        ("default_unit_prefs", _GOOD_UNIT_PREFS),
+    ],
+)
+def test_a_shape_rule_passes_a_good_value(key: str, value: str | None) -> None:
+    check_setting_value(key, value)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("key", ["ntfy_token", "ntfy_topic", "app_name", "nhtsa_enabled"])
+def test_text_that_cannot_be_stored_is_refused_on_any_key(key: str) -> None:
+    """A lone surrogate won't encode as UTF-8, so the driver or the cipher would 500 on it."""
+    with pytest.raises(ValueError, match="must be valid Unicode text"):
+        check_setting_value(key, "a\ud800b")

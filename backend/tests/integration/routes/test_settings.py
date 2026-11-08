@@ -4,6 +4,7 @@ Integration tests for settings routes.
 Tests settings CRUD operations, POI provider management, and system info.
 """
 
+import logging
 import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable
 from pathlib import Path
@@ -395,8 +396,8 @@ class TestSettingsAdminRoutes:
             "/api/settings/test_key",
             headers=auth_headers,
         )
-        # Regular users get 403, admin gets 204 or 404
-        assert response.status_code in [204, 403, 404]
+        # Regular users get 403; an admin gets 422, since test_key isn't a key the API owns.
+        assert response.status_code in [403, 422]
 
     async def test_system_info_requires_admin(self, client: AsyncClient, auth_headers):
         """Test that system info requires admin role."""
@@ -1276,8 +1277,8 @@ class TestGenericWriteAllowlist:
 
     @pytest.mark.parametrize(
         "rejected",
-        [{"app_version": "9.9.9"}, {"notify_insurance_days": "abc"}],
-        ids=["excluded-key", "bad-value"],
+        [{"app_version": "9.9.9"}, {"notify_insurance_days": "abc"}, {"nhtsa_enabled": "enabled"}],
+        ids=["excluded-key", "bad-value", "junk-switch"],
     )
     async def test_a_refused_entry_fails_the_whole_batch(
         self, client, auth_headers, db_session, keep_rows, rejected
@@ -1295,6 +1296,45 @@ class TestGenericWriteAllowlist:
         assert response.status_code == 422, response.text
         for key in keys:
             assert await _stored_value(db_session, key) == _SEED
+
+    @pytest.mark.parametrize("key", ["telegram_update_offset", "livelink_telemetry_retention_days"])
+    async def test_a_key_the_api_does_not_own_cannot_be_deleted(
+        self, client, auth_headers, db_session, keep_rows, key
+    ):
+        """DELETE was the fourth way in: it removed these rows with a 204."""
+        await keep_rows(key)
+        await _set_setting(db_session, key, _SEED)
+        response = await client.delete(f"/api/settings/{key}", headers=auth_headers)
+        assert response.status_code == 422, response.text
+        db_session.expire_all()
+        assert await _stored_or_none(db_session, key) == _SEED
+
+    async def test_an_unknown_key_cannot_be_deleted(self, client, auth_headers):
+        """Refused on the key, before the lookup, so no row still means 422, not 404."""
+        response = await client.delete("/api/settings/made_up_key", headers=auth_headers)
+        assert response.status_code == 422, response.text
+
+    async def test_a_refused_value_is_logged(
+        self, client, auth_headers, keep_rows, caplog: pytest.LogCaptureFixture
+    ):
+        """Every refusal gets the WARNING `default_unit_prefs` always had."""
+        keys = ("default_unit_prefs", "timezone")
+        await keep_rows(*keys)
+        with caplog.at_level(logging.WARNING, logger="app.routes.settings"):
+            for key in keys:
+                response = await client.post(
+                    "/api/settings/batch",
+                    headers=auth_headers,
+                    json={"settings": {key: "{not json at all"}},
+                )
+                assert response.status_code == 422, response.text
+        warnings = [
+            r.getMessage()
+            for r in caplog.records
+            if r.name == "app.routes.settings" and r.levelno == logging.WARNING
+        ]
+        for key in keys:
+            assert any(m.startswith(f"Rejected a {key} write: ") for m in warnings), warnings
 
     async def test_a_retired_lead_time_cannot_be_batched(
         self,
@@ -1349,7 +1389,7 @@ _NON_SWITCH_KEY = "auto_archive_inactive_days"
 @pytest.mark.asyncio
 class TestSwitchValuesAreCanonicalized:
     """A switch written as any word of the on/off vocabulary is stored as "true" or
-    "false", so an exact reader and `parse_bool` agree on it. Nothing is refused."""
+    "false", so an exact reader and `parse_bool` agree on it. Anything else is a 422."""
 
     @pytest.mark.parametrize("endpoint", WRITE_ENDPOINTS)
     @pytest.mark.parametrize(("raw", "stored"), [("Yes", "true"), ("0", "false")])
@@ -1364,16 +1404,18 @@ class TestSwitchValuesAreCanonicalized:
         assert await _stored_or_none(db_session, _SWITCH_KEY) == stored
 
     @pytest.mark.parametrize("endpoint", WRITE_ENDPOINTS)
-    async def test_an_unrecognised_switch_value_is_stored_as_sent(
+    async def test_an_unrecognised_switch_value_is_refused(
         self, client, auth_headers, db_session, keep_rows, endpoint
     ):
-        """Regression guard, passes on main too: "maybe" is not refused or rewritten."""
+        """Main stored "maybe" as sent; it read as off everywhere anyway."""
         await keep_rows(_SWITCH_KEY)
         response = await _write_through(
             client, endpoint, auth_headers, db_session, "maybe", key=_SWITCH_KEY, seed=_SEED
         )
-        assert response.status_code in (200, 201), response.text
-        assert await _stored_or_none(db_session, _SWITCH_KEY) == "maybe"
+        assert response.status_code == 422, response.text
+        assert _SWITCH_KEY in response.json()["detail"]
+        expected = None if endpoint == "create_setting" else _SEED
+        assert await _stored_or_none(db_session, _SWITCH_KEY) == expected
 
     @pytest.mark.parametrize("endpoint", WRITE_ENDPOINTS)
     async def test_a_non_switch_key_keeps_a_switch_like_value(

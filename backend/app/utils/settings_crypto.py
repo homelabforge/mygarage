@@ -113,6 +113,24 @@ class SettingsKeyUnavailable(Exception):  # noqa: N818 - the name the plan and l
         )
 
 
+class SettingValueNotText(Exception):  # noqa: N818 - named like its neighbours
+    """A secret setting's value won't encode as UTF-8 (a lone surrogate), so it can't be sealed.
+
+    The generic settings routes refuse it earlier through the value rules; this
+    covers the typed routes that write a secret straight through the model.
+    Not a ``ValueError``, so a route's own ``except ValueError`` can't turn it
+    into some other answer. Mapped to a 422. Carries the key name only.
+
+    Attributes:
+        key: The setting key that was being written.
+    """
+
+    def __init__(self, key: str) -> None:
+        """Build the error for one setting key."""
+        self.key = key
+        super().__init__(f"Setting '{key}' must be valid Unicode text")
+
+
 def _fix_advice(source: str) -> str:
     """What fixes an unavailable keyring, by the source that broke (F-6).
 
@@ -341,14 +359,17 @@ def encrypt(name: str, plaintext: str) -> str:
 
     Raises:
         SettingsKeyUnavailable: There is no usable keyring.
+        SettingValueNotText: ``plaintext`` won't encode as UTF-8.
     """
+    try:
+        raw = plaintext.encode("utf-8")
+    except UnicodeEncodeError:
+        raise SettingValueNotText(name) from None
     keyring = _get_keyring()
     if isinstance(keyring, _Unavailable):
         raise SettingsKeyUnavailable(keyring.source, keyring.reason)
     nonce = os.urandom(_NONCE_BYTES)
-    sealed = keyring.keys[keyring.current_kid].encrypt(
-        nonce, plaintext.encode("utf-8"), name.encode("utf-8")
-    )
+    sealed = keyring.keys[keyring.current_kid].encrypt(nonce, raw, name.encode("utf-8"))
     return f"{CIPHERTEXT_PREFIX}{keyring.current_kid}:{_b64url_encode(nonce + sealed)}"
 
 
