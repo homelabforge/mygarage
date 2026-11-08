@@ -210,8 +210,9 @@ class Settings(BaseSettings):
     nhtsa_api_base_url: str = "https://vpic.nhtsa.dot.gov/api"
 
     # TomTom Places API base URL. The key and the on/off switch are settings
-    # rows (Settings > Integrations). POI search tries TomTom first when it's on
-    # with a key, then any keyed Google Places, Yelp or Foursquare, and OSM last.
+    # rows (Settings > Integrations). POI search tries TomTom first when it's
+    # switched on and has a key, then Google Places, Yelp and Foursquare (each
+    # needs its own switch on and a key), and OSM last.
     tomtom_api_base_url: str = "https://api.tomtom.com/search/2"
 
     # File Upload Limits

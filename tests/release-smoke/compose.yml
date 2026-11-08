@@ -34,7 +34,6 @@ services:
     environment:
       MYGARAGE_DATABASE_URL: postgresql+asyncpg://mygarage:e2epass@pg:5432/mygarage
       MYGARAGE_SECRET_KEY: e2e-secret-not-for-production
-      MYGARAGE_AUTH_MODE: local
       MYGARAGE_TEST_MODE: "true"
     volumes:
       - app-pg-data:/data
@@ -50,7 +49,6 @@ services:
     container_name: mygarage-release-smoke-app-sqlite
     environment:
       MYGARAGE_SECRET_KEY: e2e-secret-not-for-production
-      MYGARAGE_AUTH_MODE: local
       MYGARAGE_TEST_MODE: "true"
     volumes:
       - app-sqlite-data:/data
