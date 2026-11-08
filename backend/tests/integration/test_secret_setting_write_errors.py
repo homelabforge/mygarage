@@ -423,6 +423,56 @@ async def test_a_plain_setting_that_is_not_text_is_a_422(
     assert await raw_column(test_sessionmaker, "ntfy_topic") == "Before"
 
 
+async def _mqtt_field_put(client, headers, field: str, value: str):
+    return await _send(client, "PUT", "/api/livelink/mqtt/settings", headers, {field: value})
+
+
+async def _oidc_field_put(client, headers, field: str, value: str):
+    return await _send(
+        client,
+        "PUT",
+        "/api/auth/oidc/config/admin",
+        headers,
+        {"issuer_url": "https://auth.example.com", field: value},
+    )
+
+
+# (writer, body field, the plain key it lands in, other keys the route writes)
+TYPED_PLAIN_FIELDS = {
+    "mqtt_username": (_mqtt_field_put, "username", "livelink_mqtt_username", ()),
+    "mqtt_broker_host": (_mqtt_field_put, "broker_host", "livelink_mqtt_broker_host", ()),
+    "oidc_client_id": (_oidc_field_put, "client_id", "oidc_client_id", OIDC_PUT_KEYS),
+    "oidc_provider_name": (
+        _oidc_field_put,
+        "provider_name",
+        "oidc_provider_name",
+        OIDC_PUT_KEYS,
+    ),
+}
+
+
+@pytest.mark.parametrize("field", list(TYPED_PLAIN_FIELDS))
+async def test_a_typed_route_plain_field_that_is_not_text_is_a_422(
+    field: str,
+    client: AsyncClient,
+    auth_headers,
+    db_session: AsyncSession,
+    test_sessionmaker,
+    keep_rows: Keep,
+) -> None:
+    """These skip the value rules and aren't encrypted, so the surrogate reached
+    the driver's bind and 500d. The model refuses it now."""
+    write, body_field, key, also = TYPED_PLAIN_FIELDS[field]
+    await keep_rows(key, *also, "oidc_client_secret")
+    await _seed_raw(db_session, key, "Before")
+
+    response = await write(client, auth_headers, body_field, NOT_TEXT)
+
+    assert response.status_code == 422, response.text
+    assert response.json()["detail"] == f"Setting '{key}' must be valid Unicode text"
+    assert await raw_column(test_sessionmaker, key) == "Before"
+
+
 async def test_encrypt_refuses_text_it_cannot_encode(client: AsyncClient) -> None:
     """`client` points the keyring at the test data dir."""
     with pytest.raises(SettingValueNotText) as excinfo:
@@ -456,7 +506,7 @@ def _app(*, debug: bool) -> FastAPI:
 
 
 @pytest.mark.parametrize("debug", [False, True], ids=["production", "debug"])
-async def test_both_mappings_hold_in_either_mode(debug: bool) -> None:
+async def test_the_three_mappings_hold_in_either_mode(debug: bool) -> None:
     """R2-3: registered after the debug branch, so debug has them too."""
     transport = ASGITransport(app=_app(debug=debug))
     async with AsyncClient(transport=transport, base_url="http://test") as client:

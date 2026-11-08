@@ -114,10 +114,11 @@ class SettingsKeyUnavailable(Exception):  # noqa: N818 - the name the plan and l
 
 
 class SettingValueNotText(Exception):  # noqa: N818 - named like its neighbours
-    """A secret setting's value won't encode as UTF-8 (a lone surrogate), so it can't be sealed.
+    """A setting's value won't encode as UTF-8 (a lone surrogate), so it can't be stored.
 
-    The generic settings routes refuse it earlier through the value rules; this
-    covers the typed routes that write a secret straight through the model.
+    The generic settings routes refuse it earlier through the value rules; the
+    model's setter and ``encrypt`` raise this for every other writer, the typed
+    routes included.
     Not a ``ValueError``, so a route's own ``except ValueError`` can't turn it
     into some other answer. Mapped to a 422. Carries the key name only.
 

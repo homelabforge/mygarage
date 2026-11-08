@@ -322,7 +322,7 @@ async def handle_setting_ciphertext_value(
 
 
 async def handle_setting_value_not_text(request: Request, exc: SettingValueNotText) -> JSONResponse:
-    """A secret setting given text that won't encode (a lone surrogate): 422."""
+    """A setting given text that won't encode (a lone surrogate): 422."""
     logger.warning(
         "Refused a value that isn't valid text for %s on %s %s",
         sanitize_for_log(exc.key),

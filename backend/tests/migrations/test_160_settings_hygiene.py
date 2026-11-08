@@ -30,8 +30,6 @@ _OTHERS = {
     "ntfy_topic": "enabled",
 }
 
-_MAP_KEYS = ("google_maps_api_key", "geoapify_api_key", "mapbox_api_key")
-
 
 def _load():
     path = Path(_m.__file__).parent / f"{_NAME}.py"
@@ -39,6 +37,10 @@ def _load():
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod
+
+
+#: The migration's own list; the tie test below pins it to the restore's.
+_MAP_KEYS = tuple(_load()._DEAD_MAP_KEYS)
 
 
 def _upgrade(engine: Engine) -> None:
@@ -109,6 +111,14 @@ def test_the_seeded_rows_are_the_kind_the_test_says() -> None:
     # guard: if a key here stops being a switch, the test below proves nothing.
     assert set(_SWITCHES) <= SWITCH_SETTING_KEYS
     assert not set(_OTHERS) & SWITCH_SETTING_KEYS
+
+
+def test_the_dead_map_keys_are_the_ones_the_restore_skips() -> None:
+    """Two copies on purpose: the migration can't import the heavy rule set.
+    This keeps an old backup from putting back what 160 deleted."""
+    from app.services.setting_rules import RETIRED_MAP_KEYS
+
+    assert set(_MAP_KEYS) == RETIRED_MAP_KEYS
 
 
 def test_the_migration_is_not_fatal() -> None:

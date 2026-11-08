@@ -30,6 +30,7 @@ from app.utils.secret_setting_keys import SECRET_SETTING_KEYS
 from app.utils.settings_crypto import (
     CIPHERTEXT_PREFIX,
     DecryptStatus,
+    SettingValueNotText,
     current_kid,
     decrypt,
     encrypt,
@@ -82,6 +83,7 @@ class Setting(Base):
 
         Raises:
             TypeError: Both ``value`` and ``stored_value`` were given.
+            SettingValueNotText: ``value`` won't encode as UTF-8.
             SettingCiphertextValue: ``value`` for a secret key is already ciphertext.
             SettingsKeyUnavailable: A secret value needs encrypting and there is
                 no usable keyring.
@@ -118,9 +120,17 @@ class Setting(Base):
         ciphertext, even when the value is unchanged (R1-H3).
 
         Raises:
+            SettingValueNotText: ``new`` won't encode as UTF-8, on any key.
             SettingCiphertextValue: ``new`` for a secret key is already ciphertext.
             SettingsKeyUnavailable: There is no usable keyring; nothing changes.
         """
+        # Every ORM writer passes here, typed routes included, so a lone
+        # surrogate is a 422 instead of a 500 from the driver's bind.
+        if new:
+            try:
+                new.encode("utf-8")
+            except UnicodeEncodeError:
+                raise SettingValueNotText(self.key) from None
         if self.key not in SECRET_SETTING_KEYS or not new:
             self.stored_value = new
             return
