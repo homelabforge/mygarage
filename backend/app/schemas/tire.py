@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import date as date_type
 from datetime import datetime, timedelta
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import Decimal
 from typing import Annotated, Literal
 
 from pydantic import (
@@ -17,6 +17,7 @@ from pydantic import (
 )
 
 from app.constants.wheel_layouts import TirePosition, WheelLayoutId
+from app.schemas._figures import to_stored_tenth
 from app.schemas._nullability import reject_null
 from app.utils.household_time import household_today
 from app.utils.lenient_vocab import LenientVocab, lenient_reader
@@ -33,14 +34,9 @@ LenientTirePosition = Annotated[
 _HOURS_MAX = Decimal("999999999.9")
 
 
-def _to_stored_tenth(value: Decimal) -> Decimal:
-    """Round to the tenth NUMERIC(10, 1) keeps, so what's checked is what's saved (#217)."""
-    return value.quantize(Decimal("0.1"), rounding=ROUND_HALF_UP)
-
-
 #: An hour meter figure on a tire write. Rounded as it's parsed: unrounded,
 #: 100.15 then 100.10 passed the history check and stored as 100.2 then 100.1.
-HoursFigure = Annotated[Decimal, Field(ge=0, le=_HOURS_MAX), AfterValidator(_to_stored_tenth)]
+HoursFigure = Annotated[Decimal, Field(ge=0, le=_HOURS_MAX), AfterValidator(to_stored_tenth)]
 
 
 class TireBase(BaseModel):

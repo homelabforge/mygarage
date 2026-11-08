@@ -23,8 +23,16 @@ validated against `FuelTypeEnum`.
 from datetime import date as date_type
 from datetime import datetime
 from decimal import Decimal
+from typing import Annotated
 
-from pydantic import BaseModel, Field, ValidationInfo, field_validator, model_validator
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    Field,
+    ValidationInfo,
+    field_validator,
+    model_validator,
+)
 
 from app.constants.fuel import (
     FUEL_GRADE_VALUES,
@@ -32,6 +40,7 @@ from app.constants.fuel import (
     PAYMENT_METHOD_VALUES,
     TRIP_TYPE_VALUES,
 )
+from app.schemas._figures import to_stored_tenth
 from app.schemas._money import OptionalMoney, OptionalUnitPrice
 from app.schemas._nullability import reject_null
 
@@ -240,7 +249,7 @@ class FuelRecordBase(BaseModel):
     odometer_km: Decimal | None = Field(
         None, description="Odometer reading in kilometers", ge=0, le=99999999.99
     )
-    engine_hours: Decimal | None = Field(
+    engine_hours: Annotated[Decimal | None, AfterValidator(to_stored_tenth)] = Field(
         None,
         description=(
             "Engine-hours reading at this fill-up (hour-metered vehicles). "
@@ -563,7 +572,7 @@ class FuelRecordUpdate(BaseModel):
     odometer_km: Decimal | None = Field(
         None, description="Odometer reading in kilometers", ge=0, le=99999999.99
     )
-    engine_hours: Decimal | None = Field(
+    engine_hours: Annotated[Decimal | None, AfterValidator(to_stored_tenth)] = Field(
         None,
         description="Engine-hours reading at this fill-up (hour-metered vehicles)",
         ge=0,

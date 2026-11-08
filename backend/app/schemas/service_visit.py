@@ -7,8 +7,16 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, BeforeValidator, Field, field_validator, model_validator
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    BeforeValidator,
+    Field,
+    field_validator,
+    model_validator,
+)
 
+from app.schemas._figures import to_stored_tenth
 from app.schemas._money import OptionalMoney
 from app.schemas._nullability import reject_null
 from app.schemas.maintenance import validate_maintenance_type
@@ -320,7 +328,7 @@ class ServiceVisitBase(BaseModel):
     odometer_km: Decimal | None = Field(
         None, description="Odometer reading in kilometers", ge=0, le=99999999.99
     )
-    engine_hours: Decimal | None = Field(
+    engine_hours: Annotated[Decimal | None, AfterValidator(to_stored_tenth)] = Field(
         None,
         description=(
             "Engine-hours reading at this service visit (hour-metered vehicles). "
@@ -427,7 +435,7 @@ class ServiceVisitUpdate(BaseModel):
     odometer_km: Decimal | None = Field(
         None, description="Odometer reading in kilometers", ge=0, le=99999999.99
     )
-    engine_hours: Decimal | None = Field(
+    engine_hours: Annotated[Decimal | None, AfterValidator(to_stored_tenth)] = Field(
         None,
         description="Engine-hours reading at this service visit (hour-metered vehicles)",
         ge=0,

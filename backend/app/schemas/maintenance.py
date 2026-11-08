@@ -13,6 +13,7 @@ from decimal import Decimal
 from typing import Annotated, Literal
 
 from pydantic import (
+    AfterValidator,
     BaseModel,
     BeforeValidator,
     ConfigDict,
@@ -21,6 +22,7 @@ from pydantic import (
     model_validator,
 )
 
+from app.schemas._figures import to_stored_tenth
 from app.schemas._money import OptionalMoney
 from app.schemas._nullability import reject_null
 from app.utils.lenient_vocab import LenientVocab, lenient_reader
@@ -164,7 +166,9 @@ class ReminderCompleteRequest(BaseModel):
 
     completed_date: date_type
     odometer_km: Decimal | None = Field(None, ge=0, le=99999999.99)
-    engine_hours: Decimal | None = Field(None, ge=0, le=9999999.9)
+    engine_hours: Annotated[Decimal | None, AfterValidator(to_stored_tenth)] = Field(
+        None, ge=0, le=9999999.9
+    )
     mode: CompletionMode = "create_visit"
     service_visit_id: int | None = None
     vendor_id: int | None = None
