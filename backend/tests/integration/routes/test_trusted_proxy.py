@@ -23,6 +23,7 @@ from app.config import settings
 from app.models.audit_log import AuditLog
 from app.models.csrf_token import CSRFToken
 from app.models.user import User
+from app.services.hashed_tokens import hash_token
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
@@ -61,11 +62,12 @@ async def made_users(db_session: AsyncSession) -> AsyncIterator[list[int]]:
 
 @pytest_asyncio.fixture
 async def issued_csrf_tokens(db_session: AsyncSession) -> AsyncIterator[list[str]]:
-    """Collects the CSRF tokens a login issues, and deletes them afterwards."""
+    """Collects the CSRF tokens a login issues, and deletes their rows (stored as digests) afterwards."""
     tokens: list[str] = []
     yield tokens
     await db_session.rollback()
-    await db_session.execute(delete(CSRFToken).where(CSRFToken.token.in_(tokens)))
+    digests = [hash_token(t) for t in tokens]
+    await db_session.execute(delete(CSRFToken).where(CSRFToken.token.in_(digests)))
     await db_session.commit()
 
 

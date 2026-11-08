@@ -11,18 +11,46 @@ from datetime import date, timedelta
 from decimal import Decimal
 
 import pytest
+import pytest_asyncio
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.models.settings import Setting
 from app.utils.settings_crypto import (
     ENV_KEY,
     ENV_KEY_FILE,
     _reset_keyring_for_tests,  # pyright: ignore[reportPrivateUsage] - the suite's reset hook
     current_kid,
 )
-from tests.integration._secret_helpers import UseKeys
+from tests.integration._secret_helpers import Keep, UseKeys
 
-# The shared OIDC assertions aren't in a test module, so pytest only rewrites
-# them if asked. Without it a failure there is a bare AssertionError.
-pytest.register_assert_rewrite("tests.integration._oidc_refusals")
+# The shared OIDC and CSRF assertions aren't in a test module, so pytest only
+# rewrites them if asked. Without it a failure there is a bare AssertionError.
+pytest.register_assert_rewrite("tests.integration._oidc_refusals", "tests.integration._csrf")
+
+
+@pytest_asyncio.fixture
+async def csrf_enforced(
+    monkeypatch: pytest.MonkeyPatch,
+    test_sessionmaker: async_sessionmaker[AsyncSession],
+    db_session: AsyncSession,
+    keep_rows: Keep,
+) -> None:
+    """Turn the CSRF middleware on for one test, reading the test database.
+
+    The suite runs with it off (tests/conftest.py). Its lookups go through
+    `get_db_context()`, the app's own engine, which on SQLite isn't the test
+    file, so that's pointed at the test sessionmaker. auth_mode is pinned to
+    local, since 'none' skips the check.
+    """
+    monkeypatch.setenv("MYGARAGE_TEST_MODE", "false")
+    monkeypatch.setattr("app.middleware.get_db_context", test_sessionmaker)
+    await keep_rows("auth_mode")
+    row = await db_session.get(Setting, "auth_mode")
+    if row is None:
+        db_session.add(Setting(key="auth_mode", value="local"))
+    else:
+        row.value = "local"
+    await db_session.commit()
 
 
 @pytest.fixture

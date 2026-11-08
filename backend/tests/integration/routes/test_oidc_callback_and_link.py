@@ -58,6 +58,7 @@ from app.models.user import User
 from app.services.oidc import create_pending_link_token, store_oidc_state
 from app.services.oidc import linking as oidc_linking
 from app.utils.datetime_utils import utc_now
+from tests.integration._csrf import assert_csrf_hashed_and_enforced, sha256_hex
 from tests.integration._oidc_refusals import (
     DISABLED,
     NO_ACCOUNT,
@@ -320,8 +321,9 @@ async def _stored_user(sessionmaker: async_sessionmaker[AsyncSession], user_id: 
 async def _stored_pending_link(
     sessionmaker: async_sessionmaker[AsyncSession], token: str
 ) -> OIDCPendingLink | None:
+    """The row for an issued token. The table keys on its digest, never the token itself."""
     async with sessionmaker() as fresh:
-        return await fresh.get(OIDCPendingLink, token)
+        return await fresh.get(OIDCPendingLink, sha256_hex(token))
 
 
 async def _audit_rows(
@@ -1114,7 +1116,6 @@ class TestEmailStepEndToEnd:
         self,
         client: AsyncClient,
         db_session: AsyncSession,
-        test_sessionmaker: async_sessionmaker[AsyncSession],
         made_users: list[_Account],
         user_agent: str,
         caplog: pytest.LogCaptureFixture,
@@ -1127,13 +1128,8 @@ class TestEmailStepEndToEnd:
             response = await _callback(client, user_agent)
 
         assert response.status_code == 302, response.text
-        # Read from the row, not the Location, so this holds whatever the URL looks like.
-        async with test_sessionmaker() as fresh:
-            token = (
-                await fresh.execute(
-                    select(OIDCPendingLink.token).where(OIDCPendingLink.username == target.username)
-                )
-            ).scalar_one()
+        # The live token is the one in the Location; the row only holds its digest.
+        token = parse_qs(urlsplit(response.headers["location"]).fragment)["token"][0]
         logged = [r.getMessage() for r in caplog.records if r.levelno >= logging.INFO]
         # The username line proves the capture saw this callback at all.
         assert any(target.username in m for m in logged), logged
@@ -1161,6 +1157,94 @@ class TestEmailStepEndToEnd:
             if r.name == "app.routes.oidc" and target.username in r.getMessage()
         ]
         assert named == [f"Pending link required for username: {target.username}"]
+
+
+class TestTokensStoredHashed:
+    """The callback, the link step and the pending link keep only a digest of what they hand out."""
+
+    @pytest.mark.usefixtures("csrf_enforced")
+    async def test_the_callbacks_csrf_token_is_stored_as_its_digest(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        test_sessionmaker: async_sessionmaker[AsyncSession],
+        made_users: list[_Account],
+        user_agent: str,
+    ):
+        target = await _account(db_session, made_users)
+        sub = f"sub-{uuid.uuid4().hex[:10]}"
+        await db_session.execute(
+            update(User).where(User.id == target.id).values(oidc_subject=sub, auth_method="oidc")
+        )
+        await db_session.commit()
+
+        with _idp(_claims(sub=sub)):
+            response = await _callback(client, user_agent)
+
+        assert response.status_code == 302, response.text
+        assert sets_auth_cookie(response)
+        token = parse_qs(urlsplit(response.headers["location"]).fragment)["csrf_token"][0]
+        await assert_csrf_hashed_and_enforced(client, test_sessionmaker, target.id, token)
+
+    @pytest.mark.usefixtures("csrf_enforced")
+    async def test_the_link_steps_csrf_token_is_stored_as_its_digest(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        test_sessionmaker: async_sessionmaker[AsyncSession],
+        made_users: list[_Account],
+        user_agent: str,
+    ):
+        target = await _account(db_session, made_users)
+        link_token = await create_pending_link_token(
+            db_session, target.username, _claims(email=target.email), None, {}
+        )
+
+        response = await _link(client, link_token, _PASSWORD, user_agent)
+
+        assert response.status_code == 200, response.text
+        assert sets_auth_cookie(response)
+        token = response.json()["csrf_token"]
+        await assert_csrf_hashed_and_enforced(client, test_sessionmaker, target.id, token)
+
+    async def test_a_pending_link_is_stored_as_its_digest_and_only_the_token_links(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        test_sessionmaker: async_sessionmaker[AsyncSession],
+        made_users: list[_Account],
+        user_agent: str,
+    ):
+        target = await _account(db_session, made_users)
+
+        with _idp(_claims(email=target.email)):
+            response = await _callback(client, user_agent)
+
+        assert response.status_code == 302, response.text
+        token = parse_qs(urlsplit(response.headers["location"]).fragment)["token"][0]
+        digest = sha256_hex(token)
+        async with test_sessionmaker() as fresh:
+            stored = (
+                await fresh.execute(
+                    select(OIDCPendingLink.token).where(OIDCPendingLink.username == target.username)
+                )
+            ).scalar_one()
+        assert stored == digest
+
+        # Presenting what the table holds finds nothing, and doesn't spend an attempt.
+        refused = await _link(client, digest, _PASSWORD, user_agent)
+        assert refused.status_code == 401, refused.text
+        assert refused.json()["detail"] == "Link expired, please log in again"
+        assert not sets_auth_cookie(refused)
+        pending = await _stored_pending_link(test_sessionmaker, token)
+        assert pending is not None
+        assert pending.attempt_count == 0
+        assert (await _stored_user(test_sessionmaker, target.id)).oidc_subject is None
+
+        linked = await _link(client, token, _PASSWORD, user_agent)
+        assert linked.status_code == 200, linked.text
+        assert (await _stored_user(test_sessionmaker, target.id)).oidc_subject is not None
+        assert await _stored_pending_link(test_sessionmaker, token) is None
 
 
 class TestArmedRelinkThroughTheCallback:

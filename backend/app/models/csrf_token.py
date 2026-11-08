@@ -21,6 +21,8 @@ class CSRFToken(Base):
 
     Stores CSRF tokens associated with user sessions to prevent
     cross-site request forgery attacks on state-changing operations.
+    ``token`` is the SHA-256 hex digest of what the browser holds
+    (``app.services.hashed_tokens``), never the token itself.
     """
 
     __tablename__ = "csrf_tokens"

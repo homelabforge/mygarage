@@ -1,7 +1,6 @@
 """Authentication routes."""
 
 import logging
-import secrets
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
@@ -40,6 +39,7 @@ from app.services.auth import (
     require_auth,
     verify_password,
 )
+from app.services.hashed_tokens import issue_csrf_token
 from app.services.settings_service import parse_bool
 from app.utils.datetime_utils import utc_now
 from app.utils.logging_utils import sanitize_for_log
@@ -196,22 +196,7 @@ async def login(
     # Update last login
     user.last_login = utc_now()
 
-    # Clean up expired CSRF tokens for this user
-    await db.execute(
-        delete(CSRFToken).where(
-            CSRFToken.user_id == user.id,
-            CSRFToken.expires_at <= utc_now(),
-        )
-    )
-
-    # Generate CSRF token (Security Enhancement v2.10.0)
-    csrf_token_value = secrets.token_urlsafe(48)  # 64-character token
-    csrf_token = CSRFToken(
-        token=csrf_token_value,
-        user_id=user.id,
-        expires_at=CSRFToken.get_expiry_time(),
-    )
-    db.add(csrf_token)
+    csrf_token_value = await issue_csrf_token(db, user.id)
 
     await db.commit()
 
@@ -317,22 +302,7 @@ async def refresh_csrf_token(
     if not current_user:
         return {"csrf_token": None}
 
-    # Clean up any expired tokens for this user
-    await db.execute(
-        delete(CSRFToken).where(
-            CSRFToken.user_id == current_user.id,
-            CSRFToken.expires_at <= utc_now(),
-        )
-    )
-
-    # Generate new CSRF token
-    csrf_token_value = secrets.token_urlsafe(48)
-    csrf_token = CSRFToken(
-        token=csrf_token_value,
-        user_id=current_user.id,
-        expires_at=CSRFToken.get_expiry_time(),
-    )
-    db.add(csrf_token)
+    csrf_token_value = await issue_csrf_token(db, current_user.id)
     await db.commit()
 
     logger.info("CSRF token refreshed for user: %s", sanitize_for_log(current_user.username))

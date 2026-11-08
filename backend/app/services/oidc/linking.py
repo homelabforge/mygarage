@@ -22,6 +22,7 @@ from app.models.oidc_pending_link import OIDCPendingLink
 from app.models.settings import Setting
 from app.models.user import User
 from app.services.auth import verify_password
+from app.services.hashed_tokens import hash_token
 from app.services.oidc.config import effective_oidc_value, get_oidc_config
 from app.utils.datetime_utils import utc_now
 from app.utils.logging_utils import sanitize_for_log
@@ -80,9 +81,9 @@ async def create_pending_link_token(
     oidc_claims_json = json.dumps(claims)
     userinfo_claims_json = json.dumps(userinfo) if userinfo else None
 
-    # Create pending link record
+    # Create pending link record. Only the digest is kept; the token goes to the browser.
     pending_link = OIDCPendingLink(
-        token=token,
+        token=hash_token(token),
         username=username,
         oidc_claims=oidc_claims_json,
         userinfo_claims=userinfo_claims_json,
@@ -148,8 +149,10 @@ async def validate_and_consume_pending_link(
     # Clean up expired tokens first
     await _cleanup_expired_pending_links(db)
 
-    # Find pending link by token
-    result = await db.execute(select(OIDCPendingLink).where(OIDCPendingLink.token == token))
+    # Find pending link by the token's digest, which is what the table keys on
+    result = await db.execute(
+        select(OIDCPendingLink).where(OIDCPendingLink.token == hash_token(token))
+    )
     pending_link = result.scalar_one_or_none()
 
     if not pending_link:
