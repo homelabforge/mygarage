@@ -7,9 +7,11 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from app.schemas.vin import AutoRefVersionRequest, VINDecodeResponse
 from app.services import vin_decoder
 from app.services.autoref import (
     NOTE_AUTOREF_BEST_GUESS,
+    NOTE_AUTOREF_PICK_VERSION,
     AutoRefAuthError,
     AutoRefQuotaError,
     AutoRefUnavailableError,
@@ -179,3 +181,135 @@ class TestEnrichNotes:
     def test_an_answer_without_notes_still_gets_the_vin_notes(self):
         result = vin_decoder.enrich(EU_VIN, {"vin": EU_VIN, "make": "Renault"})
         assert vin_decoder.NOTE_EU_VIN_NO_MODEL in result["notes"]
+
+
+YARIS_VIN = "VNKKH963X0A127993"  # Toyota by its WMI; AutoRef also matched a Daihatsu
+GOLF_VIN = "WVWZZZAUZFW806653"
+
+
+def _candidate(record_id: str, label: str, kw: int) -> dict[str, Any]:
+    return {
+        "record_type": "TG",
+        "id": record_id,
+        "label": label,
+        "model_full": label,
+        "fuel_type": "gasoline",
+        "kw": kw,
+        "transmission": "Manual",
+        "gearbox_code": "M",
+        "grouped": False,
+    }
+
+
+CANDIDATES = [_candidate("311017", "Golf VII GTE", 110), _candidate("310899", "Golf VII R 5T", 221)]
+AGREEMENT: dict[str, Any] = {
+    "vin": YARIS_VIN,
+    "year": None,
+    "make": None,
+    "model": None,
+    "trim": None,
+    "engine": {"kw": None, "hp": None},
+    "transmission": {"type": "Manual", "speeds": None},
+    "notes": [NOTE_AUTOREF_PICK_VERSION],
+    "candidates": CANDIDATES,
+}
+PICKED: dict[str, Any] = {
+    "vin": GOLF_VIN,
+    "year": None,
+    "make": "Volkswagen",
+    "model": "Golf",
+    "trim": "VII GTE",
+    "engine": {"kw": 110, "hp": 148, "fuel_type_normalized": "hybrid"},
+    "notes": [],
+}
+
+
+def _pick(**overrides: Any) -> AutoRefVersionRequest:
+    fields: dict[str, Any] = {
+        "vin": GOLF_VIN,
+        "record_type": "TG",
+        "id": "311017",
+        "gearbox_code": "M",
+        "expect_model": "Golf VII GTE",
+        "expect_kw": 110,
+        "grouped": False,
+    }
+    return AutoRefVersionRequest(**{**fields, **overrides})
+
+
+def _version_service(answer: Any = None, error: Exception | None = None) -> MagicMock:
+    service = MagicMock()
+    if error is not None:
+        service.decode_version = AsyncMock(side_effect=error)
+    else:
+        service.decode_version = AsyncMock(return_value=answer)
+    return service
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+class TestSeveralVersions:
+    async def test_decode_passes_candidates_through_enrich(self):
+        result = await vin_decoder.decode(
+            YARIS_VIN, _nhtsa(), provider="autoref", autoref=_autoref(dict(AGREEMENT))
+        )
+        assert result["candidates"] == CANDIDATES
+        assert result["make"] == "Toyota"
+        assert result["make_source"] == "wmi"
+        assert NOTE_AUTOREF_PICK_VERSION in result["notes"]
+
+    async def test_the_response_keeps_candidates(self):
+        result = await vin_decoder.decode(
+            YARIS_VIN, _nhtsa(), provider="autoref", autoref=_autoref(dict(AGREEMENT))
+        )
+        response = VINDecodeResponse(**result)
+        assert response.candidates is not None
+        assert response.candidates[0].id == "311017"
+        assert response.candidates[0].gearbox_code == "M"
+
+    async def test_decode_version_enriches(self):
+        service = _version_service(dict(PICKED))
+        result = await vin_decoder.decode_version(GOLF_VIN, service, _pick())
+        service.decode_version.assert_awaited_once_with(
+            GOLF_VIN,
+            "TG",
+            "311017",
+            gearbox_code="M",
+            expect_model="Golf VII GTE",
+            expect_kw=110,
+            grouped=False,
+        )
+        assert result["decoded_by"] == "autoref"
+        assert result["make_source"] == "autoref"
+        assert result["region"] == "EU"
+        assert vin_decoder.NOTE_CHECK_DIGIT_NOT_APPLICABLE in result["notes"]
+        assert vin_decoder.NOTE_EU_VIN_NO_MODEL not in result["notes"]
+
+    async def test_decode_version_none_is_no_match(self):
+        with pytest.raises(vin_decoder.AutoRefNoMatchError):
+            await vin_decoder.decode_version(GOLF_VIN, _version_service(None), _pick())
+
+    async def test_decode_version_errors_stay_visible(self):
+        with pytest.raises(AutoRefQuotaError):
+            await vin_decoder.decode_version(
+                GOLF_VIN, _version_service(error=AutoRefQuotaError()), _pick()
+            )
+
+    async def test_decode_version_without_a_client_is_not_configured(self):
+        with pytest.raises(vin_decoder.AutoRefNotConfiguredError):
+            await vin_decoder.decode_version(GOLF_VIN, None, _pick())
+
+
+@pytest.mark.unit
+class TestVersionNotes:
+    def test_a_version_list_replaces_the_no_model_note(self):
+        # F-2: the picker is the way to the model, not typing it.
+        with_versions = vin_decoder.enrich(GOLF_VIN, dict(AGREEMENT, vin=GOLF_VIN), "autoref")
+        assert vin_decoder.NOTE_EU_VIN_NO_MODEL not in with_versions["notes"]
+        without = {k: v for k, v in AGREEMENT.items() if k != "candidates"}
+        plain = vin_decoder.enrich(GOLF_VIN, dict(without, vin=GOLF_VIN), "autoref")
+        assert vin_decoder.NOTE_EU_VIN_NO_MODEL in plain["notes"]
+
+    def test_a_pick_needs_something_to_check(self):
+        with pytest.raises(ValueError):
+            _pick(expect_model=None, expect_kw=None)

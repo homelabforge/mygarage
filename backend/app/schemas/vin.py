@@ -1,13 +1,25 @@
 """Pydantic schemas for VIN-related operations."""
 
-from typing import Literal
+from typing import Literal, Self
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.constants.countries import is_country_code, normalize_country_code
 
 #: The decoders (#219 takeover).
 Provider = Literal["nhtsa", "autoref"]
+#: AutoRef's own record types, the ones with a full record to pick.
+AutoRefRecordType = Literal["TG", "COC", "OLD", "OC", "X"]
+#: AutoRef's gearbox codes.
+AutoRefGearboxCode = Literal["M", "A", "S", "H"]
+
+
+def vin_input(v: str) -> str:
+    """Uppercase a VIN and refuse the letters a VIN never holds."""
+    v = v.strip().upper()
+    if any(char in v for char in ["I", "O", "Q"]):
+        raise ValueError("VIN cannot contain the letters I, O, or Q")
+    return v
 
 
 def country_input(v: str | None) -> str | None:
@@ -34,14 +46,7 @@ class VINDecodeRequest(BaseModel):
     @classmethod
     def validate_vin_format(cls, v: str) -> str:
         """Validate VIN format."""
-        # Remove whitespace and convert to uppercase
-        v = v.strip().upper()
-
-        # Check for invalid characters
-        if any(char in v for char in ["I", "O", "Q"]):
-            raise ValueError("VIN cannot contain the letters I, O, or Q")
-
-        return v
+        return vin_input(v)
 
     provider: Provider | None = Field(
         None,
@@ -96,6 +101,22 @@ class TransmissionInfo(BaseModel):
     speeds: str | None = Field(None, description="Number of speeds")
 
 
+class AutoRefCandidate(BaseModel):
+    """One version AutoRef matched for a VIN, to pick from."""
+
+    record_type: AutoRefRecordType = Field(..., description="The record type of its full record")
+    id: str = Field(..., description="The id of its full record (ephemeral: pick it right away)")
+    label: str = Field(..., description="AutoRef's name for the version")
+    model_full: str | None = Field(None, description="AutoRef's MODEL_FULL, echoed on a pick")
+    fuel_type: str | None = Field(None, description="Fuel normalized to FuelTypeEnum vocabulary")
+    kw: int | None = Field(None, description="Power in kW, echoed on a pick")
+    transmission: str | None = Field(None, description="Transmission type")
+    gearbox_code: AutoRefGearboxCode | None = Field(
+        None, description="AutoRef's gearbox code, echoed on a pick (the full record has none)"
+    )
+    grouped: bool = Field(False, description="It stands for several configurations")
+
+
 class VINDecodeResponse(BaseModel):
     """Response schema for VIN decode endpoint."""
 
@@ -146,9 +167,18 @@ class VINDecodeResponse(BaseModel):
         default_factory=list,
         description=(
             "What to check: eu_vin_no_model, year_unreliable, check_digit_not_applicable; "
-            "autoref_best_guess, autoref_external_record; and when Automatic fell back "
+            "autoref_best_guess, autoref_pick_version, autoref_external_record; and when "
+            "Automatic fell back "
             "to NHTSA, autoref_no_match, autoref_key_rejected, autoref_quota, "
             "autoref_unavailable"
+        ),
+    )
+
+    candidates: list[AutoRefCandidate] | None = Field(
+        None,
+        description=(
+            "AutoRef's versions for this VIN when it matched more than one, most "
+            "registered first; pick one with POST /vin/autoref/version"
         ),
     )
 
@@ -179,6 +209,31 @@ class VINDecodeResponse(BaseModel):
             ]
         }
     }
+
+
+class AutoRefVersionRequest(BaseModel):
+    """A version picked from a decode's ``candidates``, echoed back to check it."""
+
+    vin: str = Field(..., min_length=17, max_length=17, description="The decoded VIN")
+    record_type: AutoRefRecordType
+    id: str = Field(..., pattern=r"^[A-Za-z0-9]{1,32}$")
+    gearbox_code: AutoRefGearboxCode | None = None
+    expect_model: str | None = Field(None, max_length=200, description="The candidate's model_full")
+    expect_kw: int | None = Field(None, ge=0, le=2000, description="The candidate's kw")
+    grouped: bool = False
+
+    @field_validator("vin")
+    @classmethod
+    def validate_vin_format(cls, v: str) -> str:
+        """Validate VIN format."""
+        return vin_input(v)
+
+    @model_validator(mode="after")
+    def needs_an_expectation(self) -> Self:
+        """A pick carries a model or a power, or its record can't be checked."""
+        if self.expect_model is None and self.expect_kw is None:
+            raise ValueError("expect_model or expect_kw is required")
+        return self
 
 
 class VINProvidersResponse(BaseModel):

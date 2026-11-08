@@ -5,10 +5,13 @@ conformity and 1985-1995 records, then falls back to the UK DVSA and US NHTSA
 registries. Its own tables read only the first 10 VIN characters; the two
 registry fallbacks need all 17, so the full VIN is sent (plan D1).
 
-A decode costs two quota units: ``/vehicles/{vin}`` for the best match, then
-``/vehicle/{type}/{id}`` for body, doors, displacement and drivetrain. The
-second call is skipped for a registry (UK/US) answer, which has no record to
-fetch. ``/usage`` costs nothing.
+A decode costs one or two quota units. ``/vehicles/{vin}`` lists every
+version sold under the VIN's first 10 characters, which don't encode the
+trim. With one version, ``/vehicle/{type}/{id}`` then adds body, doors,
+displacement and drivetrain (skipped for a registry (UK/US) answer, which has
+no record to fetch). With several, the decode fills only what they all agree
+on and lists them; ``decode_version`` fetches the one the person picks.
+``/usage`` costs nothing.
 
 The key goes in the ``x-api-key`` header, except on ``/usage``, which only
 takes it as ``?api_key=``. So no httpx error may escape this module: an
@@ -48,6 +51,10 @@ EXTERNAL_RECORD_TYPES = frozenset({"UK", "US"})
 
 #: More than one vehicle matched; this is the most registered one.
 NOTE_AUTOREF_BEST_GUESS = "autoref_best_guess"
+#: Several versions matched; only what they share is filled until one is picked.
+NOTE_AUTOREF_PICK_VERSION = "autoref_pick_version"
+#: Versions listed to pick from at most. A 2015 Golf prefix has 55.
+MAX_CANDIDATES = 100
 #: The answer came from the UK or US registry, as written there.
 NOTE_AUTOREF_EXTERNAL = "autoref_external_record"
 
@@ -334,16 +341,13 @@ def _gearbox(code: str, details: Any) -> dict[str, str | None]:
     return {"type": kind, "speeds": speeds}
 
 
-def map_vehicle(
-    vin: str, row: dict[str, Any], detail: dict[str, Any], *, multiple: bool
-) -> dict[str, Any]:
+def map_vehicle(vin: str, row: dict[str, Any], detail: dict[str, Any]) -> dict[str, Any]:
     """An AutoRef answer in the decoder's shape (the keys NHTSA's answer uses).
 
     Args:
         vin: The VIN that was decoded.
         row: The chosen ``/vehicles/{vin}`` result.
         detail: Its full record's ``VIN_INFO``, or ``{}`` without one.
-        multiple: Whether the lookup returned more than one result.
 
     Returns:
         The decoded fields. ``year`` is always None: DATE_FIRST_CIRCULATION
@@ -375,7 +379,7 @@ def map_vehicle(
 
     notes: list[str] = []
     configurations = row.get("configurations")
-    if multiple or (isinstance(configurations, list) and len(configurations) > 1):
+    if isinstance(configurations, list) and len(configurations) > 1:
         notes.append(NOTE_AUTOREF_BEST_GUESS)
     if record_type in EXTERNAL_RECORD_TYPES:
         notes.append(NOTE_AUTOREF_EXTERNAL)
@@ -422,6 +426,129 @@ def _detail_target(row: dict[str, Any]) -> tuple[str, str] | None:
         if text_id.isascii() and text_id.isalnum():
             return target_type, text_id
     return None
+
+
+def _fold(value: Any) -> Any:
+    """Strings compared without case or spacing ("1.8Hybrid" is "1.8 Hybrid")."""
+    return "".join(value.split()).casefold() if isinstance(value, str) else value
+
+
+def _agree(values: list[Any]) -> Any:
+    """The first value when every value is the same, otherwise None."""
+    first = values[0]
+    if first is None:
+        return None
+    folded = _fold(first)
+    return first if all(v is not None and _fold(v) == folded for v in values[1:]) else None
+
+
+def agreed_answer(vin: str, rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """What every matched version agrees on, in the decoder's shape.
+
+    Each row is mapped on its own and a field (or an engine or transmission
+    subfield) is kept only when all of them hold the same value. Anything
+    they differ on, or that one of them lacks, is None until a pick.
+    """
+    mapped = [map_vehicle(vin, row, {}) for row in rows]
+    answer: dict[str, Any] = {}
+    for key, first in mapped[0].items():
+        if isinstance(first, dict):
+            answer[key] = {sub: _agree([m[key].get(sub) for m in mapped]) for sub in first}
+        else:
+            answer[key] = _agree([m[key] for m in mapped])
+    answer["vin"] = vin
+    answer["year"] = None
+    answer["notes"] = [NOTE_AUTOREF_PICK_VERSION]
+    return answer
+
+
+def _identity(candidate: dict[str, Any]) -> tuple[Any, ...]:
+    """What makes two rows the same version. Without a MODEL_FULL nothing
+    says they are, so such a row is only ever itself."""
+    if candidate["model_full"] is None:
+        return ("record", candidate["record_type"], candidate["id"])
+    return (
+        _fold(candidate["model_full"]),
+        candidate["kw"],
+        candidate["fuel_type"],
+        candidate["gearbox_code"],
+    )
+
+
+def _candidate(row: dict[str, Any]) -> dict[str, Any] | None:
+    """One row as a version to pick, or None when its pick couldn't be checked.
+
+    It needs a full record behind it and a model name or a power to check
+    the record against, since AutoRef reassigns ids when it rebuilds.
+    """
+    target = _detail_target(row)
+    if target is None:
+        return None
+    model_full = _text(row.get("MODEL_FULL"))
+    kw = _int(row.get("POWER_KW"))
+    if model_full is None and kw is None:
+        return None
+    code = (_text(row.get("CODE_GEARBOX")) or "").upper()
+    fuel, _ = _fuels(
+        (_text(row.get("CODE_FUEL")) or "").upper(),
+        _text(row.get("FUEL")),
+        _text(row.get("SECOND_FUEL")),
+        _text(row.get("TYPE_HYBRID")),
+        row.get("ELECTRIC_RANGE_MIN_MAX"),
+    )
+    label = (
+        model_full
+        or _text(row.get("BRAND_MODEL"))
+        or " ".join(
+            part
+            for part in (_text(row.get("MODEL_RESOLVED")), _text(row.get("MOTORIZATION")))
+            if part
+        )
+    )
+    configurations = row.get("configurations")
+    return {
+        "record_type": target[0],
+        "id": target[1],
+        "label": label,
+        "model_full": model_full,
+        "fuel_type": fuel,
+        "kw": kw,
+        "transmission": _GEARBOX_CODES.get(code),
+        "gearbox_code": code if code in _GEARBOX_CODES else None,
+        "grouped": isinstance(configurations, list) and len(configurations) > 1,
+    }
+
+
+def candidates_of(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The versions to pick from, in AutoRef's order (most registered first).
+
+    Rows that read as the same version are listed once, and only the first
+    ``MAX_CANDIDATES``.
+    """
+    out: list[dict[str, Any]] = []
+    seen: set[tuple[Any, ...]] = set()
+    # A VIN prefix can match another maker's car (a Toyota and a Daihatsu),
+    # and MODEL_FULL never names the make, so say it when they differ.
+    makes = {(normalize_make(_text(row.get("BRAND"))) or "").casefold() for row in rows}
+    for row in rows:
+        candidate = _candidate(row)
+        if candidate is None:
+            continue
+        make = normalize_make(_text(row.get("BRAND")))
+        if (
+            len(makes) > 1
+            and make
+            and not candidate["label"].casefold().startswith(make.casefold())
+        ):
+            candidate["label"] = f"{make} {candidate['label']}"
+        identity = _identity(candidate)
+        if identity in seen:
+            continue
+        seen.add(identity)
+        out.append(candidate)
+        if len(out) == MAX_CANDIDATES:
+            break
+    return out
 
 
 class AutoRefService:
@@ -482,7 +609,11 @@ class AutoRefService:
         raise body_failure
 
     async def decode(self, vin: str) -> dict[str, Any] | None:
-        """The most registered match for a VIN, mapped, or None when there is none.
+        """A VIN's answer, mapped, or None when nothing matched.
+
+        One version (or several that read the same) gets its full record.
+        Several different versions get only what they agree on, plus a
+        ``candidates`` list to pick from, with no second request.
 
         Raises:
             ValueError: The VIN is malformed (checked before any request).
@@ -498,8 +629,14 @@ class AutoRefService:
             rows = await self._get(
                 client, f"/vehicles/{vin}", params={"lang": "en", "group": "car"}, headers=headers
             )
-            if not isinstance(rows, list) or not rows or not isinstance(rows[0], dict):
+            if not isinstance(rows, list):
                 return None
+            rows = [r for r in rows if isinstance(r, dict)]
+            if not rows:
+                return None
+            candidates = candidates_of(rows) if len(rows) > 1 else []
+            if len(candidates) > 1:
+                return {**agreed_answer(vin, rows), "candidates": candidates}
             row: dict[str, Any] = rows[0]
             detail: dict[str, Any] = {}
             target = _detail_target(row)
@@ -518,7 +655,87 @@ class AutoRefService:
                     full = None
                 if isinstance(full, dict) and isinstance(full.get("VIN_INFO"), dict):
                     detail = full["VIN_INFO"]
-        return map_vehicle(vin, row, detail, multiple=len(rows) > 1)
+        result = map_vehicle(vin, row, detail)
+        # Rows that are all one version (the Corolla's "1.8Hybrid" and
+        # "1.8 Hybrid") aren't a guess. Anything else left over still is.
+        identities = {_identity(c) if c else None for c in map(_candidate, rows)}
+        one_version = None not in identities and len(identities) == 1
+        if len(rows) > 1 and not one_version and NOTE_AUTOREF_BEST_GUESS not in result["notes"]:
+            result["notes"].insert(0, NOTE_AUTOREF_BEST_GUESS)
+        return result
+
+    async def decode_version(
+        self,
+        vin: str,
+        record_type: str,
+        record_id: str,
+        *,
+        gearbox_code: str | None,
+        expect_model: str | None,
+        expect_kw: int | None,
+        grouped: bool,
+    ) -> dict[str, Any] | None:
+        """A picked version's full record, mapped, or None when it isn't that version anymore.
+
+        The ids are ephemeral, so the record must still belong to the VIN's
+        prefix and still be the version that was picked (its model name and
+        power, whichever the pick carried).
+
+        Args:
+            vin: The decoded VIN.
+            record_type: The candidate's record type.
+            record_id: The candidate's id.
+            gearbox_code: The candidate's gearbox code; the full record has none.
+            expect_model: The candidate's MODEL_FULL.
+            expect_kw: The candidate's power in kW.
+            grouped: The candidate stood for several configurations.
+
+        Raises:
+            ValueError: The VIN or the pick is malformed (checked before any request).
+            AutoRefAuthError, AutoRefQuotaError, AutoRefUnavailableError.
+        """
+        vin = vin.strip().upper()
+        is_valid, error = validate_vin(vin)
+        if not is_valid:
+            raise ValueError(f"Invalid VIN: {error}")
+        if record_type not in LOCAL_RECORD_TYPES:
+            raise ValueError("Unknown record type")
+        if not (record_id.isascii() and record_id.isalnum() and 1 <= len(record_id) <= 32):
+            raise ValueError("Malformed record id")
+        if gearbox_code is not None and gearbox_code not in _GEARBOX_CODES:
+            raise ValueError("Unknown gearbox code")
+        if expect_model is None and expect_kw is None:
+            raise ValueError("A pick needs a model or a power to check")
+        headers = {"x-api-key": _checked_key(self._api_key)}
+        async with self._client_factory() as client:
+            # codeql[py/partial-ssrf] - fixed host; type from a fixed set, id checked alphanumeric
+            full = await self._get(
+                client,
+                f"/vehicle/{record_type}/{record_id}",
+                params={"lang": "en"},
+                headers=headers,
+            )
+        if not (isinstance(full, dict) and isinstance(full.get("VIN_INFO"), dict)):
+            return None
+        detail: dict[str, Any] = full["VIN_INFO"]
+        record_vin = _text(detail.get("VIN"))
+        if record_vin is not None and record_vin[:10].upper() != vin[:10]:
+            logger.info("AutoRef record %s/%s belongs to another VIN now", record_type, record_id)
+            return None
+        if expect_model is not None and _fold(expect_model) != _fold(
+            _text(detail.get("MODEL_FULL"))
+        ):
+            logger.info("AutoRef record %s/%s is another version now", record_type, record_id)
+            return None
+        if expect_kw is not None and expect_kw != _int(detail.get("POWER_KW")):
+            logger.info("AutoRef record %s/%s is another version now", record_type, record_id)
+            return None
+        result = map_vehicle(
+            vin, {"RECORD_TYPE": record_type, "CODE_GEARBOX": gearbox_code or ""}, detail
+        )
+        if grouped and NOTE_AUTOREF_BEST_GUESS not in result["notes"]:
+            result["notes"].insert(0, NOTE_AUTOREF_BEST_GUESS)
+        return result
 
     async def usage(self, key: str | None = None) -> AutoRefUsage:
         """The plan and what's left of it. Costs no quota.

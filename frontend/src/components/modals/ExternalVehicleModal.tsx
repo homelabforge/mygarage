@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Drawer, Button, Field, Input, NumberInput, Textarea } from '@/components/ui'
@@ -45,9 +45,13 @@ export default function ExternalVehicleModal({
   const [yearText, setYearText] = useState('')
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  // Did the person name it? A decode rewrites a nickname it wrote itself (a
+  // picked AutoRef version after the make-only agreement), never a typed one.
+  const nicknameTyped = useRef(false)
 
   useEffect(() => {
     if (!isOpen) return
+    nicknameTyped.current = Boolean(vehicle)
     if (vehicle) {
       setForm({
         nickname: vehicle.nickname,
@@ -75,16 +79,16 @@ export default function ExternalVehicleModal({
     setForm((prev) => ({ ...prev, [key]: value }))
   }
 
+  // Built from prev: the decode can land after the person kept typing.
   const handleVinDecode = (data: VINDecodeResponse) => {
     setForm((prev) => {
-      const generatedNickname = `${data.year || ''} ${data.make || ''} ${data.model || ''}`.trim()
-      return {
-        ...prev,
-        year: data.year ?? prev.year ?? null,
-        make: data.make || prev.make || '',
-        model: data.model || prev.model || '',
-        nickname: prev.nickname?.trim() ? prev.nickname : generatedNickname,
-      }
+      const year = data.year ?? prev.year ?? null
+      const make = data.make || prev.make || ''
+      const model = data.model || prev.model || ''
+      const nickname = nicknameTyped.current && prev.nickname?.trim()
+        ? prev.nickname
+        : `${year || ''} ${make} ${model}`.trim()
+      return { ...prev, year, make, model, nickname }
     })
     if (data.year != null) setYearText(String(data.year))
   }
@@ -162,7 +166,10 @@ export default function ExternalVehicleModal({
           <Input
             id="ext-nickname"
             value={form.nickname}
-            onChange={(e) => setField('nickname', e.target.value)}
+            onChange={(e) => {
+              nicknameTyped.current = true
+              setField('nickname', e.target.value)
+            }}
             placeholder={t('externalVehicles.nicknamePlaceholder')}
           />
         </Field>

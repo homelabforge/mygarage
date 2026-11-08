@@ -573,6 +573,17 @@ COMPUTED_VOCAB: dict[tuple[str, str], tuple[str, str]] = {
         "app.services.vin_decoder.enrich",
         "a constant per branch",
     ),
+    # AutoRef's versions to pick (#219 follow-up): the type is one of
+    # LOCAL_RECORD_TYPES or "COC", and the gearbox code is kept only when
+    # it's a key of _GEARBOX_CODES.
+    ("AutoRefCandidate", "record_type"): (
+        "app.services.autoref._detail_target",
+        "a type from LOCAL_RECORD_TYPES or COC",
+    ),
+    ("AutoRefCandidate", "gearbox_code"): (
+        "app.services.autoref._candidate",
+        "only a key of _GEARBOX_CODES",
+    ),
     # The provider list and Automatic's pick are worked out per request from
     # the settings, never read from a row.
     ("VINProvidersResponse", "available"): (

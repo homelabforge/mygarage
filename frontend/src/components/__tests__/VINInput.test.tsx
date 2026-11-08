@@ -60,6 +60,7 @@ vi.mock('@/services/vinService', () => ({
   vinService: {
     validate: vi.fn().mockResolvedValue({ valid: true, vin: 'VF1RFB00X56123456' }),
     decode: vi.fn(),
+    decodeVersion: vi.fn(),
     exists: vi.fn().mockResolvedValue(false),
     providers: vi.fn().mockResolvedValue({ available: ['nhtsa'], preferred: 'nhtsa' }),
   },
@@ -342,5 +343,276 @@ describe('VINInput — choosing the decoder', () => {
     })
 
     expect(screen.queryByTestId('vin-try-error')).not.toBeInTheDocument()
+  })
+})
+
+// Several AutoRef versions for one VIN: pick yours.
+describe('VINInput: picking an AutoRef version', () => {
+  const GOLF_VIN = 'WVWZZZAUZFW806653'
+  const candidate = (id: string, label: string, kw: number, fuel: string) => ({
+    record_type: 'TG' as const,
+    id,
+    label,
+    model_full: label,
+    fuel_type: fuel,
+    kw,
+    transmission: 'Manual',
+    gearbox_code: 'M' as const,
+    grouped: false,
+  })
+  const R = candidate('310899', 'Golf VII R 5T', 221, 'gasoline')
+  const GTE = candidate('311017', 'Golf VII GTE', 110, 'hybrid')
+  const several = {
+    vin: GOLF_VIN,
+    make: 'Volkswagen',
+    model: null,
+    year: null,
+    region: 'EU',
+    decode_quality: 'partial' as const,
+    decoded_by: 'autoref' as const,
+    make_source: 'autoref' as const,
+    notes: ['autoref_pick_version', 'check_digit_not_applicable'],
+    candidates: [R, GTE],
+  }
+  const picked = (c: typeof R) => ({
+    vin: GOLF_VIN,
+    make: 'Volkswagen',
+    model: 'Golf',
+    trim: c.label.replace('Golf ', ''),
+    body_class: c === R ? 'Limousine R' : 'Limousine GTE',
+    region: 'EU',
+    decode_quality: 'full' as const,
+    decoded_by: 'autoref' as const,
+    notes: ['check_digit_not_applicable'],
+  })
+  const gteOption = 'Golf VII GTE · forms:fuel.fuelTypes.hybrid · vinInput.versionKw · Manual'
+  const deferred = <T,>() => {
+    let resolve: (value: T) => void = () => {}
+    let reject: (reason: unknown) => void = () => {}
+    const promise = new Promise<T>((res, rej) => {
+      resolve = res
+      reject = rej
+    })
+    return { promise, resolve, reject }
+  }
+  const decode = async (): Promise<HTMLSelectElement> => {
+    fireEvent.click(screen.getByRole('button', { name: /vinInput.decode/ }))
+    return (await screen.findByRole('combobox', { name: 'vinInput.version' })) as HTMLSelectElement
+  }
+  const pick = (select: HTMLSelectElement, c: typeof R): void => {
+    fireEvent.change(select, { target: { value: `${c.record_type}:${c.id}` } })
+  }
+
+  beforeEach(() => {
+    vi.mocked(vinService.decode).mockReset()
+    vi.mocked(vinService.decodeVersion).mockReset()
+    vi.mocked(vinService.providers).mockResolvedValue({ available: ['nhtsa', 'autoref'], preferred: 'autoref' })
+  })
+
+  it('shows no picker without candidates', async () => {
+    vi.mocked(vinService.decode).mockResolvedValue({ ...picked(GTE) })
+    render(<VINInput value={GOLF_VIN} onChange={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: /vinInput.decode/ }))
+    await screen.findByText('vinInput.decodedTitle')
+    expect(screen.queryByRole('combobox', { name: 'vinInput.version' })).not.toBeInTheDocument()
+  })
+
+  it('lists the versions after a decode', async () => {
+    vi.mocked(vinService.decode).mockResolvedValue(several)
+    render(<VINInput value={GOLF_VIN} onChange={vi.fn()} />)
+    const select = await decode()
+    const options = Array.from(select.options)
+    expect(options).toHaveLength(3) // the placeholder, then R and GTE in order
+    expect(options[0].value).toBe('')
+    expect(options[0].textContent).toBe('vinInput.pickVersion')
+    expect(options.slice(1).map((o) => o.value)).toEqual(['TG:310899', 'TG:311017'])
+    expect(options[2].textContent).toBe(gteOption)
+  })
+
+  it('leaves out a part a version lacks', async () => {
+    const bare = { ...GTE, fuel_type: null, kw: null, transmission: null }
+    vi.mocked(vinService.decode).mockResolvedValue({ ...several, candidates: [R, bare] })
+    render(<VINInput value={GOLF_VIN} onChange={vi.fn()} />)
+    const select = await decode()
+    expect(select.options[2].textContent).toBe('Golf VII GTE')
+  })
+
+  it('fills the form from the picked version', async () => {
+    vi.mocked(vinService.decode).mockResolvedValue(several)
+    vi.mocked(vinService.decodeVersion).mockResolvedValue(picked(GTE))
+    const onDecode = vi.fn()
+    render(<VINInput value={GOLF_VIN} onChange={vi.fn()} onDecode={onDecode} />)
+    const select = await decode()
+    pick(select, GTE)
+
+    await waitFor(() => expect(onDecode).toHaveBeenCalledTimes(2))
+    expect(vinService.decodeVersion).toHaveBeenCalledWith(GOLF_VIN, GTE)
+    expect(onDecode).toHaveBeenLastCalledWith(picked(GTE))
+    expect(await screen.findByText('Limousine GTE')).toBeInTheDocument()
+    const after = screen.getByRole('combobox', { name: 'vinInput.version' }) as HTMLSelectElement
+    expect(after.value).toBe('TG:311017')
+  })
+
+  it('keeps the answer when a pick fails', async () => {
+    vi.mocked(vinService.decode).mockResolvedValue(several)
+    vi.mocked(vinService.decodeVersion).mockRejectedValue({
+      response: { status: 429, data: { detail: 'AutoRef quota used up' } },
+    })
+    const onDecode = vi.fn()
+    render(<VINInput value={GOLF_VIN} onChange={vi.fn()} onDecode={onDecode} />)
+    const select = await decode()
+    pick(select, GTE)
+
+    expect(await screen.findByTestId('vin-pick-error')).toBeInTheDocument()
+    expect(onDecode).toHaveBeenCalledTimes(1)
+    expect(screen.getByText('Volkswagen')).toBeInTheDocument()
+    expect(screen.queryByText('Limousine GTE')).not.toBeInTheDocument()
+    expect((screen.getByRole('combobox', { name: 'vinInput.version' }) as HTMLSelectElement).value).toBe('')
+  })
+
+  it('hides the picker after the VIN changes', async () => {
+    vi.mocked(vinService.decode).mockResolvedValue(several)
+    render(<VINInput value={GOLF_VIN} onChange={vi.fn()} />)
+    await decode()
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'WVWZZZAUZFW80665' } })
+    expect(screen.queryByRole('combobox', { name: 'vinInput.version' })).not.toBeInTheDocument()
+  })
+
+  it('hides the picker when the value prop changes', async () => {
+    vi.mocked(vinService.decode).mockResolvedValue(several)
+    const { rerender } = render(<VINInput value={GOLF_VIN} onChange={vi.fn()} />)
+    await decode()
+    rerender(<VINInput value="VF1RFB00X56123456" onChange={vi.fn()} />)
+    expect(screen.queryByRole('combobox', { name: 'vinInput.version' })).not.toBeInTheDocument()
+  })
+
+  it('a slow pick never overwrites a newer one', async () => {
+    const slowR = deferred<ReturnType<typeof picked>>()
+    const fastGte = deferred<ReturnType<typeof picked>>()
+    vi.mocked(vinService.decode).mockResolvedValue(several)
+    vi.mocked(vinService.decodeVersion).mockReturnValueOnce(slowR.promise).mockReturnValueOnce(fastGte.promise)
+    const onDecode = vi.fn()
+    render(<VINInput value={GOLF_VIN} onChange={vi.fn()} onDecode={onDecode} />)
+    const select = await decode()
+    pick(select, R)
+    pick(select, GTE)
+    await act(async () => {
+      fastGte.resolve(picked(GTE))
+    })
+    await act(async () => {
+      slowR.resolve(picked(R))
+    })
+
+    expect(onDecode).toHaveBeenLastCalledWith(picked(GTE))
+    expect(screen.getByText('Limousine GTE')).toBeInTheDocument()
+    expect(screen.queryByText('Limousine R')).not.toBeInTheDocument()
+  })
+
+  it('a slow pick never overwrites a fresh decode', async () => {
+    const slow = deferred<ReturnType<typeof picked>>()
+    vi.mocked(vinService.decode).mockResolvedValueOnce(several).mockResolvedValueOnce({ ...picked(R), body_class: 'Fresh' })
+    vi.mocked(vinService.decodeVersion).mockReturnValueOnce(slow.promise)
+    const onDecode = vi.fn()
+    render(<VINInput value={GOLF_VIN} onChange={vi.fn()} onDecode={onDecode} />)
+    const select = await decode()
+    pick(select, GTE)
+    fireEvent.click(screen.getByRole('button', { name: /vinInput.decode/ }))
+    expect(await screen.findByText('Fresh')).toBeInTheDocument()
+    await act(async () => {
+      slow.resolve(picked(GTE))
+    })
+
+    expect(onDecode).toHaveBeenCalledTimes(2)
+    expect(screen.queryByText('Limousine GTE')).not.toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: 'vinInput.version' })).not.toBeInTheDocument()
+  })
+
+  it('hides the old picker while a fresh decode is on its way', async () => {
+    // Codex diff R1-M1: a pick from the old list would cancel the new answer.
+    const fresh = deferred<ReturnType<typeof picked>>()
+    vi.mocked(vinService.decode).mockResolvedValueOnce(several).mockReturnValueOnce(fresh.promise)
+    const onDecode = vi.fn()
+    render(<VINInput value={GOLF_VIN} onChange={vi.fn()} onDecode={onDecode} />)
+    await decode()
+    fireEvent.click(screen.getByRole('button', { name: /vinInput.decode/ }))
+    expect(screen.queryByRole('combobox', { name: 'vinInput.version' })).not.toBeInTheDocument()
+    await act(async () => {
+      fresh.resolve({ ...picked(R), body_class: 'Fresh' })
+    })
+    expect(screen.getByText('Fresh')).toBeInTheDocument()
+    expect(onDecode).toHaveBeenCalledTimes(2)
+  })
+
+  it('a late failure never shows over a newer success', async () => {
+    const slowR = deferred<ReturnType<typeof picked>>()
+    vi.mocked(vinService.decode).mockResolvedValue(several)
+    vi.mocked(vinService.decodeVersion).mockReturnValueOnce(slowR.promise).mockResolvedValueOnce(picked(GTE))
+    render(<VINInput value={GOLF_VIN} onChange={vi.fn()} onDecode={vi.fn()} />)
+    const select = await decode()
+    pick(select, R)
+    pick(select, GTE)
+    expect(await screen.findByText('Limousine GTE')).toBeInTheDocument()
+    await act(async () => {
+      slowR.reject({ response: { status: 504, data: { detail: 'AutoRef request timed out' } } })
+    })
+
+    expect(screen.queryByTestId('vin-pick-error')).not.toBeInTheDocument()
+    expect((screen.getByRole('combobox', { name: 'vinInput.version' }) as HTMLSelectElement).value).toBe('TG:311017')
+  })
+
+  it('a new decode without candidates clears the picker', async () => {
+    vi.mocked(vinService.decode).mockResolvedValueOnce(several).mockResolvedValueOnce(picked(R))
+    render(<VINInput value={GOLF_VIN} onChange={vi.fn()} />)
+    await decode()
+    fireEvent.click(screen.getByRole('button', { name: /vinInput.decode/ }))
+    expect(await screen.findByText('Limousine R')).toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: 'vinInput.version' })).not.toBeInTheDocument()
+  })
+
+  it('Try AutoRef that returns candidates shows the picker', async () => {
+    vi.mocked(vinService.decode)
+      .mockResolvedValueOnce({ ...several, decoded_by: 'nhtsa', candidates: null, notes: ['eu_vin_no_model'] })
+      .mockResolvedValueOnce(several)
+    render(<VINInput value={GOLF_VIN} onChange={vi.fn()} />)
+    await screen.findByLabelText('vinInput.decodeWith')
+    fireEvent.click(screen.getByRole('button', { name: /vinInput.decode/ }))
+    fireEvent.click(await screen.findByRole('button', { name: /vinInput.tryAutoRef/ }))
+    expect(await screen.findByRole('combobox', { name: 'vinInput.version' })).toBeInTheDocument()
+  })
+
+  it('a pick after Try AutoRef only adds, like the Try', async () => {
+    // Fable diff F-1: it must not blank what the first decoder filled.
+    vi.mocked(vinService.decode)
+      .mockResolvedValueOnce({ ...several, decoded_by: 'nhtsa', candidates: null, notes: ['eu_vin_no_model'] })
+      .mockResolvedValueOnce(several)
+    vi.mocked(vinService.decodeVersion).mockResolvedValue(picked(GTE))
+    const onDecode = vi.fn()
+    render(<VINInput value={GOLF_VIN} onChange={vi.fn()} onDecode={onDecode} />)
+    await screen.findByLabelText('vinInput.decodeWith')
+    fireEvent.click(screen.getByRole('button', { name: /vinInput.decode/ }))
+    fireEvent.click(await screen.findByRole('button', { name: /vinInput.tryAutoRef/ }))
+    pick((await screen.findByRole('combobox', { name: 'vinInput.version' })) as HTMLSelectElement, GTE)
+    await waitFor(() => expect(onDecode).toHaveBeenCalledTimes(3))
+    expect(onDecode).toHaveBeenLastCalledWith(picked(GTE), { fillOnly: true })
+  })
+
+  it('a partial answer with versions leads with the pick note and offers no Try NHTSA', async () => {
+    vi.mocked(vinService.decode).mockResolvedValue(several)
+    render(<VINInput value={GOLF_VIN} onChange={vi.fn()} />)
+    await screen.findByLabelText('vinInput.decodeWith')
+    await decode()
+    const notice = screen.getByTestId('vin-partial-decode')
+    expect(notice.querySelector('p')).toHaveTextContent('vinInput.notes.autoref_pick_version')
+    expect(notice).not.toHaveTextContent('vinInput.euPartial')
+    expect(notice).toHaveTextContent('vinInput.notes.check_digit_not_applicable')
+    expect(screen.queryByRole('button', { name: /vinInput.tryNhtsa/ })).not.toBeInTheDocument()
+  })
+
+  it('choosing the placeholder again sends nothing', async () => {
+    vi.mocked(vinService.decode).mockResolvedValue(several)
+    render(<VINInput value={GOLF_VIN} onChange={vi.fn()} />)
+    const select = await decode()
+    fireEvent.change(select, { target: { value: '' } })
+    expect(vinService.decodeVersion).not.toHaveBeenCalled()
   })
 })

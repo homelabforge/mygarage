@@ -10,6 +10,7 @@ vi.mock('@/services/vinService', () => ({
   vinService: {
     validate: vi.fn().mockResolvedValue({ valid: true, vin: '1HGCM82633A004352' }),
     decode: vi.fn(),
+    decodeVersion: vi.fn(),
     exists: vi.fn().mockResolvedValue(false),
     providers: vi.fn().mockResolvedValue({ available: ['nhtsa'], preferred: 'nhtsa' }),
   },
@@ -578,6 +579,46 @@ describe('VehicleWizard: make and model pickers', () => {
 
     expect(screen.getByLabelText('wizard.model')).toHaveValue('Clio')
     expect(screen.getByLabelText('wizard.trim')).toHaveValue('Initiale')
+  })
+
+  it('a picked AutoRef version fills the details', async () => {
+    const version = (id: string, label: string, kw: number, fuel: string) => ({
+      record_type: 'TG' as const, id, label, model_full: label, fuel_type: fuel, kw,
+      transmission: 'Manual', gearbox_code: 'M' as const, grouped: false,
+    })  // prettier-ignore
+    const gte = version('311017', 'Golf VII GTE', 110, 'hybrid')
+    mockedVinService.decode.mockResolvedValue({
+      vin: TEST_VIN,
+      make: 'Volkswagen',
+      model: null,
+      decode_quality: 'partial',
+      decoded_by: 'autoref',
+      notes: ['autoref_pick_version'],
+      candidates: [version('310899', 'Golf VII R 5T', 221, 'gasoline'), gte],
+    })
+    mockedVinService.decodeVersion.mockResolvedValue({
+      vin: TEST_VIN,
+      make: 'Volkswagen',
+      model: 'Golf',
+      trim: 'VII GTE',
+      engine: { kw: 110, hp: 148, fuel_type_normalized: 'hybrid' },
+      decode_quality: 'full',
+      decoded_by: 'autoref',
+    })
+    renderAndEnterVin()
+    const decodeButton = await screen.findByRole('button', { name: 'vinInput.decode' })
+    await waitFor(() => expect(decodeButton).not.toBeDisabled())
+    fireEvent.click(decodeButton)
+    const picker = await screen.findByRole('combobox', { name: 'vinInput.version' })
+    fireEvent.change(picker, { target: { value: 'TG:311017' } })
+    await waitFor(() => expect(mockedVinService.decodeVersion).toHaveBeenCalledWith(TEST_VIN, gte))
+    await screen.findByText('Golf')
+    fireEvent.click(await screen.findByRole('button', { name: 'wizard.next' }))
+    await screen.findByLabelText('wizard.fuelType')
+
+    expect(screen.getByLabelText('wizard.model')).toHaveValue('Golf')
+    expect(screen.getByLabelText('wizard.trim')).toHaveValue('VII GTE')
+    expect(screen.getByLabelText('wizard.fuelType')).toHaveValue('hybrid')
   })
 
   // NHTSA reads a Porsche's year from the VIN and no model; AutoRef the model
