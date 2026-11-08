@@ -8,8 +8,8 @@ import type { Recall, RecallCreate, RecallUpdate } from '../types/recall'
 import { makeRecallSchema, type RecallFormData } from '../schemas/recall'
 import { useCreateRecallRecord, useUpdateRecallRecord } from '../hooks/queries/useRecallRecords'
 import { Button, Field, Input, Textarea, Checkbox } from './ui'
-import { applyServerErrors } from '../hooks/useApiFormErrors'
-import { getActionErrorMessage } from '../utils/httpErrorHandler'
+import { applyServerErrors } from '../utils/apiFormErrors'
+import { actionErrorMessage } from '../utils/httpErrorHandler'
 
 interface RecallFormProps {
   vin: string
@@ -83,7 +83,7 @@ export default function RecallForm({ vin, recall, onClose, onSuccess }: RecallFo
       // it carries no field problems at all, so `unhandled` alone would stay
       // empty and this banner would never show. The resolved checkbox isn't
       // listed: it has nowhere to show an error, so its errors go to the banner.
-      const { attached, unhandled } = applyServerErrors<RecallFormData>(setFieldError, err, [
+      const { parsed, attached, unhandled } = applyServerErrors<RecallFormData>(setFieldError, err, [
         'nhtsa_campaign_number',
         'component',
         'summary',
@@ -93,7 +93,7 @@ export default function RecallForm({ vin, recall, onClose, onSuccess }: RecallFo
         'notes',
       ])
       if (attached.length === 0 || unhandled.length > 0) {
-        setError(getActionErrorMessage(err, t('recall.saveAction')))
+        setError(actionErrorMessage(parsed, t('recall.saveAction')))
       }
     }
   }

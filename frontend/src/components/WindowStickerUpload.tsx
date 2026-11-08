@@ -2,8 +2,8 @@ import { useState, useRef, type ReactElement, type SyntheticEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Upload, FileText, DollarSign, Fuel, Edit2, Save, Palette, Shield, Leaf, Cog, Car } from 'lucide-react'
 import api from '../services/api'
-import { getActionErrorMessage } from '../utils/httpErrorHandler'
-import { applyControlledFieldErrors, withoutFieldError } from '../hooks/useApiFormErrors'
+import { actionErrorMessage } from '../utils/httpErrorHandler'
+import { applyControlledFieldErrors, withoutFieldError } from '../utils/apiFormErrors'
 import { parseDecimalInput } from '../utils/decimalInput'
 import { moneyTextError } from '../schemas/shared'
 import { getActiveLocale } from '@/constants/i18n'
@@ -188,7 +188,7 @@ function WindowStickerUpload({
       else setSuccess(t('windowSticker.misc.uploadSuccess'))
       setEditMode(true)
     } catch (err) {
-      const { attached, unhandled, errorsByField } = applyControlledFieldErrors(
+      const { parsed, attached, unhandled, errorsByField } = applyControlledFieldErrors(
         err,
         WINDOW_STICKER_KNOWN_FIELDS
       )
@@ -196,7 +196,7 @@ function WindowStickerUpload({
         setFieldErrors(errorsByField)
       }
       if (attached.length === 0 || unhandled.length > 0) {
-        setError(getActionErrorMessage(err, t('windowSticker.uploadAction')))
+        setError(actionErrorMessage(parsed, t('windowSticker.uploadAction')))
       }
     } finally {
       setUploading(false)
@@ -274,7 +274,7 @@ function WindowStickerUpload({
       await api.patch(`/vehicles/${vin}/window-sticker/data`, changes)
       finish()
     } catch (err) {
-      const { attached, unhandled, errorsByField } = applyControlledFieldErrors(
+      const { parsed, attached, unhandled, errorsByField } = applyControlledFieldErrors(
         err,
         WINDOW_STICKER_KNOWN_FIELDS
       )
@@ -282,7 +282,7 @@ function WindowStickerUpload({
         setFieldErrors(errorsByField)
       }
       if (attached.length === 0 || unhandled.length > 0) {
-        setError(getActionErrorMessage(err, t('windowSticker.saveAction')))
+        setError(actionErrorMessage(parsed, t('windowSticker.saveAction')))
       }
     } finally {
       setUploading(false)

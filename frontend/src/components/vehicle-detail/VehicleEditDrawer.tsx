@@ -18,8 +18,8 @@ import { UnitFormatter } from '../../utils/units'
 import { toLitersWirePrecision } from '../../utils/decimalSafe'
 import { canonicalFromUnitField, seedUnitField, type UnitFieldOrigin } from '../../utils/unitFormat'
 import { getUsageTracking } from '../../utils/usageTracking'
-import { applyServerErrors } from '../../hooks/useApiFormErrors'
-import { getActionErrorMessage } from '../../utils/httpErrorHandler'
+import { applyServerErrors } from '../../utils/apiFormErrors'
+import { actionErrorMessage } from '../../utils/httpErrorHandler'
 import { usePublicSettings } from '../../hooks/queries/usePublicSettings'
 import { isSettingOn } from '../../utils/settingSwitch'
 import { hasVin } from '../../utils/vehicleIdentifier'
@@ -334,7 +334,7 @@ function VehicleEditForm({
       // would never fire, silently dropping all feedback. `attached.length
       // === 0` catches that case; it's only skipped when every problem found
       // a field to land on.
-      const { attached, unhandled } = applyServerErrors<VehicleEditFormData>(setFieldError, err, [
+      const { parsed, attached, unhandled } = applyServerErrors<VehicleEditFormData>(setFieldError, err, [
         'nickname',
         'vehicle_type',
         'fuel_type',
@@ -344,7 +344,7 @@ function VehicleEditForm({
         'def_tank_capacity_liters',
       ])
       if (attached.length === 0 || unhandled.length > 0) {
-        toast.error(getActionErrorMessage(err, t('vehicleEditPage.saveAction')))
+        toast.error(actionErrorMessage(parsed, t('vehicleEditPage.saveAction')))
       }
     }
   }

@@ -47,8 +47,8 @@ import { vehicleLabel } from '../../utils/vehicleLabel'
 import { formatDateForInput } from '../../utils/dateUtils'
 import { formatCurrency } from '../../utils/formatUtils'
 import { useCurrencyPreference } from '../../hooks/useCurrencyPreference'
-import { applyServerErrors } from '../../hooks/useApiFormErrors'
-import { getActionErrorMessage } from '../../utils/httpErrorHandler'
+import { applyServerErrors } from '../../utils/apiFormErrors'
+import { actionErrorMessage } from '../../utils/httpErrorHandler'
 
 export type PolicyFormMode = 'create' | 'edit' | 'replace'
 
@@ -353,7 +353,7 @@ export default function PolicyForm({ mode, policy, initialVin, onClose, onSucces
       const rowFields = data.vehicles.flatMap(
         (_, i) => [`vehicles.${i}.policy_type`, `vehicles.${i}.premium_share`, `vehicles.${i}.deductible`] as const
       )
-      const { attached: shown, unhandled } = applyServerErrors<InsuranceFormData>(setFieldError, err, [
+      const { parsed, attached: shown, unhandled } = applyServerErrors<InsuranceFormData>(setFieldError, err, [
         'provider',
         'policy_number',
         'start_date',
@@ -364,7 +364,7 @@ export default function PolicyForm({ mode, policy, initialVin, onClose, onSucces
         ...rowFields,
       ])
       if (shown.length === 0 || unhandled.length > 0) {
-        toast.error(getActionErrorMessage(err, t('insurance.saveAction')))
+        toast.error(actionErrorMessage(parsed, t('insurance.saveAction')))
       }
     }
   }

@@ -350,9 +350,7 @@ function VehicleDetailPage() {
       document.body.removeChild(a)
       toast.success(t('detail.exportSuccess'))
     } catch (err) {
-      toast.error(t('detail.exportError'), {
-        description: getActionErrorMessage(err, t('detail.exportAction'))
-      })
+      toast.error(getActionErrorMessage(err, t('detail.exportAction')))
     } finally {
       setExporting(false)
     }
@@ -400,9 +398,7 @@ function VehicleDetailPage() {
       // what's on screen refetches (#192).
       void queryClient.invalidateQueries()
     } catch (err) {
-      toast.error(t('detail.importError'), {
-        description: getActionErrorMessage(err, t('detail.importAction'))
-      })
+      toast.error(getActionErrorMessage(err, t('detail.importAction')))
     } finally {
       setImporting(false)
       // Reset file input

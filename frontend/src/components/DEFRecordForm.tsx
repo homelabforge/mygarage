@@ -23,8 +23,8 @@ import { useOnUserEdit } from '../hooks/useOnUserEdit'
 import { formatDateForInput } from '../utils/dateUtils'
 import CurrencyInput from './common/CurrencyInput'
 import { Button, Field, Input, NumberInput, Textarea, registerDecimal } from './ui'
-import { applyServerErrors } from '../hooks/useApiFormErrors'
-import { getActionErrorMessage } from '../utils/httpErrorHandler'
+import { applyServerErrors } from '../utils/apiFormErrors'
+import { actionErrorMessage } from '../utils/httpErrorHandler'
 import { withUnitSession } from '../contexts/UnitSession'
 
 // `labelKey` is translated at render time; the fraction labels are numerals and
@@ -227,7 +227,7 @@ function DEFRecordForm({
       // attached.length === 0 catches a non-422 failure (network drop, 500):
       // it carries no field problems at all, so `unhandled` alone would stay
       // empty and this banner would never show.
-      const { attached, unhandled } = applyServerErrors<DefRecordFormData>(setFieldError, err, [
+      const { parsed, attached, unhandled } = applyServerErrors<DefRecordFormData>(setFieldError, err, [
         'date',
         'odometer_km',
         'fill_level',
@@ -239,7 +239,7 @@ function DEFRecordForm({
         'notes',
       ])
       if (attached.length === 0 || unhandled.length > 0) {
-        setError(getActionErrorMessage(err, t('def.saveAction')))
+        setError(actionErrorMessage(parsed, t('def.saveAction')))
       }
     }
   }

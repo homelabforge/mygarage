@@ -1,8 +1,10 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { useState } from 'react'
 import { render, screen, waitFor, act } from '@testing-library/react'
+import { onlineManager } from '@tanstack/react-query'
 import { renderWithQueryClient } from '@/__tests__/queryClient'
 import { AuthProvider, useAuth } from '../AuthContext'
+import { publicSettingsQuery } from '../../hooks/queries/usePublicSettings'
 
 // Mock the api module
 vi.mock('../../services/api', () => {
@@ -453,5 +455,154 @@ describe('AuthContext', () => {
 
     await waitFor(() => expect(screen.getByTestId('loading')).toHaveTextContent('false'))
     expect(client.getQueryData(['settings', 'public'])).toEqual(rows)
+  })
+})
+
+describe('AuthContext refreshPublicSettings', () => {
+  // Not gated on `loading`, so a refresh can land while boot is still out.
+  function RefreshProbe() {
+    const { refreshPublicSettings, user } = useAuth()
+    return (
+      <div>
+        <span data-testid="username">{user?.username || 'none'}</span>
+        <button onClick={() => void refreshPublicSettings()}>refresh</button>
+      </div>
+    )
+  }
+
+  const settings = (mode: string, zone = 'America/Chicago') => ({
+    data: {
+      settings: [
+        { key: 'auth_mode', value: mode },
+        { key: 'effective_timezone', value: zone },
+      ],
+    },
+  })
+  const calls = (url: string): number =>
+    mockedApi.get.mock.calls.filter((call: unknown[]) => call[0] === url).length
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    sessionStorage.clear()
+  })
+
+  afterEach(() => {
+    onlineManager.setOnline(true)
+  })
+
+  it('a refresh that lands during boot leaves loading the user to boot', async () => {
+    let answerBoot: (value: unknown) => void = () => {}
+    let firstRead = true
+    mockedApi.get.mockImplementation((url: string) => {
+      if (url === '/settings/public') {
+        if (firstRead) {
+          firstRead = false
+          return new Promise((resolve) => {
+            answerBoot = resolve
+          })
+        }
+        return Promise.resolve(settings('local'))
+      }
+      if (url === '/auth/me') {
+        return Promise.resolve({ data: { id: 1, username: 'testuser', is_admin: false } })
+      }
+      return Promise.reject(new Error('Not found'))
+    })
+
+    renderWithQueryClient(
+      <AuthProvider>
+        <RefreshProbe />
+      </AuthProvider>
+    )
+    await waitFor(() => expect(calls('/settings/public')).toBe(1))
+
+    // The refresh's own read answers 'local' before boot's does.
+    screen.getByRole('button').click()
+    await waitFor(() => expect(calls('/settings/public')).toBe(2))
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    await act(async () => {
+      answerBoot(settings('local'))
+    })
+    await waitFor(() => expect(screen.getByTestId('username')).toHaveTextContent('testuser'))
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    expect(calls('/auth/me')).toBe(1)
+  })
+
+  it('a refresh after a failed boot still loads the user once sign-in is on', async () => {
+    // Boot never learnt a mode, so the refresh is the first answer there is.
+    let firstRead = true
+    mockedApi.get.mockImplementation((url: string) => {
+      if (url === '/settings/public') {
+        if (firstRead) {
+          firstRead = false
+          return Promise.reject(new Error('offline'))
+        }
+        return Promise.resolve(settings('local'))
+      }
+      if (url === '/auth/me') {
+        return Promise.resolve({ data: { id: 1, username: 'testuser', is_admin: false } })
+      }
+      return Promise.reject(new Error('Not found'))
+    })
+
+    renderWithQueryClient(
+      <AuthProvider>
+        <RefreshProbe />
+      </AuthProvider>
+    )
+    await waitFor(() => expect(calls('/settings/public')).toBe(1))
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    expect(calls('/auth/me')).toBe(0)
+
+    screen.getByRole('button').click()
+    await waitFor(() => expect(screen.getByTestId('username')).toHaveTextContent('testuser'))
+  })
+
+  it('a read paused offline cannot put its older answer back over a refresh', async () => {
+    mockedApi.get.mockResolvedValue(settings('none'))
+    const { client } = renderWithQueryClient(
+      <AuthProvider>
+        <RefreshProbe />
+      </AuthProvider>
+    )
+    await waitFor(() => expect(client.getQueryData(publicSettingsQuery.queryKey)).toBeDefined())
+
+    // A reader's read starts offline, so it waits (paused) instead of fetching...
+    onlineManager.setOnline(false)
+    void client.fetchQuery({ ...publicSettingsQuery, staleTime: 0 }).catch(() => {})
+    await waitFor(() =>
+      expect(client.getQueryState(publicSettingsQuery.queryKey)?.fetchStatus).toBe('paused'),
+    )
+
+    // ...the save's refresh lands...
+    mockedApi.get.mockResolvedValueOnce(settings('none', 'Europe/Warsaw'))
+    screen.getByRole('button').click()
+    await waitFor(() =>
+      expect(client.getQueryData(publicSettingsQuery.queryKey)).toEqual(
+        settings('none', 'Europe/Warsaw').data.settings,
+      ),
+    )
+
+    // ...and then the paused read resumes with the older answer.
+    mockedApi.get.mockResolvedValueOnce(settings('none', 'America/Chicago'))
+    await act(async () => {
+      onlineManager.setOnline(true)
+    })
+    await waitFor(() =>
+      expect(client.getQueryState(publicSettingsQuery.queryKey)?.fetchStatus).toBe('idle'),
+    )
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    expect(client.getQueryData(publicSettingsQuery.queryKey)).toEqual(
+      settings('none', 'Europe/Warsaw').data.settings,
+    )
   })
 })

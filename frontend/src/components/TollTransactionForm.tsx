@@ -9,8 +9,8 @@ import { Button, Field, Input, Select, Textarea, registerDecimal } from './ui'
 import type { TollTransaction, TollTransactionCreate, TollTransactionUpdate, TollTag } from '../types/toll'
 import { makeTollTransactionSchema, type TollTransactionFormData } from '../schemas/tollTransaction'
 import { useCreateTollTransaction, useUpdateTollTransaction } from '../hooks/queries/useTollRecords'
-import { applyServerErrors } from '../hooks/useApiFormErrors'
-import { getActionErrorMessage } from '../utils/httpErrorHandler'
+import { applyServerErrors } from '../utils/apiFormErrors'
+import { actionErrorMessage } from '../utils/httpErrorHandler'
 import { formatDateForInput } from '@/utils/dateUtils'
 
 interface TollTransactionFormProps {
@@ -80,7 +80,7 @@ export default function TollTransactionForm({ vin, tollTags, transaction, onClos
       // attached.length === 0 catches a non-422 failure (network drop, 500):
       // it carries no field problems at all, so `unhandled` alone would stay
       // empty and this banner would never show.
-      const { attached, unhandled } = applyServerErrors<TollTransactionFormData>(setFieldError, err, [
+      const { parsed, attached, unhandled } = applyServerErrors<TollTransactionFormData>(setFieldError, err, [
         'transaction_date',
         'amount',
         'location',
@@ -88,7 +88,7 @@ export default function TollTransactionForm({ vin, tollTags, transaction, onClos
         'notes',
       ])
       if (attached.length === 0 || unhandled.length > 0) {
-        setError(getActionErrorMessage(err, t('toll.saveTransactionAction')))
+        setError(actionErrorMessage(parsed, t('toll.saveTransactionAction')))
       }
     }
   }

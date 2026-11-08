@@ -6,7 +6,7 @@ import { useCreateWidgetKey } from '@/hooks/queries/useWidgetKeys'
 import { vehicleService } from '@/services/vehicleService'
 import { useQuery } from '@tanstack/react-query'
 import type { WidgetKeyCreated, WidgetKeyScope } from '@/types/widgetKey'
-import { parseApiError, getActionErrorMessage } from '@/services/api'
+import { getActionErrorMessage } from '@/utils/httpErrorHandler'
 import { identifierValue } from '../../utils/vehicleIdentifier'
 
 interface Props {
@@ -62,8 +62,7 @@ export default function CreateWidgetKeyModal({ isOpen, onClose }: Props) {
       })
       setRevealed(created)
     } catch (err) {
-      const parsed = parseApiError(err)
-      setErrorMessage(getActionErrorMessage(parsed, 'create'))
+      setErrorMessage(getActionErrorMessage(err, t('widgetKeys.createAction')))
     }
   }
 

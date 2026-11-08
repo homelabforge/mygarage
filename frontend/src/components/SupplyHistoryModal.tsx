@@ -36,8 +36,8 @@ import type { Supply } from '@/types/supplies'
 import type { AddressBookEntry } from '@/types/addressBook'
 import type { components } from '@/types/api.generated'
 import { getActiveLocale } from '@/constants/i18n'
-import { applyServerErrors } from '@/hooks/useApiFormErrors'
-import { getActionErrorMessage } from '@/utils/httpErrorHandler'
+import { applyServerErrors } from '@/utils/apiFormErrors'
+import { getActionErrorMessage, actionErrorMessage } from '@/utils/httpErrorHandler'
 import { moneyError } from '@/schemas/shared'
 import { withUnitSession } from '@/contexts/UnitSession'
 
@@ -501,7 +501,7 @@ function PurchaseForm({
       // attached.length === 0 catches a non-422 failure (network drop, 500):
       // it carries no field problems at all, so `unhandled` alone would stay
       // empty and this banner would never show.
-      const { attached, unhandled } = applyServerErrors<PurchaseFormValues>(setFieldError, err, [
+      const { parsed, attached, unhandled } = applyServerErrors<PurchaseFormValues>(setFieldError, err, [
         'date',
         'quantity',
         'total_cost',
@@ -509,7 +509,7 @@ function PurchaseForm({
         'part_number',
       ])
       if (attached.length === 0 || unhandled.length > 0) {
-        setError(getActionErrorMessage(err, t('supplies.history.logPurchaseAction')))
+        setError(actionErrorMessage(parsed, t('supplies.history.logPurchaseAction')))
       }
     }
   }
@@ -679,9 +679,9 @@ function AdjustmentForm({
       // attached.length === 0 catches a non-422 failure (network drop, 500):
       // it carries no field problems at all, so `unhandled` alone would stay
       // empty and this banner would never show.
-      const { attached, unhandled } = applyServerErrors<AdjustmentFormValues>(setFieldError, err, ['quantity'])
+      const { parsed, attached, unhandled } = applyServerErrors<AdjustmentFormValues>(setFieldError, err, ['quantity'])
       if (attached.length === 0 || unhandled.length > 0) {
-        setError(getActionErrorMessage(err, t('supplies.history.logAdjustmentAction')))
+        setError(actionErrorMessage(parsed, t('supplies.history.logAdjustmentAction')))
       }
     }
   }

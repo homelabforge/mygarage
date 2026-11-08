@@ -32,8 +32,8 @@ import type { IconType } from '../components/ui/types'
 import ClickableCard from '../components/ClickableCard'
 import FormModalWrapper from '../components/FormModalWrapper'
 import api from '../services/api'
-import { applyServerErrors } from '../hooks/useApiFormErrors'
-import { getActionErrorMessage } from '../utils/httpErrorHandler'
+import { applyServerErrors } from '../utils/apiFormErrors'
+import { getActionErrorMessage, actionErrorMessage } from '../utils/httpErrorHandler'
 
 // Icon per canonical category, used on both the filter chips and the card badge.
 const CATEGORY_ICONS: Record<string, IconType> = {
@@ -359,7 +359,7 @@ export function AddressBookForm({ entry, onClose, onSuccess }: AddressBookFormPr
       // attached.length === 0 catches a non-422 failure (network drop, 500):
       // it carries no field problems at all, so `unhandled` alone would stay
       // empty and this banner would never show.
-      const { attached, unhandled } = applyServerErrors<AddressBookFormData>(setFieldError, err, [
+      const { parsed, attached, unhandled } = applyServerErrors<AddressBookFormData>(setFieldError, err, [
         'name',
         'business_name',
         'email',
@@ -373,7 +373,7 @@ export function AddressBookForm({ entry, onClose, onSuccess }: AddressBookFormPr
         'notes',
       ])
       if (attached.length === 0 || unhandled.length > 0) {
-        setError(getActionErrorMessage(err, t('addressBook.saveAction')))
+        setError(actionErrorMessage(parsed, t('addressBook.saveAction')))
       }
     }
   }

@@ -22,14 +22,21 @@ export interface FieldProblem {
   type: string
 }
 
+/** A loc is a path, so only names and list indexes belong in it. */
+const isLocSegment = (segment: unknown): segment is string | number =>
+  typeof segment === 'string' || typeof segment === 'number'
+
 export function isValidationProblemArray(detail: unknown): detail is ValidationProblem[] {
+  // An empty list has no problem to show, so it's not one of these.
   return (
     Array.isArray(detail) &&
+    detail.length > 0 &&
     detail.every(
       p =>
         typeof p === 'object' &&
         p !== null &&
         Array.isArray((p as ValidationProblem).loc) &&
+        (p as ValidationProblem).loc.every(isLocSegment) &&
         typeof (p as ValidationProblem).msg === 'string' &&
         typeof (p as ValidationProblem).type === 'string'
     )

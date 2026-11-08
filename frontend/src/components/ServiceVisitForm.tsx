@@ -29,8 +29,8 @@ import { readNumber } from '../utils/decimalSafe'
 import { supplyDisplayUnit, toCanonical, toDisplay, type SupplyUnit } from '../utils/supplyUnits'
 import { getUsageTracking } from '../utils/usageTracking'
 import api from '../services/api'
-import { getActionErrorMessage } from '../utils/httpErrorHandler'
-import { applyControlledFieldErrors, withoutFieldError } from '../hooks/useApiFormErrors'
+import { actionErrorMessage } from '../utils/httpErrorHandler'
+import { applyControlledFieldErrors, withoutFieldError } from '../utils/apiFormErrors'
 import { Button, Chip, Field, Input, NumberInput, Textarea, Mono, type SelectOption } from './ui'
 import CurrencyInput from './common/CurrencyInput'
 import { formatCurrency, formatCurrencyZero } from '../utils/formatUtils'
@@ -843,7 +843,7 @@ function ServiceVisitForm({
       // tax_amount, shop_supplies, misc_fees. vendor_id and line_items have no
       // fieldErrors-wired Field, so a problem addressed to either must fall
       // through to the banner below.
-      const { attached, unhandled, errorsByField } = applyControlledFieldErrors(err, [
+      const { parsed, attached, unhandled, errorsByField } = applyControlledFieldErrors(err, [
         'date',
         'odometer_km',
         'engine_hours',
@@ -862,7 +862,7 @@ function ServiceVisitForm({
         }
       }
       if (attached.length === 0 || unhandled.length > 0) {
-        setError(getActionErrorMessage(err, t('service.saveAction')))
+        setError(actionErrorMessage(parsed, t('service.saveAction')))
       }
     } finally {
       setSubmitting(false)

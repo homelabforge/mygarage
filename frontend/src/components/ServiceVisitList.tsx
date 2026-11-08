@@ -185,9 +185,7 @@ export default function ServiceVisitList({
         toast.success(t('serviceList.deleted'))
       },
       onError: (err) => {
-        toast.error(t('serviceList.deleteFailed'), {
-          description: getActionErrorMessage(err, t('serviceList.deleteAction')),
-        })
+        toast.error(getActionErrorMessage(err, t('serviceList.deleteAction')))
       },
     })
   }

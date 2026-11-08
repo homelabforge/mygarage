@@ -92,9 +92,7 @@ function PhotoGallery({ vin, onAddClick }: PhotoGalleryProps) {
       await vehicleService.deletePhoto(vin, photo.filename)
       await fetchPhotos()
     } catch (err) {
-      toast.error(t('photoGallery.misc.deleteError'), {
-        description: getActionErrorMessage(err, t('photoGallery.misc.deleteAction'))
-      })
+      toast.error(getActionErrorMessage(err, t('photoGallery.misc.deleteAction')))
     } finally {
       setDeletingId(null)
     }
@@ -112,9 +110,7 @@ function PhotoGallery({ vin, onAddClick }: PhotoGalleryProps) {
       await fetchPhotos()
       toast.success(t('photoGallery.misc.mainPhotoUpdated'))
     } catch (err) {
-      toast.error(t('photoGallery.misc.setMainError'), {
-        description: getActionErrorMessage(err, t('photoGallery.misc.setMainAction'))
-      })
+      toast.error(getActionErrorMessage(err, t('photoGallery.misc.setMainAction')))
     }
   }
 
@@ -147,9 +143,7 @@ function PhotoGallery({ vin, onAddClick }: PhotoGalleryProps) {
       await fetchPhotos()
       toast.success(t('photoGallery.misc.captionUpdated'))
     } catch (err) {
-      toast.error(t('photoGallery.misc.captionError'), {
-        description: getActionErrorMessage(err, t('photoGallery.misc.captionAction'))
-      })
+      toast.error(getActionErrorMessage(err, t('photoGallery.misc.captionAction')))
     } finally {
       setSavingCaption(false)
     }

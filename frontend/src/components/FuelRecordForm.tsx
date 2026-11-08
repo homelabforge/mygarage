@@ -58,8 +58,8 @@ import { formatDateForInput } from '../utils/dateUtils'
 import TimeInput24, { normalizeTime, formatTimeForInput } from './common/TimeInput24'
 import { useTimeFormat } from '../hooks/useTimeFormat'
 import { useLanguageLocale } from '../hooks/useLanguageLocale'
-import { applyServerErrors } from '../hooks/useApiFormErrors'
-import { getActionErrorMessage } from '../utils/httpErrorHandler'
+import { applyServerErrors } from '../utils/apiFormErrors'
+import { actionErrorMessage } from '../utils/httpErrorHandler'
 import { withUnitSession } from '../contexts/UnitSession'
 import { getActiveLocale } from '../constants/i18n'
 import { parseDecimalInput } from '../utils/decimalInput'
@@ -978,7 +978,7 @@ function FuelRecordForm({ vin, record, onClose, onSuccess }: FuelRecordFormProps
       // it carries no field problems at all, so `unhandled` alone would stay
       // empty and this banner would never show. The checkboxes aren't listed:
       // they have nowhere to show an error, so theirs go to the banner.
-      const { attached, unhandled } = applyServerErrors<FuelRecordFormData>(setFieldError, err, [
+      const { parsed, attached, unhandled } = applyServerErrors<FuelRecordFormData>(setFieldError, err, [
         'date',
         'odometer_km',
         'engine_hours',
@@ -1010,7 +1010,7 @@ function FuelRecordForm({ vin, record, onClose, onSuccess }: FuelRecordFormProps
         'notes',
       ])
       if (attached.length === 0 || unhandled.length > 0) {
-        setError(getActionErrorMessage(err, t('fuel.saveAction')))
+        setError(actionErrorMessage(parsed, t('fuel.saveAction')))
       }
     }
   }

@@ -23,8 +23,8 @@ import { useCurrencyPreference } from '../hooks/useCurrencyPreference'
 import { useResolvedCountry } from '../hooks/useResolvedCountry'
 import { useVehicle } from '../hooks/queries/useVehicle'
 import { useCreateTollTag, useUpdateTollTag } from '../hooks/queries/useTollRecords'
-import { applyServerErrors } from '../hooks/useApiFormErrors'
-import { getActionErrorMessage } from '../utils/httpErrorHandler'
+import { applyServerErrors } from '../utils/apiFormErrors'
+import { actionErrorMessage } from '../utils/httpErrorHandler'
 
 interface TollTagFormProps {
   vin: string
@@ -150,14 +150,14 @@ export default function TollTagForm({ vin, tag, onClose, onSuccess }: TollTagFor
       // attached.length === 0 catches a non-422 failure (network drop, 500):
       // it carries no field problems at all, so `unhandled` alone would stay
       // empty and this banner would never show.
-      const { attached, unhandled } = applyServerErrors<TollTagFormData>(setServerError, err, [
+      const { parsed, attached, unhandled } = applyServerErrors<TollTagFormData>(setServerError, err, [
         'toll_system',
         'tag_number',
         'status',
         'notes',
       ])
       if (attached.length === 0 || unhandled.length > 0) {
-        setError(getActionErrorMessage(err, t('toll.saveTagAction')))
+        setError(actionErrorMessage(parsed, t('toll.saveTagAction')))
       }
     }
   }

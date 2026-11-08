@@ -13,7 +13,7 @@ import {
   Archive,
 } from 'lucide-react'
 import api from '@/services/api'
-import { getActionErrorMessage, parseApiError } from '@/utils/httpErrorHandler'
+import { getActionErrorMessage } from '@/utils/httpErrorHandler'
 import { formatDateTime } from '@/utils/parseAPITimestamp'
 import { useTimeFormat } from '@/hooks/useTimeFormat'
 import { useAuth } from '@/contexts/AuthContext'
@@ -60,23 +60,6 @@ function isPostgresBackupTarget(stats: BackupStats | null): boolean {
   const engine = stats.database_engine || stats.database?.database_engine
   if (engine) return /postgres/i.test(engine)
   return stats.database?.path === 'PostgreSQL'
-}
-
-/** The statuses whose detail `backupErrorMessage` shows. */
-const DETAIL_STATUSES = [400, 401, 403, 404, 422, 503]
-
-/**
- * A failed backup action's message: the server's detail when it is one the admin can act on, else
- * `fallback`.
- *
- * The statuses whose detail `getActionErrorMessage` shows verbatim show it here too, and so does a
- * 503's: the backup preflight refuses a backup or restore with a 503 whose detail names the fix
- * for the key source that broke, and `getActionErrorMessage`
- * shows every 503 as a generic retry line, which hid it. Any other detail stays hidden.
- */
-function backupErrorMessage(err: unknown, fallback: string): string {
-  const { status, detail } = parseApiError(err)
-  return DETAIL_STATUSES.includes(status) && detail ? detail : fallback
 }
 
 export default function SettingsBackupTab() {
@@ -126,7 +109,7 @@ export default function SettingsBackupTab() {
       setMessage({ type: 'success', text: response.data.message || t('backupTab.createSettingsSuccess') })
       await loadData()
     } catch (err: unknown) {
-      setMessage({ type: 'error', text: backupErrorMessage(err, t('backup.createSettingsError')) })
+      setMessage({ type: 'error', text: getActionErrorMessage(err, t('backupTab.createSettingsAction')) })
     } finally {
       setCreatingSettings(false)
     }
@@ -141,7 +124,7 @@ export default function SettingsBackupTab() {
       setMessage({ type: 'success', text: response.data.message || t('backupTab.createFullSuccess') })
       await loadData()
     } catch (err: unknown) {
-      setMessage({ type: 'error', text: backupErrorMessage(err, t('backup.createFullError')) })
+      setMessage({ type: 'error', text: getActionErrorMessage(err, t('backupTab.createFullAction')) })
     } finally {
       setCreatingFull(false)
     }
@@ -199,10 +182,8 @@ export default function SettingsBackupTab() {
         await refreshPublicSettings()
       }
     } catch (err: unknown) {
-      setMessage({
-        type: 'error',
-        text: backupErrorMessage(err, getActionErrorMessage(err, t('backupTab.restoreAction'))),
-      })
+      // A preflight refusal's 503 detail names the fix; the helper keeps it.
+      setMessage({ type: 'error', text: getActionErrorMessage(err, t('backupTab.restoreAction')) })
       // A refused full restore can have dropped an earlier staging (a bad archive is found after the discard).
       await loadData()
     }

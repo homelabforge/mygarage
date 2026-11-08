@@ -118,7 +118,12 @@ export function AuthProvider({ children }: { children: ReactNode}) {
   }, [user])
 
   // The mode the client last loaded, so a background refresh can spot a change.
-  const authModeRef = useRef('none')
+  // Null until a load records one: a refresh that beats boot's read has nothing
+  // to compare against, and treating that as 'none' loaded the user twice.
+  const authModeRef = useRef<string | null>(null)
+  // How many loadUser calls are still out, so a refresh knows whether one of
+  // them is going to record the mode.
+  const loadsInFlightRef = useRef(0)
 
   // Load user info with proper dependencies (cookie-based auth).
   //
@@ -131,6 +136,7 @@ export function AuthProvider({ children }: { children: ReactNode}) {
   // so the gating is deliberate and load-bearing, not an accident. Only load
   // the user when auth is enabled.
   const loadUser = useCallback(async () => {
+    loadsInFlightRef.current += 1
     try {
       const publicSettings = await fetchPublicSettings()
 
@@ -177,6 +183,7 @@ export function AuthProvider({ children }: { children: ReactNode}) {
         setToken(null)
       }
     } finally {
+      loadsInFlightRef.current -= 1
       setLoading(false)
     }
   }, [fetchPublicSettings])
@@ -196,7 +203,8 @@ export function AuthProvider({ children }: { children: ReactNode}) {
     try {
       const key = publicSettingsQuery.queryKey
       const query = queryClient.getQueryCache().find({ queryKey: key, exact: true })
-      const older = query?.state.fetchStatus === 'fetching' ? query.promise : undefined
+      // Paused counts too: an offline read resumes later and can land after this one.
+      const older = query && query.state.fetchStatus !== 'idle' ? query.promise : undefined
       const publicSettings = await fetchPublicSettingRows()
       queryClient.setQueryData(key, publicSettings)
       // That older read can land after this one and put its answer back.
@@ -216,7 +224,11 @@ export function AuthProvider({ children }: { children: ReactNode}) {
       setPublicSettingsLoaded(true)
       lastPublicRefreshRef.current = Date.now()
       const mode = publicSettings.find((s) => s.key === 'auth_mode')?.value || 'none'
-      if (mode !== authModeRef.current) {
+      const known = authModeRef.current
+      // No mode yet while boot's load is still out: it records one and loads
+      // the user itself. With none out (boot failed) this is the first answer.
+      const reload = known === null ? loadsInFlightRef.current === 0 : mode !== known
+      if (reload) {
         // Sign-in got turned on or off somewhere else: reload who's signed in.
         await loadUser()
       }

@@ -131,7 +131,8 @@ describe('SettingsBackupTab full restore', () => {
 
     fireEvent.click(await screen.findByTitle('backup.restore'))
 
-    expect(await screen.findByText(refusal)).toBeInTheDocument()
+    // Through the shared helper: the action (the mocked t's key), then the fix.
+    expect(await screen.findByText(`Failed to backupTab.restoreAction. ${refusal}`)).toBeInTheDocument()
   })
 
   it('reloads after a refused restore, which can have dropped an earlier staging', async () => {

@@ -23,8 +23,8 @@ import { useOnUserEdit } from '../hooks/useOnUserEdit'
 import { formatDateForInput } from '../utils/dateUtils'
 import CurrencyInput from './common/CurrencyInput'
 import { Button, Field, Input, NumberInput, Select, Textarea, registerDecimal } from './ui'
-import { applyServerErrors } from '../hooks/useApiFormErrors'
-import { getActionErrorMessage } from '../utils/httpErrorHandler'
+import { applyServerErrors } from '../utils/apiFormErrors'
+import { actionErrorMessage } from '../utils/httpErrorHandler'
 import { withUnitSession } from '../contexts/UnitSession'
 
 // Propane density: 1 kg ≈ 1.968 L (1 gal ≈ 1.923 kg, 1 gal = 3.785411784 L).
@@ -314,7 +314,7 @@ function PropaneRecordForm({
       // attached.length === 0 catches a non-422 failure (network drop, 500):
       // it carries no field problems at all, so `unhandled` alone would stay
       // empty and this banner would never show.
-      const { attached, unhandled } = applyServerErrors<PropaneRecordFormData>(setFieldError, err, [
+      const { parsed, attached, unhandled } = applyServerErrors<PropaneRecordFormData>(setFieldError, err, [
         'date',
         'tank_size_kg',
         'tank_quantity',
@@ -325,7 +325,7 @@ function PropaneRecordForm({
         'notes',
       ])
       if (attached.length === 0 || unhandled.length > 0) {
-        setError(getActionErrorMessage(err, t('propane.saveAction')))
+        setError(actionErrorMessage(parsed, t('propane.saveAction')))
       }
     }
   }
