@@ -8586,7 +8586,7 @@
         "type": "object"
       },
       "FuelReceiptParseResponse": {
-        "description": "Response for opt-in LLM receipt parse \u2014 draft only.",
+        "description": "Response for opt-in LLM receipt parse (a draft only).",
         "properties": {
           "draft": {
             "$ref": "#/components/schemas/FuelReceiptDraft"
@@ -8699,7 +8699,7 @@
                 "type": "null"
               }
             ],
-            "description": "DEF tank level (0.00=empty, 1.00=full) \u2014 auto-creates a DEF observation",
+            "description": "DEF tank level (0.00=empty, 1.00=full); auto-creates a DEF observation",
             "title": "Def Fill Level"
           },
           "diesel_grade": {
@@ -9680,7 +9680,7 @@
                 "type": "null"
               }
             ],
-            "description": "Resolved station name for display: the linked address-book entry's business_name, else station_name_freetext. Read-only \u2014 write via station_address_book_id / station_name_freetext (issue #108).",
+            "description": "Resolved station name for display: the linked address-book entry's business_name, else station_name_freetext. Read-only; write via station_address_book_id / station_name_freetext (issue #108).",
             "title": "Station Name"
           },
           "station_name_freetext": {
@@ -9838,7 +9838,7 @@
                 "type": "null"
               }
             ],
-            "description": "DEF tank level (0.00=empty, 1.00=full) \u2014 auto-creates a DEF observation",
+            "description": "DEF tank level (0.00=empty, 1.00=full); auto-creates a DEF observation",
             "title": "Def Fill Level"
           },
           "diesel_grade": {
@@ -15635,7 +15635,7 @@
         "type": "object"
       },
       "ObcSuggestionResponse": {
-        "description": "OBC auto-suggest payload \u2014 returned for `GET /api/vehicles/{vin}/fuel/obc-suggestion`.",
+        "description": "OBC auto-suggest payload, returned for `GET /api/vehicles/{vin}/fuel/obc-suggestion`.",
         "properties": {
           "distance_km": {
             "anyOf": [
@@ -19767,7 +19767,7 @@
         "type": "object"
       },
       "ReminderUpdate": {
-        "description": "Schema for updating a vehicle reminder.\n\nStatus is NOT here \u2014 use /done, /dismiss or /complete endpoints.\nValidation is lenient (fields may be absent). The route handler merges\nthis patch onto the existing reminder and validates the final state.\n\n``recurrence`` edits the reminder's rule (or creates one); an explicit\n``null`` deactivates the rule and leaves the reminder as a one-off. For a\nreminder with an active rule the ``due_*`` fields are derived and\nrejected with 422 if sent.",
+        "description": "Schema for updating a vehicle reminder.\n\nStatus is NOT here; use /done, /dismiss or /complete endpoints.\nValidation is lenient (fields may be absent). The route handler merges\nthis patch onto the existing reminder and validates the final state.\n\n``recurrence`` edits the reminder's rule (or creates one); an explicit\n``null`` deactivates the rule and leaves the reminder as a one-off. For a\nreminder with an active rule the ``due_*`` fields are derived and\nrejected with 422 if sent.",
         "properties": {
           "due_date": {
             "anyOf": [

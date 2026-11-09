@@ -11418,7 +11418,7 @@ export interface components {
         };
         /**
          * FuelReceiptParseResponse
-         * @description Response for opt-in LLM receipt parse — draft only.
+         * @description Response for opt-in LLM receipt parse (a draft only).
          */
         FuelReceiptParseResponse: {
             draft: components["schemas"]["FuelReceiptDraft"];
@@ -11472,7 +11472,7 @@ export interface components {
             date: string;
             /**
              * Def Fill Level
-             * @description DEF tank level (0.00=empty, 1.00=full) — auto-creates a DEF observation
+             * @description DEF tank level (0.00=empty, 1.00=full); auto-creates a DEF observation
              */
             def_fill_level?: number | string | null;
             /**
@@ -11900,7 +11900,7 @@ export interface components {
             station_address_book_id?: number | null;
             /**
              * Station Name
-             * @description Resolved station name for display: the linked address-book entry's business_name, else station_name_freetext. Read-only — write via station_address_book_id / station_name_freetext (issue #108).
+             * @description Resolved station name for display: the linked address-book entry's business_name, else station_name_freetext. Read-only; write via station_address_book_id / station_name_freetext (issue #108).
              */
             station_name?: string | null;
             /**
@@ -11953,7 +11953,7 @@ export interface components {
             date?: string | null;
             /**
              * Def Fill Level
-             * @description DEF tank level (0.00=empty, 1.00=full) — auto-creates a DEF observation
+             * @description DEF tank level (0.00=empty, 1.00=full); auto-creates a DEF observation
              */
             def_fill_level?: number | string | null;
             /**
@@ -14554,7 +14554,7 @@ export interface components {
         };
         /**
          * ObcSuggestionResponse
-         * @description OBC auto-suggest payload — returned for `GET /api/vehicles/{vin}/fuel/obc-suggestion`.
+         * @description OBC auto-suggest payload, returned for `GET /api/vehicles/{vin}/fuel/obc-suggestion`.
          */
         ObcSuggestionResponse: {
             /**
@@ -16076,7 +16076,7 @@ export interface components {
          * ReminderUpdate
          * @description Schema for updating a vehicle reminder.
          *
-         *     Status is NOT here — use /done, /dismiss or /complete endpoints.
+         *     Status is NOT here; use /done, /dismiss or /complete endpoints.
          *     Validation is lenient (fields may be absent). The route handler merges
          *     this patch onto the existing reminder and validates the final state.
          *

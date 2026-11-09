@@ -22,6 +22,7 @@ from app.models.fuel import FuelRecord
 from app.models.hours import HoursRecord
 from app.models.maintenance_rule import MaintenanceRule
 from app.models.reminder import Reminder
+from app.models.reminder_pack import ReminderPackItemRow
 from app.models.service_visit import ServiceVisit
 from app.schemas._figures import to_stored_tenth
 from app.schemas.fuel import FuelRecordCreate, FuelRecordUpdate
@@ -33,6 +34,8 @@ from app.schemas.maintenance import (
     RecurrenceSpec,
     ReminderCompleteRequest,
 )
+from app.schemas.reminder import ReminderCreate, ReminderUpdate
+from app.schemas.reminder_pack import ReminderPackItem
 from app.schemas.service_visit import ServiceVisitCreate, ServiceVisitUpdate
 from app.schemas.vehicle import VehicleCreate, VehicleUpdate
 
@@ -146,6 +149,26 @@ CASES = [
     Case(
         IntervalOverride, "interval_hours", {"interval_months": 6}, _INTERVAL, "gt", _LOG_MAX, True
     ),
+    # A one-off reminder's own threshold, and a pack item's interval.
+    Case(
+        ReminderCreate,
+        "due_hours",
+        {"title": "Grease", "reminder_type": "date", "due_date": DAY},
+        _column(Reminder, "due_hours"),
+        "gt",
+        _LOG_MAX,
+        True,
+    ),
+    Case(ReminderUpdate, "due_hours", {}, _column(Reminder, "due_hours"), "gt", _LOG_MAX, True),
+    Case(
+        ReminderPackItem,
+        "interval_hours",
+        {"title": "Grease", "interval_months": 6},
+        _column(ReminderPackItemRow, "interval_hours"),
+        "gt",
+        None,
+        True,
+    ),
 ]
 IDS = [f"{case.schema.__name__}.{case.field}" for case in CASES]
 
@@ -192,6 +215,18 @@ def test_a_null_never_reaches_the_rounding(case: Case) -> None:
     else:
         with pytest.raises(ValidationError, match=case.field):
             case.read(None)
+
+
+@pytest.mark.parametrize(
+    "case", [c for c in CASES if c.floor == "gt"], ids=lambda c: f"{c.schema.__name__}.{c.field}"
+)
+def test_a_positive_figure_never_rounds_to_zero(case: Case) -> None:
+    # 0.04 clears gt=0 and then rounds to 0.0, which the column's > 0 CHECK
+    # refused as a 500 (a one-off reminder's due_hours just stored it). 0.05 is
+    # the smallest that rounds up to a real tenth.
+    with pytest.raises(ValidationError, match="greater than 0 once rounded"):
+        case.read("0.04")
+    assert case.read("0.05") == Decimal("0.1")
 
 
 def test_a_figure_too_long_to_round_is_left_for_the_database() -> None:

@@ -22,7 +22,7 @@ from pydantic import (
     model_validator,
 )
 
-from app.schemas._figures import to_stored_tenth
+from app.schemas._figures import to_stored_positive_tenth, to_stored_tenth
 from app.schemas._money import OptionalMoney
 from app.schemas._nullability import reject_null
 from app.utils.lenient_vocab import LenientVocab, lenient_reader
@@ -51,7 +51,7 @@ class RecurrenceSpec(BaseModel):
     interval_km: Decimal | None = Field(None, gt=0, le=99999999.99)
     interval_months: int | None = Field(None, gt=0, le=600)
     interval_days: int | None = Field(None, gt=0, le=36500)
-    interval_hours: Annotated[Decimal | None, AfterValidator(to_stored_tenth)] = Field(
+    interval_hours: Annotated[Decimal | None, AfterValidator(to_stored_positive_tenth)] = Field(
         None, gt=0, le=999999999.9
     )
 

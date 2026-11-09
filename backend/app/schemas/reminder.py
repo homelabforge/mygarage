@@ -2,15 +2,23 @@
 
 Canonical units (since v2.26.2): kilometers (Decimal NUMERIC(10,2)).
 Engine-hours (since the hours-usage-model feature): dimensionless Decimal
-NUMERIC(10,1) — no unit conversion, mirrors the mileage fields.
+NUMERIC(10,1), no unit conversion, mirrors the mileage fields.
 """
 
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_validator,
+    model_validator,
+)
 
+from app.schemas._figures import to_stored_positive_tenth
 from app.schemas._nullability import reject_null
 from app.schemas.maintenance import (
     AnchorSpec,
@@ -40,7 +48,9 @@ class ReminderCreate(BaseModel):
     reminder_type: ReminderType | None = None
     due_date: date | None = None
     due_mileage_km: Decimal | None = Field(None, gt=0, le=99999999.99)
-    due_hours: Decimal | None = Field(None, gt=0, le=999999999.9)
+    due_hours: Annotated[Decimal | None, AfterValidator(to_stored_positive_tenth)] = Field(
+        None, gt=0, le=999999999.9
+    )
     notes: str | None = None
     line_item_id: int | None = None
     maintenance_type: str | None = Field(None, max_length=50)
@@ -54,7 +64,7 @@ class ReminderCreate(BaseModel):
         """Ensure required fields are present based on reminder type.
 
         ``smart`` requires ``due_date`` and exactly one of
-        ``{due_mileage_km, due_hours}`` — accepts both today's existing
+        ``{due_mileage_km, due_hours}``. That accepts both today's existing
         date+mileage smart reminders (hours null) and the new date+hours
         variant (mileage null), but rejects specifying both or neither.
 
@@ -83,7 +93,7 @@ class ReminderCreate(BaseModel):
 class ReminderUpdate(BaseModel):
     """Schema for updating a vehicle reminder.
 
-    Status is NOT here — use /done, /dismiss or /complete endpoints.
+    Status is NOT here; use /done, /dismiss or /complete endpoints.
     Validation is lenient (fields may be absent). The route handler merges
     this patch onto the existing reminder and validates the final state.
 
@@ -97,7 +107,9 @@ class ReminderUpdate(BaseModel):
     reminder_type: ReminderType | None = None
     due_date: date | None = None
     due_mileage_km: Decimal | None = Field(None, gt=0, le=99999999.99)
-    due_hours: Decimal | None = Field(None, gt=0, le=999999999.9)
+    due_hours: Annotated[Decimal | None, AfterValidator(to_stored_positive_tenth)] = Field(
+        None, gt=0, le=999999999.9
+    )
     notes: str | None = None
     maintenance_type: str | None = Field(None, max_length=50)
     recurrence: RecurrenceSpec | None = None

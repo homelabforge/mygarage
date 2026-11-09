@@ -421,7 +421,7 @@ class FuelRecordCreate(FuelRecordBase):
     vin: str = Field(..., description="Vehicle VIN", min_length=17, max_length=17)
     def_fill_level: Decimal | None = Field(
         None,
-        description="DEF tank level (0.00=empty, 1.00=full) — auto-creates a DEF observation",
+        description="DEF tank level (0.00=empty, 1.00=full); auto-creates a DEF observation",
         ge=Decimal("0.00"),
         le=Decimal("1.00"),
     )
@@ -644,7 +644,7 @@ class FuelRecordUpdate(BaseModel):
     notes: str | None = Field(None, description="Additional notes")
     def_fill_level: Decimal | None = Field(
         None,
-        description="DEF tank level (0.00=empty, 1.00=full) — auto-creates a DEF observation",
+        description="DEF tank level (0.00=empty, 1.00=full); auto-creates a DEF observation",
         ge=Decimal("0.00"),
         le=Decimal("1.00"),
     )
@@ -856,7 +856,7 @@ class FuelRecordResponse(FuelRecordBase):
         None,
         description=(
             "Resolved station name for display: the linked address-book entry's "
-            "business_name, else station_name_freetext. Read-only — write via "
+            "business_name, else station_name_freetext. Read-only; write via "
             "station_address_book_id / station_name_freetext (issue #108)."
         ),
     )
@@ -928,7 +928,7 @@ class FuelRecordListResponse(BaseModel):
 
 
 class ObcSuggestionResponse(BaseModel):
-    """OBC auto-suggest payload — returned for `GET /api/vehicles/{vin}/fuel/obc-suggestion`."""
+    """OBC auto-suggest payload, returned for `GET /api/vehicles/{vin}/fuel/obc-suggestion`."""
 
     session_id: int = Field(..., description="DriveSession.id used for the suggestion")
     ended_at: datetime = Field(..., description="When the matched DriveSession ended")
@@ -954,7 +954,7 @@ class FuelReceiptDraft(BaseModel):
 
 
 class FuelReceiptParseResponse(BaseModel):
-    """Response for opt-in LLM receipt parse — draft only."""
+    """Response for opt-in LLM receipt parse (a draft only)."""
 
     draft: FuelReceiptDraft
     source: str = "llm"

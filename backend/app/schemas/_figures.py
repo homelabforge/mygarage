@@ -34,6 +34,18 @@ def to_stored_tenth(value: Decimal | None) -> Decimal | None:
     return _rounded(value, _TENTH)
 
 
+def to_stored_positive_tenth(value: Decimal | None) -> Decimal | None:
+    """Round to the tenth, then refuse a figure the rounding took down to zero.
+
+    For a `gt=0` field. 0.04 clears the bound and rounds to 0.0, which the
+    column's > 0 CHECK answered with a 500.
+    """
+    rounded = to_stored_tenth(value)
+    if rounded is not None and rounded <= 0:
+        raise ValueError("Input should be greater than 0 once rounded to a tenth")
+    return rounded
+
+
 def to_stored_hundredth(value: Decimal | None) -> Decimal | None:
     """Round to the hundredth a NUMERIC(p, 2) column keeps. A null passes through."""
     return _rounded(value, _HUNDREDTH)
