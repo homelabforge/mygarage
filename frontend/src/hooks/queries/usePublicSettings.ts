@@ -50,11 +50,15 @@ export function usePublicSettingsQuery<T>(
 /**
  * The public settings as a key-to-value map.
  *
- * Empty while the request is in flight and after it fails, so a caller reads
- * a missing key and gets its own fallback: `isSettingOn(values.x, true)` for a
- * switch the backend treats as on when unset. A failed fetch therefore never
- * hides an action the backend would allow; the backend's own check (a 409) is
- * the enforcement, and this only keeps the UI from offering what will fail.
+ * Empty while the first request is in flight and when it fails with nothing
+ * cached, so a caller reads a missing key and gets its own fallback:
+ * `isSettingOn(values.x, true)` for a switch the backend treats as on when
+ * unset. A failed first fetch therefore never hides an action the backend
+ * would allow; the backend's own check (a 409) is the enforcement, and this
+ * only keeps the UI from offering what will fail.
+ *
+ * A failed REFETCH is different: the query keeps its last good data, so the
+ * map stays what it was rather than going empty.
  *
  * `enabled: false` asks for nothing (a closed drawer that stays mounted).
  */

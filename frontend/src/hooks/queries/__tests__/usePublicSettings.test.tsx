@@ -4,9 +4,9 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { ReactElement } from 'react'
-import { screen, waitFor } from '@testing-library/react'
+import { screen, waitFor, act } from '@testing-library/react'
 import { renderWithQueryClient } from '@/__tests__/queryClient'
-import { usePublicSettings } from '../usePublicSettings'
+import { usePublicSettings, publicSettingsQuery } from '../usePublicSettings'
 import { useAiDocumentReading } from '../useAiDocumentReading'
 import api from '@/services/api'
 
@@ -85,6 +85,20 @@ describe('usePublicSettings', () => {
 
     await waitFor(() => expect(publicCalls()).toBe(1))
     expect(screen.getByTestId('a')).toHaveTextContent('unset')
+  })
+
+  it('keeps the last good map when a refetch fails', async () => {
+    mockedGet.mockResolvedValueOnce(payload([{ key: 'nhtsa_enabled', value: 'true' }]))
+    const { client } = renderWithQueryClient(<Reader name="a" setting="nhtsa_enabled" />)
+    await waitFor(() => expect(screen.getByTestId('a')).toHaveTextContent('true'))
+
+    mockedGet.mockRejectedValueOnce(new Error('offline'))
+    await act(async () => {
+      await client.refetchQueries({ queryKey: publicSettingsQuery.queryKey })
+    })
+    expect(publicCalls()).toBe(2)
+    expect(client.getQueryState(publicSettingsQuery.queryKey)?.status).toBe('error')
+    expect(screen.getByTestId('a')).toHaveTextContent('true')
   })
 
   it('makes no request while disabled', async () => {

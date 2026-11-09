@@ -29,7 +29,8 @@ vi.mock('../../services/api', () => {
 })
 
 // Re-import after mock
-import api, { setCSRFToken, clearCSRFToken, getCSRFToken } from '../../services/api'
+import api, { setCSRFToken, clearCSRFToken, getCSRFToken, setApiAuthMode } from '../../services/api'
+import { getHouseholdTimeZone, setHouseholdTimeZone } from '../../constants/i18n'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const mockedApi = api as any
@@ -604,5 +605,213 @@ describe('AuthContext refreshPublicSettings', () => {
     expect(client.getQueryData(publicSettingsQuery.queryKey)).toEqual(
       settings('none', 'Europe/Warsaw').data.settings,
     )
+  })
+})
+
+describe('AuthContext reconciles from the freshest public settings', () => {
+  // Everything reconciliation feeds, side by side, so a stale read shows up.
+  function StateProbe() {
+    const { authMode, user, householdTimeZone, defaultCountry, refreshUser, refreshPublicSettings } =
+      useAuth()
+    return (
+      <div>
+        <span data-testid="state">
+          {`${authMode}|${user?.username ?? 'none'}|${householdTimeZone}|${defaultCountry}`}
+        </span>
+        <button onClick={() => void refreshUser()}>reload user</button>
+        <button onClick={() => void refreshPublicSettings()}>refresh settings</button>
+      </div>
+    )
+  }
+
+  const OLD = [
+    { key: 'auth_mode', value: 'none' },
+    { key: 'effective_timezone', value: 'America/Chicago' },
+    { key: 'default_country', value: 'US' },
+  ]
+  const NEW = [
+    { key: 'auth_mode', value: 'local' },
+    { key: 'effective_timezone', value: 'Europe/Warsaw' },
+    { key: 'default_country', value: 'PL' },
+  ]
+
+  // Each /settings/public read takes the next answer off this list; a held
+  // one stays out until the test lets it go.
+  type Answer = { rows: typeof OLD; held?: { release: () => void } }
+  let answers: Answer[] = []
+  const hold = (rows: typeof OLD): Answer => {
+    const answer: Answer = { rows, held: { release: () => {} } }
+    return answer
+  }
+  const publicCalls = (): number =>
+    mockedApi.get.mock.calls.filter((call: unknown[]) => call[0] === '/settings/public').length
+  const meCalls = (): number =>
+    mockedApi.get.mock.calls.filter((call: unknown[]) => call[0] === '/auth/me').length
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    sessionStorage.clear()
+    setHouseholdTimeZone(null)
+    answers = []
+    mockedApi.get.mockImplementation((url: string) => {
+      if (url === '/settings/public') {
+        const answer = answers.shift()
+        if (!answer) return Promise.reject(new Error('no answer queued'))
+        const response = { data: { settings: answer.rows } }
+        if (!answer.held) return Promise.resolve(response)
+        const held = answer.held
+        return new Promise((resolve) => {
+          held.release = () => resolve(response)
+        })
+      }
+      if (url === '/auth/me') {
+        return Promise.resolve({ data: { id: 1, username: 'alice', is_admin: true } })
+      }
+      return Promise.reject(new Error('Not found'))
+    })
+  })
+
+  afterEach(() => {
+    setHouseholdTimeZone(null)
+  })
+
+  async function bootOnOld(): Promise<ReturnType<typeof renderWithQueryClient>> {
+    answers.push({ rows: OLD })
+    const rendered = renderWithQueryClient(
+      <AuthProvider>
+        <StateProbe />
+      </AuthProvider>,
+    )
+    await waitFor(() =>
+      expect(screen.getByTestId('state')).toHaveTextContent('none|none|America/Chicago|US'),
+    )
+    return rendered
+  }
+
+  async function settle(): Promise<void> {
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+  }
+
+  function expectNew(client: ReturnType<typeof renderWithQueryClient>['client']): void {
+    expect(screen.getByTestId('state')).toHaveTextContent('local|alice|Europe/Warsaw|PL')
+    expect(getHouseholdTimeZone()).toBe('Europe/Warsaw')
+    expect(vi.mocked(setApiAuthMode).mock.lastCall).toEqual(['local'])
+    expect(client.getQueryData(publicSettingsQuery.queryKey)).toEqual(NEW)
+  }
+
+  it("a mode change found by a refresh is not undone by another reader's older read", async () => {
+    const { client } = await bootOnOld()
+
+    // Some page's read goes out first and answers with the old settings...
+    const older = hold(OLD)
+    answers.push(older)
+    void client.fetchQuery({ ...publicSettingsQuery, staleTime: 0 }).catch(() => {})
+    await waitFor(() => expect(publicCalls()).toBe(2))
+
+    // ...then a refresh reads the new ones and lands first.
+    answers.push({ rows: NEW })
+    screen.getByText('refresh settings').click()
+    await waitFor(() => expect(publicCalls()).toBe(3))
+    await settle()
+
+    await act(async () => {
+      older.held?.release()
+    })
+    await settle()
+    await waitFor(() => expectNew(client))
+    expect(meCalls()).toBeGreaterThan(0)
+  })
+
+  it("an older refreshUser read landing after a newer refresh keeps the refresh's answer", async () => {
+    const { client } = await bootOnOld()
+
+    // refreshUser's read goes out first and answers with the old settings...
+    const older = hold(OLD)
+    answers.push(older)
+    screen.getByText('reload user').click()
+    await waitFor(() => expect(publicCalls()).toBe(2))
+
+    // ...then a refresh reads the new ones and lands first.
+    answers.push({ rows: NEW })
+    screen.getByText('refresh settings').click()
+    await waitFor(() => expect(publicCalls()).toBe(3))
+    await settle()
+
+    await act(async () => {
+      older.held?.release()
+    })
+    await settle()
+    await waitFor(() => expectNew(client))
+    expect(meCalls()).toBeGreaterThan(0)
+  })
+
+  it('a refreshUser that joins a read older than the last refresh keeps the refresh\'s answer', async () => {
+    const { client } = await bootOnOld()
+
+    // Some page's read goes out with the old settings and stays out...
+    const older = hold(OLD)
+    answers.push(older)
+    void client.fetchQuery({ ...publicSettingsQuery, staleTime: 0 }).catch(() => {})
+    await waitFor(() => expect(publicCalls()).toBe(2))
+
+    // ...a refresh reads the new ones and lands...
+    answers.push({ rows: NEW })
+    screen.getByText('refresh settings').click()
+    await waitFor(() => expect(publicCalls()).toBe(3))
+    await settle()
+
+    // ...then refreshUser's fetchQuery joins that older read instead of asking.
+    screen.getByText('reload user').click()
+    await settle()
+    expect(publicCalls()).toBe(3)
+
+    await act(async () => {
+      older.held?.release()
+    })
+    await settle()
+    await waitFor(() => expectNew(client))
+  })
+
+  it('a slow /auth/me that lands after sign-in was turned off does not bring the user back', async () => {
+    answers.push({ rows: NEW })
+    const { client } = renderWithQueryClient(
+      <AuthProvider>
+        <StateProbe />
+      </AuthProvider>,
+    )
+    await waitFor(() =>
+      expect(screen.getByTestId('state')).toHaveTextContent('local|alice|Europe/Warsaw|PL'),
+    )
+
+    // refreshUser's /auth/me goes out and stays out...
+    const base = mockedApi.get.getMockImplementation()
+    let answerMe: () => void = () => {}
+    mockedApi.get.mockImplementation((url: string) =>
+      url === '/auth/me'
+        ? new Promise((resolve) => {
+            answerMe = () => resolve({ data: { id: 1, username: 'alice', is_admin: true } })
+          })
+        : base?.(url),
+    )
+    answers.push({ rows: NEW })
+    screen.getByText('reload user').click()
+    await waitFor(() => expect(meCalls()).toBe(2))
+
+    // ...a refresh finds sign-in off and drops the user...
+    answers.push({ rows: OLD })
+    screen.getByText('refresh settings').click()
+    await waitFor(() =>
+      expect(screen.getByTestId('state')).toHaveTextContent('none|none|America/Chicago|US'),
+    )
+
+    // ...and the late answer changes nothing.
+    await act(async () => {
+      answerMe()
+    })
+    await settle()
+    expect(screen.getByTestId('state')).toHaveTextContent('none|none|America/Chicago|US')
+    expect(client.getQueryData(publicSettingsQuery.queryKey)).toEqual(OLD)
   })
 })

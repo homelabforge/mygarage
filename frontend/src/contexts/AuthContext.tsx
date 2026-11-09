@@ -4,7 +4,7 @@ import api, { setCSRFToken, getCSRFToken, clearCSRFToken, setApiAuthMode } from 
 import { fetchPublicSettingRows, publicSettingsQuery } from '../hooks/queries/usePublicSettings'
 import type { components } from '../types/api.generated'
 import type { UnitSet } from '../types/units'
-import { readPublicUnitDefaults } from '../utils/publicUnitDefaults'
+import { readPublicUnitDefaults, type PublicSetting } from '../utils/publicUnitDefaults'
 import { readPublicDefaultCountry } from '../utils/publicCountryDefault'
 import { setHouseholdTimeZone } from '../constants/i18n'
 
@@ -124,56 +124,78 @@ export function AuthProvider({ children }: { children: ReactNode}) {
   // How many loadUser calls are still out, so a refresh knows whether one of
   // them is going to record the mode.
   const loadsInFlightRef = useRef(0)
+  const lastPublicRefreshRef = useRef(0)
+  const [householdTimeZone, setHouseholdTimeZoneState] = useState<string | null>(null)
 
-  // Load user info with proper dependencies (cookie-based auth).
-  //
-  // Auth mode MUST be resolved from /settings/public BEFORE /auth/me is ever
-  // touched. In auth_mode='none' there is no user to load, and probing
-  // /auth/me without a cookie returns 401 — which the global response
-  // interceptor turns into a hard redirect to /login, bouncing the user off
-  // the app (bug #98). A previous revision fired both calls in parallel to
-  // shave bootstrap latency; that reintroduced the 401-on-fresh-load redirect,
-  // so the gating is deliberate and load-bearing, not an accident. Only load
-  // the user when auth is enabled.
-  const loadUser = useCallback(async () => {
-    loadsInFlightRef.current += 1
-    try {
-      const publicSettings = await fetchPublicSettings()
+  // Every /settings/public read gets a place in line when it goes out, and only
+  // the newest answer so far is used. Answers can land in any order, and a
+  // fetchQuery can join a read some page sent before a refresh did.
+  const readOrderRef = useRef(0)
+  const readPlacesRef = useRef(new WeakMap<Promise<unknown>, number>())
+  const appliedRef = useRef<{ place: number; rows: PublicSetting[] } | null>(null)
 
-      // Read BEFORE the auth_mode short-circuit below, not after. auth_mode
-      // 'none' is the one mode with no user to carry a unit preference, so it
-      // is the mode that needs the instance default most, and returning early
-      // first is exactly why four phases shipped with this payload discarded.
-      setDefaultUnitPrefs(readPublicUnitDefaults(publicSettings))
-      setDefaultCountry(readPublicDefaultCountry(publicSettings))
-      {
-        const zone = publicSettings.find((s) => s.key === 'effective_timezone')?.value ?? null
-        setHouseholdTimeZone(zone)
-        setHouseholdTimeZoneState(zone)
-      }
+  // The shared query's read that's out right now, if any. Paused counts too: an
+  // offline read resumes later and can land after a newer one.
+  const pendingQueryRead = useCallback((): Promise<unknown> | undefined => {
+    const query = queryClient
+      .getQueryCache()
+      .find({ queryKey: publicSettingsQuery.queryKey, exact: true })
+    return query && query.state.fetchStatus !== 'idle' ? query.promise : undefined
+  }, [queryClient])
+
+  // Feeds the stores from these rows unless a later read already did, and hands
+  // back whichever rows are current now.
+  const applyPublicSettings = useCallback(
+    (rows: PublicSetting[], place: number): PublicSetting[] => {
+      const applied = appliedRef.current
+      if (applied && applied.place > place) return applied.rows
+      appliedRef.current = { place, rows }
+      // Read BEFORE the auth_mode short-circuit in loadUserFor, not after.
+      // auth_mode 'none' is the one mode with no user to carry a unit
+      // preference, so it is the mode that needs the instance default most.
+      setDefaultUnitPrefs(readPublicUnitDefaults(rows))
+      setDefaultCountry(readPublicDefaultCountry(rows))
+      const zone = rows.find((s) => s.key === 'effective_timezone')?.value ?? null
+      setHouseholdTimeZone(zone)
+      setHouseholdTimeZoneState(zone)
       lastPublicRefreshRef.current = Date.now()
       // Set from the same payload and in the same order, so nothing can observe
       // "loaded" while `defaultUnitPrefs` still holds the previous answer.
       setPublicSettingsLoaded(true)
+      return rows
+    },
+    [],
+  )
 
-      const authModeSetting = publicSettings.find((s) => s.key === 'auth_mode')
-      const fetchedAuthMode = authModeSetting?.value || 'none'
-      authModeRef.current = fetchedAuthMode
-      setAuthMode(fetchedAuthMode)
-      // Mirror into the api module so the response interceptor can suppress the
-      // /login redirect on 401 when auth is disabled (bug #98).
-      setApiAuthMode(fetchedAuthMode)
+  // Records the mode these rows carry, then loads the user for it.
+  //
+  // Auth mode MUST be resolved from /settings/public BEFORE /auth/me is ever
+  // touched. In auth_mode='none' there is no user to load, and probing
+  // /auth/me without a cookie returns 401, which the global response
+  // interceptor turns into a hard redirect to /login, bouncing the user off
+  // the app (bug #98). A previous revision fired both calls in parallel to
+  // shave bootstrap latency; that reintroduced the 401-on-fresh-load redirect,
+  // so the gating is deliberate and load-bearing, not an accident.
+  const loadUserFor = useCallback(async (rows: PublicSetting[]): Promise<void> => {
+    const mode = rows.find((s) => s.key === 'auth_mode')?.value || 'none'
+    authModeRef.current = mode
+    setAuthMode(mode)
+    // Mirror into the api module so the response interceptor can suppress the
+    // /login redirect on 401 when auth is disabled (bug #98).
+    setApiAuthMode(mode)
 
-      // If auth is disabled, skip user loading entirely (no /auth/me probe).
-      // A user left over from before sign-in was turned off means nothing now.
-      if (fetchedAuthMode === 'none') {
-        setUser(null)
-        setToken(null)
-        return
-      }
+    // If auth is disabled, skip user loading entirely (no /auth/me probe).
+    // A user left over from before sign-in was turned off means nothing now.
+    if (mode === 'none') {
+      setUser(null)
+      setToken(null)
+      return
+    }
 
-      // Auth is enabled — load the current user from the cookie session.
+    try {
       const response = await api.get('/auth/me')
+      // Sign-in got turned off while this was out, so there's no one to show.
+      if (authModeRef.current === 'none') return
       setUser(response.data)
     } catch (error: unknown) {
       const err = error as { response?: { status?: number } }
@@ -182,19 +204,38 @@ export function AuthProvider({ children }: { children: ReactNode}) {
         setUser(null)
         setToken(null)
       }
+    }
+  }, [])
+
+  // Load user info (cookie-based auth): public settings first, then the user.
+  const loadUser = useCallback(async () => {
+    loadsInFlightRef.current += 1
+    try {
+      const answer = fetchPublicSettings()
+      // fetchQuery may have joined a read that was already out. A refresh gives
+      // whatever is out a place when it starts, so a read with no place yet
+      // went out after every refresh so far.
+      const read = pendingQueryRead()
+      let place = read ? readPlacesRef.current.get(read) : undefined
+      if (place === undefined) {
+        place = ++readOrderRef.current
+        if (read) readPlacesRef.current.set(read, place)
+      }
+      const rows = applyPublicSettings(await answer, place)
+      await loadUserFor(rows)
+    } catch {
+      // The public settings read failed: keep whatever is showing. A refresh
+      // that gets an answer later loads the user then.
     } finally {
       loadsInFlightRef.current -= 1
       setLoading(false)
     }
-  }, [fetchPublicSettings])
+  }, [applyPublicSettings, fetchPublicSettings, loadUserFor, pendingQueryRead])
 
   // Load user info on mount (cookie-based auth)
   useEffect(() => {
     loadUser()
   }, [loadUser])
-
-  const lastPublicRefreshRef = useRef(0)
-  const [householdTimeZone, setHouseholdTimeZoneState] = useState<string | null>(null)
 
   // Its own GET, never fetchQuery: a refresh after a save has to show the save,
   // and fetchQuery would hand back a read that was already out. Throws like
@@ -202,42 +243,43 @@ export function AuthProvider({ children }: { children: ReactNode}) {
   const refreshPublicSettings = useCallback(async () => {
     try {
       const key = publicSettingsQuery.queryKey
-      const query = queryClient.getQueryCache().find({ queryKey: key, exact: true })
-      // Paused counts too: an offline read resumes later and can land after this one.
-      const older = query && query.state.fetchStatus !== 'idle' ? query.promise : undefined
-      const publicSettings = await fetchPublicSettingRows()
-      queryClient.setQueryData(key, publicSettings)
+      // A read that's already out went out before this one.
+      const older = pendingQueryRead()
+      if (older && !readPlacesRef.current.has(older)) {
+        readPlacesRef.current.set(older, ++readOrderRef.current)
+      }
+      const place = ++readOrderRef.current
+      const fetched = await fetchPublicSettingRows()
+      const rows = applyPublicSettings(fetched, place)
+      // A newer read already landed, filled the cache and loaded the user.
+      if (rows !== fetched) return
+      queryClient.setQueryData(key, rows)
       // That older read can land after this one and put its answer back.
       if (older) {
         void older.then(
-          () => queryClient.setQueryData(key, publicSettings),
+          () => {
+            const latest = appliedRef.current
+            if (latest) queryClient.setQueryData(key, latest.rows)
+          },
           () => {},
         )
       }
-      setDefaultUnitPrefs(readPublicUnitDefaults(publicSettings))
-      setDefaultCountry(readPublicDefaultCountry(publicSettings))
-      {
-        const zone = publicSettings.find((s) => s.key === 'effective_timezone')?.value ?? null
-        setHouseholdTimeZone(zone)
-        setHouseholdTimeZoneState(zone)
-      }
-      setPublicSettingsLoaded(true)
-      lastPublicRefreshRef.current = Date.now()
-      const mode = publicSettings.find((s) => s.key === 'auth_mode')?.value || 'none'
+      const mode = rows.find((s) => s.key === 'auth_mode')?.value || 'none'
       const known = authModeRef.current
       // No mode yet while boot's load is still out: it records one and loads
       // the user itself. With none out (boot failed) this is the first answer.
       const reload = known === null ? loadsInFlightRef.current === 0 : mode !== known
       if (reload) {
-        // Sign-in got turned on or off somewhere else: reload who's signed in.
-        await loadUser()
+        // Sign-in got turned on or off somewhere else: reload who's signed in,
+        // from these rows. Reading again could join that older read.
+        await loadUserFor(rows)
       }
     } catch {
       // Keep the current values. The server stays authoritative for every
       // date it fills in or judges; the browser catches up on the next
       // successful refetch or reload.
     }
-  }, [loadUser, queryClient])
+  }, [applyPublicSettings, loadUserFor, pendingQueryRead, queryClient])
 
   // Another client (or a restore) can change the household zone while this
   // tab sits in the background: refetch when the document becomes visible,
