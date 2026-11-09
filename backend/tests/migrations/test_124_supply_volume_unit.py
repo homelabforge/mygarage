@@ -8,7 +8,7 @@ import importlib.util
 import sqlite3
 from pathlib import Path
 
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import inspect, text
 
 import app.migrations as _m
 
@@ -65,9 +65,9 @@ def test_124_is_fatal():
     assert _load().FATAL is True
 
 
-def test_124_sqlite_declares_varchar8_nullable(tmp_path: Path) -> None:
+def test_124_sqlite_declares_varchar8_nullable(tmp_path: Path, sync_engine) -> None:
     db_file = tmp_path / "m124.db"
-    engine = create_engine(f"sqlite:///{db_file}")
+    engine = sync_engine(f"sqlite:///{db_file}")
     _make_supplies(engine)
     _load().upgrade(engine)
 

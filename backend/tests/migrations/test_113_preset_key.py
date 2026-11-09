@@ -3,7 +3,7 @@
 import importlib.util
 from pathlib import Path
 
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import inspect, text
 
 _MIG = (
     Path(__file__).resolve().parents[2] / "app" / "migrations" / "113_livelink_device_preset_key.py"
@@ -65,8 +65,8 @@ def test_migration_is_fatal():
     assert _load().FATAL is True
 
 
-def test_adds_the_column(tmp_path):
-    engine = create_engine(f"sqlite:///{tmp_path / 'm.db'}")
+def test_adds_the_column(tmp_path, sync_engine):
+    engine = sync_engine(f"sqlite:///{tmp_path / 'm.db'}")
     _schema(engine)
 
     _load().upgrade(engine)
@@ -75,8 +75,8 @@ def test_adds_the_column(tmp_path):
     assert "preset_key" in columns
 
 
-def test_is_idempotent(tmp_path):
-    engine = create_engine(f"sqlite:///{tmp_path / 'm.db'}")
+def test_is_idempotent(tmp_path, sync_engine):
+    engine = sync_engine(f"sqlite:///{tmp_path / 'm.db'}")
     _schema(engine)
     module = _load()
 
@@ -87,9 +87,9 @@ def test_is_idempotent(tmp_path):
     assert "preset_key" in columns
 
 
-def test_backfills_preset_key_by_title(tmp_path):
+def test_backfills_preset_key_by_title(tmp_path, sync_engine):
     """The one device that already has a preset predates the column."""
-    engine = create_engine(f"sqlite:///{tmp_path / 'm.db'}")
+    engine = sync_engine(f"sqlite:///{tmp_path / 'm.db'}")
     _schema(engine)
     with engine.begin() as conn:
         conn.execute(
@@ -113,10 +113,10 @@ def test_backfills_preset_key_by_title(tmp_path):
     assert rows["hand1"] is None
 
 
-def test_backfills_parameters_for_existing_mappings(tmp_path):
+def test_backfills_parameters_for_existing_mappings(tmp_path, sync_engine):
     """A mapping created before this change has no parameter row, so the
     sidecar's show-on-dashboard switch would PUT into a 404."""
-    engine = create_engine(f"sqlite:///{tmp_path / 'm.db'}")
+    engine = sync_engine(f"sqlite:///{tmp_path / 'm.db'}")
     _schema(engine)
     with engine.begin() as conn:
         conn.execute(
@@ -140,7 +140,7 @@ def test_backfills_parameters_for_existing_mappings(tmp_path):
     assert keys == ["AUX_VOLTS"]
 
 
-def test_backfill_parameters_dedupes_shared_param_key_across_topics(tmp_path):
+def test_backfill_parameters_dedupes_shared_param_key_across_topics(tmp_path, sync_engine):
     """Two mappings can share one param_key under different topics
     (livelink_topic_maps is only UNIQUE(topic, param_key)), but
     livelink_parameters.param_key is globally unique. A backfill that
@@ -148,7 +148,7 @@ def test_backfill_parameters_dedupes_shared_param_key_across_topics(tmp_path):
     param_key alone would try to INSERT the same key twice and crash --
     and since this migration is FATAL=True, that takes the whole app
     down with it."""
-    engine = create_engine(f"sqlite:///{tmp_path / 'm.db'}")
+    engine = sync_engine(f"sqlite:///{tmp_path / 'm.db'}")
     _schema(engine)
     with engine.begin() as conn:
         conn.execute(
@@ -173,8 +173,8 @@ def test_backfill_parameters_dedupes_shared_param_key_across_topics(tmp_path):
     assert len(rows) == 1
 
 
-def test_backfill_does_not_duplicate_an_existing_parameter(tmp_path):
-    engine = create_engine(f"sqlite:///{tmp_path / 'm.db'}")
+def test_backfill_does_not_duplicate_an_existing_parameter(tmp_path, sync_engine):
+    engine = sync_engine(f"sqlite:///{tmp_path / 'm.db'}")
     _schema(engine)
     with engine.begin() as conn:
         conn.execute(

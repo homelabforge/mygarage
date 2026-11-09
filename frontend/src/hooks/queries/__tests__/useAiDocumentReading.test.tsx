@@ -34,7 +34,17 @@ describe('useAiDocumentReading', () => {
     expect(result.current.enabled).toBe(true)
   })
 
-  it.each([['false'], [''], [null], [undefined]])('is off when the value is %s', async (value) => {
+  // The same lenient switch reader every other flag uses.
+  it.each([['1'], ['yes'], ['on'], [' TRUE ']])('is on when the value is %s', async (value) => {
+    vi.mocked(api.get).mockResolvedValueOnce(publicSettings(value))
+
+    const { result } = renderHook(() => useAiDocumentReading(), { wrapper: Wrap })
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+
+    expect(result.current.enabled).toBe(true)
+  })
+
+  it.each([['false'], ['0'], ['no'], [''], [null], [undefined]])('is off when the value is %s', async (value) => {
     vi.mocked(api.get).mockResolvedValueOnce(publicSettings(value))
 
     const { result } = renderHook(() => useAiDocumentReading(), { wrapper: Wrap })

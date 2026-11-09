@@ -41,4 +41,15 @@ describe('isValidationProblemArray', () => {
     expect(isValidationProblemArray([{ type: 'missing', loc: ['body', 'x'], msg: 'r' }])).toBe(true)
     expect(isValidationProblemArray('Vehicle not found')).toBe(false)
   })
+
+  it('rejects an empty array, which carries no problem to show', () => {
+    expect(isValidationProblemArray([])).toBe(false)
+  })
+
+  it('rejects a loc holding anything but strings and numbers', () => {
+    expect(isValidationProblemArray([{ type: 'missing', loc: ['body', { x: 1 }], msg: 'r' }])).toBe(false)
+    expect(isValidationProblemArray([{ type: 'missing', loc: ['body', null], msg: 'r' }])).toBe(false)
+    // Indexed paths stay legal.
+    expect(isValidationProblemArray([{ type: 'missing', loc: ['body', 'items', 0], msg: 'r' }])).toBe(true)
+  })
 })

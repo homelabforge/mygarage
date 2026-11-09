@@ -13,7 +13,7 @@ from datetime import date
 from pathlib import Path
 
 import pytest
-from sqlalchemy import Engine, MetaData, create_engine, inspect, select, text
+from sqlalchemy import Engine, MetaData, inspect, select, text
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
@@ -23,6 +23,8 @@ from app.models.maintenance_rule import MaintenanceRule
 from app.models.reminder import Reminder
 from app.models.tire import Tire, TireMountPeriod, TireReading
 from app.models.vehicle import Vehicle
+from tests._engines import SyncEngine
+from tests._logged import CaplogOnly, problems
 
 pytestmark = pytest.mark.migrations
 
@@ -236,10 +238,12 @@ def test_the_index_leaves_closed_and_unowned_reminders_alone(engine_for_migratio
     assert len(pending) == len(bystanders) + 2
 
 
-def test_missing_table_or_columns_are_skipped(caplog: pytest.LogCaptureFixture) -> None:
+def test_missing_table_or_columns_are_skipped(
+    caplog: pytest.LogCaptureFixture, sync_engine
+) -> None:
     """Skipped on purpose, not caught by the error log: without the checks the UPDATEs fail."""
     caplog.set_level(logging.INFO)
-    engine = create_engine("sqlite://")
+    engine = sync_engine("sqlite://")
     _load().upgrade(engine)
     assert "140: vehicle_reminders missing" in caplog.text
     assert "140: tire_readings missing" in caplog.text
@@ -253,7 +257,9 @@ def test_missing_table_or_columns_are_skipped(caplog: pytest.LogCaptureFixture) 
     assert not [r for r in caplog.records if r.levelno >= logging.ERROR]
 
 
-def test_a_failed_dedupe_raises_after_the_periods_clear(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_a_failed_dedupe_raises_after_the_periods_clear(
+    monkeypatch: pytest.MonkeyPatch, sync_engine
+) -> None:
     """The dedupe's failure reaches the runner, so 140 isn't stamped (F-1). The clear still ran."""
     mod = _load()
     cleared: list[Engine] = []
@@ -264,12 +270,15 @@ def test_a_failed_dedupe_raises_after_the_periods_clear(monkeypatch: pytest.Monk
     monkeypatch.setattr(mod, "_dedupe_and_index", boom)
     monkeypatch.setattr(mod, "_clear_reading_periods", cleared.append)
     with pytest.raises(OperationalError):
-        mod.upgrade(create_engine("sqlite://"))
+        mod.upgrade(sync_engine("sqlite://"))
     assert len(cleared) == 1
 
 
 def test_a_failed_clear_is_logged_not_raised(
-    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    caplog_only: CaplogOnly,
+    sync_engine: SyncEngine,
 ) -> None:
     # guard: the clear's catch is unchanged. A failure there leaves old period
     # ids behind, and nothing reads them, so it isn't worth a retry.
@@ -281,8 +290,11 @@ def test_a_failed_clear_is_logged_not_raised(
 
     monkeypatch.setattr(mod, "_clear_reading_periods", boom)
     monkeypatch.setattr(mod, "_dedupe_and_index", deduped.append)
-    mod.upgrade(create_engine("sqlite://"))
-    assert "140: reading mount periods not cleared" in caplog.text
+    with caplog_only(mod.logger.name):
+        mod.upgrade(sync_engine("sqlite://"))
+    (logged,) = problems(caplog, mod.logger.name)
+    assert logged.getMessage().startswith("140: reading mount periods not cleared")
+    assert logged.exc_info is not None
     assert len(deduped) == 1
 
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import date as date_type
 from datetime import datetime, timedelta
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import Decimal
 from typing import Annotated, Literal
 
 from pydantic import (
@@ -17,6 +17,7 @@ from pydantic import (
 )
 
 from app.constants.wheel_layouts import TirePosition, WheelLayoutId
+from app.schemas._figures import to_stored_tenth
 from app.schemas._nullability import reject_null
 from app.utils.household_time import household_today
 from app.utils.lenient_vocab import LenientVocab, lenient_reader
@@ -33,14 +34,9 @@ LenientTirePosition = Annotated[
 _HOURS_MAX = Decimal("999999999.9")
 
 
-def _to_stored_tenth(value: Decimal) -> Decimal:
-    """Round to the tenth NUMERIC(10, 1) keeps, so what's checked is what's saved (#217)."""
-    return value.quantize(Decimal("0.1"), rounding=ROUND_HALF_UP)
-
-
 #: An hour meter figure on a tire write. Rounded as it's parsed: unrounded,
 #: 100.15 then 100.10 passed the history check and stored as 100.2 then 100.1.
-HoursFigure = Annotated[Decimal, Field(ge=0, le=_HOURS_MAX), AfterValidator(_to_stored_tenth)]
+HoursFigure = Annotated[Decimal, Field(ge=0, le=_HOURS_MAX), AfterValidator(to_stored_tenth)]
 
 
 class TireBase(BaseModel):
@@ -48,16 +44,16 @@ class TireBase(BaseModel):
 
     **`position` is not here, and neither is `installed_date`.**
 
-    `position` left because a tire is no longer identified by a corner (D2c):
+    `position` left because a tire is no longer identified by a corner:
     it is a thing you own, which is sometimes mounted somewhere. Mounting is a
     separate operation with its own conflict semantics, so `POST /api/tires`
     no longer upserts by position.
 
     `installed_date` left because it is now DERIVED from the earliest mount
-    period (D12). Keeping it writable would need synchronisation on every
+    period. Keeping it writable would need synchronisation on every
     period create, edit and delete, and would give the same fact two sources.
 
-    `extra="forbid"` is deliberate and is what makes the break loud (D13). A
+    `extra="forbid"` is deliberate and is what makes the break loud. A
     stale v3.2 browser tab POSTing a payload with `position` gets a 422 naming
     the field. Pydantic's default is to IGNORE unknown fields, which here would
     mean silently creating a second, unmounted tire instead of updating the one
@@ -95,7 +91,7 @@ class TireUpdate(BaseModel):
     """Partial tire update.
 
     Neither `position` nor `installed_date` is writable here: position changes
-    through mount/dismount (D14), and `installed_date` is derived (D12).
+    through mount/dismount, and `installed_date` is derived.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -305,7 +301,7 @@ class MountPeriodUpdate(BaseModel):
 
     Every field optional, `exclude_unset` semantics: a key absent from the
     body is untouched, a key sent as null is cleared to unknown. `position`
-    is deliberately not here (D14: only mount, dismount and rotate write it),
+    is deliberately not here (only mount, dismount and rotate write it),
     and forbid-extra makes sending it a 422 rather than a silent ignore.
     """
 
@@ -368,11 +364,11 @@ class TireResponse(TireBase):
     """A tire, with where it is now and what is known about its wear.
 
     `position` is RE-DECLARED here as nullable rather than inherited: it left
-    the write schema (D2c) but is still part of every read. Declaring it only
+    the write schema but is still part of every read. Declaring it only
     on the base would have made it required on writes; omitting it entirely
     would have dropped it from responses. Neither is what a reader wants.
 
-    `installed_date` is DERIVED, not stored (D12): the `mounted_on` of the
+    `installed_date` is DERIVED, not stored: the `mounted_on` of the
     earliest period **that has one**. When the earliest period is the migrated
     assumed one with a null start, this is null -- NOT the next known remount
     date. A plain MIN(mounted_on) would skip the unknown and report a later

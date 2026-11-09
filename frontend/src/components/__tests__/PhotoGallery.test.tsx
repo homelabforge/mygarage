@@ -13,6 +13,7 @@ vi.mock('../../services/vehicleService', () => ({
 vi.mock('../../hooks/useOnlineStatus', () => ({ useOnlineStatus: () => true }))
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 
+import { toast } from 'sonner'
 import PhotoGallery from '../PhotoGallery'
 
 const photo: Photo = {
@@ -100,5 +101,37 @@ describe('PhotoGallery — main-photo status (both ways) + empty state', () => {
     expect(await screen.findByText('photoGallery.noPhotos')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'photoGallery.uploadFirstPhoto' }))
     expect(onAddClick).toHaveBeenCalled()
+  })
+})
+
+describe('PhotoGallery failures', () => {
+  const serverError = {
+    isAxiosError: true,
+    message: 'Request failed with status code 500',
+    response: { status: 500, data: {} },
+  }
+
+  it('a failed delete raises one toast line, not a title over the same message', async () => {
+    deletePhoto.mockRejectedValueOnce(serverError)
+    render(<PhotoGallery {...PROPS} />)
+    await screen.findByText('Front view')
+    fireEvent.click(screen.getByRole('button', { name: 'photoGallery.deletePhoto' }))
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(1))
+    expect(vi.mocked(toast.error).mock.calls[0]).toEqual([
+      'Failed to photoGallery.misc.deleteAction. An unexpected server error occurred.',
+    ])
+  })
+
+  it('a failed set-main raises one toast line too', async () => {
+    setMainPhoto.mockRejectedValueOnce(serverError)
+    render(<PhotoGallery {...PROPS} />)
+    await screen.findByText('Front view')
+    fireEvent.click(screen.getByRole('button', { name: 'photoGallery.setAsMain' }))
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(1))
+    expect(vi.mocked(toast.error).mock.calls[0]).toEqual([
+      'Failed to photoGallery.misc.setMainAction. An unexpected server error occurred.',
+    ])
   })
 })

@@ -34,10 +34,8 @@
  *    in `Decimal` and is exact. `number` is IEEE 754, so
  *    `34.8 * 6.894757293168361` evaluates to `239.93755380225895`, and
  *    posting that to the API stores a value one ulp away from its own
- *    conversion. Twelve digits is what
- *    `UnitConverter.toCanonicalMetricString` already uses for the same reason,
- *    and it is lossless for every factor in the table: `9 * (25.4 / 32)` is
- *    still exactly `7.14375`.
+ *    conversion. Twelve digits is lossless for every factor in the table:
+ *    `9 * (25.4 / 32)` is still exactly `7.14375`.
  * 2. **`NaN` is treated as absent.** Form fields reach these functions through
  *    `Number(value)`, where a non-numeric entry yields `NaN` rather than
  *    throwing. Returning `NaN` would put `null`-shaped garbage into a JSON body
@@ -65,7 +63,7 @@ const IN32_TO_MM = 25.4 / 32
 /** L/100km per (km/L), i.e. the definition of "litres per hundred kilometres". */
 const KM_L_NUMERATOR = 100
 
-/** 1 bar = 100 kPa exactly, by SI definition (not derived from PSI_TO_BAR). */
+/** 1 bar = 100 kPa exactly, by SI definition. */
 const BAR_TO_KPA = 100
 
 /** Celsius per Fahrenheit degree; the offset is applied separately. */

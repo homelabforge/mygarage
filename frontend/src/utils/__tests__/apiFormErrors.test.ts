@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import type { Path } from 'react-hook-form'
-import { applyServerErrors, withoutFieldError } from '@/hooks/useApiFormErrors'
+import { applyServerErrors, applyControlledFieldErrors, withoutFieldError } from '@/utils/apiFormErrors'
+import { actionErrorMessage } from '@/utils/httpErrorHandler'
 
 const axios422 = (detail: unknown): unknown => ({
   isAxiosError: true,
@@ -73,6 +74,28 @@ describe('applyServerErrors', () => {
       'policy_numbr',
     ])
     expect(setFieldError).not.toHaveBeenCalled()
+  })
+})
+
+describe('the parsed error the apply functions hand back', () => {
+  // So the catch block builds its banner from this parse instead of parsing again.
+  it('comes back from applyServerErrors', () => {
+    const knownFields: ReadonlyArray<Path<TestValues>> = ['deductible']
+    const r = applyServerErrors(vi.fn(), axios422([
+      { type: 'decimal_parsing', loc: ['body', 'deductible'], msg: 'bad decimal' },
+    ]), knownFields)
+    expect(r.parsed.status).toBe(422)
+    expect(r.parsed.fieldErrors.map(p => p.field)).toEqual(['deductible'])
+  })
+
+  it('comes back from applyControlledFieldErrors, ready for the banner', () => {
+    const r = applyControlledFieldErrors({
+      isAxiosError: true,
+      message: 'Request failed with status code 403',
+      response: { status: 403, data: { detail: 'Nope' } },
+    }, ['title'])
+    expect(r.parsed.status).toBe(403)
+    expect(actionErrorMessage(r.parsed, 'save the record')).toBe('Nope')
   })
 })
 

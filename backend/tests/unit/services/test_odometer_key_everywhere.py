@@ -24,8 +24,6 @@ from app.services.session_service import SessionService
 from app.utils.datetime_utils import utc_now
 from app.utils.odometer_units import is_recorded_odometer_key
 
-pytestmark = pytest.mark.asyncio
-
 P = "fwar2"
 TRIP_COUNTERS = ("21-DISTANCEMILON", "31-DISTANCESINCECODECLEAR")
 

@@ -1,17 +1,17 @@
-"""Unit tests for the `check_def_levels` scheduled job (Task 16).
+"""Unit tests for the `check_def_levels` scheduled job.
 
 DEF (Diesel Exhaust Fluid) depletes over weeks, not minutes, so this job uses
 *crossing-based* dedup instead of a cooldown: `Vehicle.def_low_notified_at`
 is stamped the moment a vehicle's latest DEF fill_level crosses at/under the
 configured threshold, and cleared the moment it recovers above threshold.
 That means a single dip only ever notifies once, but a refill-then-dip-again
-cycle notifies again — unlike a time-based cooldown, which would either nag
+cycle notifies again, unlike a time-based cooldown, which would either nag
 daily or (if long enough) swallow a fresh depletion after a refill.
 
 `check_def_levels()` opens its own `AsyncSessionLocal()` session internally
 (matching every sibling job in `scheduled.py`), so these tests monkeypatch
 `app.tasks.scheduled.AsyncSessionLocal` to hand back the fixture-managed
-`db_session` wrapped in a no-op async context manager — this keeps seeded
+`db_session` wrapped in a no-op async context manager. This keeps seeded
 vehicles/DEF records and the job's own queries/commit on the same
 transaction while still exercising real DB fixtures end-to-end. Only
 `NotificationDispatcher.notify_def_low` is mocked.
@@ -51,9 +51,9 @@ _VIN_PREFIX = "DEFLEVELTESTVIN"
 async def _clean_slate(db_session: AsyncSession) -> None:
     """Wipe this module's fixtures left over from a previous test.
 
-    `check_def_levels()` commits for real — it holds its own transaction
+    `check_def_levels()` commits for real: it holds its own transaction
     inside `AsyncSessionLocal()`, which is spliced onto the fixture-managed
-    `db_session` here (see `patch_session` below) — so vehicles/DEF records
+    `db_session` here (see `patch_session` below), so vehicles/DEF records
     created by an earlier test persist in the shared, session-scoped test
     database. Without cleanup, the next test's full-table `check_def_levels()`
     scan would pick up leftover diesel vehicles and skew dispatch counts.
@@ -67,7 +67,7 @@ async def _clean_slate(db_session: AsyncSession) -> None:
 class _PassthroughSessionContext:
     """Async context manager that hands back an already-open session as-is.
 
-    `check_def_levels()` does `async with AsyncSessionLocal() as db:` — this
+    `check_def_levels()` does `async with AsyncSessionLocal() as db:`. This
     stand-in lets tests splice in the fixture's `db_session` instead of a
     freshly created (and separately-transacted) session, without closing it
     on exit (the `db_session` fixture owns that lifecycle).
@@ -247,7 +247,7 @@ def _def_calls(mock: AsyncMock) -> list[Any]:
     """Filter notify_def_low awaits down to this module's vehicles.
 
     `check_def_levels()` scans the WHOLE vehicles table, and the test DB is
-    session-scoped and shared across every test file in the run — other
+    session-scoped and shared across every test file in the run, so other
     modules' committed diesel fixtures (e.g. test_def_fuel_type_gate.py's
     vehicles with 0.50-0.75 fill levels) are visible to the sweep. Raw
     `assert_awaited_once()` / `await_count` assertions would therefore be
@@ -280,7 +280,7 @@ def _patch_notify_def_low(
     return mock
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.def_records
 @pytest.mark.asyncio
 class TestCheckDefLevels:
@@ -337,19 +337,19 @@ class TestCheckDefLevels:
         vehicle = await make_vehicle()
         mock = _patch_notify_def_low(monkeypatch)
 
-        # First dip below threshold — dispatches and stamps.
+        # First dip below threshold: dispatches and stamps.
         await add_def_record(vehicle.vin, fill_level=Decimal("0.10"), record_date=date(2026, 6, 1))
         await check_def_levels()
         assert len(_def_calls(mock)) == 1
         assert vehicle.def_low_notified_at is not None
 
-        # Refill above threshold — clears the stamp, no dispatch.
+        # Refill above threshold: clears the stamp, no dispatch.
         await add_def_record(vehicle.vin, fill_level=Decimal("0.90"), record_date=date(2026, 6, 15))
         await check_def_levels()
         assert len(_def_calls(mock)) == 1
         assert vehicle.def_low_notified_at is None
 
-        # Dip again — re-dispatches (crossing-based dedup, not cooldown).
+        # Dip again: re-dispatches (crossing-based dedup, not cooldown).
         await add_def_record(vehicle.vin, fill_level=Decimal("0.15"), record_date=date(2026, 7, 1))
         await check_def_levels()
         assert len(_def_calls(mock)) == 2
@@ -420,12 +420,12 @@ class TestCheckDefLevels:
     async def test_a_stored_one_reads_as_the_toggle_on(
         self, patch_session, db_session, make_vehicle, add_def_record, enable_def_low, monkeypatch
     ):
-        """R5: "1" is on. Written to the raw column, past any write path that might rewrite it."""
+        """A stored "1" is on. Written to the raw column, past any write path that might rewrite it."""
         await enable_def_low(threshold="25")
         row = await db_session.get(Setting, "notify_def_low")
         assert row is not None
         row.stored_value = "1"
-        await db_session.flush()
+        await db_session.commit()
         vehicle = await make_vehicle()
         await add_def_record(vehicle.vin, fill_level=Decimal("0.05"), record_date=date(2026, 7, 1))
         mock = _patch_notify_def_low(monkeypatch)
@@ -440,7 +440,7 @@ class TestCheckDefLevels:
         await enable_def_low(threshold="banana")
         vehicle = await make_vehicle()
         # 24% is below the fallback of 25% but above any degenerate parse
-        # (e.g. 0) — proves the fallback landed on 25, not fail-closed.
+        # (e.g. 0), which proves the fallback landed on 25, not fail-closed.
         await add_def_record(vehicle.vin, fill_level=Decimal("0.24"), record_date=date(2026, 7, 1))
         mock = _patch_notify_def_low(monkeypatch)
 
@@ -466,7 +466,7 @@ class TestCheckDefLevels:
         self, patch_session, make_vehicle, add_def_record, enable_def_low, monkeypatch
     ):
         """An all-failed dispatch (e.g. a transient Discord outage) must not
-        stamp `def_low_notified_at` — mirrors TelemetryService.check_thresholds's
+        stamp `def_low_notified_at`. That mirrors TelemetryService.check_thresholds's
         `any(dispatch_results.values())` guard. Crossing-based dedup means a
         stamp here would otherwise silence the alert until the tank refills
         and dips again, which can be weeks away; leaving it unstamped means
@@ -526,7 +526,7 @@ class TestCheckDefLevels:
         assert vehicle_b.def_low_notified_at is not None
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.def_records
 @pytest.mark.asyncio
 class TestThresholdClamp:
@@ -549,14 +549,14 @@ class TestThresholdClamp:
         assert await _get_def_low_threshold_percent(db_session) == expected
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.def_records
 @pytest.mark.asyncio
 class TestDefLowRenderContextWiring:
     """Which render context the job hands `notify_def_low`.
 
     The DEF message is a forced litres/gallons pair whose gallon flavour comes
-    from that context (D4b), so a job that resolved the wrong one would ship a
+    from that context, so a job that resolved the wrong one would ship a
     correct-looking message in the wrong gallon. The dispatcher-level suite
     (`tests/unit/services/test_notification_units.py`) constructs the context
     itself and cannot see this; the wiring is what these two tests pin.

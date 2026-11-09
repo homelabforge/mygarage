@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '../../../__tests__/test-utils'
 import DeleteUserModal, { renderConfirmPrompt } from '../DeleteUserModal'
-import type { User } from '../../../types/user'
+import type { User } from '../../../__tests__/factories'
 
 /**
  * Guards the confirm affordance on an irreversible delete.

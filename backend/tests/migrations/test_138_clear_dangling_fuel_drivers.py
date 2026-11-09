@@ -9,10 +9,12 @@ import logging
 from pathlib import Path
 
 import pytest
-from sqlalchemy import Engine, create_engine, text
+from sqlalchemy import Engine, text
 from sqlalchemy.exc import OperationalError
 
 import app.migrations as _m
+from tests._engines import SyncEngine
+from tests._logged import CaplogOnly, problems
 
 pytestmark = pytest.mark.migrations
 
@@ -143,7 +145,10 @@ def test_missing_tables_or_column_are_skipped(engine_for_migration, caplog):
 
 
 def test_a_failure_is_logged_not_raised(
-    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    caplog_only: CaplogOnly,
+    sync_engine: SyncEngine,
 ) -> None:
     """A non-FATAL failure that raises stops every migration after it, so 138 logs it instead."""
     mod = _load()
@@ -152,5 +157,8 @@ def test_a_failure_is_logged_not_raised(
         raise OperationalError("UPDATE fuel_records", {}, Exception("database is locked"))
 
     monkeypatch.setattr(mod, "_clear_dangling_drivers", boom)
-    mod.upgrade(create_engine("sqlite://"))
-    assert "138: dead fill-up drivers not cleared" in caplog.text
+    with caplog_only(mod.logger.name):
+        mod.upgrade(sync_engine("sqlite://"))
+    (logged,) = problems(caplog, mod.logger.name)
+    assert logged.getMessage().startswith("138: dead fill-up drivers not cleared")
+    assert logged.exc_info is not None

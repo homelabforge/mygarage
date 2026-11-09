@@ -8,17 +8,19 @@
  * `UnitConverter`'s instance-wide factor while `priceToCanonical` used a
  * hardcoded US gallon.
  *
- * Every test here pins the INSTANCE gallon standard to a flavour DIFFERENT from
- * the user's resolved one. That is the whole point: phase 1 gave accounts a
- * per-user `resolved_units`, and swapping in "the dynamic converter" would have
- * left a `gal_uk` user on a US-default instance exactly as broken as before.
+ * Every test here used to pin the INSTANCE gallon standard to a flavour
+ * DIFFERENT from the user's resolved one: phase 1 gave accounts a per-user
+ * `resolved_units`, and swapping in "the dynamic converter" would have left a
+ * `gal_uk` user on a US-default instance exactly as broken as before. That
+ * instance gallon and the converter are deleted now, so the user's set is the
+ * only gallon the form can read and there's nothing left to pin.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { screen, waitFor, fireEvent } from '@testing-library/react'
 import { render } from '../../__tests__/test-utils'
 import { IMPERIAL_UNITS, UK_IMPERIAL_UNITS } from '../../__tests__/factories'
-import { UnitConverter, UnitFormatter } from '../../utils/units'
+import { UnitFormatter } from '../../utils/units'
 import FuelRecordForm from '../FuelRecordForm'
 import type { Vehicle } from '../../types/vehicle'
 
@@ -133,8 +135,7 @@ beforeEach(() => {
 })
 
 describe('FuelRecordForm — the gallon comes from the user, not the instance', () => {
-  it('CREATE: a gal_uk user on a US-default instance stores BOTH halves on the imperial gallon', async () => {
-    UnitConverter.setGallonStandard('us')
+  it('CREATE: a gal_uk user stores BOTH halves on the imperial gallon', async () => {
     unitPrefMock.units = UK_IMPERIAL_UNITS
 
     render(<FuelRecordForm {...DEFAULT_PROPS} />)
@@ -150,12 +151,9 @@ describe('FuelRecordForm — the gallon comes from the user, not the instance', 
     // 6 / 3.785411784 = 1.585, 20.1 percent high, against a volume converted
     // on the OTHER gallon.
     expect(payload.price_per_unit).toBe(1.31981548979)
-    // The instance really is on US gallons; nothing above consulted it.
-    expect(UnitConverter.getGallonStandard()).toBe('us')
   })
 
-  it('CREATE: a gal_us user on a UK-default instance stores BOTH halves on the US gallon', async () => {
-    UnitConverter.setGallonStandard('uk')
+  it('CREATE: a gal_us user stores BOTH halves on the US gallon', async () => {
     unitPrefMock.units = IMPERIAL_UNITS
 
     render(<FuelRecordForm {...DEFAULT_PROPS} />)
@@ -167,7 +165,6 @@ describe('FuelRecordForm — the gallon comes from the user, not the instance', 
     const payload = postedPayload()
     expect(payload.liters).toBe(37.854)
     expect(payload.price_per_unit).toBe(1.58503231415)
-    expect(UnitConverter.getGallonStandard()).toBe('uk')
   })
 
   it('★ the payload RECONCILES: price x volume equals the gross cost the user saw', async () => {
@@ -175,7 +172,6 @@ describe('FuelRecordForm — the gallon comes from the user, not the instance', 
     // form computes cost in DISPLAY units, so price x volume comes back to the
     // gross total only when both conversions used the same gallon. Convert one
     // half and not the other and this ratio lands on 4.54609 / 3.785411784.
-    UnitConverter.setGallonStandard('us')
     unitPrefMock.units = UK_IMPERIAL_UNITS
 
     render(<FuelRecordForm {...DEFAULT_PROPS} />)
@@ -219,7 +215,6 @@ describe('FuelRecordForm — the gallon comes from the user, not the instance', 
    * separates "the origin works" from "the arithmetic happens to agree".
    */
   it('★ EDIT: an ordinary gal_uk record no longer shifts onto the entry grid', async () => {
-    UnitConverter.setGallonStandard('us')
     unitPrefMock.units = UK_IMPERIAL_UNITS
     // ★ Named so the assertions below can say "this MOVED". Without that, the
     // two tests in this pair are distinguished only by their fixtures, and
@@ -270,7 +265,6 @@ describe('FuelRecordForm — the gallon comes from the user, not the instance', 
     // The negative control. This fixture is what the OLD save produced, so the
     // naive reconversion gets it right on its own: it is the case the origin
     // cannot be credited for, kept so the case above is not the only evidence.
-    UnitConverter.setGallonStandard('us')
     unitPrefMock.units = UK_IMPERIAL_UNITS
 
     // ★ The other half of the pin: this fixture IS on the entry grid. Swapping
@@ -310,7 +304,6 @@ describe('FuelRecordForm — the gallon comes from the user, not the instance', 
     // The `per_weight` denominator now reads `units.mass`, and `system` is
     // D8-collapsed from VOLUME, so a label keyed on it would say "kg" for a
     // user whose price converts to $/lb.
-    UnitConverter.setGallonStandard('us')
     unitPrefMock.units = { ...UK_IMPERIAL_UNITS, mass: 'lb' }
 
     render(<FuelRecordForm {...DEFAULT_PROPS} />)
@@ -329,7 +322,6 @@ describe('FuelRecordForm — the gallon comes from the user, not the instance', 
     // `units.mass`, so a label that keeps naming the volume unit claims $/L
     // over a $/lb number. That was pre-existing for `system`, and reading the
     // mass token independently is what made it reachable.
-    UnitConverter.setGallonStandard('us')
     unitPrefMock.system = 'metric'
     unitPrefMock.units = { ...UK_IMPERIAL_UNITS, volume: 'L', consumption: 'l_100km', mass: 'lb' }
 
@@ -352,7 +344,6 @@ describe('FuelRecordForm — the gallon comes from the user, not the instance', 
     //
     // The draft is canonical by contract: `receipt_parse_service.py:127` tells
     // the model to "Prefer metric: liters, odometer_km, price per liter".
-    UnitConverter.setGallonStandard('us')
     unitPrefMock.units = UK_IMPERIAL_UNITS
     receipt.draft = { liters: 45.4609, price_per_unit: 1.31981548979, cost: 60 }
 
@@ -380,7 +371,6 @@ describe('FuelRecordForm — the gallon comes from the user, not the instance', 
     const ratio =
       ((payload.price_per_unit as number) * (payload.liters as number)) / (payload.cost as number)
     expect(ratio).toBeCloseTo(1, 4)
-    expect(UnitConverter.getGallonStandard()).toBe('us')
   })
 
   it('★ an accepted receipt draft carries its ORIGIN, so an untouched save keeps it', async () => {
@@ -390,7 +380,6 @@ describe('FuelRecordForm — the gallon comes from the user, not the instance', 
     // grid, so only a fresh origin gets it back out intact. `acceptUnitField`
     // and `acceptPriceField` are the two calls under test; setting a value
     // without moving its origin is the defect they exist to prevent.
-    UnitConverter.setGallonStandard('us')
     unitPrefMock.units = UK_IMPERIAL_UNITS
     receipt.draft = { liters: 22.712, price_per_unit: 1.32, cost: 30.01 }
 
@@ -424,7 +413,6 @@ describe('FuelRecordForm — the gallon comes from the user, not the instance', 
     // field of the same name and its own cases, and this form's second volume
     // field had no test at all. A fuel record on a propane vehicle renders it,
     // and its round trip is the same one `liters` has.
-    UnitConverter.setGallonStandard('us')
     unitPrefMock.units = UK_IMPERIAL_UNITS
     mockedApiGet.mockImplementation((url: string) =>
       url.includes('/settings/public')
@@ -462,7 +450,6 @@ describe('FuelRecordForm — the gallon comes from the user, not the instance', 
     // that moves it. `price_basis` is a <select> on this form: switching
     // per_volume -> per_weight leaves 6.001 in the box and makes it $/lb.
     // Handing back the stored $/L would relabel a gallon price as a pound one.
-    UnitConverter.setGallonStandard('us')
     unitPrefMock.units = UK_IMPERIAL_UNITS
 
     render(

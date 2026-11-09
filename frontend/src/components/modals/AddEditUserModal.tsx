@@ -7,7 +7,9 @@ import { getActionErrorMessage } from '@/utils/httpErrorHandler'
 import { Select } from '@/components/ui'
 import { makePasswordSchema } from '@/schemas/auth'
 import { RELATIONSHIP_PRESETS } from '@/types/family'
-import type { User } from '@/types/user'
+import type { components } from '@/types/api.generated'
+
+type User = components['schemas']['UserResponse']
 
 interface AddEditUserModalProps {
   isOpen: boolean

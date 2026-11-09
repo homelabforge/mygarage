@@ -1,8 +1,8 @@
 /**
  * Backup tab, create buttons. The backup preflight refuses a backup with a 503 whose detail says
  * what to fix ("Set MYGARAGE_SETTINGS_KEY ..."). Both create buttons showed a fixed "Failed to
- * create ... backup" instead, so that fix never reached the admin. They show the server's detail
- * now, and the generic text when there is none.
+ * create ... backup" instead, so that fix never reached the admin. The shared error helper puts
+ * a 503's detail after the action now, so the buttons just use it.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
@@ -60,33 +60,39 @@ beforeEach(() => {
 })
 
 describe.each([
-  ['settings', 'backup.createSettingsBackup', '/backup/create', 'backup.createSettingsError'],
-  ['full', 'backup.createFullBackup', '/backup/create-full', 'backup.createFullError'],
-])('SettingsBackupTab create %s backup', (_kind, button, url, generic) => {
-  // One test, so the two generic-text checks fail with the 503 detail they are the controls for:
-  // on their own they also passed before the create buttons showed any detail.
+  ['settings', 'backup.createSettingsBackup', '/backup/create', 'backupTab.createSettingsAction'],
+  ['full', 'backup.createFullBackup', '/backup/create-full', 'backupTab.createFullAction'],
+])('SettingsBackupTab create %s backup', (_kind, button, url, action) => {
+  // One test, so the generic-text checks fail with the 503 detail they are the controls for.
   it('shows the preflight 503 detail, which says what to fix, and no other server detail', async () => {
     mockedApi.post.mockRejectedValueOnce(httpError(503, REFUSAL))
     render(<SettingsBackupTab />)
 
     fireEvent.click(await screen.findByRole('button', { name: button }))
 
-    expect(await screen.findByText(REFUSAL)).toBeInTheDocument()
+    // The en template around the mocked t's key: the action, then the fix.
+    expect(await screen.findByText(`Failed to ${action}. ${REFUSAL}`)).toBeInTheDocument()
     expect(mockedApi.post).toHaveBeenCalledWith(url)
 
-    // A server error's detail stays hidden behind the generic text.
+    // A server error's detail stays hidden behind the status line.
     mockedApi.post.mockRejectedValueOnce(httpError(500, 'Traceback (most recent call last)'))
     fireEvent.click(await screen.findByRole('button', { name: button }))
 
-    expect(await screen.findByText(generic)).toBeInTheDocument()
-    expect(screen.queryByText(REFUSAL)).not.toBeInTheDocument()
+    expect(
+      await screen.findByText(`Failed to ${action}. An unexpected server error occurred.`)
+    ).toBeInTheDocument()
+    expect(screen.queryByText(/Set MYGARAGE_SETTINGS_KEY/)).not.toBeInTheDocument()
     expect(screen.queryByText(/Traceback/)).not.toBeInTheDocument()
 
-    // A 503 with no detail falls back to the generic text.
+    // A 503 with no detail keeps the retry line.
     mockedApi.post.mockRejectedValueOnce(httpError(503))
     fireEvent.click(await screen.findByRole('button', { name: button }))
 
-    expect(await screen.findByText(generic)).toBeInTheDocument()
+    expect(
+      await screen.findByText(
+        `Failed to ${action}. Service temporarily unavailable. Please try again shortly.`
+      )
+    ).toBeInTheDocument()
     expect(mockedApi.post).toHaveBeenCalledTimes(3)
   })
 

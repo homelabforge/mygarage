@@ -137,7 +137,7 @@ async def transfer_vehicle(db_session, admin_user) -> Vehicle:
     return vehicle
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 class TestTransferVehicle:
     """Test vehicle transfer functionality."""
@@ -416,7 +416,7 @@ class TestTransferVehicle:
         assert latest.transfer_notes == "Initial assignment"
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 class TestTransferHistory:
     """Test transfer history retrieval."""
@@ -442,7 +442,7 @@ class TestTransferHistory:
         assert len(transfers) >= 1
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 class TestEligibleRecipients:
     """Test eligible recipients retrieval."""

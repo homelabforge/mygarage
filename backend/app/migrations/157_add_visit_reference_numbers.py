@@ -34,7 +34,12 @@ def _get_fallback_engine() -> Engine:
 def upgrade(engine: Engine | None = None) -> None:
     """Add service_visits.invoice_number, po_number and work_order_number."""
     if engine is None:
+        # Run standalone: it builds its own engine, so it closes it too.
         engine = _get_fallback_engine()
+        try:
+            return upgrade(engine)
+        finally:
+            engine.dispose()
     if not inspect(engine).has_table(_TABLE):
         return
     with engine.begin() as conn:

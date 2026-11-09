@@ -162,7 +162,7 @@ class TestAlertQuantity:
         assert alert_quantity("speed", "mph", odometer_key=True, odometer_normalised=True) is None
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("drop_params", "alerts_inline")
 class TestCheckThresholdsRendersInTheReadersUnits:
@@ -196,7 +196,7 @@ class TestCheckThresholdsRendersInTheReadersUnits:
         assert ": 40.0 psi vs threshold 35.0 psi." in _alert_message(mock)
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("livelink_enabled", "drop_params", "alerts_inline")
 class TestOdometerLinesThroughIngest:

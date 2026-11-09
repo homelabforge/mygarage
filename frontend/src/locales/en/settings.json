@@ -201,7 +201,27 @@
     "keyringUnavailable": "The settings encryption key is unavailable, so secret settings can't be saved and encrypted ones can't be read. Set MYGARAGE_SETTINGS_KEY to a valid key, or make the data directory writable, then reload this page.",
     "keyringUnavailableEnv": "The settings encryption key is unavailable, so secret settings can't be saved and encrypted ones can't be read. MYGARAGE_SETTINGS_KEY doesn't hold a valid key: fix it, then restart MyGarage.",
     "keyringUnavailableEnvFile": "The settings encryption key is unavailable, so secret settings can't be saved and encrypted ones can't be read. MYGARAGE_SETTINGS_KEY_FILE doesn't point at a readable file holding a valid key: fix it, then restart MyGarage.",
-    "unreadable": "These secrets can't be decrypted with the current settings key, so they read as unset. Add the key they were saved under back to MYGARAGE_SETTINGS_KEY, or re-enter them:"
+    "unreadable": "These secrets can't be decrypted with the current settings key, so they read as unset. Add the key they were saved under back to MYGARAGE_SETTINGS_KEY, or re-enter them:",
+    "labels": {
+      "oidcClientSecret": "SSO client secret",
+      "ntfyToken": "ntfy access token",
+      "gotifyToken": "Gotify app token",
+      "pushoverUserKey": "Pushover user key",
+      "pushoverApiToken": "Pushover API token",
+      "slackWebhookUrl": "Slack webhook URL",
+      "discordWebhookUrl": "Discord webhook URL",
+      "matrixAccessToken": "Matrix access token",
+      "telegramBotToken": "Telegram bot token",
+      "emailSmtpPassword": "Email SMTP password",
+      "webhookIngestToken": "Webhook ingest token",
+      "llmApiKey": "AI provider API key",
+      "autorefApiKey": "AutoRef API key",
+      "livelinkMqttPassword": "LiveLink MQTT password",
+      "tomtomApiKey": "TomTom API key",
+      "googlePlacesApiKey": "Google Places API key",
+      "yelpApiKey": "Yelp API key",
+      "foursquareApiKey": "Foursquare API key"
+    }
   },
   "stats": {
     "serviceRecords": "Service Records",
@@ -684,7 +704,6 @@
     "creatingBackup": "Creating...",
     "createSettingsBackup": "Create Settings Backup",
     "uploadSettingsBackup": "Upload Settings Backup",
-    "createSettingsError": "Failed to create settings backup",
     "filename": "Filename",
     "size": "Size",
     "created": "Created",
@@ -700,7 +719,6 @@
     "creatingFullBackup": "Creating...",
     "createFullBackup": "Create Full Backup",
     "uploadFullBackup": "Upload Full Backup",
-    "createFullError": "Failed to create full backup",
     "restoreOverwrite": "Restore (overwrites all data)",
     "noFullBackups": "No full backups yet. Create one to get started."
   },
@@ -735,6 +753,7 @@
     "noVehicles": "You don't own any vehicles yet.",
     "creating": "Creating…",
     "submit": "Create Key",
+    "createAction": "create the API key",
     "panel": {
       "title": "API Keys",
       "description": "Read-only API keys for external integrations. Each key grants access to the vehicles you select.",
@@ -786,7 +805,9 @@
   },
   "backupTab": {
     "createSettingsSuccess": "Settings backup created successfully!",
+    "createSettingsAction": "create the settings backup",
     "createFullSuccess": "Full backup created successfully!",
+    "createFullAction": "create the full backup",
     "confirmRestoreFull": "WARNING: This will overwrite your entire database and all uploaded files! A safety backup will be created first. Are you absolutely sure?",
     "confirmRestoreSettings": "This will restore all settings from the backup. A safety backup will be created first. Continue?",
     "fullRestoreStaged": "Restore staged. Restart MyGarage to finish. Until then it keeps running on the current data, and anything changed before the restart is replaced by the backup.",

@@ -4,6 +4,7 @@ Integration tests for POI discovery routes.
 Tests POI search, save, and recommendations endpoints.
 """
 
+import logging
 import uuid
 from unittest.mock import AsyncMock, patch
 
@@ -12,6 +13,7 @@ from httpx import AsyncClient
 from sqlalchemy import delete, select
 
 from app.models.address_book import AddressBookEntry
+from tests._logged import problems
 
 # Usage far above anything the rest of the suite records.
 _HEAVY_USE = 10_000
@@ -454,12 +456,19 @@ class TestPOIValidation:
         # business_name is required
         assert response.status_code == 422
 
-    async def test_search_error_does_not_leak_exception(self, client: AsyncClient, auth_headers):
+    async def test_search_error_does_not_leak_exception(
+        self, client: AsyncClient, auth_headers, caplog, caplog_only
+    ):
         """Test that internal errors return generic message, not exception details."""
-        with patch(
-            "app.routes.poi.POIDiscoveryService",
-            return_value=AsyncMock(
-                search_pois=AsyncMock(side_effect=RuntimeError("secret db connection string"))
+        with (
+            caplog_only("app.routes.poi"),
+            patch(
+                "app.routes.poi.POIDiscoveryService",
+                return_value=AsyncMock(
+                    search_nearby_pois=AsyncMock(
+                        side_effect=RuntimeError("secret db connection string")
+                    )
+                ),
             ),
         ):
             response = await client.post(
@@ -476,3 +485,8 @@ class TestPOIValidation:
         detail = response.json()["detail"]
         assert "secret db connection string" not in detail
         assert detail == "Failed to search for POIs"
+        # The log keeps what the response hides.
+        (logged,) = problems(caplog, "app.routes.poi")
+        assert logged.levelno == logging.ERROR
+        assert logged.exc_info is not None
+        assert str(logged.exc_info[1]) == "secret db connection string"

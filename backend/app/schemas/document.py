@@ -2,7 +2,7 @@
 
 from datetime import datetime as datetime_type
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.schemas._nullability import reject_null
 
@@ -63,10 +63,7 @@ class DocumentResponse(DocumentBase):
     mime_type: str
     uploaded_at: datetime_type
 
-    class Config:
-        """Pydantic config."""
-
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class DocumentListResponse(BaseModel):

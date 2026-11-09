@@ -209,11 +209,11 @@ class Settings(BaseSettings):
     # NHTSA API
     nhtsa_api_base_url: str = "https://vpic.nhtsa.dot.gov/api"
 
-    # TomTom Places API (optional - falls back to OSM if not configured)
-    tomtom_api_key: str = ""  # Empty by default - graceful degradation
+    # TomTom Places API base URL. The key and the on/off switch are settings
+    # rows (Settings > Integrations). POI search tries TomTom first when it's
+    # switched on and has a key, then Google Places, Yelp and Foursquare (each
+    # needs its own switch on and a key), and OSM last.
     tomtom_api_base_url: str = "https://api.tomtom.com/search/2"
-    shop_search_radius_meters: int = 8000  # ~5 miles
-    shop_search_max_results: int = 20
 
     # File Upload Limits
     max_upload_size_mb: int = 10

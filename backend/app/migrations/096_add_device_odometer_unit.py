@@ -46,7 +46,7 @@ import os
 import re
 from pathlib import Path
 
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import Engine, create_engine, inspect, text
 
 FATAL = True
 
@@ -88,10 +88,15 @@ def _infer_unit(param_keys: set[str]) -> str | None:
     return "km" if prefixed else "mi"
 
 
-def upgrade(engine=None) -> None:
+def upgrade(engine: Engine | None = None) -> None:
     """Add the column, then classify each device from the keys it has published."""
     if engine is None:
+        # Run standalone: it builds its own engine, so it closes it too.
         engine = _get_fallback_engine()
+        try:
+            return upgrade(engine)
+        finally:
+            engine.dispose()
 
     inspector = inspect(engine)
     if not inspector.has_table("livelink_devices"):

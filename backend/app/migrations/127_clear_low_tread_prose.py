@@ -38,7 +38,12 @@ def _get_fallback_engine() -> Engine:
 def upgrade(engine: Engine | None = None) -> None:
     """Null the notes of low-tread reminders that still hold the old generated sentence."""
     if engine is None:
+        # Run standalone: it builds its own engine, so it closes it too.
         engine = _get_fallback_engine()
+        try:
+            return upgrade(engine)
+        finally:
+            engine.dispose()
 
     inspector = inspect(engine)
     if not inspector.has_table("vehicle_reminders"):

@@ -4,6 +4,7 @@ Integration tests for address book routes.
 Tests address book CRUD operations and vendor sync side-effects.
 """
 
+import logging
 import uuid
 from unittest.mock import AsyncMock, patch
 
@@ -14,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.address_book import AddressBookEntry
 from app.models.vendor import Vendor
+from tests._logged import problems
 
 
 async def _offered_to_fill_up(client: AsyncClient, headers: dict, search: str) -> list[str]:
@@ -360,13 +362,16 @@ class TestAddressBookRoutes:
         assert len(vendors) == 1, f"Expected 1 vendor, found {len(vendors)}"
 
     async def test_create_vendor_sync_failure_does_not_fail_create(
-        self, client: AsyncClient, auth_headers
+        self, client: AsyncClient, auth_headers, caplog, caplog_only
     ):
         """A failure in vendor sync (savepoint) must not abort the address book create."""
-        with patch(
-            "app.routes.address_book._sync_to_vendor",
-            new_callable=AsyncMock,
-            side_effect=Exception("simulated vendor sync failure"),
+        with (
+            caplog_only("app.routes.address_book"),
+            patch(
+                "app.routes.address_book._sync_to_vendor",
+                new_callable=AsyncMock,
+                side_effect=Exception("simulated vendor sync failure"),
+            ),
         ):
             response = await client.post(
                 "/api/address-book",
@@ -377,6 +382,10 @@ class TestAddressBookRoutes:
         # Address book entry must still be created despite sync failure
         assert response.status_code == 201
         assert response.json()["business_name"] == "Sync Failure Shop"
+        (logged,) = problems(caplog, "app.routes.address_book")
+        assert logged.levelno == logging.ERROR
+        assert logged.exc_info is not None
+        assert str(logged.exc_info[1]) == "simulated vendor sync failure"
 
     async def test_update_syncs_new_business_name_to_vendor(
         self, client: AsyncClient, auth_headers

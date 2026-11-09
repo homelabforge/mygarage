@@ -24,7 +24,7 @@ import { Select } from '../components/ui'
 import { formatCurrency } from '../utils/formatUtils'
 import { getActionErrorMessage } from '../utils/httpErrorHandler'
 import { useCurrencyPreference } from '../hooks/useCurrencyPreference'
-import { usePublicSettings } from '../hooks/usePublicSettings'
+import { usePublicSettings } from '../hooks/queries/usePublicSettings'
 import { isSettingOn } from '../utils/settingSwitch'
 import { formatAtPrecision } from '@/utils/unitFormat'
 

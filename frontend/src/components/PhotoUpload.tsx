@@ -2,8 +2,8 @@ import { useState, useRef, type SyntheticEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Upload, X } from 'lucide-react'
 import api from '../services/api'
-import { getActionErrorMessage } from '../utils/httpErrorHandler'
-import { applyControlledFieldErrors } from '../hooks/useApiFormErrors'
+import { actionErrorMessage } from '../utils/httpErrorHandler'
+import { applyControlledFieldErrors } from '../utils/apiFormErrors'
 import { Button, IconButton, Field, Input, Checkbox } from './ui'
 
 interface PhotoUploadProps {
@@ -100,12 +100,12 @@ export default function PhotoUpload({ vin, onSuccess, onClose }: PhotoUploadProp
     } catch (err) {
       // Render targets: caption only. `set_as_main` has no Field wrapper, so
       // a problem addressed to it must hit the banner instead of vanishing.
-      const { attached, unhandled, errorsByField } = applyControlledFieldErrors(err, ['caption'])
+      const { parsed, attached, unhandled, errorsByField } = applyControlledFieldErrors(err, ['caption'])
       if (attached.length > 0) {
         setFieldErrors(errorsByField)
       }
       if (attached.length === 0 || unhandled.length > 0) {
-        setError(getActionErrorMessage(err, t('photoUpload.uploadAction')))
+        setError(actionErrorMessage(parsed, t('photoUpload.uploadAction')))
       }
     } finally {
       setUploading(false)

@@ -4,7 +4,8 @@
  * Another tab catches up on its next visibility refresh.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, waitFor, act } from '@testing-library/react'
+import { screen, waitFor, act } from '@testing-library/react'
+import { renderWithQueryClient } from '@/__tests__/queryClient'
 import { AuthProvider, useAuth } from '../AuthContext'
 
 vi.mock('../../services/api', () => ({
@@ -31,10 +32,11 @@ function serve(mode: string): void {
 }
 
 function Probe() {
-  const { isAuthenticated, isAdmin, authMode, refreshUser, loading } = useAuth()
+  const { isAuthenticated, isAdmin, authMode, refreshUser, loading, publicSettingsLoaded } = useAuth()
   return (
     <div>
       <span data-testid="state">{`${authMode}:${isAuthenticated}:${isAdmin}`}</span>
+      <span data-testid="loaded">{String(publicSettingsLoaded)}</span>
       <button disabled={loading} onClick={() => void refreshUser()}>refresh</button>
     </div>
   )
@@ -54,7 +56,7 @@ afterEach(() => {
 describe('AuthContext follows the sign-in mode', () => {
   it('a refresh that finds sign-in off drops the signed-in user', async () => {
     serve('local')
-    render(<AuthProvider><Probe /></AuthProvider>)
+    renderWithQueryClient(<AuthProvider><Probe /></AuthProvider>)
     await waitFor(() => expect(screen.getByTestId('state')).toHaveTextContent('local:true:true'))
 
     serve('none')
@@ -65,7 +67,7 @@ describe('AuthContext follows the sign-in mode', () => {
 
   it('a refresh that finds sign-in on tells the api before it asks for the user', async () => {
     serve('none')
-    render(<AuthProvider><Probe /></AuthProvider>)
+    renderWithQueryClient(<AuthProvider><Probe /></AuthProvider>)
     await waitFor(() => expect(screen.getByTestId('state')).toHaveTextContent('none:false:false'))
 
     serve('local')
@@ -83,7 +85,7 @@ describe('AuthContext follows the sign-in mode', () => {
 
   it('a visibility refresh that finds another mode reloads the user', async () => {
     serve('local')
-    render(<AuthProvider><Probe /></AuthProvider>)
+    renderWithQueryClient(<AuthProvider><Probe /></AuthProvider>)
     await waitFor(() => expect(screen.getByTestId('state')).toHaveTextContent('local:true:true'))
 
     serve('none')
@@ -96,9 +98,47 @@ describe('AuthContext follows the sign-in mode', () => {
     await waitFor(() => expect(screen.getByTestId('state')).toHaveTextContent('none:false:false'))
   })
 
+  it('a boot read that fails after a refresh landed still loads the user from that refresh', async () => {
+    // Boot's read stays out until we fail it; the refresh's read answers right away.
+    let failBoot: (err: Error) => void = () => {}
+    let settingsCalls = 0
+    mockedApi.get.mockImplementation((url: string) => {
+      if (url === '/settings/public') {
+        settingsCalls += 1
+        if (settingsCalls === 1) {
+          return new Promise((_resolve, reject) => {
+            failBoot = reject
+          })
+        }
+        return Promise.resolve({ data: { settings: [{ key: 'auth_mode', value: 'local' }] } })
+      }
+      if (url === '/auth/me') return Promise.resolve({ data: ADMIN })
+      return Promise.resolve({ data: {} })
+    })
+    renderWithQueryClient(<AuthProvider><Probe /></AuthProvider>)
+    await waitFor(() => expect(settingsCalls).toBe(1))
+
+    act(() => {
+      Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true })
+      document.dispatchEvent(new Event('visibilitychange'))
+    })
+    await waitFor(() => expect(settingsCalls).toBe(2))
+    // Let the refresh land while boot is still out.
+    // Boot's read is still out, so only the refresh can have flipped this.
+    await waitFor(() => expect(screen.getByTestId('loaded')).toHaveTextContent('true'))
+    expect(mockedApi.get.mock.calls.some(([u]) => u === '/auth/me')).toBe(false)
+
+    await act(async () => {
+      failBoot(new Error('network down'))
+    })
+
+    await waitFor(() => expect(screen.getByTestId('state')).toHaveTextContent('local:true:true'))
+    expect(screen.getByRole('button')).not.toBeDisabled()
+  })
+
   it('a visibility refresh with the same mode does not ask for the user again', async () => {
     serve('local')
-    render(<AuthProvider><Probe /></AuthProvider>)
+    renderWithQueryClient(<AuthProvider><Probe /></AuthProvider>)
     await waitFor(() => expect(screen.getByTestId('state')).toHaveTextContent('local:true:true'))
     const meCalls = () => mockedApi.get.mock.calls.filter(([u]) => u === '/auth/me').length
     const before = meCalls()

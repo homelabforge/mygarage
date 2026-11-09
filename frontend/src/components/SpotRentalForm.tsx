@@ -14,8 +14,8 @@ import api from '../services/api'
 import { useCreateSpotRental, useUpdateSpotRental } from '../hooks/queries/useSpotRentals'
 import { toast } from 'sonner'
 import { formatDateForInput } from '../utils/dateUtils'
-import { applyServerErrors } from '../hooks/useApiFormErrors'
-import { getActionErrorMessage } from '../utils/httpErrorHandler'
+import { applyServerErrors } from '../utils/apiFormErrors'
+import { actionErrorMessage } from '../utils/httpErrorHandler'
 import { useOnUserEdit } from '../hooks/useOnUserEdit'
 
 type RateType = 'nightly' | 'weekly' | 'monthly'
@@ -219,7 +219,7 @@ export default function SpotRentalForm({ vin, rental, onClose, onSuccess }: Spot
       // attached.length === 0 catches a non-422 failure (network drop, 500):
       // it carries no field problems at all, so `unhandled` alone would stay
       // empty and this banner would never show.
-      const { attached, unhandled } = applyServerErrors<SpotRentalFormData>(setFieldError, err, [
+      const { parsed, attached, unhandled } = applyServerErrors<SpotRentalFormData>(setFieldError, err, [
         'location_name',
         'location_address',
         'check_in_date',
@@ -235,7 +235,7 @@ export default function SpotRentalForm({ vin, rental, onClose, onSuccess }: Spot
         'notes',
       ])
       if (attached.length === 0 || unhandled.length > 0) {
-        setError(getActionErrorMessage(err, t('spotRental.saveAction')))
+        setError(actionErrorMessage(parsed, t('spotRental.saveAction')))
       }
     }
   }

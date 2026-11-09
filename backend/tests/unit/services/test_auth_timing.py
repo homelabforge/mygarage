@@ -125,7 +125,7 @@ def _assert_one_full_cost_verify(spy: mock.MagicMock) -> None:
     assert not auth.ph.check_needs_rehash(hashes[0])
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.auth
 async def test_unknown_username_runs_one_argon2_verify(
     db_session: AsyncSession, argon2_verify: mock.MagicMock
@@ -137,7 +137,7 @@ async def test_unknown_username_runs_one_argon2_verify(
     _assert_one_full_cost_verify(argon2_verify)
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.auth
 async def test_oidc_only_user_runs_one_argon2_verify(
     db_session: AsyncSession, oidc_only_user: User, argon2_verify: mock.MagicMock
@@ -149,7 +149,7 @@ async def test_oidc_only_user_runs_one_argon2_verify(
     _assert_one_full_cost_verify(argon2_verify)
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.auth
 @pytest.mark.parametrize("password", ["wrong-password", "x" * 73], ids=["wrong", "over-72-bytes"])
 async def test_legacy_bcrypt_miss_runs_one_argon2_verify(
@@ -165,7 +165,7 @@ async def test_legacy_bcrypt_miss_runs_one_argon2_verify(
     _assert_one_full_cost_verify(argon2_verify)
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.auth
 async def test_known_user_wrong_password_runs_one_argon2_verify(
     db_session: AsyncSession, test_user: dict[str, object], argon2_verify: mock.MagicMock
@@ -177,7 +177,7 @@ async def test_known_user_wrong_password_runs_one_argon2_verify(
     _assert_one_full_cost_verify(argon2_verify)
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.auth
 async def test_known_user_right_password_still_logs_in(
     db_session: AsyncSession, test_user: dict[str, object], argon2_verify: mock.MagicMock
@@ -190,7 +190,7 @@ async def test_known_user_right_password_still_logs_in(
     assert argon2_verify.call_count == 1
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.auth
 async def test_damaged_hash_is_a_miss_that_pays_the_dummy(
     db_session: AsyncSession, damaged_hash_user: User, argon2_verify: mock.MagicMock
@@ -214,7 +214,7 @@ def test_verify_password_never_raises(stored: str | None) -> None:
     assert auth.verify_password("whatever-password", stored) is False
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.auth
 async def test_damaged_hash_logs_a_reset_hint(
     db_session: AsyncSession, damaged_hash_user: User, caplog: pytest.LogCaptureFixture

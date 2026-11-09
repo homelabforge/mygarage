@@ -585,7 +585,6 @@
     "creatingBackup": "Création…",
     "createSettingsBackup": "Créer une sauvegarde des paramètres",
     "uploadSettingsBackup": "Envoyer une sauvegarde des paramètres",
-    "createSettingsError": "Échec de la création de la sauvegarde des paramètres",
     "filename": "Nom du fichier",
     "size": "Taille",
     "created": "Créé",
@@ -601,7 +600,6 @@
     "creatingFullBackup": "Création…",
     "createFullBackup": "Créer une sauvegarde complète",
     "uploadFullBackup": "Envoyer une sauvegarde complète",
-    "createFullError": "Échec de la création de la sauvegarde complète",
     "restoreOverwrite": "Restaurer (écrase toutes les données)",
     "noFullBackups": "Aucune sauvegarde complète pour le moment. Créez-en une pour commencer."
   },

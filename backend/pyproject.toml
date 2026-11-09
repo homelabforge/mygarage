@@ -36,7 +36,6 @@ dependencies = [
     "pymupdf>=1.28.0,<2",  # 2.0 drags in onnxruntime + pymupdf4llm; we only read pages
     "pytesseract>=0.3.13",
     "aiosmtplib>=5.1.2",  # Async SMTP for email notifications
-    "pyyaml>=6.0.3",  # YAML parsing for maintenance templates
     "aiomqtt>=2.5.1",  # Async MQTT client for LiveLink WiCAN support
     "matplotlib>=3.11.1",  # Chart generation for PDF analytics reports
     "rich>=15.0.0",  # Pretty container log output when MYGARAGE_LOG_PRETTY=true
@@ -47,7 +46,9 @@ dev = [
     "pytest>=9.1.0",
     "pytest-asyncio>=1.4.0",
     "pytest-cov>=7.1.0",
+    "pyyaml>=6.0.3",  # Test-only: tests/unit/test_pg_ci_path.py reads the CI workflow.
     "pyjwt>=2.13.0",  # Test-only: used by tests/integration/routes/test_auth.py to decode JWT exp/iat claims without verification. Production auth uses joserfc.
+    "httpx2>=2.16.0",  # Test-only: starlette.testclient wants it, and with plain httpx it warns on import (the lifespan tests use TestClient).
     "pyright>=1.1.411",
     "ruff>=0.16.0",
     "pandas-stubs>=3.0.5.260730",
@@ -80,7 +81,8 @@ ignore = ["E501"]
 # Reference: https://microsoft.github.io/pyright/#/configuration
 
 # Project Structure
-include = ["app"]
+# Tests and the one-off tools get the same strict pass as app/.
+include = ["app", "tests", "tools", "scripts", "migrations", "unlink_oidc_wrapper.py"]
 exclude = [
     "**/__pycache__",
     "**/.pytest_cache",

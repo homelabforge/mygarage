@@ -20,7 +20,8 @@
  * agreeing with a mocked context.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { screen, waitFor } from '@testing-library/react'
+import { renderWithQueryClient } from '@/__tests__/queryClient'
 import { makeUser } from '@/__tests__/factories'
 import { AuthProvider, useAuth } from '../AuthContext'
 import { useUnitPreference } from '@/hooks/useUnitPreference'
@@ -97,7 +98,7 @@ function mountWithPublicSettings(settings: Array<{ key: string; value?: string |
     if (url === '/auth/me') return Promise.reject({ response: { status: 401 } })
     return Promise.reject(new Error('unexpected url'))
   })
-  render(
+  renderWithQueryClient(
     <AuthProvider>
       <Consumer />
     </AuthProvider>
@@ -150,7 +151,7 @@ describe('AuthContext default_unit_prefs', () => {
       if (url === '/settings/public') return Promise.reject(new Error('network down'))
       return Promise.reject(new Error('unexpected url'))
     })
-    render(
+    renderWithQueryClient(
       <AuthProvider>
         <Consumer />
       </AuthProvider>
@@ -266,7 +267,7 @@ describe('AuthContext default_unit_prefs', () => {
       return Promise.reject(new Error('unexpected url'))
     })
 
-    render(
+    renderWithQueryClient(
       <AuthProvider>
         <Consumer />
       </AuthProvider>
@@ -323,7 +324,7 @@ describe('AuthContext default_unit_prefs', () => {
     reloadBrowserPrefs()
     mockedApi.get.mockImplementation(() => Promise.reject(new Error('offline')))
 
-    render(
+    renderWithQueryClient(
       <AuthProvider>
         <Consumer />
       </AuthProvider>

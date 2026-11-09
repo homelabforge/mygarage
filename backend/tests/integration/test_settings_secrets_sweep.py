@@ -12,7 +12,9 @@ Plan test 5, and the sweep half of test 17:
   backup preflight builds on that);
 - on a file-backed WAL database, the plaintext is gone from both `mygarage.db`
   and `mygarage.db-wal` afterwards, and a checkpoint that comes back busy is
-  logged without failing the sweep.
+  logged without failing the sweep, and without waiting out the busy timeout;
+- a connection whose PRAGMAs couldn't be turned back (a failed flush, a failed
+  busy_timeout restore) is dropped rather than going back to the pool.
 
 The plaintext rows are seeded with raw SQL, not through the model: a Core
 `insert()` or `update()`, or an old backup, writes the column as is, and the
@@ -22,22 +24,19 @@ test key in MYGARAGE_SETTINGS_KEY, reset before and after.
 
 import logging
 import sqlite3
+import time
 from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
 import pytest
-from sqlalchemy import bindparam, event, text
+from sqlalchemy import bindparam, text
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import (
-    AsyncEngine,
     AsyncSession,
     async_sessionmaker,
-    create_async_engine,
 )
 
-from app.database import configure_sqlite_engine
-from app.models.settings import Setting
 from app.services.settings_secrets import SweepReport, encrypt_secret_rows, sweep_secret_settings
 from app.utils.secret_setting_keys import SECRET_SETTING_KEYS
 from app.utils.settings_crypto import (
@@ -45,10 +44,14 @@ from app.utils.settings_crypto import (
     encrypt,
 )
 from tests.integration._secret_helpers import (
+    REMNANT,
     Keep,
     UseKeys,
+    file_db,
+    holding,
     keyring_entry,
     only_these_secret_rows,
+    pooled_pragma,
     raw_column,
     read_back,
     unreadable_ciphertext,
@@ -296,59 +299,14 @@ async def test_encrypt_secret_rows_flushes_and_leaves_the_commit(
 
 # -------------------------------------------- plan test 17: SQLite remnants
 
-REMNANT = "WAL-REMNANT-plaintext-5e1d07"
-
-
-async def _file_db(tmp_path: Path, *, timeout: float = 30) -> tuple[AsyncEngine, Path]:
-    """A file-backed WAL database holding one plaintext secret, in the main file and the WAL.
-
-    The connections start with secure_delete OFF, whatever the build default, so
-    only the sweep's own PRAGMA can scrub the freed cell.
-    """
-    path = tmp_path / "mygarage.db"
-    engine = create_async_engine(f"sqlite+aiosqlite:///{path}", connect_args={"timeout": timeout})
-    configure_sqlite_engine(engine)
-
-    @event.listens_for(engine.sync_engine, "connect")
-    def _secure_delete_off(dbapi_connection: Any, _record: Any) -> None:  # pyright: ignore[reportUnusedFunction]
-        cursor = dbapi_connection.cursor()
-        cursor.execute("PRAGMA secure_delete=OFF")
-        cursor.close()
-
-    async with engine.begin() as conn:
-        await conn.run_sync(Setting.__table__.create)  # pyright: ignore[reportUnknownMemberType, reportUnknownArgumentType]
-    async with engine.connect() as conn:
-        # The secret first, so later rows sit between it and the free space and
-        # its freed cell isn't simply reused by the longer ciphertext.
-        await conn.execute(
-            text("INSERT INTO settings (key, value, encrypted) VALUES ('ntfy_token', :v, 0)"),
-            {"v": REMNANT},
-        )
-        for n in range(8):
-            await conn.execute(
-                text("INSERT INTO settings (key, value, encrypted) VALUES (:k, :v, 0)"),
-                {"k": f"plain_{n}", "v": f"value-{n}"},
-            )
-        await conn.commit()
-        await conn.execute(text("PRAGMA wal_checkpoint(TRUNCATE)"))
-        # Touch the page again, so the plaintext is in a WAL frame as well.
-        await conn.execute(text("UPDATE settings SET value = 'changed' WHERE key = 'plain_0'"))
-        await conn.commit()
-    return engine, path
-
-
-def _holding(path: Path, needle: bytes) -> list[str]:
-    files = (path, path.with_name(path.name + "-wal"))
-    return [f.name for f in files if f.exists() and needle in f.read_bytes()]
-
 
 async def test_no_plaintext_remains_in_the_database_or_the_wal(
     tmp_path: Path, use_keys: UseKeys
 ) -> None:
     kid = use_keys(KEY_A)
-    engine, path = await _file_db(tmp_path)
+    engine, path = await file_db(tmp_path)
     try:
-        assert _holding(path, REMNANT.encode()) == ["mygarage.db", "mygarage.db-wal"]
+        assert holding(path, REMNANT.encode()) == ["mygarage.db", "mygarage.db-wal"]
         sessionmaker = async_sessionmaker(engine, expire_on_commit=False)
 
         async with sessionmaker() as db:
@@ -357,7 +315,7 @@ async def test_no_plaintext_remains_in_the_database_or_the_wal(
         assert report == SweepReport(encrypted=("ntfy_token",))
         # Read before the engine is disposed: closing the last connection would
         # checkpoint on its own and hide a sweep that didn't.
-        assert _holding(path, REMNANT.encode()) == []
+        assert holding(path, REMNANT.encode()) == []
         raw = await raw_column(sessionmaker, "ntfy_token")
         assert raw is not None and raw.startswith(f"{CIPHERTEXT_PREFIX}{kid}:")
         assert await read_back(sessionmaker, "ntfy_token") == REMNANT
@@ -369,7 +327,7 @@ async def test_a_busy_checkpoint_is_logged_and_the_sweep_still_commits(
     tmp_path: Path, use_keys: UseKeys, caplog: pytest.LogCaptureFixture
 ) -> None:
     use_keys(KEY_A)
-    engine, path = await _file_db(tmp_path, timeout=0.2)
+    engine, path = await file_db(tmp_path, timeout=0.2)
     reader = sqlite3.connect(path, isolation_level=None)
     try:
         # An open read transaction pins the WAL, so a TRUNCATE checkpoint can't finish.
@@ -397,4 +355,117 @@ async def test_a_busy_checkpoint_is_logged_and_the_sweep_still_commits(
     finally:
         reader.execute("ROLLBACK")
         reader.close()
+        await engine.dispose()
+
+
+async def test_a_failed_flush_does_not_leave_secure_delete_on_in_the_pool(
+    tmp_path: Path, use_keys: UseKeys, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A flush that raises sends the connection away rather than back to the pool.
+
+    The patched flush raises before any SQL runs, so the session isn't in its
+    failed-transaction state here; the test below fails a real statement for that.
+    """
+    use_keys(KEY_A)
+    engine, _path = await file_db(tmp_path)
+    try:
+        sessionmaker = async_sessionmaker(engine, expire_on_commit=False)
+        failure = OperationalError("UPDATE settings", {}, Exception("disk I/O error"))
+
+        with caplog.at_level(logging.INFO, logger="app.services.settings_secrets"):
+            async with sessionmaker() as db:
+                with patch.object(db, "flush", side_effect=failure):
+                    report = await sweep_secret_settings(db)
+
+        assert report == SweepReport()
+        assert await raw_column(sessionmaker, "ntfy_token") == REMNANT
+        assert "next start" in caplog.text
+        assert await pooled_pragma(engine, "secure_delete") == 0
+    finally:
+        await engine.dispose()
+
+
+async def test_a_statement_that_fails_in_the_flush_drops_the_connection(
+    tmp_path: Path, use_keys: UseKeys, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A real failed UPDATE: the session refuses every statement until a rollback,
+    so the PRAGMA can't be turned back on it and the connection has to go."""
+    use_keys(KEY_A)
+    engine, _path = await file_db(tmp_path)
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(
+                text(
+                    "CREATE TRIGGER refuse_settings_update BEFORE UPDATE ON settings "
+                    "BEGIN SELECT RAISE(ABORT, 'refused by the test'); END"
+                )
+            )
+        sessionmaker = async_sessionmaker(engine, expire_on_commit=False)
+
+        with caplog.at_level(logging.INFO, logger="app.services.settings_secrets"):
+            async with sessionmaker() as db:
+                report = await sweep_secret_settings(db)
+
+        assert report == SweepReport()
+        assert await raw_column(sessionmaker, "ntfy_token") == REMNANT
+        assert "IntegrityError" in caplog.text
+        assert "next start" in caplog.text
+        assert await pooled_pragma(engine, "secure_delete") == 0
+    finally:
+        await engine.dispose()
+
+
+async def test_a_busy_checkpoint_does_not_wait_out_the_busy_timeout(
+    tmp_path: Path, use_keys: UseKeys
+) -> None:
+    """Boot shouldn't stall on a reader; the checkpoint just tries again later."""
+    use_keys(KEY_A)
+    engine, path = await file_db(tmp_path, timeout=10)
+    reader = sqlite3.connect(path, isolation_level=None)
+    try:
+        reader.execute("BEGIN")
+        reader.execute("SELECT count(*) FROM settings").fetchall()
+        sessionmaker = async_sessionmaker(engine, expire_on_commit=False)
+
+        started = time.monotonic()
+        async with sessionmaker() as db:
+            report = await sweep_secret_settings(db)
+        elapsed = time.monotonic() - started
+
+        assert report == SweepReport(encrypted=("ntfy_token",))
+        assert elapsed < 5, f"the sweep waited {elapsed:.1f}s on a busy checkpoint"
+        # Turned back afterwards, so later writers still wait for a lock.
+        assert await pooled_pragma(engine, "busy_timeout") == 10_000
+    finally:
+        reader.execute("ROLLBACK")
+        reader.close()
+        await engine.dispose()
+
+
+async def test_a_busy_timeout_that_cannot_be_restored_drops_the_connection(
+    tmp_path: Path, use_keys: UseKeys, caplog: pytest.LogCaptureFixture
+) -> None:
+    use_keys(KEY_A)
+    engine, _path = await file_db(tmp_path, timeout=10)
+    try:
+        sessionmaker = async_sessionmaker(engine, expire_on_commit=False)
+
+        with caplog.at_level(logging.INFO, logger="app.services.settings_secrets"):
+            async with sessionmaker() as db:
+                real_execute = db.execute
+
+                async def restore_fails(statement: Any, *args: Any, **kwargs: Any) -> Any:
+                    if str(statement) == "PRAGMA busy_timeout=10000":
+                        raise OperationalError(str(statement), {}, Exception("disk I/O error"))
+                    return await real_execute(statement, *args, **kwargs)
+
+                with patch.object(db, "execute", side_effect=restore_fails):
+                    report = await sweep_secret_settings(db)
+
+        assert report == SweepReport(encrypted=("ntfy_token",))
+        assert await read_back(sessionmaker, "ntfy_token") == REMNANT
+        assert "checkpoint" in caplog.text
+        # A fresh connection, with the engine's own timeout, not the 0 left behind.
+        assert await pooled_pragma(engine, "busy_timeout") == 10_000
+    finally:
         await engine.dispose()

@@ -10,9 +10,9 @@ import { makeLoginSchema, type LoginFormData } from '../schemas/auth'
 import { FormError } from '../components/FormError'
 import AuthPageLayout from '../components/AuthPageLayout'
 import { withBase } from '../utils/basePath'
-import { applyServerErrors } from '../hooks/useApiFormErrors'
+import { applyServerErrors } from '../utils/apiFormErrors'
 import { useAutofillSubmit } from '../hooks/useAutofillSubmit'
-import { getActionErrorMessage } from '../utils/httpErrorHandler'
+import { actionErrorMessage } from '../utils/httpErrorHandler'
 
 // The backend's SSOError values (app/constants/oidc.py), which its SSO redirect
 // sends back as ?sso_error=. Anything else is someone's hand-typed URL, so it
@@ -142,9 +142,9 @@ export default function Login() {
       // attached.length === 0 catches a non-422 failure (network drop, 500):
       // it carries no field problems at all, so `unhandled` alone would stay
       // empty and this banner would never show.
-      const { attached, unhandled } = applyServerErrors<LoginFormData>(setFieldError, err, ['username', 'password'])
+      const { parsed, attached, unhandled } = applyServerErrors<LoginFormData>(setFieldError, err, ['username', 'password'])
       if (attached.length === 0 || unhandled.length > 0) {
-        setError(getActionErrorMessage(err, t('login.signInAction')))
+        setError(actionErrorMessage(parsed, t('login.signInAction')))
       }
     }
   }

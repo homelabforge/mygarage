@@ -10,6 +10,8 @@ dir pointed at tmp_path, and the cached keyring reset before and after.
 """
 
 import base64
+import errno
+import fcntl
 import hashlib
 import logging
 import os
@@ -21,7 +23,7 @@ from pathlib import Path
 import pytest
 
 from app.config import settings
-from app.utils import settings_crypto
+from app.utils import secret_key, settings_crypto
 from app.utils.settings_crypto import (
     CIPHERTEXT_PREFIX,
     DecryptStatus,
@@ -34,6 +36,7 @@ from app.utils.settings_crypto import (
     keyring_fix_advice,
     keyring_status,
 )
+from tests.unit.utils._key_race_child import race_warnings, run_race, settings_key_child
 
 ENV_KEY = "MYGARAGE_SETTINGS_KEY"
 ENV_KEY_FILE = "MYGARAGE_SETTINGS_KEY_FILE"
@@ -50,6 +53,18 @@ def _new_key() -> tuple[str, bytes]:
 
 def _kid(raw: bytes) -> str:
     return hashlib.sha256(raw).hexdigest()[:8]
+
+
+def _kid_on_disk(path: Path) -> str:
+    """The kid of the single key the file holds."""
+    text = path.read_text().strip()
+    return _kid(base64.urlsafe_b64decode(text + "=" * (-len(text) % 4)))
+
+
+def _warnings(caplog: pytest.LogCaptureFixture) -> list[str]:
+    return [
+        r.getMessage() for r in caplog.records if r.name == LOGGER and r.levelno == logging.WARNING
+    ]
 
 
 @pytest.fixture
@@ -386,7 +401,7 @@ class TestNoFallthrough:
         _assert_unavailable()
         assert key_file.read_text() == "garbage"
 
-    @pytest.mark.parametrize("content", [b"garbage", b"", b"\n", b"\xff\xfe binary"])
+    @pytest.mark.parametrize("content", [b"garbage", b"\xff\xfe binary"])
     def test_a_broken_data_dir_file_is_not_regenerated(
         self, data_dir: Path, content: bytes
     ) -> None:
@@ -395,6 +410,89 @@ class TestNoFallthrough:
 
         _assert_unavailable()
         assert path.read_bytes() == content
+
+    @pytest.mark.parametrize("content", [b"", b"\n", b" \t\r\n"], ids=["zero", "newline", "blank"])
+    def test_an_empty_data_dir_file_is_refilled(
+        self, data_dir: Path, caplog: pytest.LogCaptureFixture, content: bytes
+    ) -> None:
+        """A crash between creating the file and writing it left nothing there: no key
+        to lose, so a new one goes in, in place."""
+        path = data_dir / "settings.key"
+        path.write_bytes(content)
+        inode = path.stat().st_ino
+
+        with caplog.at_level(logging.DEBUG, logger=LOGGER):
+            kid = current_kid()
+
+        assert kid is not None
+        assert kid == _kid_on_disk(path)
+        assert path.stat().st_ino == inode
+        (warning,) = _warnings(caplog)
+        assert str(path) in warning
+        assert "re-enter" in warning
+        assert "comma-separated" in warning
+        # Hedged: on a cold start a racing process may land here with nothing lost.
+        assert "Any secrets saved under an earlier key" in warning
+
+    def test_a_symlinked_data_dir_file_with_an_empty_target_is_left_alone(
+        self, data_dir: Path, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Someone pointed it somewhere on purpose, so the empty target is theirs to fill.
+        Swapping the link for a new file would leave their managed copy empty for good."""
+        target = tmp_path / "managed" / "settings.key"
+        target.parent.mkdir()
+        target.write_bytes(b"")
+        path = data_dir / "settings.key"
+        path.symlink_to(target)
+
+        with caplog.at_level(logging.DEBUG, logger=LOGGER):
+            with pytest.raises(SettingsKeyUnavailable) as raised:
+                encrypt("llm_api_key", "x")
+
+        assert path.is_symlink()
+        assert path.readlink() == target
+        assert target.read_bytes() == b""
+        # Only its own fix: the generic "make the data directory writable" would
+        # generate nothing here, since the link is never replaced.
+        fix = "Put a key in the file the symlink points to, or remove the link so one is generated."
+        (error,) = [r.getMessage() for r in caplog.records if r.levelno >= logging.ERROR]
+        assert "symlink to an empty file" in error
+        for said in (error, str(raised.value), keyring_fix_advice()):
+            assert said is not None
+            assert fix in said
+            assert "writable" not in said
+
+        text, raw = _new_key()
+        target.write_text(text)
+        assert current_kid() == _kid(raw)
+
+    def test_a_first_start_on_a_mount_without_locks_still_writes_the_key(
+        self, data_dir: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        def no_locks(fd: int, operation: int) -> None:
+            raise OSError(errno.ENOLCK, os.strerror(errno.ENOLCK))
+
+        monkeypatch.setattr(secret_key.fcntl, "flock", no_locks)
+        path = data_dir / "settings.key"
+
+        with caplog.at_level(logging.DEBUG):
+            kid = current_kid()
+
+        assert kid is not None
+        assert kid == _kid_on_disk(path)
+        assert not [r for r in caplog.records if r.levelno >= logging.ERROR]
+
+    def test_an_empty_key_file_variable_still_refuses(
+        self, monkeypatch: pytest.MonkeyPatch, data_dir: Path, tmp_path: Path
+    ) -> None:
+        """The operator's own file: an empty one is a mistake to report, not to paper over."""
+        key_file = tmp_path / "docker-secret"
+        key_file.write_bytes(b"")
+        monkeypatch.setenv(ENV_KEY_FILE, str(key_file))
+
+        _assert_unavailable()
+        assert key_file.read_bytes() == b""
+        assert not (data_dir / "settings.key").exists()
 
     @skip_as_root
     def test_an_unreadable_data_dir_file_is_not_regenerated(self, data_dir: Path) -> None:
@@ -461,6 +559,24 @@ class TestUnavailableIsNotCached:
         assert len(errors) == 1
         assert ENV_KEY in errors[0].getMessage()
         assert all("SENTINEL" not in r.getMessage() for r in caplog.records)
+
+    def test_no_per_key_warning_while_the_keyring_is_unavailable(
+        self, monkeypatch: pytest.MonkeyPatch, env_key: bytes, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Every secret reads as unreadable then; the keyring's one ERROR says why."""
+        stored = {
+            name: encrypt(name, "v") for name in ("llm_api_key", "ntfy_token", "gotify_token")
+        }
+        monkeypatch.setenv(ENV_KEY, "not-a-key")
+        _reset_keyring_for_tests()
+
+        with caplog.at_level(logging.DEBUG, logger=LOGGER):
+            for _ in range(3):
+                for name, value in stored.items():
+                    assert decrypt(name, value).unreadable
+
+        assert _warnings(caplog) == []
+        assert len([r for r in caplog.records if r.levelno >= logging.ERROR]) == 1
 
     def test_the_exception_names_the_source_and_the_fix_but_not_the_value(
         self, monkeypatch: pytest.MonkeyPatch, data_dir: Path
@@ -602,6 +718,134 @@ class TestGeneration:
         _block_data_dir(monkeypatch, tmp_path)
         for _ in range(3):
             _assert_unavailable()
+
+
+class TestKeyFileWriters:
+    """Every writer fills the data-dir key file under an exclusive lock, so the
+    keyring each one loads is the key on disk."""
+
+    def test_processes_racing_for_a_missing_key_all_load_the_one_on_disk(
+        self, data_dir: Path
+    ) -> None:
+        path = data_dir / "settings.key"
+
+        results = run_race(settings_key_child, str(data_dir), 8)
+
+        assert [r for r in results if r[1] == "error"] == []
+        assert len({r[0] for r in results}) == 8
+        assert {r[1] for r in results} == {_kid_on_disk(path)}
+        # Each child really loaded the data-dir file, not some other source.
+        assert {r[2] for r in results} == {str(path)}
+        generated = [r[0] for r in results if any("Generated" in m for m in r[3])]
+        assert len(generated) == 1
+        # A racer that found the file mid-create used to take it for an emptied one
+        # and warn that secrets saved under an earlier key were lost.
+        assert not [m for m in race_warnings(results) if "was empty" in m]
+
+    def test_a_create_race_loser_waits_for_the_creator_to_fill_the_file(
+        self, monkeypatch: pytest.MonkeyPatch, data_dir: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """With no hard links the creator makes the file in place, and it's empty until
+        the creator locks it. A loser that only read it would find no key; it fills it
+        under the lock instead."""
+        path = data_dir / "settings.key"
+
+        def refuse(src: object, dst: object, **kwargs: object) -> None:
+            raise OSError(errno.EPERM, os.strerror(errno.EPERM))
+
+        monkeypatch.setattr(secret_key.os, "link", refuse)
+        real_flock = fcntl.flock
+        loser: dict[str, str | None] = {}
+
+        def flock(fd: int, operation: int) -> None:
+            if not loser:
+                loser["kid"] = None
+                result = settings_crypto._generate_key_file(str(path), path)  # pyright: ignore[reportPrivateUsage]
+                loser["kid"] = getattr(result, "current_kid", None)
+            real_flock(fd, operation)
+
+        monkeypatch.setattr(secret_key.fcntl, "flock", flock)
+
+        with caplog.at_level(logging.DEBUG, logger=LOGGER):
+            creator = current_kid()
+
+        assert loser["kid"] is not None
+        assert creator == loser["kid"] == _kid_on_disk(path)
+        assert len([m for m in _warnings(caplog) if "Generated" in m]) == 1
+
+    def test_two_fillers_of_an_empty_file_load_the_same_key(
+        self, monkeypatch: pytest.MonkeyPatch, data_dir: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """One filler read the empty file, then the other filled it before the first
+        opened it. The first must not wipe that key and write its own."""
+        path = data_dir / "settings.key"
+        path.write_bytes(b"")
+        real_fill = settings_crypto.fill_empty_key_file
+        other: dict[str, str | None] = {}
+
+        def paused_fill(target: Path, content: str) -> str:
+            if not other:
+                other["kid"] = None
+                result = settings_crypto._load()  # pyright: ignore[reportPrivateUsage]
+                other["kid"] = getattr(result, "current_kid", None)
+            return real_fill(target, content)
+
+        monkeypatch.setattr(settings_crypto, "fill_empty_key_file", paused_fill)
+
+        with caplog.at_level(logging.DEBUG, logger=LOGGER):
+            first = current_kid()
+
+        assert other["kid"] is not None
+        assert first == other["kid"] == _kid_on_disk(path)
+        # Only the filler whose key landed says it replaced an empty file.
+        assert len([m for m in _warnings(caplog) if "was empty" in m]) == 1
+
+    @pytest.mark.parametrize("written", [0, 5], ids=["nothing-written", "short-write"])
+    def test_a_failed_write_leaves_no_file_and_the_next_load_writes_one(
+        self, monkeypatch: pytest.MonkeyPatch, data_dir: Path, written: int
+    ) -> None:
+        path = data_dir / "settings.key"
+        real_pwrite = os.pwrite
+
+        def disk_full(fd: int, data: bytes, offset: int) -> int:
+            if written:
+                real_pwrite(fd, data[:written], offset)
+            raise OSError(errno.ENOSPC, "No space left on device")
+
+        monkeypatch.setattr(secret_key.os, "pwrite", disk_full)
+        _assert_unavailable()
+        assert list(data_dir.iterdir()) == []
+
+        monkeypatch.setattr(secret_key.os, "pwrite", real_pwrite)
+        assert current_kid() == _kid_on_disk(path)
+
+
+class TestKidCollisions:
+    """A kid is 8 hex characters of a hash, so two different keys can share one."""
+
+    def test_two_different_keys_with_the_same_kid_break_the_source(
+        self, monkeypatch: pytest.MonkeyPatch, data_dir: Path
+    ) -> None:
+        a_text, _ = _new_key()
+        b_text, _ = _new_key()
+        monkeypatch.setattr(settings_crypto, "_kid_of", lambda raw: "0badc0de")
+        monkeypatch.setenv(ENV_KEY, f"{a_text},{b_text}")
+
+        with pytest.raises(SettingsKeyUnavailable) as excinfo:
+            encrypt("llm_api_key", "x")
+
+        assert "same key id" in excinfo.value.reason
+        assert a_text not in str(excinfo.value)
+        assert b_text not in str(excinfo.value)
+
+    def test_the_same_key_twice_is_one_key(
+        self, monkeypatch: pytest.MonkeyPatch, data_dir: Path
+    ) -> None:
+        text, raw = _new_key()
+        monkeypatch.setenv(ENV_KEY, f"{text},{text}")
+
+        assert current_kid() == _kid(raw)
+        assert decrypt("k", encrypt("k", "v")).plaintext == "v"
 
 
 class TestMultiKey:

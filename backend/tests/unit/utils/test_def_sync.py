@@ -4,6 +4,7 @@ Unit tests for DEF sync utility.
 Tests auto-syncing of DEF observation records from fuel records.
 """
 
+from collections.abc import AsyncIterator
 from datetime import date
 from decimal import Decimal
 
@@ -28,7 +29,7 @@ async def clean_def_records(db_session: AsyncSession, test_vehicle):
 
 
 @pytest_asyncio.fixture
-async def fuel_record_ids(db_session: AsyncSession, test_vehicle) -> list[int]:
+async def fuel_record_ids(db_session: AsyncSession, test_vehicle) -> AsyncIterator[list[int]]:
     """Two real fuel records to act as sync origins.
 
     def_records.origin_fuel_record_id is a real FK and the engine enforces
@@ -59,7 +60,7 @@ async def fuel_record_ids(db_session: AsyncSession, test_vehicle) -> list[int]:
     await db_session.commit()
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.def_records
 @pytest.mark.asyncio
 class TestDEFSync:
@@ -164,7 +165,7 @@ class TestDEFSync:
         assert result2.origin_fuel_record_id == fuel_record_ids[1]
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.def_records
 @pytest.mark.asyncio
 class TestDeleteDEFForFuelRecord:

@@ -59,7 +59,12 @@ def _get_fallback_engine() -> Engine:
 def upgrade(engine: Engine | None = None) -> None:
     """Let the brake position CHECK on all three tables take F and R."""
     if engine is None:
+        # Run standalone: it builds its own engine, so it closes it too.
         engine = _get_fallback_engine()
+        try:
+            return upgrade(engine)
+        finally:
+            engine.dispose()
     insp = inspect(engine)
     tables = [t for t in _TABLES if insp.has_table(t)]
     if not tables:

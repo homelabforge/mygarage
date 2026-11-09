@@ -32,7 +32,6 @@ down in `finally`, and the VIN/username are scoped to this module.
 from __future__ import annotations
 
 import json
-import logging
 from datetime import date
 from decimal import Decimal
 
@@ -51,11 +50,13 @@ from app.services import reminder_service
 from app.services.reminder_service import _build_reminder_message, check_due_reminders
 from app.utils.default_unit_prefs import DEFAULT_UNIT_PREFS_KEY
 from app.utils.render_context import RenderContext
+from tests._logged import CaplogOnly, problems
 
 _VIN_PREFIX = "REMINDERUNITS"
 _OWNED_VIN = f"{_VIN_PREFIX}01"
 _OWNERLESS_VIN = f"{_VIN_PREFIX}02"
 _OWNER_USERNAME = "reminder_units_owner"
+_SERVICE_LOGGER = "app.services.reminder_service"
 
 _METRIC_CTX = RenderContext(units=METRIC_PRESET, show_both=False)
 _IMPERIAL_CTX = RenderContext(units=IMPERIAL_PRESET, show_both=False)
@@ -299,7 +300,7 @@ async def seeded_reminders(db_session: AsyncSession):
         await db_session.commit()
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 class TestCheckDueRemindersUnits:
     """Wiring, not formatting: which context the scheduler entry point resolves.
 
@@ -427,6 +428,7 @@ class TestCheckDueRemindersUnits:
         test_sessionmaker: async_sessionmaker[AsyncSession],
         monkeypatch: pytest.MonkeyPatch,
         caplog: pytest.LogCaptureFixture,
+        caplog_only: CaplogOnly,
     ) -> None:
         """An error evaluating one reminder (a projection overflow, say) is
         logged and skipped: the others still notify, and the run still
@@ -444,7 +446,7 @@ class TestCheckDueRemindersUnits:
 
         monkeypatch.setattr(reminder_service, "is_reminder_snoozed", _snoozed_or_raise)
 
-        with caplog.at_level(logging.ERROR, logger="app.services.reminder_service"):
+        with caplog_only(_SERVICE_LOGGER):
             await check_due_reminders(db_session)
 
         assert self._own(sent, "Reminder Units Owned Service") == []
@@ -457,11 +459,10 @@ class TestCheckDueRemindersUnits:
                 )
             ).scalar_one()
         assert stamped is not None
-        failures = [
-            r for r in caplog.records if r.getMessage() == f"Reminder {failing_id} check failed"
-        ]
-        assert len(failures) == 1
-        assert failures[0].exc_info is not None
+        (logged,) = problems(caplog, _SERVICE_LOGGER)
+        assert logged.getMessage() == f"Reminder {failing_id} check failed"
+        assert logged.exc_info is not None
+        assert str(logged.exc_info[1]) == "evaluation blew up"
 
     @pytest.mark.parametrize(
         "failing_vin, healthy_vin, healthy_title",
@@ -477,6 +478,8 @@ class TestCheckDueRemindersUnits:
         seeded_reminders,
         test_sessionmaker: async_sessionmaker[AsyncSession],
         monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+        caplog_only: CaplogOnly,
         failing_vin: str,
         healthy_vin: str,
         healthy_title: str,
@@ -496,7 +499,8 @@ class TestCheckDueRemindersUnits:
 
         monkeypatch.setattr(reminder_service, "get_current_mileage", _mileage_or_bad_sql)
 
-        await check_due_reminders(db_session)
+        with caplog_only(_SERVICE_LOGGER):
+            await check_due_reminders(db_session)
 
         assert len(self._own(sent, healthy_title)) == 1
         # A second session sees only what was committed.
@@ -509,6 +513,9 @@ class TestCheckDueRemindersUnits:
             stamps = {vin: stamped for vin, stamped in rows.all()}
         assert stamps[healthy_vin] is not None
         assert stamps[failing_vin] is None
+        (logged,) = problems(caplog, _SERVICE_LOGGER)
+        assert logged.getMessage() == f"Reminder check failed for vehicle {failing_vin}"
+        assert logged.exc_info is not None
 
     async def test_no_backend_call_holds_the_sqlite_write_lock(
         self,
@@ -564,6 +571,8 @@ class TestCheckDueRemindersUnits:
         seeded_reminders,
         test_sessionmaker: async_sessionmaker[AsyncSession],
         monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+        caplog_only: CaplogOnly,
     ) -> None:
         """One check fails, then another connection commits while a notification
         is going out: the run still commits the stamps for what it sent.
@@ -604,7 +613,8 @@ class TestCheckDueRemindersUnits:
 
         monkeypatch.setattr(reminder_service, "get_current_mileage", _read_then_fail)
 
-        await check_due_reminders(db_session)
+        with caplog_only(_SERVICE_LOGGER):
+            await check_due_reminders(db_session)
 
         assert self._own(sent, "Reminder Units Owned Service") == []
         assert len(self._own(sent, "Reminder Units Ownerless Service")) == 1
@@ -617,6 +627,10 @@ class TestCheckDueRemindersUnits:
             stamps = {vin: stamped for vin, stamped in rows.all()}
         assert stamps[_OWNERLESS_VIN] is not None
         assert stamps[_OWNED_VIN] is None
+        (logged,) = problems(caplog, _SERVICE_LOGGER)
+        assert logged.getMessage() == f"Reminder check failed for vehicle {_OWNED_VIN}"
+        assert logged.exc_info is not None
+        assert str(logged.exc_info[1]) == "check blew up after a read"
 
     @pytest.mark.parametrize(
         "failing_vin, healthy_vin, healthy_title",

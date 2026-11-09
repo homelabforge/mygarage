@@ -14,8 +14,6 @@ import sqlite3
 import types
 from pathlib import Path
 
-from sqlalchemy import create_engine
-
 
 def _load_migration() -> types.ModuleType:
     path = (
@@ -54,11 +52,11 @@ def _columns(db_file: Path) -> dict[str, dict]:
     return cols
 
 
-def test_adds_columns_and_backfills(tmp_path: Path) -> None:
+def test_adds_columns_and_backfills(tmp_path: Path, sync_engine) -> None:
     db_file = tmp_path / "m080.db"
     _setup_db(db_file)
     m = _load_migration()
-    engine = create_engine(f"sqlite:///{db_file}")
+    engine = sync_engine(f"sqlite:///{db_file}")
 
     m.upgrade(engine)
 
@@ -94,11 +92,11 @@ def test_adds_columns_and_backfills(tmp_path: Path) -> None:
     conn.close()
 
 
-def test_idempotent_rerun(tmp_path: Path) -> None:
+def test_idempotent_rerun(tmp_path: Path, sync_engine) -> None:
     db_file = tmp_path / "m080_idem.db"
     _setup_db(db_file)
     m = _load_migration()
-    engine = create_engine(f"sqlite:///{db_file}")
+    engine = sync_engine(f"sqlite:///{db_file}")
 
     m.upgrade(engine)
     m.upgrade(engine)  # must not raise or double-add

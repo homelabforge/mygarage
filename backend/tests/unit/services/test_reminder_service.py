@@ -201,7 +201,7 @@ class TestValidateReminderStateHours:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 class TestGetCurrentHours:
     """Mirrors get_current_mileage; reuses hours_service semantics (max
@@ -231,7 +231,7 @@ class TestGetCurrentHours:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 class TestCalculateHoursDrivingRate:
     """Mirrors calculate_driving_rate: average engine-hours/day over the
@@ -749,7 +749,7 @@ class TestCreatedOn:
         assert created_on(Reminder()) is None
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 class TestLoadReminderStarts:
     async def _one_off(self, db_session: AsyncSession, vin: str, **kwargs) -> Reminder:
@@ -953,7 +953,7 @@ class TestLoadReminderStarts:
         assert anchor_start(reminder) == ReminderStart(date(2026, 8, 1), Decimal("900"), None)
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 class TestCountPendingRemindersFallback:
     async def test_an_unprojectable_one_off_is_due_soon_at_ninety_percent(
@@ -979,7 +979,7 @@ class TestCountPendingRemindersFallback:
         assert (counts.overdue, counts.upcoming, counts.due_soon) == (0, 1, 1)
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 class TestEnrichDueStatus:
     async def test_a_pending_reminder_says_where_it_stands(self, db_session, own_vehicle):
@@ -1158,7 +1158,7 @@ class TestOrderReminders:
             assert self._ids(rows) == [2, 1]
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 class TestListRemindersFetchesOnce:
     async def test_readings_and_rates_are_fetched_once_for_the_list(
@@ -1235,7 +1235,7 @@ class TestListRemindersFetchesOnce:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 class TestEnrichWithEstimateSmartProjection:
     """The single most important suite: proves the redefined 'smart' type
@@ -1351,7 +1351,7 @@ class TestEnrichWithEstimateSmartProjection:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 class TestCreateReminderHours:
     async def test_creates_and_persists_hours_type(
@@ -1392,7 +1392,7 @@ class TestCreateReminderHours:
         assert reminder.due_mileage_km is None
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 class TestCreateReminderStoresItsStart:
     async def test_a_one_off_stores_both_current_readings_whatever_its_targets(
@@ -1436,7 +1436,7 @@ class TestCreateReminderStoresItsStart:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 class TestCheckDueRemindersHours:
     async def test_hours_reminder_overdue_when_current_hours_meets_target(
@@ -1608,7 +1608,7 @@ class TestCheckDueRemindersHours:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 class TestCheckDueRemindersNaiveLastNotifiedAt:
     """Regression test for the naive-vs-aware last_notified_at bug fixed in
@@ -1847,7 +1847,7 @@ async def brake_vin(db_session: AsyncSession, test_user: dict[str, object]) -> A
     await db_session.commit()
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 class TestDueValueChangeRearmsTheHeadsUp:
     """Whoever moves a due value clears `last_notified_at`, so the new target

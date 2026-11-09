@@ -504,45 +504,21 @@ class TestDeviceManagement:
 class TestSettingsHelpers:
     """Test settings helper methods."""
 
-    async def test_is_enabled_true(self):
-        """Test is_enabled returns True when enabled."""
+    @pytest.mark.parametrize("stored", [True, False])
+    async def test_is_enabled_reads_the_switch_through_get_bool(self, stored: bool):
+        """The master switch reads like every other switch: `get_bool`, off when unset."""
         mock_db = AsyncMock()
 
         with patch("app.services.livelink_service.SettingsService") as mock_settings:
-            mock_setting = MagicMock()
-            mock_setting.value = "true"
-            mock_settings.get = AsyncMock(return_value=mock_setting)
+            mock_settings.get_bool = AsyncMock(return_value=stored)
 
             service = LiveLinkService(mock_db)
             result = await service.is_enabled()
 
-            assert result is True
-
-    async def test_is_enabled_false(self):
-        """Test is_enabled returns False when disabled."""
-        mock_db = AsyncMock()
-
-        with patch("app.services.livelink_service.SettingsService") as mock_settings:
-            mock_setting = MagicMock()
-            mock_setting.value = "false"
-            mock_settings.get = AsyncMock(return_value=mock_setting)
-
-            service = LiveLinkService(mock_db)
-            result = await service.is_enabled()
-
-            assert result is False
-
-    async def test_is_enabled_no_setting(self):
-        """Test is_enabled returns False when setting doesn't exist."""
-        mock_db = AsyncMock()
-
-        with patch("app.services.livelink_service.SettingsService") as mock_settings:
-            mock_settings.get = AsyncMock(return_value=None)
-
-            service = LiveLinkService(mock_db)
-            result = await service.is_enabled()
-
-            assert result is False
+            assert result is stored
+            mock_settings.get_bool.assert_awaited_once_with(
+                mock_db, "livelink_enabled", default=False
+            )
 
     async def test_get_session_timeout_with_value(self):
         """Test getting session timeout when configured."""

@@ -26,39 +26,80 @@ export function saveErrorText(error: unknown, fallback: string): string {
   return status === 422 && detail ? `${fallback}: ${detail}` : fallback
 }
 
-export function SettingsProvider({ children }: { children: ReactNode }) {
+interface SettingsProviderProps {
+  children: ReactNode
+  /**
+   * Runs after a tab's save succeeds and before the save reports done, to
+   * refresh what the save may have changed elsewhere (the public settings,
+   * the secrets banner).
+   */
+  onSaved?: () => Promise<void>
+}
+
+export function SettingsProvider({ children, onSaved }: SettingsProviderProps) {
   const { t } = useTranslation('settings')
   const [currentTabId, setCurrentTabId] = useState<string | null>(null)
   const saveHandlers = useRef<Map<string, () => Promise<void>>>(new Map())
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isSavingRef = useRef(false)
 
+  // A tab's last handler once it unmounts, so a save it already asked for
+  // (still debouncing, or queued behind a running one) still lands. The tabs
+  // re-register on every change, so its closure holds the values they had.
+  const departedHandlers = useRef<Map<string, () => Promise<void>>>(new Map())
+
   const registerSaveHandler = useCallback((tabId: string, handler: () => Promise<void>) => {
     saveHandlers.current.set(tabId, handler)
+    departedHandlers.current.delete(tabId)
   }, [])
 
   const unregisterSaveHandler = useCallback((tabId: string) => {
+    const handler = saveHandlers.current.get(tabId)
+    if (handler) departedHandlers.current.set(tabId, handler)
     saveHandlers.current.delete(tabId)
   }, [])
 
-  const performSave = useCallback(async () => {
-    if (!currentTabId || isSavingRef.current) return
+  // A save asked for while one is running remembers its tab here and runs
+  // once that one (and its refresh) is done. The handler reads the tab's
+  // latest state then, so any number of edits in that window need one save.
+  const queuedTabRef = useRef<string | null>(null)
 
-    const handler = saveHandlers.current.get(currentTabId)
+  const saveTab = useCallback(async (tabId: string): Promise<void> => {
+    const departed = departedHandlers.current.get(tabId)
+    const handler = saveHandlers.current.get(tabId) ?? departed
     if (!handler) return
+    // Used once: the tab's gone, so nothing newer can come from it.
+    if (handler === departed) departedHandlers.current.delete(tabId)
 
-    isSavingRef.current = true
     const toastId = toast.loading(t('settingsContext.saving'))
-
     try {
       await handler()
+      await onSaved?.()
       toast.success(t('settingsContext.saveSuccess'), { id: toastId })
     } catch (error) {
       toast.error(saveErrorText(error, t('settingsContext.saveError')), { id: toastId })
+    }
+  }, [onSaved, t])
+
+  const performSave = useCallback(async () => {
+    if (!currentTabId) return
+    if (isSavingRef.current) {
+      queuedTabRef.current = currentTabId
+      return
+    }
+
+    isSavingRef.current = true
+    try {
+      let tabId: string | null = currentTabId
+      while (tabId) {
+        queuedTabRef.current = null
+        await saveTab(tabId)
+        tabId = queuedTabRef.current
+      }
     } finally {
       isSavingRef.current = false
     }
-  }, [currentTabId, t])
+  }, [currentTabId, saveTab])
 
   const triggerSave = useCallback(() => {
     // Clear any existing timeout

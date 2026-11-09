@@ -8,7 +8,7 @@ Changes:
 import os
 from pathlib import Path
 
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import Engine, create_engine, inspect, text
 
 
 def _get_fallback_engine():
@@ -20,10 +20,15 @@ def _get_fallback_engine():
     return create_engine(f"sqlite:///{data_dir / 'mygarage.db'}")
 
 
-def upgrade(engine=None):
+def upgrade(engine: Engine | None = None):
     """Update address_book table to make business_name required and name optional."""
     if engine is None:
+        # Run standalone: it builds its own engine, so it closes it too.
         engine = _get_fallback_engine()
+        try:
+            return upgrade(engine)
+        finally:
+            engine.dispose()
 
     dialect = engine.dialect.name
 
@@ -93,10 +98,15 @@ def upgrade(engine=None):
             print("✓ Successfully updated address_book table schema on SQLite")
 
 
-def downgrade(engine=None):
+def downgrade(engine: Engine | None = None):
     """Revert address_book table changes."""
     if engine is None:
+        # Run standalone: it builds its own engine, so it closes it too.
         engine = _get_fallback_engine()
+        try:
+            return downgrade(engine)
+        finally:
+            engine.dispose()
 
     dialect = engine.dialect.name
 

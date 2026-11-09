@@ -19,6 +19,7 @@ The raw column is read with plain SQL through a fresh session.
 
 import base64
 import hashlib
+import json
 import logging
 import os
 from collections.abc import Callable, Iterator
@@ -35,7 +36,7 @@ from app.models.settings import Setting, SettingCiphertextValue
 from app.services.oidc.config import write_oidc_config
 from app.services.settings_service import SettingsService
 from app.utils import settings_crypto
-from app.utils.settings_crypto import SettingsKeyUnavailable, encrypt
+from app.utils.settings_crypto import SettingsKeyUnavailable, SettingValueNotText, encrypt
 from tests.integration._secret_helpers import Keep, raw_column
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
@@ -84,45 +85,56 @@ def make_keyring_unavailable(
 # ---------------------------------------------------------------- writers
 
 
-async def _put(client, headers, key: str, value: str):
-    return await client.put(f"/api/settings/{key}", headers=headers, json={"value": value})
-
-
-async def _batch(client, headers, key: str, value: str):
-    return await client.post(
-        "/api/settings/batch", headers=headers, json={"settings": {key: value}}
+def _send(client: AsyncClient, method: str, url: str, headers, body: dict[str, object]):
+    """Send `body` as ASCII-escaped JSON. httpx's own `json=` encodes UTF-8 and
+    can't send a lone surrogate at all; escaped, it reaches the route."""
+    return client.request(
+        method,
+        url,
+        headers={**headers, "Content-Type": "application/json"},
+        content=json.dumps(body),
     )
 
 
+async def _put(client, headers, key: str, value: str):
+    return await _send(client, "PUT", f"/api/settings/{key}", headers, {"value": value})
+
+
+async def _batch(client, headers, key: str, value: str):
+    return await _send(client, "POST", "/api/settings/batch", headers, {"settings": {key: value}})
+
+
 async def _post(client, headers, key: str, value: str):
-    return await client.post("/api/settings", headers=headers, json={"key": key, "value": value})
+    return await _send(client, "POST", "/api/settings", headers, {"key": key, "value": value})
 
 
 async def _poi_post(client, headers, key: str, value: str):
-    return await client.post(
+    return await _send(
+        client,
+        "POST",
         "/api/settings/poi-providers",
-        headers=headers,
-        json={"name": "yelp", "api_key": value, "enabled": True},
+        headers,
+        {"name": "yelp", "api_key": value, "enabled": True},
     )
 
 
 async def _poi_put(client, headers, key: str, value: str):
-    return await client.put(
-        "/api/settings/poi-providers/foursquare", headers=headers, json={"api_key": value}
+    return await _send(
+        client, "PUT", "/api/settings/poi-providers/foursquare", headers, {"api_key": value}
     )
 
 
 async def _mqtt_put(client, headers, key: str, value: str):
-    return await client.put(
-        "/api/livelink/mqtt/settings", headers=headers, json={"password": value}
-    )
+    return await _send(client, "PUT", "/api/livelink/mqtt/settings", headers, {"password": value})
 
 
 async def _oidc_put(client, headers, key: str, value: str):
-    return await client.put(
+    return await _send(
+        client,
+        "PUT",
         "/api/auth/oidc/config/admin",
-        headers=headers,
-        json={"issuer_url": "https://auth.example.com", "client_secret": value},
+        headers,
+        {"issuer_url": "https://auth.example.com", "client_secret": value},
     )
 
 
@@ -174,6 +186,10 @@ async def test_a_secret_write_without_a_keyring_is_a_503(
     before = encrypt(key, BEFORE) if row_first else None
     await _seed_raw(db_session, key, before)
     await _seed_raw(db_session, "ntfy_topic", "Before")
+    # Values none of these routes would write, so a non-secret row the route
+    # saved before the secret failed shows up as a change.
+    for other in also:
+        await _seed_raw(db_session, other, f"before-{other}")
     make_keyring_unavailable()
 
     response = await write(client, auth_headers, key, PLAIN)
@@ -184,6 +200,9 @@ async def test_a_secret_write_without_a_keyring_is_a_503(
     assert "writable" in detail
     assert PLAIN not in response.text
     assert await raw_column(test_sessionmaker, key) == before
+    # All or nothing: the other rows the route writes are left alone too.
+    for other in also:
+        assert await raw_column(test_sessionmaker, other) == f"before-{other}", other
 
     response = await _put(client, auth_headers, "ntfy_topic", "After")
     assert response.status_code == 200, response.text
@@ -366,6 +385,108 @@ async def test_a_ciphertext_value_for_a_secret_is_a_422(
     assert await raw_column(test_sessionmaker, key) == before
 
 
+# --------------------------------------------------- value isn't storable text
+
+NOT_TEXT = "a\ud800b"
+
+
+@pytest.mark.parametrize("writer", list(HTTP_WRITERS))
+async def test_a_secret_that_is_not_text_is_a_422(
+    writer: str,
+    client: AsyncClient,
+    auth_headers,
+    db_session: AsyncSession,
+    test_sessionmaker,
+    keep_rows: Keep,
+) -> None:
+    """A lone surrogate won't encode for the cipher, which was a 500 on every writer.
+    The generic routes refuse it with the value rules, the rest at `encrypt`."""
+    write, key, row_first, also = HTTP_WRITERS[writer]
+    await keep_rows(key, *also)
+    before = encrypt(key, BEFORE) if row_first else None
+    await _seed_raw(db_session, key, before)
+
+    response = await write(client, auth_headers, key, NOT_TEXT)
+
+    assert response.status_code == 422, response.text
+    assert key in response.json()["detail"]
+    assert await raw_column(test_sessionmaker, key) == before
+
+
+async def test_a_plain_setting_that_is_not_text_is_a_422(
+    client: AsyncClient,
+    auth_headers,
+    db_session: AsyncSession,
+    test_sessionmaker,
+    keep_rows: Keep,
+) -> None:
+    await keep_rows("ntfy_topic")
+    await _seed_raw(db_session, "ntfy_topic", "Before")
+
+    response = await _put(client, auth_headers, "ntfy_topic", NOT_TEXT)
+
+    assert response.status_code == 422, response.text
+    assert response.json()["detail"] == "Setting 'ntfy_topic' must be valid Unicode text"
+    assert await raw_column(test_sessionmaker, "ntfy_topic") == "Before"
+
+
+async def _mqtt_field_put(client, headers, field: str, value: str):
+    return await _send(client, "PUT", "/api/livelink/mqtt/settings", headers, {field: value})
+
+
+async def _oidc_field_put(client, headers, field: str, value: str):
+    return await _send(
+        client,
+        "PUT",
+        "/api/auth/oidc/config/admin",
+        headers,
+        {"issuer_url": "https://auth.example.com", field: value},
+    )
+
+
+# (writer, body field, the plain key it lands in, other keys the route writes)
+TYPED_PLAIN_FIELDS = {
+    "mqtt_username": (_mqtt_field_put, "username", "livelink_mqtt_username", ()),
+    "mqtt_broker_host": (_mqtt_field_put, "broker_host", "livelink_mqtt_broker_host", ()),
+    "oidc_client_id": (_oidc_field_put, "client_id", "oidc_client_id", OIDC_PUT_KEYS),
+    "oidc_provider_name": (
+        _oidc_field_put,
+        "provider_name",
+        "oidc_provider_name",
+        OIDC_PUT_KEYS,
+    ),
+}
+
+
+@pytest.mark.parametrize("field", list(TYPED_PLAIN_FIELDS))
+async def test_a_typed_route_plain_field_that_is_not_text_is_a_422(
+    field: str,
+    client: AsyncClient,
+    auth_headers,
+    db_session: AsyncSession,
+    test_sessionmaker,
+    keep_rows: Keep,
+) -> None:
+    """These skip the value rules and aren't encrypted, so the surrogate reached
+    the driver's bind and 500d. The model refuses it now."""
+    write, body_field, key, also = TYPED_PLAIN_FIELDS[field]
+    await keep_rows(key, *also, "oidc_client_secret")
+    await _seed_raw(db_session, key, "Before")
+
+    response = await write(client, auth_headers, body_field, NOT_TEXT)
+
+    assert response.status_code == 422, response.text
+    assert response.json()["detail"] == f"Setting '{key}' must be valid Unicode text"
+    assert await raw_column(test_sessionmaker, key) == "Before"
+
+
+async def test_encrypt_refuses_text_it_cannot_encode(client: AsyncClient) -> None:
+    """`client` points the keyring at the test data dir."""
+    with pytest.raises(SettingValueNotText) as excinfo:
+        encrypt("ntfy_token", NOT_TEXT)
+    assert excinfo.value.key == "ntfy_token"
+
+
 # ------------------------------------------------------- handler registration
 
 
@@ -384,11 +505,15 @@ def _app(*, debug: bool) -> FastAPI:
     async def ciphertext() -> None:
         raise SettingCiphertextValue("llm_api_key")
 
+    @app.get("/not-text")
+    async def not_text() -> None:
+        raise SettingValueNotText("llm_api_key")
+
     return app
 
 
 @pytest.mark.parametrize("debug", [False, True], ids=["production", "debug"])
-async def test_both_mappings_hold_in_either_mode(debug: bool) -> None:
+async def test_the_three_mappings_hold_in_either_mode(debug: bool) -> None:
     """R2-3: registered after the debug branch, so debug has them too."""
     transport = ASGITransport(app=_app(debug=debug))
     async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -399,3 +524,7 @@ async def test_both_mappings_hold_in_either_mode(debug: bool) -> None:
         response = await client.get("/ciphertext")
         assert response.status_code == 422, response.text
         assert "llm_api_key" in response.json()["detail"]
+
+        response = await client.get("/not-text")
+        assert response.status_code == 422, response.text
+        assert response.json()["detail"] == "Setting 'llm_api_key' must be valid Unicode text"

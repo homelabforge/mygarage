@@ -3,7 +3,7 @@
 import datetime as dt
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field, StringConstraints
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 from app.schemas._nullability import reject_null
 
@@ -59,8 +59,7 @@ class SettingResponse(SettingBase):
     created_at: dt.datetime
     updated_at: dt.datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SettingsListResponse(BaseModel):

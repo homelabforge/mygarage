@@ -150,9 +150,10 @@ def calculate_hours_economy_with_pandas(
     A zero-liters interval (P3 backlog fix in ``calculate_hours_economy``)
     still produces a row — ``cost_per_hr`` is always valid for a scored
     interval — but with ``l_per_hr`` set to ``None`` rather than a phantom
-    ``0.00``. It is excluded from ``best``/``worst``/``recent_l_per_hr``/
-    ``trend`` the same way :func:`calculate_average_hours_economy` excludes
-    it from the vehicle-level average.
+    ``0.00``. It is excluded from ``best``/``worst``/``trend`` the same way
+    :func:`calculate_average_hours_economy` excludes it from the vehicle-level
+    average. ``recent_l_per_hr`` is just the newest row's figure, so it reads
+    ``None`` when that newest row is a zero-liters one.
 
     Args:
         fuel_records: Every fuel record for the vehicle, any order.

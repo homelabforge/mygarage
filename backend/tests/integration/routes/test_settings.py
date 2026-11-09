@@ -4,6 +4,7 @@ Integration tests for settings routes.
 Tests settings CRUD operations, POI provider management, and system info.
 """
 
+import logging
 import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable
 from pathlib import Path
@@ -15,6 +16,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 from app.models.settings import Setting
+from tests._retired_seeds import RETIRED_SEED_KEYS
 
 
 async def _set_setting(db_session, key: str, value: str) -> None:
@@ -63,7 +65,7 @@ class TestSettingsRoutes:
                 # (#211): the import cards hide behind it. A flag, not a key.
                 "llm_document_reading_enabled",
                 "default_unit_prefs",
-                # Feature flags the non-admin UI reads (batch 5, R3).
+                # Feature flags the non-admin UI reads.
                 "nhtsa_enabled",
                 "carcomplaints_enabled",
                 "window_sticker_enabled",
@@ -75,12 +77,12 @@ class TestSettingsRoutes:
                 # never a stored row (every write path rejects the key).
                 "effective_timezone",
                 # Computed from MYGARAGE_MAX_DOCUMENT_SIZE_MB, never stored: the
-                # upload forms check the cap the server enforces (B5-7).
+                # upload forms check the cap the server enforces.
                 "document_upload_max_bytes",
             }
 
     async def test_public_settings_serve_the_document_cap(self, client: AsyncClient):
-        """The sticker and document forms read the cap the server enforces (B5-7)."""
+        """The sticker and document forms read the cap the server enforces."""
         from app.config import settings as app_settings
 
         response = await client.get("/api/settings/public")
@@ -112,7 +114,7 @@ class TestSettingsRoutes:
         exist; settings_init creates them at startup in a real instance.
 
         Cleaned up in `finally`: the test DB is shared and not rolled back
-        between tests, and `resolve_gallon_flavour` (units phase 0, Task 3)
+        between tests, and `resolve_gallon_flavour`
         now reads `imperial_gallon_standard` straight from this table on every
         call. An un-reset "uk" row here previously leaked silently; it now
         corrupts every later test that resolves gallon flavour against real
@@ -395,8 +397,8 @@ class TestSettingsAdminRoutes:
             "/api/settings/test_key",
             headers=auth_headers,
         )
-        # Regular users get 403, admin gets 204 or 404
-        assert response.status_code in [204, 403, 404]
+        # Regular users get 403; an admin gets 422, since test_key isn't a key the API owns.
+        assert response.status_code in [403, 422]
 
     async def test_system_info_requires_admin(self, client: AsyncClient, auth_headers):
         """Test that system info requires admin role."""
@@ -593,7 +595,7 @@ class TestSensitiveSettingMasking:
 
 
 # ---------------------------------------------------------------------------
-# default_unit_prefs write validation (units phase 4, task 5)
+# default_unit_prefs write validation
 # ---------------------------------------------------------------------------
 
 
@@ -602,8 +604,8 @@ def _settings_value_write_endpoints() -> set[str]:
 
     ★ DERIVED, NOT LISTED, and the derivation is the point. The plan named three
     routes that can write `default_unit_prefs`; validating only the one the UI
-    happens to call leaves the other two open, which is the same back door D9b
-    closed on the user schemas. A hand-written list of three would go stale the
+    happens to call leaves the other two open, which is the same back door the
+    user schemas closed. A hand-written list of three would go stale the
     moment a fourth writer is added, and nothing would say so.
 
     The rule: parse each endpoint on `app.routes.settings.router` and report it
@@ -901,7 +903,7 @@ async def provider_rows(db_session) -> AsyncIterator[None]:
     rows = (
         await db_session.execute(select(Setting).where(Setting.key.in_(_PROVIDER_KEYS)))
     ).scalars()
-    # The raw stored form, so an unreadable secret's ciphertext survives (R2-10).
+    # The raw stored form, so an unreadable secret's ciphertext survives.
     saved = [(r.key, r.stored_value, r.category, r.description, r.encrypted) for r in rows]
     await db_session.execute(delete(Setting).where(Setting.key.in_(_PROVIDER_KEYS)))
     await db_session.commit()
@@ -1080,7 +1082,7 @@ async def listed_provider(db_session, provider_rows) -> None:
 @pytest.mark.usefixtures("listed_provider")
 class TestPOIProviderListIsAdminOnly:
     """The provider list was public, so anyone could read each key's first 8
-    characters and its usage (A-10). It's admin-only now, like the rest of
+    characters and its usage. It's admin-only now, like the rest of
     /api/settings."""
 
     async def test_anonymous_is_a_401(self, client: AsyncClient, set_auth_mode):
@@ -1101,7 +1103,7 @@ class TestPOIProviderListIsAdminOnly:
         self, client: AsyncClient, set_auth_mode, auth_headers
     ):
         """Control, passes before the gate too. The admin sees the key as configured, masked
-        as the placeholder: the 8-character prefix is gone (I4)."""
+        as the placeholder: the 8-character prefix is gone."""
         await set_auth_mode("local")
         response = await client.get("/api/settings/poi-providers", headers=auth_headers)
         assert response.status_code == 200, response.text
@@ -1145,7 +1147,7 @@ class TestSettingsBatchKeyWidth:
 
 
 # ---------------------------------------------------------------------------
-# The generic write allowlist and value rules (PR 0: G3b-20, O-T1)
+# The generic write allowlist and value rules
 # ---------------------------------------------------------------------------
 
 
@@ -1177,8 +1179,8 @@ _SEED = "seeded-before-the-write"
 @pytest.mark.asyncio
 class TestGenericWriteAllowlist:
     """`POST /settings`, `PUT /settings/{key}` and `POST /settings/batch` took
-    any key up to 50 characters (G3b-20). A telemetry retention of 0 written
-    that way made the daily pruner delete every raw reading (O-T1)."""
+    any key up to 50 characters. A telemetry retention of 0 written
+    that way made the daily pruner delete every raw reading."""
 
     async def test_an_unknown_key_cannot_be_created(
         self, client, auth_headers, db_session, keep_rows
@@ -1231,7 +1233,7 @@ class TestGenericWriteAllowlist:
     async def test_a_zero_retention_cannot_be_batched(
         self, client, auth_headers, db_session, keep_rows
     ):
-        """O-T1 as it happened: 0 days, through the batch the settings screens use."""
+        """The retention bug as it happened: 0 days, through the batch the settings screens use."""
         key = "livelink_telemetry_retention_days"
         await keep_rows(key)
         await _set_setting(db_session, key, "90")
@@ -1276,8 +1278,8 @@ class TestGenericWriteAllowlist:
 
     @pytest.mark.parametrize(
         "rejected",
-        [{"app_version": "9.9.9"}, {"notify_insurance_days": "abc"}],
-        ids=["excluded-key", "bad-value"],
+        [{"app_version": "9.9.9"}, {"notify_insurance_days": "abc"}, {"nhtsa_enabled": "enabled"}],
+        ids=["excluded-key", "bad-value", "junk-switch"],
     )
     async def test_a_refused_entry_fails_the_whole_batch(
         self, client, auth_headers, db_session, keep_rows, rejected
@@ -1296,6 +1298,45 @@ class TestGenericWriteAllowlist:
         for key in keys:
             assert await _stored_value(db_session, key) == _SEED
 
+    @pytest.mark.parametrize("key", ["telegram_update_offset", "livelink_telemetry_retention_days"])
+    async def test_a_key_the_api_does_not_own_cannot_be_deleted(
+        self, client, auth_headers, db_session, keep_rows, key
+    ):
+        """DELETE was the fourth way in: it removed these rows with a 204."""
+        await keep_rows(key)
+        await _set_setting(db_session, key, _SEED)
+        response = await client.delete(f"/api/settings/{key}", headers=auth_headers)
+        assert response.status_code == 422, response.text
+        db_session.expire_all()
+        assert await _stored_or_none(db_session, key) == _SEED
+
+    async def test_an_unknown_key_cannot_be_deleted(self, client, auth_headers):
+        """Refused on the key, before the lookup, so no row still means 422, not 404."""
+        response = await client.delete("/api/settings/made_up_key", headers=auth_headers)
+        assert response.status_code == 422, response.text
+
+    async def test_a_refused_value_is_logged(
+        self, client, auth_headers, keep_rows, caplog: pytest.LogCaptureFixture
+    ):
+        """Every refusal gets the WARNING `default_unit_prefs` always had."""
+        keys = ("default_unit_prefs", "timezone")
+        await keep_rows(*keys)
+        with caplog.at_level(logging.WARNING, logger="app.routes.settings"):
+            for key in keys:
+                response = await client.post(
+                    "/api/settings/batch",
+                    headers=auth_headers,
+                    json={"settings": {key: "{not json at all"}},
+                )
+                assert response.status_code == 422, response.text
+        warnings = [
+            r.getMessage()
+            for r in caplog.records
+            if r.name == "app.routes.settings" and r.levelno == logging.WARNING
+        ]
+        for key in keys:
+            assert any(m.startswith(f"Rejected a {key} write: ") for m in warnings), warnings
+
     async def test_a_retired_lead_time_cannot_be_batched(
         self,
         client: AsyncClient,
@@ -1303,7 +1344,7 @@ class TestGenericWriteAllowlist:
         db_session: AsyncSession,
         keep_rows: Callable[..., Awaitable[None]],
     ) -> None:
-        """`notify_service_days` left `DEFAULT_SETTINGS` (D1c), so the allowlist
+        """`notify_service_days` left `DEFAULT_SETTINGS`, so the allowlist
         drops it too. Main saved it."""
         key = "notify_service_days"
         await keep_rows(key)
@@ -1335,7 +1376,7 @@ class TestGenericWriteAllowlist:
 
 
 # ---------------------------------------------------------------------------
-# Switch values are stored canonically (batch 5, D5a)
+# Switch values are stored canonically
 # ---------------------------------------------------------------------------
 
 
@@ -1349,7 +1390,7 @@ _NON_SWITCH_KEY = "auto_archive_inactive_days"
 @pytest.mark.asyncio
 class TestSwitchValuesAreCanonicalized:
     """A switch written as any word of the on/off vocabulary is stored as "true" or
-    "false", so an exact reader and `parse_bool` agree on it. Nothing is refused."""
+    "false", so an exact reader and `parse_bool` agree on it. Anything else is a 422."""
 
     @pytest.mark.parametrize("endpoint", WRITE_ENDPOINTS)
     @pytest.mark.parametrize(("raw", "stored"), [("Yes", "true"), ("0", "false")])
@@ -1364,16 +1405,18 @@ class TestSwitchValuesAreCanonicalized:
         assert await _stored_or_none(db_session, _SWITCH_KEY) == stored
 
     @pytest.mark.parametrize("endpoint", WRITE_ENDPOINTS)
-    async def test_an_unrecognised_switch_value_is_stored_as_sent(
+    async def test_an_unrecognised_switch_value_is_refused(
         self, client, auth_headers, db_session, keep_rows, endpoint
     ):
-        """Regression guard, passes on main too: "maybe" is not refused or rewritten."""
+        """Main stored "maybe" as sent; it read as off everywhere anyway."""
         await keep_rows(_SWITCH_KEY)
         response = await _write_through(
             client, endpoint, auth_headers, db_session, "maybe", key=_SWITCH_KEY, seed=_SEED
         )
-        assert response.status_code in (200, 201), response.text
-        assert await _stored_or_none(db_session, _SWITCH_KEY) == "maybe"
+        assert response.status_code == 422, response.text
+        assert _SWITCH_KEY in response.json()["detail"]
+        expected = None if endpoint == "create_setting" else _SEED
+        assert await _stored_or_none(db_session, _SWITCH_KEY) == expected
 
     @pytest.mark.parametrize("endpoint", WRITE_ENDPOINTS)
     async def test_a_non_switch_key_keeps_a_switch_like_value(
@@ -1389,21 +1432,11 @@ class TestSwitchValuesAreCanonicalized:
 
 
 # ---------------------------------------------------------------------------
-# Upload limits, the retired seeds and the public feature flags (batch 5, Task 5)
+# Upload limits, the retired seeds and the public feature flags
 # ---------------------------------------------------------------------------
 
 
-# Seeded once and read by nothing; off the write allowlist now (D1a).
-_RETIRED_KEYS = (
-    "max_upload_size_mb",
-    "allowed_photo_types",
-    "allowed_attachment_types",
-    "date_format",
-    "distance_unit",
-    "fuel_unit",
-)
-
-# Read by the Recalls tab and the window sticker UI, which non-admins see (R3).
+# Read by the Recalls tab and the window sticker UI, which non-admins see.
 _PUBLIC_FLAGS = {
     "nhtsa_enabled": "false",
     "carcomplaints_enabled": "true",
@@ -1434,6 +1467,14 @@ class TestUploadLimits:
         # An odd size no setting or env default produces, so the number can only
         # have come from the config the document validator checks against.
         monkeypatch.setattr(uploads.DOCUMENT_UPLOAD_CONFIG, "max_size_bytes", 7_340_033)
+        # Same for the directories: paths no setting holds, so each one can only
+        # have come from the config that kind's uploads are written under.
+        for config, name in (
+            (uploads.PHOTO_UPLOAD_CONFIG, "photos"),
+            (uploads.ATTACHMENT_UPLOAD_CONFIG, "attachments"),
+            (uploads.DOCUMENT_UPLOAD_CONFIG, "documents"),
+        ):
+            monkeypatch.setattr(config, "base_dir", Path(f"/elsewhere/{name}-uploads"))
         await set_auth_mode("local")
 
         response = await client.get("/api/settings/upload-limits", headers=auth_headers)
@@ -1453,9 +1494,9 @@ class TestUploadLimits:
         assert "jpg" in body["photos"]["extensions"]
         assert body["storage"] == {
             "data_dir": str(app_settings.data_dir),
-            "photos_dir": str(app_settings.photos_dir),
-            "attachments_dir": str(app_settings.attachments_dir),
-            "documents_dir": str(app_settings.documents_dir),
+            "photos_dir": "/elsewhere/photos-uploads",
+            "attachments_dir": "/elsewhere/attachments-uploads",
+            "documents_dir": "/elsewhere/documents-uploads",
         }
 
     async def test_a_non_admin_is_a_403(
@@ -1473,7 +1514,7 @@ class TestUploadLimits:
 class TestRetiredSettingsAreNotWritable:
     """The six retired seeds left `GENERIC_WRITABLE_KEYS` with the seed."""
 
-    @pytest.mark.parametrize("key", _RETIRED_KEYS)
+    @pytest.mark.parametrize("key", RETIRED_SEED_KEYS)
     async def test_a_batch_carrying_a_retired_key_is_a_422(
         self, client, auth_headers, db_session, keep_rows, key
     ):
@@ -1513,7 +1554,7 @@ class TestRetiredSettingsAreNotWritable:
 @pytest.mark.asyncio
 class TestPublicFeatureFlags:
     """`GET /settings` is admin-only, so a non-admin never saw the CarComplaints
-    link and couldn't tell NHTSA or the sticker upload was off (R3)."""
+    link and couldn't tell NHTSA or the sticker upload was off."""
 
     async def test_the_four_flags_are_served_without_auth(
         self, client: AsyncClient, db_session, keep_rows, set_auth_mode
@@ -1646,7 +1687,7 @@ class TestLlmSettingsWriteValidation:
     async def test_a_base_url_write_forgets_cached_localities(
         self, client: AsyncClient, auth_headers, db_session, endpoint: str
     ):
-        """FB-3: saving the URL again is how an admin makes the consent check
+        """Saving the URL again is how an admin makes the consent check
         look the host up afresh (a DNS move), not five minutes later."""
         from app.services import llm_client
 

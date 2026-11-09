@@ -14,7 +14,7 @@ resets that password, and the login log names the account.
 import os
 from pathlib import Path
 
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import Engine, create_engine, inspect, text
 
 
 def _get_fallback_engine():
@@ -26,14 +26,19 @@ def _get_fallback_engine():
     return create_engine(f"sqlite:///{data_dir / 'mygarage.db'}")
 
 
-def upgrade(engine=None):
+def upgrade(engine: Engine | None = None):
     """Mark the Argon2 migration as applied.
 
     This is a code-level migration, not a schema migration. Nothing rehashes
     a bcrypt password; that account needs a password reset.
     """
     if engine is None:
+        # Run standalone: it builds its own engine, so it closes it too.
         engine = _get_fallback_engine()
+        try:
+            return upgrade(engine)
+        finally:
+            engine.dispose()
 
     inspector = inspect(engine)
 

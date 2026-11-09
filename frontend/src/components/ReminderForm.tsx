@@ -30,8 +30,8 @@ import { readNumber } from '../utils/decimalSafe'
 import { parseOptionalDecimal } from '../utils/decimalInput'
 import { getUsageTracking } from '../utils/usageTracking'
 import api from '../services/api'
-import { getActionErrorMessage } from '../utils/httpErrorHandler'
-import { applyControlledFieldErrors } from '../hooks/useApiFormErrors'
+import { actionErrorMessage } from '../utils/httpErrorHandler'
+import { applyControlledFieldErrors } from '../utils/apiFormErrors'
 import { getActiveLocale } from '@/constants/i18n'
 import { withUnitSession } from '../contexts/UnitSession'
 
@@ -312,10 +312,10 @@ function ReminderForm({ vin, reminder, currentMileage, currentHours, onClose, on
         }
         onSuccess()
       } catch (err) {
-        const { attached, unhandled, errorsByField } = applyControlledFieldErrors(err, ['title', 'notes'])
+        const { parsed, attached, unhandled, errorsByField } = applyControlledFieldErrors(err, ['title', 'notes'])
         if (attached.length > 0) setFieldErrors(errorsByField)
         if (attached.length === 0 || unhandled.length > 0) {
-          setError(getActionErrorMessage(err, t('reminder.saveAction')))
+          setError(actionErrorMessage(parsed, t('reminder.saveAction')))
         }
       } finally {
         setSubmitting(false)
@@ -454,7 +454,7 @@ function ReminderForm({ vin, reminder, currentMileage, currentHours, onClose, on
       // Render targets: title, due_date, due_mileage_km, due_hours, notes.
       // `reminder_type` has no Field wrapper (it's a button group), so a
       // problem addressed to it must fall through to the banner below.
-      const { attached, unhandled, errorsByField } = applyControlledFieldErrors(err, [
+      const { parsed, attached, unhandled, errorsByField } = applyControlledFieldErrors(err, [
         'title',
         'due_date',
         'due_mileage_km',
@@ -465,7 +465,7 @@ function ReminderForm({ vin, reminder, currentMileage, currentHours, onClose, on
         setFieldErrors(errorsByField)
       }
       if (attached.length === 0 || unhandled.length > 0) {
-        setError(getActionErrorMessage(err, t('reminder.saveAction')))
+        setError(actionErrorMessage(parsed, t('reminder.saveAction')))
       }
     } finally {
       setSubmitting(false)

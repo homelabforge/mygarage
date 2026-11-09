@@ -49,7 +49,7 @@ from app.models.user import User
 from app.models.vehicle import Vehicle
 from tests._importer_source import importer_files
 
-pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
+pytestmark = pytest.mark.integration
 
 
 @asynccontextmanager
@@ -694,7 +694,9 @@ class TestHistoricalShapes:
 
 
 @pytest_asyncio.fixture
-async def opposing_users(db_session: AsyncSession) -> dict[str, dict[str, object]]:
+async def opposing_users(
+    db_session: AsyncSession,
+) -> AsyncIterator[dict[str, dict[str, object]]]:
     """Two accounts with opposing unit preferences, including US vs UK gallons.
 
     A grep cannot prove R1: every importer already receives `current_user`, so

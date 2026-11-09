@@ -2,6 +2,7 @@
 
 import logging
 import math
+from collections.abc import Mapping
 from typing import cast
 
 from fastapi import FastAPI, Request, status
@@ -10,8 +11,13 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.exc import DBAPIError, SQLAlchemyError
 
 from app.utils.logging_utils import sanitize_for_log
-from app.utils.settings_crypto import CIPHERTEXT_PREFIX, SettingsKeyUnavailable
+from app.utils.settings_crypto import (
+    CIPHERTEXT_PREFIX,
+    SettingsKeyUnavailable,
+    SettingValueNotText,
+)
 from app.utils.settings_errors import PlaintextSecretsRemain, SettingCiphertextValue
+from app.utils.validation_errors import FixedRuleError
 
 logger = logging.getLogger(__name__)
 
@@ -114,6 +120,14 @@ async def handle_generic_exception(request: Request, exc: Exception) -> JSONResp
 #: 422 (L2, F-2).
 _SECRET_FIELD_MARKERS = ("password", "secret", "token", "key")
 
+#: Error types whose `msg` is a validator's own text ("Value error, <its message>"),
+#: which can quote the value it rejected.
+_VALIDATOR_MESSAGE_TYPES = frozenset({"value_error", "assertion_error"})
+
+#: What a secret-named field's validator message is replaced with, unless the
+#: validator raised a FixedRuleError (fixed text that never quotes the input).
+GENERIC_VALIDATOR_MSG = "Invalid value"
+
 #: All the log line keeps of each error. `input` is the rejected value (for a
 #: missing field, the whole parent object) and `ctx` the constraint, which can
 #: carry it too; neither is logged, for any field (L2).
@@ -131,14 +145,24 @@ def _is_secret_field(loc: object) -> bool:
     return any(marker in name for marker in _SECRET_FIELD_MARKERS)
 
 
+def _is_fixed_rule(error: Mapping[str, object]) -> bool:
+    """Whether a validator error came from a FixedRuleError, whose text is safe to show."""
+    ctx = error.get("ctx")
+    return isinstance(ctx, dict) and isinstance(
+        cast("dict[str, object]", ctx).get("error"), FixedRuleError
+    )
+
+
 async def handle_validation_error(request: Request, exc: RequestValidationError) -> JSONResponse:
     """Handle validation errors.
 
     The 422 body keeps each error's `input` and `ctx`, except for a field named
     like a secret, which loses both, and except for an `input` that is a dict
     or a list (the whole parent object, on a missing field), which is dropped
-    for any field. The log line keeps only `type`, `loc` and `msg`, so no
-    rejected value reaches the log.
+    for any field. A secret-named field's validator error also gets a generic
+    `msg`, since the validator's text can quote the value, unless it raised a
+    FixedRuleError (a fixed rule like the password strength checks). The log line keeps
+    only `type`, `loc` and `msg`, so no rejected secret reaches the log.
 
     Args:
         request: The request that caused the exception
@@ -170,6 +194,8 @@ async def handle_validation_error(request: Request, exc: RequestValidationError)
             # `ctx` too: a validator's exception lands in `ctx.error`, value and all (F-2).
             json_error.pop("input", None)
             json_error.pop("ctx", None)
+            if error.get("type") in _VALIDATOR_MESSAGE_TYPES and not _is_fixed_rule(error):
+                json_error["msg"] = GENERIC_VALIDATOR_MSG
         elif isinstance(error.get("input"), dict | list | tuple):
             # A whole object, not one value: on a missing field it is the parent
             # body, whatever secret fields that holds (T6 m3).
@@ -317,6 +343,20 @@ async def handle_setting_ciphertext_value(
     )
 
 
+async def handle_setting_value_not_text(request: Request, exc: SettingValueNotText) -> JSONResponse:
+    """A setting given text that won't encode (a lone surrogate): 422."""
+    logger.warning(
+        "Refused a value that isn't valid text for %s on %s %s",
+        sanitize_for_log(exc.key),
+        request.method,
+        sanitize_for_log(request.url.path),
+    )
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+        content={"detail": str(exc)},
+    )
+
+
 async def handle_plaintext_secrets_remain(
     request: Request, exc: PlaintextSecretsRemain
 ) -> JSONResponse:
@@ -344,7 +384,7 @@ def register_error_handlers(app: FastAPI, *, debug: bool) -> None:
     in debug too: an overflow is the client's number, so it's a 422 either way.
     Validation stays the fence; this is the backstop for a path it missed.
 
-    The three secret-setting mappings are registered after the branch, in either
+    The four secret-setting mappings are registered after the branch, in either
     mode. Starlette picks a handler by walking the exception's MRO, so their
     order against the production ``Exception`` catch-all doesn't matter; but
     debug registers no catch-all, and without them would answer with a
@@ -360,6 +400,7 @@ def register_error_handlers(app: FastAPI, *, debug: bool) -> None:
     app.add_exception_handler(RequestValidationError, handle_validation_error)  # type: ignore[arg-type]
     app.add_exception_handler(SettingsKeyUnavailable, handle_settings_key_unavailable)  # type: ignore[arg-type]
     app.add_exception_handler(SettingCiphertextValue, handle_setting_ciphertext_value)  # type: ignore[arg-type]
+    app.add_exception_handler(SettingValueNotText, handle_setting_value_not_text)  # type: ignore[arg-type]
     app.add_exception_handler(PlaintextSecretsRemain, handle_plaintext_secrets_remain)  # type: ignore[arg-type]
 
 

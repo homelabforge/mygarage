@@ -63,7 +63,6 @@ vi.mock('../../hooks/useCurrencyPreference', () => ({
 vi.mock('../../hooks/useCurrencySymbol', () => ({ useCurrencySymbol: () => '$' }))
 
 import { UK_IMPERIAL_UNITS } from '../../__tests__/factories'
-import { UnitConverter } from '../../utils/units'
 import PropaneRecordList from '../PropaneRecordList'
 
 // NOTE: the component imports formatCurrency from utils/formatUtils (NOT the currency
@@ -161,13 +160,14 @@ describe('PropaneRecordList — empty state CTA is wired', () => {
 })
 
 describe('PropaneRecordList — one gallon per page, taken from the user', () => {
+  // These used to pin the instance gallon to the other flavour first. That
+  // gallon is deleted, so the user's set is the only one a page can read and
+  // there's nothing left to pin.
   beforeEach(() => {
-    UnitConverter.setGallonStandard('us')
     unitPrefMock.units = null
   })
 
   it('puts the header, the volume cell, the price cell and both cards on the imperial gallon', () => {
-    UnitConverter.setGallonStandard('us')
     unitPrefMock.system = 'imperial'
     unitPrefMock.units = UK_IMPERIAL_UNITS
 
@@ -182,11 +182,9 @@ describe('PropaneRecordList — one gallon per page, taken from the user', () =>
     expect(screen.getByText('propaneList.totalVolume (gal (UK))')).toBeInTheDocument()
     expect(screen.getByText('8.7 gal (UK)')).toBeInTheDocument()
     expect(screen.getByText('propaneList.avgCostPerVolume (gal (UK))')).toBeInTheDocument()
-    expect(UnitConverter.getGallonStandard()).toBe('us')
   })
 
-  it('stays in litres for a metric set even on a UK-default instance', () => {
-    UnitConverter.setGallonStandard('uk')
+  it('stays in litres for a metric set', () => {
     unitPrefMock.system = 'metric'
 
     render(<PropaneRecordList vin="TEST12345678901234" />)

@@ -6,8 +6,7 @@ Tests window sticker OCR and file management endpoints.
 
 import logging
 import string
-from collections.abc import AsyncGenerator, Awaitable, Callable, Iterator
-from contextlib import contextmanager
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
@@ -25,6 +24,8 @@ from sqlalchemy.types import TypeDecorator
 from app.models.vehicle import Vehicle
 from app.routes import window_sticker as window_sticker_route
 from app.services.settings_service import SettingsService
+from tests._keep_rows import Keep
+from tests._logged import problems
 from tests.integration.routes._legacy_reads import read_ok
 
 
@@ -476,10 +477,10 @@ async def test_a_cut_is_logged_once_without_the_text(client, auth_headers, own_v
 
 
 # ---------------------------------------------------------------------------
-# A re-scan fills empty fields only, unless replacing (D1)
+# A re-scan fills empty fields only, unless replacing
 # ---------------------------------------------------------------------------
 
-# What the scan reads in the D1 tests.
+# What the scan reads in the re-scan tests.
 SCAN: dict[str, Any] = {
     "msrp_base": 30000,
     "exterior_color": "Red",
@@ -488,25 +489,6 @@ SCAN: dict[str, Any] = {
 }
 OLD_BYTES = b"%PDF-1.4 the sticker already on file"
 ROUTE_LOGGER = "app.routes.window_sticker"
-
-
-@contextmanager
-def _route_log_captured(caplog: pytest.LogCaptureFixture) -> Iterator[None]:
-    """The route's records go to caplog only. log_cli prints everything live,
-    so an expected traceback would otherwise spill into the run's output."""
-    route_log = logging.getLogger(ROUTE_LOGGER)
-    route_log.addHandler(caplog.handler)
-    previous = route_log.propagate
-    route_log.propagate = False
-    try:
-        yield
-    finally:
-        route_log.propagate = previous
-        route_log.removeHandler(caplog.handler)
-
-
-def _route_errors(caplog: pytest.LogCaptureFixture) -> list[logging.LogRecord]:
-    return [r for r in caplog.records if r.name == ROUTE_LOGGER and r.levelno == logging.ERROR]
 
 
 # What DELETE cleared before the lists became module constants, copied off
@@ -567,7 +549,7 @@ async def sticker_on_file(
 async def test_a_rescan_fills_only_the_empty_fields(
     client, auth_headers, own_vehicle, db_session, test_sessionmaker
 ):
-    """D1: a price typed by hand survives the scan; the empty fields fill."""
+    """A price typed by hand survives the scan; the empty fields fill."""
     vin = own_vehicle.vin
     own_vehicle.msrp_base = Decimal("25000")
     await db_session.commit()
@@ -657,14 +639,14 @@ async def test_every_upload_resets_the_scan_metadata(
     ids=["ocr-raised", "ocr-read-nothing"],
 )
 async def test_a_scan_that_read_nothing_keeps_the_values_and_says_so(
-    client, auth_headers, own_vehicle, sticker_on_file, test_sessionmaker, scan, caplog
+    client, auth_headers, own_vehicle, sticker_on_file, test_sessionmaker, scan, caplog, caplog_only
 ):
     """Replace with nothing to replace the values with clears nothing. The new
     file is still the sticker on record, and the response says the scan was
     empty instead of swallowing it."""
     vin = own_vehicle.vin
 
-    with _route_log_captured(caplog):
+    with caplog_only(ROUTE_LOGGER):
         uploaded = await _upload_with_ocr(client, auth_headers, vin, scan, replace=True)
 
     assert uploaded.status_code == 201, uploaded.text
@@ -676,12 +658,12 @@ async def test_a_scan_that_read_nothing_keeps_the_values_and_says_so(
     assert not sticker_on_file.exists()
     assert uploaded.json().get("scan_read_nothing") is True
     expected = ["OCR extraction failed: tesseract fell over"] if isinstance(scan, Exception) else []
-    assert [r.getMessage() for r in _route_errors(caplog)] == expected
+    assert [r.getMessage() for r in problems(caplog, ROUTE_LOGGER)] == expected
 
 
 @pytest.mark.integration
 async def test_a_failed_write_keeps_the_sticker_on_file(
-    client, auth_headers, own_vehicle, sticker_on_file, test_sessionmaker, caplog
+    client, auth_headers, own_vehicle, sticker_on_file, test_sessionmaker, caplog, caplog_only
 ):
     vin = own_vehicle.vin
     columns = ("window_sticker_file_path", "window_sticker_uploaded_at", "msrp_base")
@@ -690,7 +672,7 @@ async def test_a_failed_write_keeps_the_sticker_on_file(
     assert before["msrp_base"] == Decimal("25000")
 
     with (
-        _route_log_captured(caplog),
+        caplog_only(ROUTE_LOGGER),
         patch("app.routes.window_sticker.open", side_effect=OSError, create=True),
     ):
         uploaded = await _upload_with_ocr(client, auth_headers, vin, SCAN, replace=True)
@@ -699,14 +681,14 @@ async def test_a_failed_write_keeps_the_sticker_on_file(
     assert sticker_on_file.exists()
     assert sticker_on_file.read_bytes() == OLD_BYTES
     assert {c: await _stored(test_sessionmaker, vin, c) for c in columns} == before
-    (error,) = _route_errors(caplog)
+    (error,) = problems(caplog, ROUTE_LOGGER)
     assert error.getMessage() == f"Failed to save window sticker for {vin}"
     assert error.exc_info is not None and error.exc_info[0] is OSError
 
 
 @pytest.mark.integration
 async def test_a_failed_commit_keeps_the_sticker_on_file(
-    client, auth_headers, own_vehicle, sticker_on_file, test_sessionmaker, caplog
+    client, auth_headers, own_vehicle, sticker_on_file, test_sessionmaker, caplog, caplog_only
 ):
     vin = own_vehicle.vin
     vin_dir = sticker_on_file.parent
@@ -717,7 +699,7 @@ async def test_a_failed_commit_keeps_the_sticker_on_file(
         raise SQLAlchemyError("disk I/O error")
 
     # This request only: the fixtures' own commits have to work afterwards.
-    with _route_log_captured(caplog), pytest.MonkeyPatch.context() as mp:
+    with caplog_only(ROUTE_LOGGER), pytest.MonkeyPatch.context() as mp:
         mp.setattr(AsyncSession, "commit", refuse)
         uploaded = await _upload_with_ocr(client, auth_headers, vin, SCAN, replace=True)
 
@@ -729,7 +711,7 @@ async def test_a_failed_commit_keeps_the_sticker_on_file(
     assert list(vin_dir.iterdir()) == [sticker_on_file]
     assert await _stored(test_sessionmaker, vin, "window_sticker_file_path") == str(sticker_on_file)
     assert await _stored(test_sessionmaker, vin, "msrp_base") == Decimal("25000")
-    (error,) = _route_errors(caplog)
+    (error,) = problems(caplog, ROUTE_LOGGER)
     assert error.getMessage() == f"Window sticker upload failed for {vin}"
     assert error.exc_info is not None and error.exc_info[0] is SQLAlchemyError
 
@@ -755,7 +737,7 @@ async def test_a_replace_moves_the_record_to_the_new_file(
 async def test_replace_with_no_sticker_on_file_keeps_typed_values(
     client, auth_headers, own_vehicle, test_sessionmaker
 ):
-    """Fable F-6: with no sticker there's nothing to replace, so the values
+    """With no sticker there's nothing to replace, so the values
     typed through the review PATCH survive. Main ignored the field and passed
     too; this goes red if the `old_path` guard is dropped."""
     vin = own_vehicle.vin
@@ -808,10 +790,10 @@ async def test_a_scan_that_read_nothing_leaves_the_vehicle_colour_alone(
     assert await _stored(test_sessionmaker, vin, "color") is None
 
 
-def test_an_old_path_unlink_cannot_take_is_a_warning(caplog: pytest.LogCaptureFixture):
+def test_an_old_path_unlink_cannot_take_is_a_warning(caplog: pytest.LogCaptureFixture, caplog_only):
     """After the commit the upload has worked; a stored path unlink refuses
     (a NUL raises ValueError, not OSError) must log, not turn it into a 500."""
-    with _route_log_captured(caplog):
+    with caplog_only(ROUTE_LOGGER):
         window_sticker_route._unlink_quietly(Path("window_sticker\x00.pdf"))
 
     assert [(r.name, r.levelno) for r in caplog.records] == [(ROUTE_LOGGER, logging.WARNING)]
@@ -854,7 +836,7 @@ async def test_delete_still_clears_every_sticker_column(
 
 @pytest.mark.integration
 async def test_delete_keeps_the_file_when_the_commit_fails(
-    client, auth_headers, own_vehicle, sticker_on_file, test_sessionmaker, caplog
+    client, auth_headers, own_vehicle, sticker_on_file, test_sessionmaker, caplog, caplog_only
 ):
     """The row still points at the file, so the file has to stay too."""
     vin = own_vehicle.vin
@@ -865,7 +847,7 @@ async def test_delete_keeps_the_file_when_the_commit_fails(
         raise SQLAlchemyError("disk I/O error")
 
     # This request only: the fixtures' own commits have to work afterwards.
-    with _route_log_captured(caplog), pytest.MonkeyPatch.context() as mp:
+    with caplog_only(ROUTE_LOGGER), pytest.MonkeyPatch.context() as mp:
         mp.setattr(AsyncSession, "commit", refuse)
         deleted = await client.delete(f"/api/vehicles/{vin}/window-sticker", headers=auth_headers)
 
@@ -874,7 +856,7 @@ async def test_delete_keeps_the_file_when_the_commit_fails(
     assert sticker_on_file.read_bytes() == OLD_BYTES
     assert await _stored(test_sessionmaker, vin, "window_sticker_file_path") == str(sticker_on_file)
     assert await _stored(test_sessionmaker, vin, "msrp_base") == Decimal("25000")
-    (error,) = _route_errors(caplog)
+    (error,) = problems(caplog, ROUTE_LOGGER)
     assert error.getMessage() == f"Window sticker delete failed for {vin}"
     assert error.exc_info is not None and error.exc_info[0] is SQLAlchemyError
 
@@ -904,7 +886,7 @@ async def test_delete_removes_the_file_after_the_commit(
 
 @pytest.mark.integration
 async def test_delete_survives_an_unlink_failure(
-    client, auth_headers, own_vehicle, sticker_on_file, test_sessionmaker, caplog
+    client, auth_headers, own_vehicle, sticker_on_file, test_sessionmaker, caplog, caplog_only
 ):
     """The delete has worked once it commits; a file it can't remove is an orphan."""
     vin = own_vehicle.vin
@@ -915,7 +897,7 @@ async def test_delete_survives_an_unlink_failure(
             raise OSError("permission denied")
         real_unlink(self, missing_ok=missing_ok)
 
-    with _route_log_captured(caplog), pytest.MonkeyPatch.context() as mp:
+    with caplog_only(ROUTE_LOGGER), pytest.MonkeyPatch.context() as mp:
         mp.setattr(Path, "unlink", refuse)
         deleted = await client.delete(f"/api/vehicles/{vin}/window-sticker", headers=auth_headers)
 
@@ -952,7 +934,7 @@ Switches = Callable[..., Awaitable[None]]
 
 
 @pytest_asyncio.fixture
-async def sticker_switches(db_session: AsyncSession, keep_rows) -> Switches:
+async def sticker_switches(db_session: AsyncSession, keep_rows: Keep) -> Switches:
     """Set both switches for one test; `keep_rows` puts the rows back after."""
     await keep_rows("window_sticker_enabled", "window_sticker_ocr_enabled")
 
@@ -1034,6 +1016,8 @@ async def test_stickers_off_refuses_the_test_scan(
     assert response.status_code == 409, response.text
     assert response.json()["detail"] == STICKERS_OFF
     ocr.test_extraction.assert_not_awaited()
+    # Regression guard: main passes this line too, since its finally deleted the
+    # temp file. The not-awaited scan above is what's red on main.
     assert _files_under(tmp_path) == [sticker_on_file]
 
 
@@ -1042,7 +1026,7 @@ async def test_stickers_off_still_shows_edits_and_deletes_the_sticker_on_file(
     client, auth_headers, own_vehicle, sticker_on_file, sticker_switches, test_sessionmaker
 ):
     """Regression guard (main passes: it gated nothing). The switch stops new
-    stickers only (Fable F-12): the one on file can still be read, downloaded,
+    stickers only: the one on file can still be read, downloaded,
     corrected in the review and deleted, and the parser list and OCR status
     still answer."""
     vin = own_vehicle.vin
@@ -1178,6 +1162,8 @@ async def test_ocr_off_refuses_the_test_scan(
     assert response.status_code == 409, response.text
     assert response.json()["detail"] == OCR_OFF
     ocr.test_extraction.assert_not_awaited()
+    # Regression guard: main passes this line too, since its finally deleted the
+    # temp file. The not-awaited scan above is what's red on main.
     assert _files_under(tmp_path) == [sticker_on_file]
 
 

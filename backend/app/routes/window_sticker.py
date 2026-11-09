@@ -9,7 +9,7 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -231,8 +231,7 @@ class WindowStickerResponse(BaseModel):
     # Only the upload sets it: OCR is switched off, so the file was stored unscanned.
     ocr_skipped: bool = False
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class WindowStickerTestResponse(BaseModel):

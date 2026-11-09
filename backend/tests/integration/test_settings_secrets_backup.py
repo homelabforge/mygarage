@@ -11,7 +11,8 @@ Plan tests 3, 4, 13 and the legacy-restore part of 14:
   `encrypted` flag plays no part;
 - rotation (R1-H2): a backup under key A, restored after rotating to B, still
   reads once A is dropped;
-- an unchanged legacy value restored over a plaintext row ends up encrypted (R1-H3).
+- every secret row the restore writes is marked `encrypted`, whatever the file says;
+- a 2.0 plaintext file restores over the ciphertext of the same value, unchanged.
 
 Every assertion about a file reads the raw JSON text, and every assertion about
 the database reads the raw column through a fresh connection.
@@ -22,13 +23,14 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.models.settings import Setting
 from app.services.backup_service import BackupService
 from app.services.oidc import MASKED_SECRET_PLACEHOLDER
-from app.services.settings_secrets import sweep_secret_settings
-from app.utils.settings_crypto import CIPHERTEXT_PREFIX, current_kid, decrypt, encrypt
+from app.services.settings_secrets import ensure_secrets_encrypted, sweep_secret_settings
+from app.utils.settings_crypto import CIPHERTEXT_PREFIX, decrypt, encrypt
 from tests.integration._secret_helpers import (
     Keep,
     UseKeys,
@@ -272,6 +274,60 @@ async def test_the_mask_placeholder_is_skipped(
     assert await raw_column(test_sessionmaker, "ntfy_token") == current_ntfy
 
 
+async def test_every_restored_secret_row_is_marked_encrypted(
+    db_session: AsyncSession,
+    test_sessionmaker: async_sessionmaker[AsyncSession],
+    keep_rows: Keep,
+    use_keys: UseKeys,
+    tmp_path: Path,
+) -> None:
+    """Each way a secret comes back, over a row whose flag is false and onto no row at all."""
+    use_keys(KEY_A)
+    under_a = encrypt("llm_api_key", PLAIN_LLM)
+    use_keys(KEY_B, KEY_A)
+    current = {key: encrypt(key, f"{key}-in-the-backup") for key in ("ntfy_token", "gotify_token")}
+    # Raw SQL leaves `encrypted` false on both existing rows.
+    await only_these_secret_rows(
+        db_session,
+        keep_rows,
+        {
+            "ntfy_token": encrypt("ntfy_token", "the-current-ntfy"),
+            "llm_api_key": encrypt("llm_api_key", "the-current-llm"),
+        },
+    )
+    service = _service(tmp_path)
+    filename = _write_file(
+        service,
+        [
+            # Stored byte for byte: over a row, and as a new row.
+            {"key": "ntfy_token", "value": current["ntfy_token"], "encrypted": False},
+            {"key": "gotify_token", "value": current["gotify_token"], "encrypted": False},
+            # Re-keyed through the setter.
+            {"key": "llm_api_key", "value": under_a, "encrypted": False},
+            # Plaintext, encrypted through the setter.
+            {"key": "pushover_api_token", "value": PLAIN_NTFY, "encrypted": False},
+        ],
+    )
+
+    details = await service.restore_settings_backup(filename, db_session, create_safety=False)
+
+    assert details["skipped_secret_keys"] == []
+    async with test_sessionmaker() as fresh:
+        rows = await fresh.execute(
+            text(
+                "SELECT key, encrypted FROM settings WHERE key IN "
+                "('ntfy_token', 'gotify_token', 'llm_api_key', 'pushover_api_token')"
+            )
+        )
+        flags = {key: bool(flag) for key, flag in rows.all()}
+    assert flags == {
+        "ntfy_token": True,
+        "gotify_token": True,
+        "llm_api_key": True,
+        "pushover_api_token": True,
+    }
+
+
 async def test_with_no_keyring_plaintext_is_skipped_and_listed(
     db_session: AsyncSession,
     test_sessionmaker: async_sessionmaker[AsyncSession],
@@ -346,26 +402,32 @@ async def test_a_backup_under_an_old_key_survives_rotation(
         assert await read_back(test_sessionmaker, key) == plain, key
 
 
-# ---------------------------------------------------------------- test 14 (legacy restore)
+# ---------------------------------------------------------------- legacy restore over the same value
 
 
-async def test_an_unchanged_legacy_value_restored_over_plaintext_ends_encrypted(
+async def test_a_2_0_plaintext_file_restores_over_the_same_values_ciphertext(
     db_session: AsyncSession,
     test_sessionmaker: async_sessionmaker[AsyncSession],
     keep_rows: Keep,
     use_keys: UseKeys,
     tmp_path: Path,
 ) -> None:
-    """R1-H3: the same plaintext the row already holds is still written as ciphertext."""
+    """The file's plaintext matches what the row already encrypts: restored, nothing skipped.
+
+    The setter sees the same value under the current key and leaves the bytes
+    alone, so the row doesn't churn. The preflight runs first, as the route runs it.
+    """
     kid = use_keys(KEY_A)
     await only_these_secret_rows(db_session, keep_rows, {"ntfy_token": PLAIN_NTFY})
     service = _service(tmp_path)
     filename = _write_file(service, [{"key": "ntfy_token", "value": PLAIN_NTFY}], version="2.0")
+    await ensure_secrets_encrypted(db_session)
+    before = await raw_column(test_sessionmaker, "ntfy_token")
+    assert before is not None and before.startswith(f"{CIPHERTEXT_PREFIX}{kid}:")
 
     details = await service.restore_settings_backup(filename, db_session, create_safety=False)
 
+    assert details["restored_count"] == 1
     assert details["skipped_secret_keys"] == []
-    stored = await raw_column(test_sessionmaker, "ntfy_token")
-    assert stored is not None and stored.startswith(f"{CIPHERTEXT_PREFIX}{kid}:")
-    assert current_kid() == kid
+    assert await raw_column(test_sessionmaker, "ntfy_token") == before
     assert await read_back(test_sessionmaker, "ntfy_token") == PLAIN_NTFY

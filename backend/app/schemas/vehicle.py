@@ -5,6 +5,7 @@ from decimal import Decimal
 from typing import Annotated, Any, Literal, Self
 
 from pydantic import (
+    AfterValidator,
     BaseModel,
     BeforeValidator,
     Field,
@@ -19,6 +20,7 @@ from app.constants.countries import is_country_code, normalize_country_code
 from app.constants.fuel import FUEL_TYPE_VALUES, normalize_fuel_type
 from app.constants.units import DistanceUnit
 from app.constants.wheel_layouts import WheelLayoutId
+from app.schemas._figures import to_stored_tenth
 from app.schemas._money import OptionalMoney
 from app.schemas._nullability import reject_null
 from app.utils.lenient_vocab import LenientVocab, lenient_reader
@@ -72,7 +74,7 @@ def _normalize_fuel_type_input(v: Any) -> Any:
     """Normalize free-text / NHTSA fuel-type input to the canonical vocabulary.
 
     Used as a `mode="before"` validator on `VehicleCreate` / `VehicleUpdate`
-    only — never on `VehicleBase`/`VehicleResponse`. Response schemas
+    only, never on `VehicleBase`/`VehicleResponse`. Response schemas
     validate from DB attributes, and a legacy unrecognized value already
     persisted must not make a vehicle read 500.
 
@@ -169,8 +171,11 @@ class VehicleBase(BaseModel):
         "distance",
         description="Usage tracking dimension: 'distance' (odometer) or 'hours' (hour meter)",
     )
-    current_hours: Decimal | None = Field(
-        None, description="Current engine-hour reading (used when usage_unit == 'hours')", ge=0
+    current_hours: Annotated[Decimal | None, AfterValidator(to_stored_tenth)] = Field(
+        None,
+        description="Current engine-hour reading (used when usage_unit == 'hours')",
+        ge=0,
+        le=999999999.9,
     )
     secondary_usage_enabled: bool = Field(
         False,
@@ -423,7 +428,7 @@ class VehicleUpdate(VehicleBase):
         None, description="Serial / HIN / chassis number / asset tag", max_length=64
     )
     # Overridden as optional: VehicleBase gives these non-null defaults, which
-    # the generated OpenAPI otherwise marks REQUIRED — forcing every partial
+    # the generated OpenAPI otherwise marks REQUIRED, forcing every partial
     # update (equipment/pricing sidecars) to resend them. exclude_unset makes an
     # omitted field a no-op, so callers editing unrelated fields can drop them.
     usage_unit: UsageUnit | None = Field(
@@ -433,7 +438,7 @@ class VehicleUpdate(VehicleBase):
         None, description="Dual distance+hours tracking (omit to leave unchanged)"
     )
     # Equipment is editable from the vehicle-detail sidecar. Declared here (not
-    # only on VehicleResponse) so partial PUTs actually persist it — Pydantic's
+    # only on VehicleResponse) so partial PUTs actually persist it: Pydantic's
     # default extra='ignore' silently drops unknown keys otherwise.
     standard_equipment: dict[str, Any] | None = Field(
         None, description="Standard equipment (category -> list of items)"
@@ -869,7 +874,7 @@ class VehicleBulkArchiveRequest(BaseModel):
 
 
 class VehicleDetailStats(BaseModel):
-    """Read-aggregation for the Vehicle Detail hero + key-facts strip (P5).
+    """Read-aggregation for the Vehicle Detail hero + key-facts strip.
 
     Metric-canonical: latest_odometer_km is raw km (frontend converts at the
     boundary). spent_this_year is currency (Decimal -> JSON string).
@@ -878,23 +883,23 @@ class VehicleDetailStats(BaseModel):
     overdue_count: int
     upcoming_count: int
     # The subset of upcoming that is due soon: expected within DUE_SOON_WINDOW,
-    # or DUE_SOON_PROGRESS along a usage span no rate can project (#192 D2).
+    # or DUE_SOON_PROGRESS along a usage span no rate can project (#192).
     # The hero badge (reminder_service.reminder_due_status, as on the dashboard).
     due_soon_count: int
     usage_unit: LenientUsageUnit  # drives the odometer/hours relabel
-    # Kept for API compat only — NO LONGER the display source (R2-H1). The
+    # Kept for API compat only, NO LONGER the display source. The
     # canonical reading is `latest_hours` below, via `latest_engine_hours_and_date`.
-    current_hours: Decimal | None  # required-but-nullable — legacy column value
-    # Canonical latest engine-hours reading (the §1 helper) + hours-economy
-    # figures — required-but-nullable (M2) — NO `= None` default. Null for a
+    current_hours: Decimal | None  # required-but-nullable, legacy column value
+    # Canonical latest engine-hours reading + hours-economy
+    # figures, required-but-nullable, NO `= None` default. Null for a
     # pure-distance vehicle.
     latest_hours: Decimal | None
     average_l_per_hr: Decimal | None
     average_cost_per_hr: Decimal | None
     secondary_usage_enabled: bool
-    latest_odometer_km: Decimal | None  # required-but-nullable (M2) — NO `= None` default
-    latest_odometer_date: date | None  # required-but-nullable (M2) — NO `= None` default
-    last_service_date: date | None  # required-but-nullable (M2) — NO `= None` default
-    last_fillup_date: date | None  # required-but-nullable (M2) — NO `= None` default
+    latest_odometer_km: Decimal | None  # required-but-nullable, NO `= None` default
+    latest_odometer_date: date | None  # required-but-nullable, NO `= None` default
+    last_service_date: date | None  # required-but-nullable, NO `= None` default
+    last_fillup_date: date | None  # required-but-nullable, NO `= None` default
     spent_this_year: Decimal
     year: int

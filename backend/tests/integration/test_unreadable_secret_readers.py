@@ -31,13 +31,11 @@ from app.services.mqtt_subscriber import MQTTSubscriber
 from app.services.notifications.dispatcher import NotificationDispatcher
 from app.services.oidc.config import get_oidc_config
 from app.services.poi.registry import POIProviderRegistry
-from app.services.shop_discovery import ShopDiscoveryService
+from app.services.settings_service import reenter_message
 from app.utils.settings_crypto import encrypt
-from tests.integration._secret_helpers import Keep, seed_rows, unreadable_ciphertext
+from tests.integration._secret_helpers import REENTER, Keep, seed_rows, unreadable_ciphertext
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
-
-REENTER = "can't be decrypted; re-enter it"
 
 
 async def _set_raw(db: AsyncSession, key: str, raw: str) -> None:
@@ -84,8 +82,10 @@ async def test_the_dispatcher_skips_ntfy_with_an_unreadable_token(
     ):
         await dispatcher._get_enabled_services()  # pyright: ignore[reportPrivateUsage]
         ntfy.assert_not_called()
+        # The same wording as everywhere else, from the one helper.
         assert any(
-            r.levelno == logging.ERROR and "ntfy_token" in r.getMessage() for r in caplog.records
+            r.levelno == logging.ERROR and reenter_message("ntfy_token") in r.getMessage()
+            for r in caplog.records
         )
         assert "the-real-secret" not in caplog.text
         assert "enc:v1:" not in caplog.text
@@ -180,7 +180,8 @@ async def test_the_mqtt_subscriber_stops_on_an_unreadable_password(
     ):
         assert await subscriber._get_config() is None  # pyright: ignore[reportPrivateUsage]
         assert any(
-            r.levelno == logging.ERROR and "livelink_mqtt_password" in r.getMessage()
+            r.levelno == logging.ERROR
+            and reenter_message("livelink_mqtt_password") in r.getMessage()
             for r in caplog.records
         )
         assert "the-real-secret" not in caplog.text
@@ -294,33 +295,13 @@ async def test_the_poi_registry_configures_no_provider_on_an_unreadable_key(
     configs = await registry._load_provider_configs()  # pyright: ignore[reportPrivateUsage]
     assert [c["name"] for c in configs] == ["osm"]
 
-    # Positive control: readable, the same seed configures every provider.
+    # Positive control: readable, the same seed configures every provider,
+    # and each one gets the decrypted key, not the ciphertext.
     for key in POI.values():
         await _set_raw(db_session, key, encrypt(key, f"readable-{key}"))
     configs = await registry._load_provider_configs()  # pyright: ignore[reportPrivateUsage]
     assert [c["name"] for c in configs] == [*POI, "osm"]
-
-
-async def test_shop_discovery_leaves_tomtom_off_on_an_unreadable_key(
-    db_session: AsyncSession, keep_rows: Keep
-) -> None:
-    await seed_rows(
-        db_session,
-        keep_rows,
-        {"tomtom_enabled": "true", "tomtom_api_key": unreadable_ciphertext("tomtom_api_key")},
-    )
-    service = ShopDiscoveryService(db_session)
-
-    await service._load_settings()  # pyright: ignore[reportPrivateUsage]
-
-    assert service.tomtom_enabled is False
-    assert service.tomtom_api_key == ""
-
-    # Positive control: readable, the same seed turns TomTom on.
-    await _set_raw(db_session, "tomtom_api_key", encrypt("tomtom_api_key", "readable-key"))
-    await service._load_settings()  # pyright: ignore[reportPrivateUsage]
-    assert service.tomtom_enabled is True
-    assert service.tomtom_api_key == "readable-key"
+    assert [c["api_key"] for c in configs[:-1]] == [f"readable-{key}" for key in POI.values()]
 
 
 async def test_an_unreadable_webhook_token_is_a_503_not_a_match(

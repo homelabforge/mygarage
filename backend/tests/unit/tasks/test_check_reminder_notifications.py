@@ -35,6 +35,7 @@ from app.services.settings_init import DEFAULT_SETTINGS
 from app.tasks import scheduled
 from app.utils.datetime_utils import utc_now
 from app.utils.household_time import household_today
+from tests._logged import CaplogOnly, problems
 
 _VIN_PREFIX = "RMNOTIFY"
 
@@ -432,6 +433,7 @@ class TestWhatTheSweepSends:
         provider: _Provider,
         monkeypatch: pytest.MonkeyPatch,
         caplog: pytest.LogCaptureFixture,
+        caplog_only: CaplogOnly,
     ) -> None:
         broken = await _vehicle(db_session)
         healthy = await _vehicle(db_session)
@@ -451,17 +453,15 @@ class TestWhatTheSweepSends:
 
         monkeypatch.setattr(reminder_service, "load_due_context", _load_or_raise)
 
-        with caplog.at_level(logging.ERROR, logger="app.services.reminder_service"):
+        with caplog_only("app.services.reminder_service"):
             await check_due_reminders(db_session)
 
         assert provider.titles("Sweep broken") == []
         assert provider.titles("Sweep healthy") == ["Reminder overdue: Sweep healthy"]
-        failures = [
-            r
-            for r in caplog.records
-            if r.getMessage() == f"Reminder check failed for vehicle {broken}"
-        ]
-        assert len(failures) == 1
+        (logged,) = problems(caplog, "app.services.reminder_service")
+        assert logged.getMessage() == f"Reminder check failed for vehicle {broken}"
+        assert logged.exc_info is not None
+        assert str(logged.exc_info[1]) == "context blew up"
 
 
 class TestTheStamp:

@@ -2,9 +2,9 @@ import { useState, useRef, type SyntheticEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Upload, X, FileText } from 'lucide-react'
 import { useUploadDocument } from '../hooks/queries/useDocuments'
-import { getActionErrorMessage } from '../utils/httpErrorHandler'
-import { applyControlledFieldErrors } from '../hooks/useApiFormErrors'
-import { usePublicSettings } from '../hooks/usePublicSettings'
+import { actionErrorMessage } from '../utils/httpErrorHandler'
+import { applyControlledFieldErrors } from '../utils/apiFormErrors'
+import { usePublicSettings } from '../hooks/queries/usePublicSettings'
 import { documentMaxBytes, megabytes } from '../utils/uploadLimits'
 import { Button, IconButton, Mono, Field, Input, Select, Textarea } from './ui'
 
@@ -103,7 +103,7 @@ export default function DocumentUpload({ vin, onSuccess, onClose }: DocumentUplo
     } catch (err) {
       // Render targets: title, document_type, description. `file` has no
       // Field wrapper, so a problem addressed to it must hit the banner.
-      const { attached, unhandled, errorsByField } = applyControlledFieldErrors(err, [
+      const { parsed, attached, unhandled, errorsByField } = applyControlledFieldErrors(err, [
         'title',
         'document_type',
         'description',
@@ -112,7 +112,7 @@ export default function DocumentUpload({ vin, onSuccess, onClose }: DocumentUplo
         setFieldErrors(errorsByField)
       }
       if (attached.length === 0 || unhandled.length > 0) {
-        setError(getActionErrorMessage(err, t('documentUpload.uploadAction')))
+        setError(actionErrorMessage(parsed, t('documentUpload.uploadAction')))
       }
     } finally {
       setUploading(false)

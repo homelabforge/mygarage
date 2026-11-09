@@ -34,7 +34,6 @@ from app.routes.reminders import router as reminders_router
 from app.routes.reports import router as reports_router
 from app.routes.service_visits import router as service_visits_router
 from app.routes.settings import router as settings_router
-from app.routes.shop_discovery import router as shop_discovery_router
 from app.routes.spot_rental import router as spot_rental_router
 from app.routes.spot_rental_billing import router as spot_rental_billing_router
 from app.routes.supplies import router as supplies_router
@@ -86,7 +85,6 @@ __all__ = [
     "calendar_router",
     "window_sticker_router",
     "notifications_router",
-    "shop_discovery_router",
     "vendors_router",
     "reminders_router",
     "maintenance_rules_router",

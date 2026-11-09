@@ -1,4 +1,4 @@
-"""Every backend reader of an on/off setting reads R5's vocabulary (D4a, R4, R5).
+"""Every backend reader of an on/off setting reads the shared on/off vocabulary.
 
 Each reader compared the stored text to "true" exactly, so a switch stored as
 "1" (an import, an old restore, a hand edit) read as off at that reader while
@@ -9,7 +9,7 @@ writer can't hide a reader that was missed; each is red on main.
 The two readers that already accepted "1" (Family & Friends and the dashboard's
 multi-user flag) are tested with the words they didn't accept instead.
 
-The R4 split cases keep each site's own verdict for a missing row and a blank
+The split cases keep each site's own verdict for a missing row and a blank
 one: ``oidc_auto_create_users`` missing is on and blank is off, and
 ``multi_user_enabled`` missing allows creating a user while blank refuses. Those
 pass on main by design and are labelled regression guards.
@@ -37,7 +37,6 @@ from app.services.livelink_service import LiveLinkService
 from app.services.mqtt_subscriber import MQTTSubscriber
 from app.services.oidc import create_or_update_user_from_oidc
 from app.services.poi.registry import POIProviderRegistry
-from app.services.shop_discovery import ShopDiscoveryService
 from app.tasks import livelink_tasks
 from app.utils.settings_crypto import encrypt
 from tests.integration._secret_helpers import Keep, seed_rows
@@ -162,17 +161,6 @@ async def test_the_poi_registry_reads_a_stored_one_as_enabled(
     assert name in [c["name"] for c in configs]
 
 
-async def test_shop_discovery_reads_a_stored_one_as_tomtom_on(
-    db_session: AsyncSession, keep_rows: Keep
-) -> None:
-    await seed_rows(db_session, keep_rows, _provider_rows("tomtom"))
-    service = ShopDiscoveryService(db_session)
-
-    await service._load_settings()  # pyright: ignore[reportPrivateUsage]
-
-    assert service.tomtom_enabled is True
-
-
 async def test_the_poi_provider_list_reads_a_stored_one_as_enabled(
     client: AsyncClient, auth_headers: dict[str, str], db_session: AsyncSession, keep_rows: Keep
 ) -> None:
@@ -216,7 +204,7 @@ async def test_oidc_sign_in_reads_a_stored_one_as_auto_create(
 async def test_oidc_sign_in_auto_creates_when_the_setting_is_missing(
     db_session: AsyncSession, made_users: list[str]
 ) -> None:
-    """Regression guard (R4): no row falls back to "true", so on. Passes on main."""
+    """Regression guard: no row falls back to "true", so on. Passes on main."""
     user = await _provision(db_session, made_users, {})
 
     assert user is not None
@@ -225,7 +213,7 @@ async def test_oidc_sign_in_auto_creates_when_the_setting_is_missing(
 async def test_oidc_sign_in_refuses_when_the_setting_is_blank(
     db_session: AsyncSession, made_users: list[str]
 ) -> None:
-    """Regression guard (R4): a blank row is off, unlike a missing one. Passes on main."""
+    """Regression guard: a blank row is off, unlike a missing one. Passes on main."""
     with pytest.raises(OIDCLoginRefusedError):
         await _provision(db_session, made_users, {"auto_create_users": ""})
 
@@ -266,7 +254,7 @@ async def test_the_admin_oidc_config_reads_a_stored_one_as_auto_create(
 async def test_the_admin_oidc_config_shows_auto_create_split(
     client: AsyncClient, auth_headers: dict[str, str], db_session: AsyncSession, keep_rows: Keep
 ) -> None:
-    """Regression guard (R4): missing reads on and blank reads off. Passes on main."""
+    """Regression guard: missing reads on and blank reads off. Passes on main."""
     await _forget(db_session, keep_rows, "oidc_auto_create_users")
     response = await client.get("/api/auth/oidc/config/admin", headers=auth_headers)
     assert response.status_code == 200, response.text
@@ -309,6 +297,86 @@ async def test_oidc_login_reads_a_stored_one_as_enabled(
     assert response.headers["location"].startswith("https://auth.example.com/")
 
 
+_ENABLED_OFF = [
+    pytest.param(None, id="missing"),
+    pytest.param("", id="blank"),
+    pytest.param("   ", id="spaces"),
+]
+
+
+async def _oidc_enabled_off(db: AsyncSession, keep: Keep, raw: str | None) -> None:
+    """No ``oidc_enabled`` row at all, or one holding blank text."""
+    if raw is None:
+        await _forget(db, keep, "oidc_enabled")
+    else:
+        await seed_rows(db, keep, {"oidc_enabled": raw})
+
+
+@pytest.mark.parametrize("raw", _ENABLED_OFF)
+async def test_the_public_oidc_config_reads_a_blank_enabled_as_off(
+    raw: str | None, client: AsyncClient, db_session: AsyncSession, keep_rows: Keep
+) -> None:
+    """Regression guard: missing and blank both read off here. Passes on main."""
+    await _oidc_enabled_off(db_session, keep_rows, raw)
+
+    response = await client.get("/api/auth/oidc/config")
+
+    assert response.status_code == 200, response.text
+    assert response.json()["enabled"] is False
+
+
+@pytest.mark.parametrize("raw", _ENABLED_OFF)
+async def test_the_admin_oidc_config_reads_a_blank_enabled_as_off(
+    raw: str | None,
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    db_session: AsyncSession,
+    keep_rows: Keep,
+) -> None:
+    """Regression guard: missing and blank both read off here. Passes on main."""
+    await _oidc_enabled_off(db_session, keep_rows, raw)
+
+    response = await client.get("/api/auth/oidc/config/admin", headers=auth_headers)
+
+    assert response.status_code == 200, response.text
+    assert response.json()["enabled"] is False
+
+
+@pytest.mark.parametrize("raw", _ENABLED_OFF)
+async def test_oidc_login_reads_a_blank_enabled_as_off(
+    raw: str | None, client: AsyncClient, db_session: AsyncSession, keep_rows: Keep
+) -> None:
+    """Regression guard: missing and blank both refuse to start SSO. Passes on main.
+
+    Issuer and client are set and the IdP is stubbed, so the switch is the only
+    thing that can send the browser back to the login page.
+    """
+    await seed_rows(
+        db_session,
+        keep_rows,
+        {"oidc_issuer_url": "https://auth.example.com/", "oidc_client_id": "test-client-id"},
+    )
+    await _oidc_enabled_off(db_session, keep_rows, raw)
+
+    with (
+        patch(
+            "app.services.oidc.get_provider_metadata",
+            new_callable=AsyncMock,
+            return_value={"authorization_endpoint": "https://auth.example.com/authorize"},
+        ),
+        patch(
+            "app.services.oidc.create_authorization_url",
+            new_callable=AsyncMock,
+            return_value=("https://auth.example.com/authorize?client_id=test", "state123"),
+        ) as authorize,
+    ):
+        response = await client.get("/api/auth/oidc/login", follow_redirects=False)
+
+    assert response.status_code == 302
+    assert response.headers["location"].endswith("/login?sso_error=failed")
+    authorize.assert_not_called()
+
+
 # --------------------------------------------------------------------------- multi-user
 
 
@@ -345,7 +413,7 @@ async def test_creating_a_user_with_multi_user_missing_is_allowed(
     keep_rows: Keep,
     made_users: list[str],
 ) -> None:
-    """Regression guard (R4): no row allows creating a user. Passes on main."""
+    """Regression guard: no row allows creating a user. Passes on main."""
     await _forget(db_session, keep_rows, "multi_user_enabled")
 
     assert await _create_user(client, auth_headers, made_users) == 201
@@ -358,13 +426,15 @@ async def test_creating_a_user_with_multi_user_blank_is_refused(
     keep_rows: Keep,
     made_users: list[str],
 ) -> None:
-    """Regression guard (R4): a blank row refuses, unlike a missing one. Passes on main."""
+    """Regression guard: a blank row refuses, unlike a missing one. Passes on main."""
     await seed_rows(db_session, keep_rows, {"multi_user_enabled": ""})
 
     assert await _create_user(client, auth_headers, made_users) == 403
 
 
-@pytest.mark.parametrize("value", ["1", " Yes "])
+@pytest.mark.parametrize(
+    "value", [pytest.param("1", id="guard-1"), pytest.param(" Yes ", id="padded-yes")]
+)
 async def test_the_dashboard_reads_multi_user_as_on(
     value: str,
     client: AsyncClient,
@@ -372,7 +442,7 @@ async def test_the_dashboard_reads_multi_user_as_on(
     db_session: AsyncSession,
     keep_rows: Keep,
 ) -> None:
-    """Red on main for " Yes " only: the dashboard already accepted "1" and "on" (Fable F-5)."""
+    """Red on main for " Yes " only: the dashboard already accepted "1" and "on"."""
     await seed_rows(db_session, keep_rows, {"multi_user_enabled": value})
 
     response = await client.get("/api/dashboard", headers=auth_headers)
@@ -388,7 +458,7 @@ async def test_the_dashboard_reads_multi_user_as_on(
 async def test_family_and_friends_reads_r5s_on_words(
     value: str, db_session: AsyncSession, keep_rows: Keep
 ) -> None:
-    """It already accepted "1"; neither "on" nor whitespace was on (R1-M1)."""
+    """It already accepted "1"; neither "on" nor whitespace was on."""
     await seed_rows(db_session, keep_rows, {"family_friends_enabled": value})
 
     assert await _family_friends_enabled(db_session) is True

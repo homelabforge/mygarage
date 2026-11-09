@@ -101,7 +101,7 @@ def _patch_dispatcher(monkeypatch, *, results: dict[str, bool] | None = None):
     return mock
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 class TestCheckThresholdsCooldown:
     async def test_breach_dispatches_and_stamps_cooldown(

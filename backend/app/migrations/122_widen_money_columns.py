@@ -108,7 +108,12 @@ def _numeric(column_type: TypeEngine[Any]) -> tuple[int, int] | None:
 def upgrade(engine: Engine | None = None) -> None:
     """Widen each listed column that's narrower than its target, in one transaction."""
     if engine is None:
+        # Run standalone: it builds its own engine, so it closes it too.
         engine = _get_fallback_engine()
+        try:
+            return upgrade(engine)
+        finally:
+            engine.dispose()
 
     if engine.dialect.name != "postgresql":
         print("✓ SQLite ignores NUMERIC precision; nothing to widen")

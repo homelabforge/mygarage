@@ -108,7 +108,7 @@ def _setup_db(db_file: Path) -> None:
 
 
 @pytest.mark.migrations
-def test_054_adds_columns_and_backfills(migration_db, tmp_path, monkeypatch):
+def test_054_adds_columns_and_backfills(migration_db, tmp_path, monkeypatch, sync_engine):
     db_file, db_url = migration_db
     _setup_db(db_file)
 
@@ -116,9 +116,8 @@ def test_054_adds_columns_and_backfills(migration_db, tmp_path, monkeypatch):
     monkeypatch.setenv("MIGRATION_054_LOG", str(log_path))
 
     module = _load_migration("054_extended_fuel_tracking")
-    from sqlalchemy import create_engine
 
-    engine = create_engine(db_url)
+    engine = sync_engine(db_url)
     module.upgrade(engine=engine)
 
     # Verify all new columns exist
@@ -195,7 +194,7 @@ def test_054_adds_columns_and_backfills(migration_db, tmp_path, monkeypatch):
 
 
 @pytest.mark.migrations
-def test_054_idempotent(migration_db, tmp_path, monkeypatch):
+def test_054_idempotent(migration_db, tmp_path, monkeypatch, sync_engine):
     """Running the migration twice must be a no-op the second time."""
     db_file, db_url = migration_db
     _setup_db(db_file)
@@ -204,9 +203,8 @@ def test_054_idempotent(migration_db, tmp_path, monkeypatch):
     monkeypatch.setenv("MIGRATION_054_LOG", str(log_path))
 
     module = _load_migration("054_extended_fuel_tracking")
-    from sqlalchemy import create_engine
 
-    engine = create_engine(db_url)
+    engine = sync_engine(db_url)
     module.upgrade(engine=engine)
 
     # Snapshot the relevant rows after first run
@@ -234,7 +232,7 @@ def test_054_idempotent(migration_db, tmp_path, monkeypatch):
 
 
 @pytest.mark.migrations
-def test_054_already_normalized_values_skipped(migration_db, tmp_path, monkeypatch):
+def test_054_already_normalized_values_skipped(migration_db, tmp_path, monkeypatch, sync_engine):
     """If a row's value is already on the enum, no UPDATE should run for it."""
     db_file, db_url = migration_db
     _setup_db(db_file)
@@ -243,9 +241,8 @@ def test_054_already_normalized_values_skipped(migration_db, tmp_path, monkeypat
     monkeypatch.setenv("MIGRATION_054_LOG", str(log_path))
 
     module = _load_migration("054_extended_fuel_tracking")
-    from sqlalchemy import create_engine
 
-    engine = create_engine(db_url)
+    engine = sync_engine(db_url)
     module.upgrade(engine=engine)
 
     conn = sqlite3.connect(str(db_file))
@@ -276,7 +273,7 @@ def test_054_already_normalized_values_skipped(migration_db, tmp_path, monkeypat
     ids=lambda v: v if isinstance(v, str) else "",
 )
 def test_054_backfill_locale_matrix(
-    migration_db, tmp_path, monkeypatch, locale, free_text, expected
+    migration_db, tmp_path, monkeypatch, locale, free_text, expected, sync_engine
 ):
     """Free-text fuel_type values typed in supported locales must
     backfill to the canonical enum value, not 'other'."""
@@ -346,9 +343,8 @@ def test_054_backfill_locale_matrix(
     monkeypatch.setenv("MIGRATION_054_LOG", str(log_path))
 
     module = _load_migration("054_extended_fuel_tracking")
-    from sqlalchemy import create_engine
 
-    engine = create_engine(db_url)
+    engine = sync_engine(db_url)
     module.upgrade(engine=engine)
 
     conn = sqlite3.connect(str(db_file))

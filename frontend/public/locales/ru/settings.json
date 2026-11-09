@@ -283,7 +283,6 @@
     "creatingBackup": "Создание...",
     "createSettingsBackup": "Создать резервную копию настроек",
     "uploadSettingsBackup": "Загрузить резервную копию настроек",
-    "createSettingsError": "Не удалось создать резервную копию настроек",
     "filename": "Имя файла",
     "size": "Размер",
     "created": "Создано",
@@ -299,7 +298,6 @@
     "creatingFullBackup": "Создание...",
     "createFullBackup": "Создать полную резервную копию",
     "uploadFullBackup": "Загрузить полную резервную копию",
-    "createFullError": "Не удалось создать полную резервную копию",
     "restoreOverwrite": "Восстановить (перезаписать все данные)",
     "noFullBackups": "Полных резервных копий пока нет. Создайте первую."
   },

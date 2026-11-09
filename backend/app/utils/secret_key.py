@@ -2,15 +2,31 @@
 
 A leaf module: `app.config` imports it at module load (the JWT key is
 `Settings.secret_key`'s default factory), so it must not import `app.config`.
-`app.utils.settings_crypto` imports `create_key_file` from here for the same
-reason; the reverse direction would be a circular import.
+`app.utils.settings_crypto` imports its key-file writers from here for the
+same reason; the reverse direction would be a circular import.
 
 This runs at `app.config` import, before `app.main` configures logging, so an
 INFO from here would be lost. The outcome goes to `KEY_SOURCE` instead, and the
 lifespan logs it. WARNING and ERROR still reach stderr through logging's
 last-resort handler.
+
+Where hard links work, a new key file appears with its key already in it:
+it's written to a private temp file next to it and hard-linked into place, so
+no other process sees it empty. A crash between the link and the temp's unlink
+leaves a second 0600 name for the same key (``.<name>.<hex>.tmp``); nothing
+reads or backs it up, so delete it at leisure.
+
+Filling an existing empty file happens under an exclusive ``flock`` and only
+when it still holds nothing, then returns what's on disk. So when two processes
+race (two starts, or a CLI tool next to the app), one writes and the other
+reads that key back: nobody keeps a key in memory that isn't the file's. On a
+mount that can't lock at all, the fill goes ahead unlocked with a WARNING, as
+it did before the lock existed.
 """
 
+import contextlib
+import errno
+import fcntl
 import logging
 import os
 import secrets
@@ -33,67 +49,255 @@ KEY_FILE: Path = DEFAULT_KEY_FILE
 # then; the lifespan checks the env var first.
 KEY_SOURCE: KeySource = "memory"
 
+# Opening a key file someone else may be filling: never create it, never follow
+# a symlink, and never truncate (that would wipe a key another filler just wrote).
+_OPEN_EXISTING = os.O_RDWR | os.O_NOFOLLOW | os.O_CLOEXEC
 
-def create_key_file(path: Path, content: str) -> None:
+
+# What flock raises on a mount with no advisory locks (NFSv3 without lockd, some
+# FUSE or 9p setups). Our LOCK_EX is always a valid operation, so EINVAL here
+# means the filesystem said no, not a bug in the call.
+_LOCKS_UNSUPPORTED = frozenset(
+    {errno.ENOLCK, errno.EOPNOTSUPP, errno.ENOTSUP, errno.ENOSYS, errno.EINVAL}
+)
+
+
+def _lock_if_supported(fd: int) -> None:
+    """Take ``LOCK_EX`` on ``fd``, or carry on without it where the mount can't lock."""
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX)
+    except OSError as e:
+        if e.errno not in _LOCKS_UNSUPPORTED:
+            raise
+        # The key files were written unlocked before the lock existed, and a
+        # lone start is still fine. Only two processes starting at once could
+        # each write a key, so say so rather than fall back to a memory key.
+        logger.warning(
+            "This filesystem doesn't support file locks (%s), so the key file is "
+            "written without one. Two processes starting at the same moment could "
+            "each write a different key.",
+            os.strerror(e.errno),
+        )
+
+
+def _read_fd(fd: int) -> bytes:
+    """Everything in the file behind ``fd``, from the start."""
+    chunks: list[bytes] = []
+    offset = 0
+    while chunk := os.pread(fd, 4096, offset):
+        chunks.append(chunk)
+        offset += len(chunk)
+    return b"".join(chunks)
+
+
+def _write_all(fd: int, data: bytes) -> None:
+    """Write ``data`` at the start of the file behind ``fd`` and fsync it."""
+    written = 0
+    while written < len(data):
+        # codeql[py/clear-text-storage-sensitive-data] - Key files (the JWT key, the settings
+        # encryption keyring) must persist across restarts; written owner-only (0600) in /data.
+        written += os.pwrite(fd, data[written:], written)
+    os.fsync(fd)
+
+
+def _locked_fill(fd: int, content: str) -> str:
+    """Write ``content`` into the file behind ``fd`` if it holds no key, under ``LOCK_EX``.
+
+    The caller opened ``fd`` and closes it, which also drops the lock. A file
+    that's blank after a strip gets ``content`` written as is, at the start;
+    one that holds anything else is left alone.
+
+    Returns:
+        The key now on disk, stripped: ours if we wrote it, theirs if not.
+
+    On a mount that can't lock at all the fill goes ahead unlocked, with a
+    WARNING; any other lock failure raises.
+
+    Raises:
+        OSError: The lock, the read or the write failed. A failed write leaves
+            the file empty, so the next start fills it again.
+        UnicodeDecodeError: The file holds something that isn't UTF-8 text.
+    """
+    data = content.encode("ascii")
+    _lock_if_supported(fd)
+    existing = _read_fd(fd).decode("utf-8").strip()
+    if existing:
+        return existing
+    try:
+        os.ftruncate(fd, 0)
+        _write_all(fd, data)
+    except BaseException:
+        # Half a key reads as a broken one forever; an empty file gets refilled.
+        with contextlib.suppress(OSError):
+            os.ftruncate(fd, 0)
+        raise
+    return content.strip()
+
+
+def create_key_file(path: Path, content: str) -> str:
     """Create a key file that holds ``content``, readable by its owner only.
 
-    The file is created with ``O_EXCL`` and mode 0600 in a single ``open``, so
-    there is no moment when it exists with the umask's mode, and an existing
-    file (or a symlink, dangling or not) is never overwritten. A missing parent
-    directory is created. If the write fails after the file was created, the
-    partial file is removed, so a later start doesn't find a truncated key.
+    The key goes into a private temp file in the same directory (``O_EXCL``,
+    mode 0600, so it never has the umask's mode), which is then hard-linked to
+    ``path``. ``link`` never replaces anything, a symlink included, and the file
+    shows up with the key already in it. Before this, the file sat empty until
+    its creator locked and filled it, and a second process that read it then
+    took it for an emptied key file: it wrote its own key and warned that old
+    secrets were lost. A missing parent directory is created.
+
+    If the link fails for any reason but something already being at ``path``
+    (no hard links on vfat or some FUSE; CIFS says EACCES for the same thing),
+    the file is created in place and filled under the lock instead, as before
+    the link existed (see ``fill_after_create_race``). That path either works
+    or raises the real error, so falling back costs nothing.
 
     Args:
         path: Where to create the file.
-        content: The text to write (ASCII key material).
+        content: The text to write (ASCII key material), as is.
+
+    Returns:
+        The key on disk, stripped. ``content`` stripped, unless the in-place
+        fallback lost the fill to a racing process.
 
     Raises:
         FileExistsError: Something already exists at ``path``.
         OSError: The directory or the file couldn't be created or written.
+            Where hard links work, nothing is left at ``path`` then.
     """
     path.parent.mkdir(parents=True, exist_ok=True)
-    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC, 0o600)
+    temp, fd = _open_temp(path)
     try:
-        with os.fdopen(fd, "w", encoding="ascii") as handle:
-            # codeql[py/clear-text-storage-sensitive-data] - Key files (the JWT key, the settings
-            # encryption keyring) must persist across restarts; written owner-only (0600) in /data.
-            handle.write(content)
-            handle.flush()
-            os.fsync(handle.fileno())
-    except BaseException:
-        path.unlink(missing_ok=True)
-        raise
+        try:
+            _write_all(fd, content.encode("ascii"))
+        finally:
+            os.close(fd)
+        try:
+            os.link(temp, path, follow_symlinks=False)
+            linked = True
+        except FileExistsError:
+            raise  # Something's already there: the caller joins it.
+        except OSError:
+            linked = False
+    finally:
+        with contextlib.suppress(OSError):
+            temp.unlink()
+    if not linked:
+        return _create_in_place(path, content)
+    _sync_dir(path.parent)
+    return content.strip()
 
 
-def _fill_empty_key_file(path: Path, content: str) -> None:
+def _open_temp(path: Path) -> tuple[Path, int]:
+    """Create a private temp file next to ``path``: O_EXCL, mode 0600.
+
+    A leftover temp with the same name gets a fresh name rather than a
+    FileExistsError, which callers would read as ``path`` itself existing.
+    """
+    for _ in range(3):
+        temp = path.with_name(f".{path.name}.{secrets.token_hex(8)}.tmp")
+        try:
+            return temp, os.open(
+                temp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600
+            )
+        except FileExistsError:
+            continue
+    raise OSError(errno.EIO, f"no free temp name next to {path}")
+
+
+def _create_in_place(path: Path, content: str) -> str:
+    """``create_key_file`` for a filesystem with no hard links.
+
+    The file exists empty until the fill below locks it, so a racing process can
+    find it empty; ``fill_after_create_race`` is how a create-race loser copes.
+    A failed write leaves it empty rather than removed, since a racing process
+    may already be waiting on it.
+    """
+    fd = os.open(path, os.O_RDWR | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC, 0o600)
+    try:
+        return _locked_fill(fd, content)
+    finally:
+        os.close(fd)
+
+
+def _sync_dir(directory: Path) -> None:
+    """Best-effort fsync of ``directory``, so a new entry in it survives a crash."""
+    with contextlib.suppress(OSError):
+        dfd = os.open(directory, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
+        try:
+            os.fsync(dfd)
+        finally:
+            os.close(dfd)
+
+
+def fill_after_create_race(path: Path, content: str) -> str:
+    """The key in a file another process created first, filling it if it's still empty.
+
+    For a ``create_key_file`` that raised ``FileExistsError``. A winner on a
+    filesystem with no hard links may not have written yet, so reading the file
+    could find nothing; filling it under the lock instead means one of us writes
+    and the other reads that back.
+
+    Returns:
+        The key on disk, stripped.
+
+    Raises:
+        OSError: The file can't be opened or written.
+        UnicodeDecodeError: It holds something that isn't UTF-8 text.
+    """
+    fd = os.open(path, _OPEN_EXISTING)
+    try:
+        return _locked_fill(fd, content)
+    finally:
+        os.close(fd)
+
+
+def _create_or_join(path: Path, content: str) -> str:
+    """Create the key file, or use the one a racing process created first."""
+    try:
+        return create_key_file(path, content)
+    except FileExistsError:
+        return fill_after_create_race(path, content)
+
+
+def fill_empty_key_file(path: Path, content: str) -> str:
     """Write ``content`` into the existing, empty key file at ``path``.
 
     In place, not unlink-and-create: a single-file bind mount can't be
-    unlinked (EBUSY), which used to leave an in-memory key (B2-13). A symlink
-    is still replaced, since writing through it would land somewhere else.
+    unlinked (EBUSY), which used to leave an in-memory key. If another process
+    filled it since we read it, its key is kept and returned.
+
+    A symlink is still replaced, since writing through it would land somewhere
+    else, and so is a file we can't open for writing. Both of those unlink and
+    create outside any lock, so two processes that both take one of them can
+    each make a file, and one ends up with a key that isn't on disk.
+
+    Returns:
+        The key on disk, stripped.
+
+    Raises:
+        OSError: The file can't be opened, replaced or written.
+        UnicodeDecodeError: It now holds something that isn't UTF-8 text.
     """
     if path.is_symlink():
-        path.unlink()
-        create_key_file(path, content)
-        return
+        path.unlink(missing_ok=True)
+        return _create_or_join(path, content)
     try:
-        fd = os.open(path, os.O_WRONLY | os.O_TRUNC | os.O_NOFOLLOW | os.O_CLOEXEC)
+        fd = os.open(path, _OPEN_EXISTING)
     except PermissionError:
         # Not ours to write (a root-owned 0644 file in our directory): the
         # old unlink-and-create still works there.
-        path.unlink()
-        create_key_file(path, content)
-        return
-    with os.fdopen(fd, "w", encoding="ascii") as handle:
+        path.unlink(missing_ok=True)
+        return _create_or_join(path, content)
+    try:
         try:
-            os.fchmod(handle.fileno(), 0o600)
+            os.fchmod(fd, 0o600)
         except PermissionError:
             # A file someone else owns but made writable (a chmod 666 bind
             # mount): keep the key rather than fall back to memory.
             logger.warning("Could not make %s owner-only; writing the key anyway", path)
-        handle.write(content)
-        handle.flush()
-        os.fsync(handle.fileno())
+        return _locked_fill(fd, content)
+    finally:
+        os.close(fd)
 
 
 def _read_key(path: Path) -> str | None:
@@ -119,9 +323,10 @@ def _carry_over_legacy_key(key_file: Path) -> str | None:
         return None
     if not legacy:
         return None
-    create_key_file(key_file, legacy + "\n")
-    logger.warning("Copied the secret key from %s to %s", DEFAULT_KEY_FILE, key_file)
-    return legacy
+    key = _create_or_join(key_file, legacy + "\n")
+    if key == legacy:
+        logger.warning("Copied the secret key from %s to %s", DEFAULT_KEY_FILE, key_file)
+    return key
 
 
 def _resolve_secret_key(key_file: Path) -> tuple[str, KeySource]:
@@ -134,21 +339,17 @@ def _resolve_secret_key(key_file: Path) -> tuple[str, KeySource]:
             carried = _carry_over_legacy_key(key_file)
             if carried:
                 return carried, "loaded"
-        secret_key = secrets.token_urlsafe(32)
+        candidate = secrets.token_urlsafe(32)
+        if existing is None:
+            key = _create_or_join(key_file, candidate + "\n")
+        else:
+            key = fill_empty_key_file(key_file, candidate + "\n")
+        if key != candidate:
+            # Another process got its key in first: that one's on disk, so use it.
+            return key, "loaded"
         if existing is not None:
-            logger.warning("Secret key file at %s is empty, generating a new key", key_file)
-            _fill_empty_key_file(key_file, secret_key + "\n")
-            return secret_key, "generated"
-
-        try:
-            create_key_file(key_file, secret_key + "\n")
-        except FileExistsError:
-            # Another process created it between the read and the write: use theirs.
-            winner = _read_key(key_file)
-            if not winner:
-                raise
-            return winner, "loaded"
-        return secret_key, "generated"
+            logger.warning("Secret key file at %s was empty; generated a new key", key_file)
+        return key, "generated"
 
     except (OSError, ValueError) as e:
         # ValueError covers a file that isn't UTF-8 (UnicodeDecodeError).

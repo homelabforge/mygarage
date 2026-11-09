@@ -29,7 +29,9 @@ from app.database import Base
 from app.utils.secret_setting_keys import SECRET_SETTING_KEYS
 from app.utils.settings_crypto import (
     CIPHERTEXT_PREFIX,
+    DecryptResult,
     DecryptStatus,
+    SettingValueNotText,
     current_kid,
     decrypt,
     encrypt,
@@ -82,6 +84,7 @@ class Setting(Base):
 
         Raises:
             TypeError: Both ``value`` and ``stored_value`` were given.
+            SettingValueNotText: ``value`` won't encode as UTF-8.
             SettingCiphertextValue: ``value`` for a secret key is already ciphertext.
             SettingsKeyUnavailable: A secret value needs encrypting and there is
                 no usable keyring.
@@ -102,10 +105,7 @@ class Setting(Base):
         passed through; one that can't be decrypted reads as None (see
         ``unreadable``). Any other key reads as stored.
         """
-        stored = self.stored_value
-        if self.key not in SECRET_SETTING_KEYS or not stored:
-            return stored
-        return decrypt(self.key, stored).plaintext
+        return self.decrypted().plaintext
 
     @value.inplace.setter
     def _value_setter(self, new: str | None) -> None:
@@ -118,9 +118,17 @@ class Setting(Base):
         ciphertext, even when the value is unchanged (R1-H3).
 
         Raises:
+            SettingValueNotText: ``new`` won't encode as UTF-8, on any key.
             SettingCiphertextValue: ``new`` for a secret key is already ciphertext.
             SettingsKeyUnavailable: There is no usable keyring; nothing changes.
         """
+        # Every ORM writer passes here, typed routes included, so a lone
+        # surrogate is a 422 instead of a 500 from the driver's bind.
+        if new:
+            try:
+                new.encode("utf-8")
+            except UnicodeEncodeError:
+                raise SettingValueNotText(self.key) from None
         if self.key not in SECRET_SETTING_KEYS or not new:
             self.stored_value = new
             return
@@ -143,6 +151,18 @@ class Setting(Base):
         """At class level, the raw column: queries see the stored form."""
         return cls.stored_value
 
+    def decrypted(self) -> DecryptResult:
+        """The value and whether it could be read, from a single decrypt.
+
+        For a reader that needs both: asking ``unreadable`` and then ``value``
+        opens the ciphertext twice. A key that isn't secret, or a blank value,
+        reads as LEGACY with the stored value as is.
+        """
+        stored = self.stored_value
+        if self.key not in SECRET_SETTING_KEYS or not stored:
+            return DecryptResult(DecryptStatus.LEGACY, stored)
+        return decrypt(self.key, stored)
+
     @property
     def unreadable(self) -> bool:
         """True for a secret key holding ciphertext that can't be decrypted.
@@ -150,9 +170,4 @@ class Setting(Base):
         Configured but unreadable (D3a): ``value`` reads as None, and the stored
         ciphertext must not be overwritten by a placeholder save.
         """
-        stored = self.stored_value
-        return (
-            self.key in SECRET_SETTING_KEYS
-            and is_ciphertext(stored)
-            and decrypt(self.key, stored or "").unreadable
-        )
+        return self.decrypted().unreadable

@@ -115,7 +115,8 @@ test.describe('Station picker (#194)', () => {
 
     // The contract, from the API: the fill-up points at that entry, not at a
     // freetext name or a fresh duplicate. Polled, so the read can't beat the
-    // create whatever the wait above saw.
+    // create whatever the wait above saw. The poll only waits for the first
+    // row; a second one is a duplicate, not a slow save.
     const listFuel = async (): Promise<FuelRow[]> =>
       (await ledger.get(`/vehicles/${rigVin}/fuel`)).records as FuelRow[]
     await expect
@@ -123,9 +124,9 @@ test.describe('Station picker (#194)', () => {
         message: 'the fill-up never reached the API',
         timeout: 10000,
       })
-      .toBe(1)
+      .toBeGreaterThan(0)
     const records = await listFuel()
-    expect(records).toHaveLength(1)
+    expect(records, 'a duplicate fill-up was created').toHaveLength(1)
     expect(records[0].station_address_book_id).toBe(stationId)
     expect(records[0].station_name).toBe(STATION.business_name)
   })

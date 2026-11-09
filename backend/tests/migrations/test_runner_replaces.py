@@ -61,9 +61,21 @@ def _write_dir(tmp_path, *, baseline=_BASELINE, individuals=("001_alpha", "002_b
     return d
 
 
-def _runner(tmp_path, migrations_dir):
+@pytest.fixture
+def make_runner(tmp_path):
+    """A runner on one test.db per test. Its engine is disposed afterwards,
+    as run_migrations does, so no pooled connection is left for the GC."""
     url = f"sqlite:///{tmp_path / 'test.db'}"
-    return MigrationRunner(url, migrations_dir), url
+    made: list[MigrationRunner] = []
+
+    def make(migrations_dir):
+        runner = MigrationRunner(url, migrations_dir)
+        made.append(runner)
+        return runner, url
+
+    yield make
+    for runner in made:
+        runner.engine.dispose()
 
 
 def _query(url, sql):
@@ -129,16 +141,16 @@ def _seed(url, *, stamped=(), tables=()):
 # --- squash classification -------------------------------------------------------
 
 
-def test_fresh_install_runs_only_baseline(tmp_path):
-    runner, url = _runner(tmp_path, _write_dir(tmp_path))
+def test_fresh_install_runs_only_baseline(tmp_path, make_runner):
+    runner, url = make_runner(_write_dir(tmp_path))
     runner.run_pending_migrations()
     assert _applied(url) == {"000_base", "001_alpha", "002_beta", "003_gamma"}
     assert _run_log(url) == {"000_base"}  # only the baseline ran
     assert {"t_alpha", "t_beta", "t_gamma"} <= _tables(url)
 
 
-def test_fully_migrated_stamps_baseline_without_running(tmp_path):
-    runner, url = _runner(tmp_path, _write_dir(tmp_path))
+def test_fully_migrated_stamps_baseline_without_running(tmp_path, make_runner):
+    runner, url = make_runner(_write_dir(tmp_path))
     _seed(
         url, stamped=("001_alpha", "002_beta", "003_gamma"), tables=("t_alpha", "t_beta", "t_gamma")
     )
@@ -147,9 +159,9 @@ def test_fully_migrated_stamps_baseline_without_running(tmp_path):
     assert _run_log(url) == set()  # baseline upgrade did NOT run
 
 
-def test_partial_defers_then_converges(tmp_path):
+def test_partial_defers_then_converges(tmp_path, make_runner):
     migrations_dir = _write_dir(tmp_path)
-    runner, url = _runner(tmp_path, migrations_dir)
+    runner, url = make_runner(migrations_dir)
     _seed(url, stamped=("001_alpha",), tables=("t_alpha",))
 
     runner.run_pending_migrations()  # first boot
@@ -157,27 +169,27 @@ def test_partial_defers_then_converges(tmp_path):
     assert {"001_alpha", "002_beta", "003_gamma"} <= _applied(url)
     assert _run_log(url) == {"002_beta", "003_gamma"}  # only remaining individuals ran
 
-    runner2, _ = _runner(tmp_path, migrations_dir)  # second boot, same DB
+    runner2, _ = make_runner(migrations_dir)  # second boot, same DB
     runner2.run_pending_migrations()
     assert "000_base" in _applied(url)  # converged
     assert _run_log(url) == {"002_beta", "003_gamma"}  # baseline never ran its upgrade
 
 
-def test_idempotent_second_run_is_noop(tmp_path):
+def test_idempotent_second_run_is_noop(tmp_path, make_runner):
     migrations_dir = _write_dir(tmp_path)
-    runner, url = _runner(tmp_path, migrations_dir)
+    runner, url = make_runner(migrations_dir)
     runner.run_pending_migrations()
     applied1, runlog1 = _applied(url), _run_log(url)
 
-    runner2, _ = _runner(tmp_path, migrations_dir)
+    runner2, _ = make_runner(migrations_dir)
     runner2.run_pending_migrations()
     assert _applied(url) == applied1
     assert _run_log(url) == runlog1  # nothing re-ran
 
 
-def test_unknown_replaces_stem_is_warned_and_ignored(tmp_path, caplog):
+def test_unknown_replaces_stem_is_warned_and_ignored(tmp_path, caplog, make_runner):
     migrations_dir = _write_dir(tmp_path, baseline=_BASELINE_GHOST, individuals=("001_alpha",))
-    runner, url = _runner(tmp_path, migrations_dir)
+    runner, url = make_runner(migrations_dir)
     with caplog.at_level(logging.WARNING):
         runner.run_pending_migrations()
     applied = _applied(url)
@@ -189,14 +201,14 @@ def test_unknown_replaces_stem_is_warned_and_ignored(tmp_path, caplog):
 # --- failure contract ------------------------------------------------------------
 
 
-def test_stamp_failure_on_fatal_module_annotates_fatal(tmp_path, monkeypatch):
+def test_stamp_failure_on_fatal_module_annotates_fatal(tmp_path, monkeypatch, make_runner):
     """A tracking-table write failure is inside the per-migration boundary and
     carries the module's FATAL flag, so init_db() halts (R1-H3)."""
     d = tmp_path / "migrations"
     d.mkdir()
     (d / "__init__.py").write_text("")
     (d / "001_fatal.py").write_text("FATAL = True\ndef upgrade(engine=None):\n    pass\n")
-    runner, _ = _runner(tmp_path, d)
+    runner, _ = make_runner(d)
 
     def boom(*_a, **_k):
         raise RuntimeError("stamp write failed")
@@ -207,23 +219,23 @@ def test_stamp_failure_on_fatal_module_annotates_fatal(tmp_path, monkeypatch):
     assert getattr(ei.value, "__migration_fatal__", None) is True
 
 
-def test_module_load_failure_is_caught_and_nonfatal(tmp_path):
+def test_module_load_failure_is_caught_and_nonfatal(tmp_path, make_runner):
     """A module that fails to import is caught by the boundary and annotated
     non-FATAL (no module to read FATAL from) (R1-H3)."""
     d = tmp_path / "migrations"
     d.mkdir()
     (d / "__init__.py").write_text("")
     (d / "001_broken.py").write_text("this is not valid python )(\n")
-    runner, _ = _runner(tmp_path, d)
+    runner, _ = make_runner(d)
     with pytest.raises(Exception) as ei:  # SyntaxError type is the point
         runner.run_pending_migrations()
     assert getattr(ei.value, "__migration_fatal__", None) is False
 
 
-def test_batch_stamp_is_atomic(tmp_path):
+def test_batch_stamp_is_atomic(tmp_path, make_runner):
     """_mark_migrations_applied commits all-or-nothing: a mid-batch UNIQUE
     violation rolls back every marker (R1-H5)."""
-    runner, url = _runner(tmp_path, tmp_path)  # dir unused
+    runner, url = make_runner(tmp_path)  # dir unused
     runner._ensure_migration_tracking_table()
     with pytest.raises(Exception):  # IntegrityError from the duplicate
         runner._mark_migrations_applied(["dup", "dup"])

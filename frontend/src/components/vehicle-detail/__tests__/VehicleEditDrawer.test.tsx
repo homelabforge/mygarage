@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import type { ComponentProps } from 'react'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { screen, fireEvent, waitFor } from '@testing-library/react'
+import { renderWithQueryClient } from '@/__tests__/queryClient'
 import { MemoryRouter } from 'react-router-dom'
 import { FUEL_TYPE_VALUES } from '../../../constants/fuel'
 import type { Vehicle, VehicleDetailStats } from '../../../types/vehicle'
@@ -14,7 +15,7 @@ vi.mock('../../../services/api', () => ({
 
 vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn() } }))
 
-// Requires AuthProvider otherwise — same mock pattern as ServiceVisitForm.test.tsx
+// Requires AuthProvider otherwise: same mock pattern as ServiceVisitForm.test.tsx
 const unitPrefMock = vi.hoisted(() => ({
   system: 'metric' as 'metric' | 'imperial',
   showBoth: false,
@@ -37,7 +38,6 @@ vi.mock('../../../hooks/useUnitPreference', async () => {
 
 import { IMPERIAL_UNITS, UK_IMPERIAL_UNITS, makeDetailStats } from '../../../__tests__/factories'
 import { binarySystemFor } from '../../../types/units'
-import { UnitConverter } from '../../../utils/units'
 import { toast } from 'sonner'
 import { registeredFieldNames, submitAndSettle, validationError, dropQueuedOnces } from '../../../__tests__/serverErrors'
 import api from '../../../services/api'
@@ -68,7 +68,7 @@ const baseVehicle: Vehicle = {
 const baseDetailStats: VehicleDetailStats = makeDetailStats({ spent_this_year: '0', year: 2024 })
 
 type DrawerProps = ComponentProps<typeof VehicleEditDrawer>
-/** The three launcher callbacks — required props almost no test cares about. */
+/** The three launcher callbacks: required props almost no test cares about. */
 type LauncherProps = 'onDownloadWindowSticker' | 'onUploadWindowSticker' | 'onManageTorqueSources'
 
 /**
@@ -94,7 +94,7 @@ function drawerEl(
 }
 
 // The drawer seeds from a fresh GET /vehicles/{vin} (not the possibly-stale
-// `vehicle` prop — see the lost-update fix) in parallel with detail-stats, so
+// `vehicle` prop; see the lost-update fix) in parallel with detail-stats, so
 // the api mock discriminates by URL: detail-stats gets `detailStats`, the
 // public settings (the window sticker switch) get `publicSettings`, and
 // everything else (the vehicle refetch) gets `vehicle`. vehicleService.update()
@@ -115,7 +115,7 @@ function renderVehicleEdit(
   })
   const onClose = vi.fn()
   const onUpdated = vi.fn()
-  render(drawerEl({ open: true, vin: vehicle.vin, vehicle, onClose, onUpdated }))
+  renderWithQueryClient(drawerEl({ open: true, vin: vehicle.vin, vehicle, onClose, onUpdated }))
   return { onClose, onUpdated }
 }
 
@@ -453,7 +453,7 @@ describe('VehicleEditDrawer — seeds from a fresh fetch, not the stale prop', (
       if (url.includes('detail-stats')) return Promise.resolve({ data: baseDetailStats })
       return Promise.resolve({ data: fresh })
     })
-    render(
+    renderWithQueryClient(
       drawerEl({ open: true, vin: stale.vin, vehicle: stale, onClose: vi.fn(), onUpdated: vi.fn() }),
     )
     const nickname = (await screen.findByLabelText('edit.nickname *')) as HTMLInputElement
@@ -464,7 +464,7 @@ describe('VehicleEditDrawer — seeds from a fresh fetch, not the stale prop', (
     // The prop is a stale/offline-cached snapshot saying "Car"; the server
     // says Trailer, with no DEF capacity on record. The gate reads
     // `seedSource` (the fresh source) via `isMotorized`, not the stale
-    // `vehicle` prop — gating on the stale prop would mount and register a
+    // `vehicle` prop. Gating on the stale prop would mount and register a
     // field the fresh data never populated, which is how a mounted-but-
     // unseeded field submits an explicit null.
     const staleProp = { ...baseVehicle, vehicle_type: 'Car', def_tank_capacity_liters: null }
@@ -473,7 +473,7 @@ describe('VehicleEditDrawer — seeds from a fresh fetch, not the stale prop', (
       if (url.includes('detail-stats')) return Promise.resolve({ data: baseDetailStats })
       return Promise.resolve({ data: freshNonMotorized })
     })
-    render(
+    renderWithQueryClient(
       drawerEl({ open: true, vin: staleProp.vin, vehicle: staleProp as Vehicle, onClose: vi.fn(), onUpdated: vi.fn() }),
     )
     await screen.findByLabelText('edit.nickname *')
@@ -485,12 +485,12 @@ describe('VehicleEditDrawer — seeds from a fresh fetch, not the stale prop', (
     expect(payload.def_tank_capacity_liters).toBe(null)
   })
 
-  // D6 (final-review fix wave): a non-motorized vehicle that already carries
-  // stored DEF capacity is a nonsense data state, but a real one — and the
+  // A non-motorized vehicle that already carries stored DEF capacity is a
+  // nonsense data state, but a real one, and the
   // backend 400s if fuel_type moves away from diesel while capacity > 0.
   // Gating the whole section on `isMotorized` alone stranded that vehicle
   // with no UI path to the Clear button (which lives inside the same gate),
-  // so the gate widened to `(isMotorized || defEnabled)` — `defEnabled`
+  // so the gate widened to `(isMotorized || defEnabled)`. `defEnabled`
   // seeds `true` whenever stored capacity is present, motorized or not.
   it('renders the DEF section — and its Clear escape hatch — for a non-motorized vehicle that already carries stored capacity', async () => {
     const nonMotorizedWithCapacity: Vehicle = {
@@ -504,7 +504,7 @@ describe('VehicleEditDrawer — seeds from a fresh fetch, not the stale prop', (
     expect(await screen.findByLabelText('edit.enableDefTracking')).toBeInTheDocument()
     expect(await screen.findByLabelText('edit.defTankCapacity (L)')).toBeInTheDocument()
 
-    // Switch away from diesel — the Clear button must be reachable so the
+    // Switch away from diesel: the Clear button must be reachable so the
     // vehicle isn't stranded on the backend's diesel-only capacity 400.
     const select = (await screen.findByLabelText('edit.fuelType')) as HTMLSelectElement
     fireEvent.change(select, { target: { value: 'gasoline' } })
@@ -533,7 +533,7 @@ describe('VehicleEditDrawer — conversion behaviour', () => {
   it('reseeds from the vehicle on reopen, discarding an abandoned edit', async () => {
     // Discriminate by URL like renderVehicleEdit: the drawer's seed effect
     // fetches the vehicle fresh (see VehicleEditDrawer.tsx's seedForm) in
-    // parallel with detail-stats — both hit the same mocked api.get, so a
+    // parallel with detail-stats. Both hit the same mocked api.get, so a
     // single mockResolvedValue would feed the vehicle-shaped detail-stats
     // object into `source` and silently blank the nickname instead of
     // restoring 'Test Car'.
@@ -541,7 +541,7 @@ describe('VehicleEditDrawer — conversion behaviour', () => {
       if (url.includes('detail-stats')) return Promise.resolve({ data: baseDetailStats })
       return Promise.resolve({ data: baseVehicle })
     })
-    const { rerender } = render(
+    const { rerender } = renderWithQueryClient(
       drawerEl({ open: true, vin: baseVehicle.vin, vehicle: baseVehicle, onClose: vi.fn(), onUpdated: vi.fn() }),
     )
 
@@ -549,7 +549,7 @@ describe('VehicleEditDrawer — conversion behaviour', () => {
     fireEvent.change(nickname, { target: { value: 'Abandoned' } })
     expect(nickname.value).toBe('Abandoned')
 
-    // Close, then reopen — the same mount, exactly what VehicleDetail does.
+    // Close, then reopen: the same mount, exactly what VehicleDetail does.
     rerender(
       drawerEl({ open: false, vin: baseVehicle.vin, vehicle: baseVehicle, onClose: vi.fn(), onUpdated: vi.fn() }),
     )
@@ -565,7 +565,7 @@ describe('VehicleEditDrawer — conversion behaviour', () => {
 
   // Why this discriminates: Drawer.tsx:260 unmounts its CHILDREN on close, but
   // VehicleEditDrawer itself stays mounted (VehicleDetail renders it
-  // unconditionally with an `open` prop), so react-hook-form's store survives —
+  // unconditionally with an `open` prop), so react-hook-form's store survives:
   // shouldUnregister defaults to false. Without the [open]-keyed seed effect the
   // abandoned value is still in the store and comes straight back on reopen.
 
@@ -579,14 +579,14 @@ describe('VehicleEditDrawer — conversion behaviour', () => {
     await waitFor(() => expect(mockedApi.put).toHaveBeenCalled())
 
     const [, payload] = mockedApi.put.mock.calls[0]
-    // Not `toMatchObject({color: undefined})` — that passes on a present
+    // Not `toMatchObject({color: undefined})`: that passes on a present
     // `color: undefined`. The key must be absent so JSON.stringify drops it
     // and the backend's exclude_unset leaves the column alone.
     expect(Object.prototype.hasOwnProperty.call(payload, 'color')).toBe(false)
   })
 
   it('toasts and stays open when the save fails', async () => {
-    // A plain Error (network drop, 500, etc.) carries no field-level detail —
+    // A plain Error (network drop, 500, etc.) carries no field-level detail:
     // applyServerErrors returns both `attached` and `unhandled` empty, so the
     // toast fallback must fire on `attached.length === 0`, not on
     // `unhandled.length > 0` alone (that stays empty here too and would
@@ -693,7 +693,7 @@ describe('VehicleEditDrawer — window sticker section', () => {
       if (url.includes('detail-stats')) return Promise.resolve({ data: baseDetailStats })
       return Promise.resolve({ data: { ...baseVehicle, vehicle_type: 'Trailer' } })
     })
-    render(drawerEl({ open: true, vin: staleProp.vin, vehicle: staleProp, onClose: vi.fn(), onUpdated: vi.fn() }))
+    renderWithQueryClient(drawerEl({ open: true, vin: staleProp.vin, vehicle: staleProp, onClose: vi.fn(), onUpdated: vi.fn() }))
     await screen.findByLabelText('edit.nickname *')
 
     expect(screen.queryByRole('heading', { name: 'detail.windowSticker' })).not.toBeInTheDocument()
@@ -711,7 +711,7 @@ describe('VehicleEditDrawer — window sticker section', () => {
       // The seed source has NO sticker; the prop does.
       return Promise.resolve({ data: baseVehicle })
     })
-    render(drawerEl({ open: true, vin: withSticker.vin, vehicle: withSticker, onClose: vi.fn(), onUpdated: vi.fn() }))
+    renderWithQueryClient(drawerEl({ open: true, vin: withSticker.vin, vehicle: withSticker, onClose: vi.fn(), onUpdated: vi.fn() }))
     await screen.findByLabelText('edit.nickname *')
 
     expect(screen.getByText('detail.viewWindowSticker')).toBeInTheDocument()
@@ -724,7 +724,7 @@ describe('VehicleEditDrawer — window sticker section', () => {
       if (url.includes('detail-stats')) return Promise.resolve({ data: baseDetailStats })
       return Promise.resolve({ data: withSticker })
     })
-    render(
+    renderWithQueryClient(
       drawerEl({
         open: true,
         vin: withSticker.vin,
@@ -743,7 +743,7 @@ describe('VehicleEditDrawer — window sticker section', () => {
     // Asserted on the attribute, not inferred from "no PUT happened": both
     // buttons live inside #vehicle-edit-form, so without an explicit
     // type="button" they are SUBMIT buttons and every click saves the vehicle.
-    // A post-click `expect(put).not.toHaveBeenCalled()` cannot catch that —
+    // A post-click `expect(put).not.toHaveBeenCalled()` cannot catch that:
     // react-hook-form validates asynchronously, so the PUT lands after the
     // assertion and the test passes either way (verified by sabotage).
     expect(view).toHaveAttribute('type', 'button')
@@ -770,7 +770,7 @@ describe('VehicleEditDrawer — window sticker section', () => {
         if (url === '/settings/public') return Promise.resolve({ data: { settings: OFF } })
         return Promise.resolve({ data: withSticker })
       })
-      render(
+      renderWithQueryClient(
         drawerEl({
           open: true,
           vin: withSticker.vin,
@@ -798,14 +798,16 @@ describe('VehicleEditDrawer — window sticker section', () => {
       expect(screen.getByRole('link', { name: 'detail.misc.testOcr' })).toBeInTheDocument()
     })
 
-    // The fallback (Fable F2-4): a failed read hides nothing; the 409 rules.
+    // The fallback: a failed read hides nothing; the 409 rules. Main never hid
+    // anything either, so the visible half is a regression guard; the
+    // /settings/public read is what's new.
     it('keeps Upload when the public settings cannot be read', async () => {
       mockedApi.get.mockImplementation((url: string) => {
         if (url.includes('detail-stats')) return Promise.resolve({ data: baseDetailStats })
         if (url === '/settings/public') return Promise.reject(new Error('down'))
         return Promise.resolve({ data: baseVehicle })
       })
-      render(drawerEl({ open: true, vin: baseVehicle.vin, vehicle: baseVehicle, onClose: vi.fn(), onUpdated: vi.fn() }))
+      renderWithQueryClient(drawerEl({ open: true, vin: baseVehicle.vin, vehicle: baseVehicle, onClose: vi.fn(), onUpdated: vi.fn() }))
       await screen.findByLabelText('edit.nickname *')
 
       await waitFor(() => expect(mockedApi.get).toHaveBeenCalledWith('/settings/public'))
@@ -826,7 +828,7 @@ describe('VehicleEditDrawer — connected devices (Torque sources)', () => {
       if (url.includes('detail-stats')) return Promise.resolve({ data: baseDetailStats })
       return Promise.resolve({ data: baseVehicle })
     })
-    render(
+    renderWithQueryClient(
       drawerEl({
         open: true,
         vin: baseVehicle.vin,
@@ -841,8 +843,8 @@ describe('VehicleEditDrawer — connected devices (Torque sources)', () => {
     expect(screen.getByRole('heading', { name: 'detail.connectedDevices' })).toBeInTheDocument()
     const launch = screen.getByRole('button', { name: 'forms:modal.torque.launchButton' })
     // Inside #vehicle-edit-form: a submit-typed button here would PUT the
-    // vehicle on every click. The <Button> primitive defaults to "button" —
-    // this pins that it stays that way.
+    // vehicle on every click. The <Button> primitive defaults to "button",
+    // and this pins that it stays that way.
     expect(launch).toHaveAttribute('type', 'button')
 
     fireEvent.click(launch)
@@ -854,7 +856,7 @@ describe('VehicleEditDrawer — connected devices (Torque sources)', () => {
     // Deliberately ungated on vehicle type, matching the Overview card it
     // replaced. Sources are revoked through the same drawer they are created
     // in, so hiding the launcher would strand any source already registered
-    // against a trailer — there would be no other way to reach it.
+    // against a trailer, with no other way to reach it.
     renderVehicleEdit({ ...baseVehicle, vehicle_type: 'Trailer' } as Vehicle)
     await screen.findByLabelText('edit.nickname *')
 
@@ -895,15 +897,16 @@ describe('VehicleEditDrawer — the DEF tank capacity is the eighth gallon write
     def_tank_capacity_liters: '19.0',
   }
 
+  // These used to pin the instance gallon to the other flavour first. That
+  // gallon is deleted, so the user's set is the only one the drawer can read
+  // and there's nothing left to pin.
   beforeEach(() => {
     vi.clearAllMocks()
     unitPrefMock.system = 'metric'
     unitPrefMock.units = null
-    UnitConverter.setGallonStandard('us')
   })
 
-  it('seeds and submits the capacity on the USER\'s gallon, on a US-default instance', async () => {
-    UnitConverter.setGallonStandard('us')
+  it('seeds and submits the capacity on the USER\'s gallon', async () => {
     unitPrefMock.system = 'imperial'
     unitPrefMock.units = UK_IMPERIAL_UNITS
 
@@ -916,7 +919,7 @@ describe('VehicleEditDrawer — the DEF tank capacity is the eighth gallon write
     fireEvent.click(screen.getByRole('button', { name: 'edit.saveChanges' }))
     await waitFor(() => expect(mockedApi.put).toHaveBeenCalled())
     const [, payload] = mockedApi.put.mock.calls[0] as [string, Record<string, unknown>]
-    // ★ 19, not 19.003, and the difference is plan 3b task 7. This field had
+    // ★ 19, not 19.003, and the difference comes from the untouched-save origin. This field had
     // the entry-grid shift the three fuel forms had: 19 L seeds a UK-gallon
     // box as 4.18, and 4.18 x 4.54609 = 19.0026562, which the wire precision
     // rounds to 19.003. Opening this drawer to change a nickname moved a
@@ -924,14 +927,13 @@ describe('VehicleEditDrawer — the DEF tank capacity is the eighth gallon write
     // an untouched field posts what it was seeded from.
     expect(payload.def_tank_capacity_liters).toBe(19)
     expect(payload.def_tank_capacity_liters).not.toBe(19.003)
-    expect(UnitConverter.getGallonStandard()).toBe('us')
   })
 
   it('★ a TYPED capacity converts on the user\'s gallon, which the origin case cannot see', async () => {
     // ★ THE CONVERSION TEST THIS TASK RETIRED, PUT BACK. At `ee8ab69` the case
     // above asserted `19.003` (4.18 x 4.54609), and that assertion WAS the
     // conversion test: it was the only place `def_tank_capacity_liters`
-    // arithmetic ran. Task 7's origin makes an untouched save short-circuit to
+    // arithmetic ran. The origin makes an untouched save short-circuit to
     // the stored 19, which is correct and is why that number had to change, but
     // nothing replaced what the short-circuit retired. The drawer has no CREATE
     // path, so every other write site's typed-value coverage has no analogue
@@ -941,7 +943,6 @@ describe('VehicleEditDrawer — the DEF tank capacity is the eighth gallon write
     // So this case TYPES a value. 5.00 imperial gallons x 4.54609 = 22.73045,
     // which the wire precision rounds to 22.730. Through `u.mass` it would be
     // 5 x 0.45359237 = 2.268, and through the US gallon 18.927.
-    UnitConverter.setGallonStandard('us')
     unitPrefMock.system = 'imperial'
     unitPrefMock.units = UK_IMPERIAL_UNITS
 
@@ -959,7 +960,6 @@ describe('VehicleEditDrawer — the DEF tank capacity is the eighth gallon write
     expect(payload.def_tank_capacity_liters).not.toBe(2.268)
     expect(payload.def_tank_capacity_liters).not.toBe(18.927)
     expect(payload.def_tank_capacity_liters).not.toBe(19)
-    expect(UnitConverter.getGallonStandard()).toBe('us')
   })
 
   it('★ REOPENING on a vehicle whose capacity was cleared does not keep the last one\'s origin', async () => {
@@ -973,7 +973,6 @@ describe('VehicleEditDrawer — the DEF tank capacity is the eighth gallon write
     // then type `4.18`. With a stale origin the typed value matches the
     // remembered display and posts the remembered 19; with a reset one it
     // converts, 4.18 x 4.54609 = 19.0026562 -> 19.003.
-    UnitConverter.setGallonStandard('us')
     unitPrefMock.system = 'imperial'
     unitPrefMock.units = UK_IMPERIAL_UNITS
 
@@ -985,7 +984,7 @@ describe('VehicleEditDrawer — the DEF tank capacity is the eighth gallon write
         : Promise.resolve({ data: served })
     )
 
-    const view = render(
+    const view = renderWithQueryClient(
       drawerEl({ open: true, vin: dieselWithCapacity.vin, vehicle: dieselWithCapacity, onClose: vi.fn(), onUpdated: vi.fn() })
     )
     const first = (await screen.findByLabelText('edit.defTankCapacity (gal (UK))')) as HTMLInputElement
@@ -1022,7 +1021,6 @@ describe('VehicleEditDrawer — the DEF tank capacity is the eighth gallon write
     // `system === 'imperial'` ternary, so a UK account read a US-gallon example
     // for a unit 20 percent larger. One physical tank, three vocabularies:
     // 19 L is 5.0 US gallons and 4.2 imperial ones.
-    UnitConverter.setGallonStandard('us')
     unitPrefMock.system = 'imperial'
     unitPrefMock.units = UK_IMPERIAL_UNITS
 
@@ -1035,8 +1033,7 @@ describe('VehicleEditDrawer — the DEF tank capacity is the eighth gallon write
     expect(binarySystemFor(IMPERIAL_UNITS.volume)).toBe('imperial')
   })
 
-  it('labels and converts in litres for a metric set, on a UK-default instance', async () => {
-    UnitConverter.setGallonStandard('uk')
+  it('labels and converts in litres for a metric set', async () => {
     unitPrefMock.system = 'metric'
     unitPrefMock.units = null
 
@@ -1077,7 +1074,7 @@ describe('VehicleEditDrawer: an untouched save writes nothing new', () => {
       if (url.includes('detail-stats')) return Promise.reject(new Error('stats down'))
       return Promise.resolve({ data: dual })
     })
-    render(drawerEl({ open: true, vin: dual.vin, vehicle: dual, onClose: vi.fn(), onUpdated: vi.fn() }))
+    renderWithQueryClient(drawerEl({ open: true, vin: dual.vin, vehicle: dual, onClose: vi.fn(), onUpdated: vi.fn() }))
     await screen.findByLabelText('edit.nickname *')
     fireEvent.click(screen.getByRole('button', { name: 'edit.saveChanges' }))
     await waitFor(() => expect(mockedApi.put).toHaveBeenCalled())
@@ -1197,5 +1194,34 @@ describe('VehicleEditDrawer: window sticker without a VIN (#226)', () => {
     expect(screen.queryByText('detail.replaceSticker')).not.toBeInTheDocument()
     expect(screen.queryByText(/detail\.misc\.vinVerified/)).not.toBeInTheDocument()
     expect(screen.queryByText('detail.misc.testOcr')).not.toBeInTheDocument()
+  })
+})
+
+describe('VehicleEditDrawer: public settings', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  const publicCalls = (): number =>
+    mockedApi.get.mock.calls.filter(([url]) => url === '/settings/public').length
+
+  it('a closed drawer asks for nothing; opening it reads the switches', async () => {
+    mockedApi.get.mockImplementation((url: string) => {
+      if (url.includes('detail-stats')) return Promise.resolve({ data: baseDetailStats })
+      if (url === '/settings/public') return Promise.resolve({ data: { settings: [] } })
+      return Promise.resolve({ data: baseVehicle })
+    })
+    const { rerender } = renderWithQueryClient(
+      drawerEl({ open: false, vin: baseVehicle.vin, vehicle: baseVehicle, onClose: vi.fn(), onUpdated: vi.fn() }),
+    )
+
+    // VehicleDetail keeps the drawer mounted while closed.
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(publicCalls()).toBe(0)
+
+    rerender(
+      drawerEl({ open: true, vin: baseVehicle.vin, vehicle: baseVehicle, onClose: vi.fn(), onUpdated: vi.fn() }),
+    )
+    await waitFor(() => expect(publicCalls()).toBe(1))
   })
 })

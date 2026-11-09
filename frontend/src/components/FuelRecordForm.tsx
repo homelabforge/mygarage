@@ -28,6 +28,8 @@ import FuelPriceHint from './FuelPriceHint'
 import { FormError } from './FormError'
 import api from '../services/api'
 import { isSettingOn } from '../utils/settingSwitch'
+import type { PublicSetting } from '../utils/publicUnitDefaults'
+import { usePublicSettingsQuery } from '../hooks/queries/usePublicSettings'
 import { useCreateFuelRecord, useUpdateFuelRecord, useParseFuelReceipt, type FuelReceiptDraft } from '../hooks/queries/useFuelRecords'
 import { useUnitPreference } from '../hooks/useUnitPreference'
 import { useAuth } from '../contexts/AuthContext'
@@ -56,8 +58,8 @@ import { formatDateForInput } from '../utils/dateUtils'
 import TimeInput24, { normalizeTime, formatTimeForInput } from './common/TimeInput24'
 import { useTimeFormat } from '../hooks/useTimeFormat'
 import { useLanguageLocale } from '../hooks/useLanguageLocale'
-import { applyServerErrors } from '../hooks/useApiFormErrors'
-import { getActionErrorMessage } from '../utils/httpErrorHandler'
+import { applyServerErrors } from '../utils/apiFormErrors'
+import { actionErrorMessage } from '../utils/httpErrorHandler'
 import { withUnitSession } from '../contexts/UnitSession'
 import { getActiveLocale } from '../constants/i18n'
 import { parseDecimalInput } from '../utils/decimalInput'
@@ -112,6 +114,10 @@ export function joinFilledAt(date: string, time: string): string {
  * and `ObcSuggestionResponse` in the generated types is where the wire contract
  * lives. A field nothing reads is a claim that something does.
  */
+function selectReceiptParseEnabled(rows: PublicSetting[]): boolean {
+  return isSettingOn(rows.find((row) => row.key === 'llm_receipt_parse_enabled')?.value)
+}
+
 interface ObcSuggestion {
   session_id: number
   ended_at: string
@@ -189,7 +195,6 @@ function FuelRecordForm({ vin, record, onClose, onSuccess }: FuelRecordFormProps
   const [obcLoading, setObcLoading] = useState(false)
   const [obcMessage, setObcMessage] = useState<string | null>(null)
   const [hasLinkedTrailers, setHasLinkedTrailers] = useState(false)
-  const [llmReceiptEnabled, setLlmReceiptEnabled] = useState(false)
   const [receiptDraft, setReceiptDraft] = useState<FuelReceiptDraft | null>(null)
   const [receiptMessage, setReceiptMessage] = useState<string | null>(null)
   const [receiptText, setReceiptText] = useState('')
@@ -213,29 +218,12 @@ function FuelRecordForm({ vin, record, onClose, onSuccess }: FuelRecordFormProps
     }
   }, [vin, record])
 
-  useEffect(() => {
-    if (record) return
-    let cancelled = false
-    // /settings is admin-only, so reading the flag from there hid the receipt
-    // panel from every non-admin (the 403 lands in the catch below and sets the
-    // flag false). The key is on the public whitelist instead.
-    void api
-      .get('/settings/public')
-      .then((response) => {
-        const settings: { key: string; value: string | null }[] =
-          response.data?.settings ?? []
-        const enabled = settings.find((s) => s.key === 'llm_receipt_parse_enabled')
-        if (!cancelled) {
-          setLlmReceiptEnabled(isSettingOn(enabled?.value))
-        }
-      })
-      .catch(() => {
-        if (!cancelled) setLlmReceiptEnabled(false)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [record])
+  // /settings is admin-only, so reading the flag from there hid the receipt
+  // panel from every non-admin. The key is on the public whitelist instead.
+  // Off while loading and after a failed read. An edit never shows the panel,
+  // so it doesn't ask.
+  const llmReceiptEnabled =
+    usePublicSettingsQuery(selectReceiptParseEnabled, { enabled: !record }).data === true
 
   // `labelKey` is translated at render time; the fraction labels are numerals
   // and stay as-is (they are not prose).
@@ -990,7 +978,7 @@ function FuelRecordForm({ vin, record, onClose, onSuccess }: FuelRecordFormProps
       // it carries no field problems at all, so `unhandled` alone would stay
       // empty and this banner would never show. The checkboxes aren't listed:
       // they have nowhere to show an error, so theirs go to the banner.
-      const { attached, unhandled } = applyServerErrors<FuelRecordFormData>(setFieldError, err, [
+      const { parsed, attached, unhandled } = applyServerErrors<FuelRecordFormData>(setFieldError, err, [
         'date',
         'odometer_km',
         'engine_hours',
@@ -1022,7 +1010,7 @@ function FuelRecordForm({ vin, record, onClose, onSuccess }: FuelRecordFormProps
         'notes',
       ])
       if (attached.length === 0 || unhandled.length > 0) {
-        setError(getActionErrorMessage(err, t('fuel.saveAction')))
+        setError(actionErrorMessage(parsed, t('fuel.saveAction')))
       }
     }
   }

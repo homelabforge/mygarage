@@ -109,7 +109,12 @@ def _clear_reading_periods(engine: Engine) -> None:
 def upgrade(engine: Engine | None = None) -> None:
     """Clear the periods (a failure is logged), then dedupe and index (a failure raises)."""
     if engine is None:
+        # Run standalone: it builds its own engine, so it closes it too.
         engine = _get_fallback_engine()
+        try:
+            return upgrade(engine)
+        finally:
+            engine.dispose()
     try:
         _clear_reading_periods(engine)
     except SQLAlchemyError as e:

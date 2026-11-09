@@ -283,12 +283,8 @@ class TestAddressBookLastUsedIsUtc:
         assert resolved is not None
         assert_utc_between(await self.stored_last_used(db_session, resolved), before, after)
 
-    @pytest.mark.parametrize(
-        "route", ["/api/poi/increment-usage", "/api/shop-discovery/increment-usage"]
-    )
     async def test_increment_usage(
         self,
-        route: str,
         client: AsyncClient,
         auth_headers: dict[str, str],
         db_session: AsyncSession,
@@ -297,7 +293,7 @@ class TestAddressBookLastUsedIsUtc:
         entry = await address_book.make(business_name=unique("Usage Shop"), category="service")
 
         before = utc_now()
-        response = await client.post(f"{route}/{entry.id}", headers=auth_headers)
+        response = await client.post(f"/api/poi/increment-usage/{entry.id}", headers=auth_headers)
         after = utc_now()
 
         assert response.status_code == 204, response.text

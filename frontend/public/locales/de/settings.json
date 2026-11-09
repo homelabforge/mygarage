@@ -430,7 +430,6 @@
     "creatingBackup": "Wird erstellt...",
     "createSettingsBackup": "Einstellungen-Backup erstellen",
     "uploadSettingsBackup": "Einstellungen-Backup hochladen",
-    "createSettingsError": "Einstellungen-Backup konnte nicht erstellt werden",
     "filename": "Dateiname",
     "size": "Größe",
     "created": "Erstellt",
@@ -446,7 +445,6 @@
     "creatingFullBackup": "Wird erstellt...",
     "createFullBackup": "Vollständiges Backup erstellen",
     "uploadFullBackup": "Vollständiges Backup hochladen",
-    "createFullError": "Vollständiges Backup konnte nicht erstellt werden",
     "restoreOverwrite": "Wiederherstellen (überschreibt alle Daten)",
     "noFullBackups": "Noch keine vollständigen Backups vorhanden. Erstelle eines, um loszulegen."
   },

@@ -53,7 +53,7 @@ import os
 from datetime import datetime
 from pathlib import Path
 
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import DateTime, Engine, bindparam, create_engine, inspect, text
 
 FATAL = False
 
@@ -202,10 +202,12 @@ def _preflight_open_sessions(conn, inspector) -> tuple[int, int]:
             duration = None
             if started_at is not None and end_at is not None:
                 duration = max(0, int((end_at - started_at).total_seconds()))
+            # Typed, so SQLite stores the ORM's text form instead of leaning on
+            # sqlite3's datetime adapter, which Python deprecated.
             conn.execute(
                 text(
                     "UPDATE drive_sessions SET ended_at = :e, duration_seconds = :d WHERE id = :i"
-                ),
+                ).bindparams(bindparam("e", type_=DateTime())),
                 {"e": end_at, "d": duration, "i": session_id},
             )
             closed += 1
@@ -245,10 +247,15 @@ def _create_indexes(conn, inspector) -> None:
         print("  ✓ One open session per device is now a constraint")
 
 
-def upgrade(engine=None) -> None:
+def upgrade(engine: Engine | None = None) -> None:
     """Add the columns, reconcile open sessions, then take the index."""
     if engine is None:
+        # Run standalone: it builds its own engine, so it closes it too.
         engine = _get_fallback_engine()
+        try:
+            return upgrade(engine)
+        finally:
+            engine.dispose()
 
     inspector = inspect(engine)
 

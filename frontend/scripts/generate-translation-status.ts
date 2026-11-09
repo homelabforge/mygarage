@@ -140,7 +140,7 @@ ${stats.map(s =>
   `| ${s.flag} | ${s.name} | \`${s.code}\` | \`${progressBar(s.percentage)}\` ${s.percentage}% | ${s.translated}/${s.total} |`
 ).join('\n')}
 
-**Overall: ${overallPct}%** average completion across ${languages.length} translated language${languages.length !== 1 ? 's' : ''} — English is the source (100%)
+**Overall: ${overallPct}%** average completion across ${languages.length} translated language${languages.length !== 1 ? 's' : ''}; English is the source (100%)
 
 ---
 

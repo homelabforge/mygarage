@@ -12,7 +12,7 @@ we drop it and ensure the service_category column has the correct constraint.
 import os
 from pathlib import Path
 
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import Engine, create_engine, inspect, text
 
 
 def _get_fallback_engine():
@@ -24,10 +24,15 @@ def _get_fallback_engine():
     return create_engine(f"sqlite:///{data_dir / 'mygarage.db'}")
 
 
-def upgrade(engine=None):
+def upgrade(engine: Engine | None = None):
     """Run migration 026."""
     if engine is None:
+        # Run standalone: it builds its own engine, so it closes it too.
         engine = _get_fallback_engine()
+        try:
+            return upgrade(engine)
+        finally:
+            engine.dispose()
 
     dialect = engine.dialect.name
 
@@ -154,14 +159,19 @@ def upgrade(engine=None):
         print("\nMigration 026 completed successfully")
 
 
-def rollback(engine=None):
+def rollback(engine: Engine | None = None):
     """Rollback migration 026.
 
     WARNING: This will restore the TSB column but all data will be lost.
     Service category 'Detailing' will be removed from constraint.
     """
     if engine is None:
+        # Run standalone: it builds its own engine, so it closes it too.
         engine = _get_fallback_engine()
+        try:
+            return rollback(engine)
+        finally:
+            engine.dispose()
 
     dialect = engine.dialect.name
 

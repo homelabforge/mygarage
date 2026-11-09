@@ -10,7 +10,7 @@
  * components/ErrorBoundary.tsx: a hard English default plus a try/catch, so an
  * error path can never itself throw or render a raw key.
  *
- * Backend-supplied `detail` text is passed through verbatim — only the generic
+ * Backend-supplied `detail` text is passed through verbatim; only the generic
  * fallbacks below are translated.
  */
 
@@ -89,7 +89,13 @@ const UNEXPECTED_ERROR: Message = ['httpError.unexpected', 'An unexpected error 
 /** Resolve a (key, English) pair through i18next. */
 const translate = ([key, fallback]: Message): string => tSafe(key, fallback)
 
+// parseApiError stamps what it returns. Handing a parsed error back in then
+// gives the same object instead of parsing it as an unknown value, which threw
+// away the status and detail and left "An unexpected error occurred".
+const PARSED: unique symbol = Symbol('ParsedApiError')
+
 export interface ParsedApiError {
+  readonly [PARSED]: true
   /** HTTP status code (0 for network errors) */
   status: number
   /** User-friendly error message */
@@ -106,6 +112,15 @@ export interface ParsedApiError {
   shouldRetry: boolean
 }
 
+function isParsedApiError(error: unknown): error is ParsedApiError {
+  return typeof error === 'object' && error !== null && PARSED in error
+}
+
+const stamp = (fields: Omit<ParsedApiError, typeof PARSED>): ParsedApiError => ({
+  [PARSED]: true,
+  ...fields,
+})
+
 /**
  * Parse an API error into a structured format with user-friendly message.
  *
@@ -114,17 +129,32 @@ export interface ParsedApiError {
  * @returns Parsed error with user-friendly message
  */
 export function parseApiError(error: unknown, context?: string): ParsedApiError {
+  if (isParsedApiError(error)) return error
+
   // Handle Axios errors
   if (isAxiosError(error)) {
-    const status = error.response?.status || 0
+    // Network error (no response), so there's no body to read.
+    if (!error.response) {
+      return stamp({
+        status: 0,
+        message: translate(NETWORK_ERROR),
+        detail: error.message,
+        fieldErrors: [],
+        isNetworkError: true,
+        isTimeout: error.code === 'ECONNABORTED',
+        shouldRetry: true,
+      })
+    }
+
+    const status = error.response.status || 0
     // MyGarage's validation handler sends the 422 list as `details`; FastAPI's
     // default and a raised HTTPException use `detail`. Reading only `detail`
     // meant no 422 ever reached a field, so every form fell back to the banner.
-    const data = error.response?.data as { detail?: unknown; details?: unknown } | undefined
+    const data = error.response.data as { detail?: unknown; details?: unknown } | undefined
     const rawDetail = data?.detail ?? data?.details
     const fieldErrors = parseValidationErrors(rawDetail)
     // `detail` is human-facing text ONLY. A 422 sends an array, which must never
-    // be stringified into a toast — fieldErrors carries that content. Falling
+    // be stringified into a toast; fieldErrors carries that content. Falling
     // back to `error.message` here (axios's own "Request failed with status
     // code NNN") reintroduces the exact opaque string this release exists to
     // remove, and it's the ONLY body shape axios leaves reachable on the 11
@@ -138,19 +168,6 @@ export function parseApiError(error: unknown, context?: string): ParsedApiError 
         ? rawDetail
         : undefined
 
-    // Network error (no response)
-    if (!error.response) {
-      return {
-        status: 0,
-        message: translate(NETWORK_ERROR),
-        detail: error.message,
-        fieldErrors: [],
-        isNetworkError: true,
-        isTimeout: error.code === 'ECONNABORTED',
-        shouldRetry: true,
-      }
-    }
-
     // Context-specific message if available, else the general status message
     const entry = CONTEXT_MESSAGES[context || '']?.[status] ?? STATUS_MESSAGES[status]
     let message = entry ? translate(entry) : translate(GENERIC_ERROR)
@@ -160,7 +177,7 @@ export function parseApiError(error: unknown, context?: string): ParsedApiError 
       message = detail
     }
 
-    return {
+    return stamp({
       status,
       message,
       detail,
@@ -168,12 +185,12 @@ export function parseApiError(error: unknown, context?: string): ParsedApiError 
       isNetworkError: false,
       isTimeout: status === 504,
       shouldRetry: [502, 503, 504].includes(status),
-    }
+    })
   }
 
   // Handle standard Error objects
   if (error instanceof Error) {
-    return {
+    return stamp({
       status: 0,
       message: error.message || translate(GENERIC_ERROR),
       detail: error.message,
@@ -181,11 +198,11 @@ export function parseApiError(error: unknown, context?: string): ParsedApiError 
       isNetworkError: false,
       isTimeout: false,
       shouldRetry: false,
-    }
+    })
   }
 
   // Handle unknown errors
-  return {
+  return stamp({
     status: 0,
     message: translate(UNEXPECTED_ERROR),
     detail: String(error),
@@ -193,7 +210,7 @@ export function parseApiError(error: unknown, context?: string): ParsedApiError 
     isNetworkError: false,
     isTimeout: false,
     shouldRetry: false,
-  }
+  })
 }
 
 /**
@@ -217,40 +234,42 @@ export function getErrorMessage(error: unknown, fallbackMessage?: string): strin
  * @returns Contextual error message
  */
 export function getActionErrorMessage(error: unknown, action: string): string {
-  const parsed = parseApiError(error)
-  const failed = (): string =>
-    tSafe('httpError.actionFailed', 'Failed to {{action}}. {{message}}', {
-      action,
-      message: parsed.message,
-    })
+  return actionErrorMessage(parseApiError(error), action)
+}
 
-  // For timeouts and service unavailable, add retry suggestion
+/**
+ * {@link getActionErrorMessage} for an error that's already parsed, so a form
+ * that parsed it to place field errors doesn't parse it again for the banner.
+ *
+ * @param parsed - The parsed error, e.g. from `applyServerErrors`
+ * @param action - The action being performed (e.g., 'save', 'delete', 'load')
+ * @returns Contextual error message
+ */
+export function actionErrorMessage(parsed: ParsedApiError, action: string): string {
+  const failed = (message: string): string =>
+    tSafe('httpError.actionFailed', 'Failed to {{action}}. {{message}}', { action, message })
+
+  // A 502/503/504 that says why keeps both the action and the reason: a
+  // missing settings key, a busy vehicle lock, AutoRef down. Without one it's
+  // the retry line. Status 0 retries too, but its detail is axios's own text.
   if (parsed.shouldRetry) {
-    return failed()
+    return failed(parsed.status !== 0 && parsed.detail ? parsed.detail : parsed.message)
   }
 
-  // For validation errors, not-found lookups, and auth rejections, show the
-  // backend detail verbatim when there is one. A 404 raised as
-  // `HTTPException(404, "X not found")` is exactly as specific as a 422's
-  // message — letting it fall through to the generic "resource not found"
-  // template below (`failed()`) discards that specificity at every call site
-  // that surfaces a 404 (e.g. "Vehicle not found" vs "Share not found" vs
-  // "Backup file not found"). 401/403 need the same treatment: login's
-  // "Incorrect username or password" (401), "User account is inactive" (403),
-  // and "Registration is disabled. Please contact an administrator…" (403)
-  // are all specific, user-actionable backend text — without this branch they
-  // fell through to `failed()`'s generic "Session expired" / "permission"
-  // templates, which is actively FALSE for a login-page typo. Requires C1
-  // (the `error.message` fallback removed from `parsed.detail`) so a
-  // detail-less 401/403 falls through to the translated
-  // `actionFailedCheckInput` template below rather than an axios status line.
-  if ([400, 401, 403, 404, 422].includes(parsed.status)) {
-    return (
-      parsed.detail ||
-      tSafe('httpError.actionFailedCheckInput', 'Failed to {{action}}. Please check your input.', {
-        action,
-      })
-    )
+  // A backend detail is shown verbatim for these: a 404's "Vehicle not found"
+  // beats the generic template, and login's "Incorrect username or password"
+  // (401) or "User account is inactive" (403) must not read as "session
+  // expired" on a typo.
+  if ([400, 401, 403, 404, 422].includes(parsed.status) && parsed.detail) {
+    return parsed.detail
+  }
+
+  // Without a detail only a 400 or 422 is about the input. A 401, 403 or 404
+  // gets its status template below.
+  if (parsed.status === 400 || parsed.status === 422) {
+    return tSafe('httpError.actionFailedCheckInput', 'Failed to {{action}}. Please check your input.', {
+      action,
+    })
   }
 
   // For conflicts, the message is usually descriptive enough
@@ -258,7 +277,7 @@ export function getActionErrorMessage(error: unknown, action: string): string {
     return parsed.message
   }
 
-  return failed()
+  return failed(parsed.message)
 }
 
 /**

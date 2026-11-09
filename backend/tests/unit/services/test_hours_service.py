@@ -33,7 +33,7 @@ async def _add_hours_record(
     return record
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 class TestLatestEngineHoursAndDate:
     """Test the deterministic latest-hours selection."""
@@ -121,7 +121,7 @@ class TestLatestEngineHoursAndDate:
         await db_session.commit()
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 class TestSetManualCurrentHours:
     """R2-H1: the current_hours-retirement interception target.

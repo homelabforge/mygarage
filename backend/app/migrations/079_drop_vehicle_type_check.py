@@ -38,7 +38,7 @@ import os
 import re
 from pathlib import Path
 
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import Engine, create_engine, inspect, text
 
 # Matches the vehicle_type CHECK whether written as a named table constraint
 # (`CONSTRAINT check_vehicle_type CHECK (...)`) or an unnamed inline column
@@ -88,9 +88,14 @@ def _get_fallback_engine():
     return create_engine(f"sqlite:///{data_dir / 'mygarage.db'}")
 
 
-def upgrade(engine=None):
+def upgrade(engine: Engine | None = None):
     if engine is None:
+        # Run standalone: it builds its own engine, so it closes it too.
         engine = _get_fallback_engine()
+        try:
+            return upgrade(engine)
+        finally:
+            engine.dispose()
     if not inspect(engine).has_table("vehicles"):
         return
     if engine.dialect.name == "postgresql":

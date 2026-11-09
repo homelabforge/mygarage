@@ -31,7 +31,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import Engine, create_engine, inspect, text
 
 FATAL = True
 
@@ -147,10 +147,15 @@ def _backfill_parameters(engine) -> None:
             print(f"✓ Registered {len(orphans)} parameter(s) for existing mappings")
 
 
-def upgrade(engine=None) -> None:
+def upgrade(engine: Engine | None = None) -> None:
     """Add the column, then backfill preset attribution and parameters."""
     if engine is None:
+        # Run standalone: it builds its own engine, so it closes it too.
         engine = _get_fallback_engine()
+        try:
+            return upgrade(engine)
+        finally:
+            engine.dispose()
 
     _add_column(engine)
     _backfill_preset_key(engine)

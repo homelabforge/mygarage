@@ -7,19 +7,9 @@ import { makePasswordSchema, getPasswordStrength } from '@/schemas/auth'
 import { withBase } from '@/utils/basePath'
 import { getActionErrorMessage } from '@/utils/httpErrorHandler'
 import FormModalWrapper from '../FormModalWrapper'
+import type { components } from '@/types/api.generated'
 
-interface User {
-  id: number
-  username: string
-  email: string
-  full_name: string | null
-  is_active: boolean
-  is_admin: boolean
-  auth_method: 'local' | 'oidc'
-  created_at: string
-  updated_at: string
-  last_login: string | null
-}
+type User = components['schemas']['UserResponse']
 
 interface LocalAuthModalProps {
   isOpen: boolean

@@ -1,6 +1,6 @@
 # MyGarage Development Guide
 
-This guide covers local development setup for MyGarage using **Bun 1.4** for the frontend and **Python 3.15** for the backend.
+This guide covers local development setup for MyGarage: **Bun** for the frontend and **Python** with **uv** for the backend. Versions aren't repeated here because they'd go stale; the pins live in `.bun-version`, `.nvmrc`, `frontend/package.json` and `backend/pyproject.toml`.
 
 ---
 
@@ -18,12 +18,14 @@ This guide covers local development setup for MyGarage using **Bun 1.4** for the
 ## Prerequisites
 
 ### Required
-- **Bun** 1.3.4+ ([Installation guide](https://bun.sh/docs/installation))
-- **Python** 3.15+
+- **Bun**, the version in `.bun-version` ([Installation guide](https://bun.sh/docs/installation))
+- **Python**, the version in `requires-python` (`backend/pyproject.toml`)
+- **uv** ([Installation guide](https://docs.astral.sh/uv/getting-started/installation/)); it installs the backend from `backend/uv.lock`
 - **Git**
 
 ### Optional
-- **Docker** & **Docker Compose** (for containerized development)
+- **Node**, the major version in `.nvmrc` (needed by `bin/ci-check` and the E2E tests)
+- **Docker** & **Docker Compose** (for `bin/ci-check` and containerized development)
 - **PostgreSQL** 16+ (if not using SQLite)
 
 ### Installing Bun
@@ -36,7 +38,7 @@ curl -fsSL https://bun.sh/install | bash
 source ~/.bashrc  # or ~/.zshrc
 
 # Verify installation
-bun --version  # Should show 1.3.4 or higher
+bun --version  # Should match .bun-version
 ```
 
 For Windows (native), see: https://bun.sh/docs/installation#windows
@@ -57,18 +59,24 @@ cd mygarage
 ```bash
 cd backend
 
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+# Install dependencies (into backend/.venv)
+uv sync --extra dev
 
-# Install dependencies
-pip install -e ".[dev]"
+# Keep local data in ./data (gitignored) instead of the container's /data
+mkdir -p ../data
+export MYGARAGE_DATA_DIR="$(cd ../data && pwd)"
+export MYGARAGE_ATTACHMENTS_DIR="$MYGARAGE_DATA_DIR/attachments"
+export MYGARAGE_PHOTOS_DIR="$MYGARAGE_DATA_DIR/photos"
+export MYGARAGE_DOCUMENTS_DIR="$MYGARAGE_DATA_DIR/documents"
+export MYGARAGE_DATABASE_URL="sqlite+aiosqlite:///$MYGARAGE_DATA_DIR/mygarage.db"
 
 # Run backend
-python -m granian app.main:app --port 8686 --reload
+uv run python -m granian --interface asgi --port 8686 app.main:app
 ```
 
-Backend will be available at: http://localhost:8686
+Backend will be available at: http://localhost:8686 (check http://localhost:8686/health).
+There's no auto-reload (Granian's `--reload` needs the `granian[reload]` extra, which
+isn't installed), so restart it after a backend change.
 
 ### 3. Frontend Setup
 
@@ -77,14 +85,15 @@ In a new terminal:
 ```bash
 cd frontend
 
-# Install dependencies (very fast with Bun!)
+# Install dependencies
 bun install
 
 # Start development server
 bun dev
 ```
 
-Frontend will be available at: http://localhost:3000
+Frontend will be available at: http://localhost:3000. The Vite dev server proxies
+`/api` and `/health` to the backend on port 8686 (`VITE_API_URL` overrides that).
 
 ---
 
@@ -126,35 +135,44 @@ bun run lint
 
 ### Technology Stack
 
-- **Runtime**: Bun 1.3.4
-- **Bundler**: Vite 7.2.4
-- **Test Runner**: Vitest 4.0.15
+Versions are in `frontend/package.json`.
+
+- **Runtime**: Bun
+- **Bundler**: Vite (Rolldown)
+- **Test Runner**: Vitest
 - **Framework**: React 19
-- **Language**: TypeScript 5.9.3
-- **Styling**: Tailwind CSS 4
+- **Language**: TypeScript
+- **Styling**: Tailwind CSS 4, through the `@tailwindcss/vite` plugin (no `tailwind.config.js`)
+- **Data fetching**: TanStack Query
+- **i18n**: i18next
 - **Icons**: Lucide React
 - **Charts**: Recharts
 - **Forms**: React Hook Form + Zod
-- **Router**: React Router Dom 7
+- **Router**: React Router 7
 
 ### Project Structure
 
 ```
 frontend/
 ├── src/
-│   ├── components/       # Reusable React components
+│   ├── components/      # Reusable React components
 │   ├── pages/           # Page components (routes)
 │   ├── hooks/           # Custom React hooks
-│   ├── lib/             # Utilities and API clients
-│   ├── types/           # TypeScript type definitions
-│   └── __tests__/       # Test files
-├── public/              # Static assets
-├── dist/                # Production build output
+│   ├── contexts/        # React context providers
+│   ├── services/        # API client and service wrappers
+│   ├── schemas/         # Zod schemas
+│   ├── utils/           # Shared helpers
+│   ├── locales/en/      # English strings (other languages are in public/locales/)
+│   ├── types/           # Type definitions, including the generated API types
+│   └── __tests__/       # Shared test helpers and app-wide tests
+├── e2e/                 # Playwright specs
+├── scripts/             # i18n and units gates, plus generators
+├── public/              # Static assets and translated locales
 ├── package.json         # Bun dependencies
 ├── bun.lock             # Bun lockfile
-├── vite.config.ts       # Vite configuration
-├── tsconfig.json        # TypeScript configuration
-└── tailwind.config.js   # Tailwind CSS configuration
+├── vite.config.ts       # Vite configuration (Tailwind runs as a plugin here)
+├── eslint.config.js     # ESLint flat config
+└── tsconfig.json        # TypeScript configuration
 ```
 
 ### Development Workflow
@@ -198,9 +216,8 @@ bun add package-name@1.2.3
 ### Code Style
 
 The project uses:
-- **ESLint** for JavaScript/TypeScript linting
+- **ESLint** (flat config, `eslint.config.js`) for linting
 - **TypeScript** for type safety
-- **Prettier** (via ESLint integration) for code formatting
 
 Run linter before committing:
 ```bash
@@ -213,41 +230,39 @@ bun run lint
 
 ### Commands
 
-```bash
-# Activate virtual environment
-source venv/bin/activate
+Run these from `backend/`, with the `MYGARAGE_*` data-dir exports from Quick Start.
 
+```bash
 # Install dependencies
-pip install -e ".[dev]"
+uv sync --extra dev
 
 # Run development server
-python -m granian app.main:app --port 8686 --reload
+uv run python -m granian --interface asgi --port 8686 app.main:app
 
 # Run with debug mode
-DEBUG=true python -m granian app.main:app --port 8686 --reload
+MYGARAGE_DEBUG=true uv run python -m granian --interface asgi --port 8686 app.main:app
 
 # Run tests
-pytest
+uv run pytest
 
 # Run tests with coverage
-pytest --cov=app --cov-report=term-missing
+uv run pytest --cov=app --cov-report=term-missing
 
 # Run specific test file
-pytest tests/unit/test_vehicles.py
+uv run pytest tests/unit/test_config.py
 
-# Database migrations
-alembic upgrade head
-alembic revision --autogenerate -m "description"
+# Database migrations run on startup; no separate command.
+# New ones go in app/migrations/ (see its README.md).
 ```
 
 ### Technology Stack
 
 - **Framework**: FastAPI
-- **Database ORM**: SQLAlchemy 2.0+
-- **Migrations**: Alembic
+- **Database ORM**: SQLAlchemy 2 (async)
+- **Migrations**: custom scripts in `app/migrations/`, run on startup
 - **ASGI Server**: Granian (Rust-based, fast)
 - **Authentication**: JWT + Argon2 password hashing
-- **OAuth2/OIDC**: Authlib
+- **OIDC**: joserfc for ID token verification
 - **Testing**: pytest + pytest-asyncio
 - **Database**: SQLite (default) or PostgreSQL
 
@@ -256,16 +271,21 @@ alembic revision --autogenerate -m "description"
 ```
 backend/
 ├── app/
-│   ├── api/             # API route handlers
+│   ├── routes/          # API route handlers
 │   ├── models/          # SQLAlchemy models
 │   ├── schemas/         # Pydantic schemas
-│   ├── core/            # Core functionality (auth, config, db)
 │   ├── services/        # Business logic
+│   ├── migrations/      # Database migrations (custom, not Alembic)
+│   ├── tasks/           # Scheduled jobs
+│   ├── utils/           # Shared helpers (units, time, CSV)
+│   ├── config.py        # Settings from MYGARAGE_* env vars
+│   ├── database.py      # Engine, sessions, startup migrations
 │   └── main.py          # FastAPI application entry
 ├── tests/
 │   ├── unit/            # Unit tests
-│   └── integration/     # Integration tests
-├── alembic/             # Database migrations
+│   ├── integration/     # Integration tests
+│   └── migrations/      # Migration tests
+├── tools/               # Maintenance, repair and dev scripts
 ├── pyproject.toml       # Python dependencies
 └── pytest.ini           # Pytest configuration
 ```
@@ -279,32 +299,37 @@ Interactive API docs:
 
 ### Database
 
-Default: SQLite at `./data/mygarage.db`
+Default: SQLite at `/data/mygarage.db` (the container path). For a local run, point
+`MYGARAGE_DATABASE_URL` somewhere writable.
 
 To use PostgreSQL:
 ```bash
 export MYGARAGE_DATABASE_URL="postgresql+asyncpg://user:pass@localhost:5432/mygarage"
-python -m granian app.main:app --port 8686 --reload
+uv run python -m granian --interface asgi --port 8686 app.main:app
 ```
 
 ### Environment Variables
 
+The ones below are `MYGARAGE_`-prefixed fields in `backend/app/config.py`. The app
+doesn't read a `.env` file itself.
+
 ```bash
 # Database
-MYGARAGE_DATABASE_URL=sqlite+aiosqlite:///./data/mygarage.db
+MYGARAGE_DATABASE_URL=sqlite+aiosqlite:////absolute/path/to/mygarage.db
 
-# Authentication
-MYGARAGE_AUTH_MODE=local  # Options: none, local, oidc
-MYGARAGE_JWT_SECRET_KEY=auto-generated-on-first-run
+# Where data, the secret keys and uploads live (default /data and its subfolders)
+MYGARAGE_DATA_DIR=/absolute/path/to/data
+MYGARAGE_ATTACHMENTS_DIR=/absolute/path/to/data/attachments
+MYGARAGE_PHOTOS_DIR=/absolute/path/to/data/photos
+MYGARAGE_DOCUMENTS_DIR=/absolute/path/to/data/documents
 
-# OIDC (if using auth_mode='oidc')
-MYGARAGE_OIDC_ISSUER=https://auth.example.com/application/o/mygarage/
-MYGARAGE_OIDC_CLIENT_ID=your-client-id
-MYGARAGE_OIDC_CLIENT_SECRET=your-client-secret
-
-# Debug
-DEBUG=true
+# Debug (SQL echo and debug logging)
+MYGARAGE_DEBUG=true
 ```
+
+The auth mode (none, local or OIDC) and the OIDC client details aren't env vars. Set
+them in Settings; they live in the database. The JWT secret is generated on first run
+and kept in `secret.key` in the data directory (`/data` by default).
 
 ---
 
@@ -312,38 +337,49 @@ DEBUG=true
 
 ### Build and Run
 
+The repo ships `compose.example.yml`, which runs the published image. To run your
+own checkout, build a local image and point a copy of it there. `compose.yaml` and
+`data/` are both gitignored.
+
 ```bash
-# Build image
+# Build image from your checkout
 docker build -t mygarage:dev .
+
+# Copy the example, then edit its image: line to mygarage:dev
+cp compose.example.yml compose.yaml
+
+# The container runs as UID 1000; give it ./data
+mkdir -p data && sudo chown 1000:1000 data
 
 # Run with Docker Compose
 docker compose up -d
 
 # View logs
-docker compose logs -f
+docker compose logs -f mygarage
 
-# Rebuild and restart
-docker compose up -d --build --force-recreate
+# Rebuild and restart after a change
+docker build -t mygarage:dev . && docker compose up -d
 
 # Stop
 docker compose down
 ```
 
+The app is then on http://localhost:8686.
+
 ### Development with Docker
 
 The Dockerfile uses a multi-stage build:
-1. **Frontend stage**: Bun 1.3.4-alpine builds the React app
-2. **Backend stage**: Python 3.15-slim installs backend dependencies
-3. **Production stage**: Combines built frontend + backend
+1. **Frontend stage**: Bun `-slim` image builds the React app. Its version is the `BUN_VERSION` build arg; `bin/ci-check --all` passes `.bun-version`, and a plain `docker build` uses the Dockerfile default
+2. **Backend stage**: Python `-slim` image installs backend dependencies
+3. **Production stage**: Combines built frontend + backend and runs Granian as a non-root user
 
 ### Docker Compose
 
-The `compose.yaml` includes:
-- Port mapping: `12347:8686`
+`compose.example.yml` includes:
+- Port mapping: `8686:8686`
 - Volume mount: `./data:/data`
-- Health checks
-- Debug mode enabled
-- Resource limits
+- A health check on `/health`
+- Commented-out reverse-proxy and settings-key environment variables
 
 ### Testing Docker Build
 
@@ -351,12 +387,15 @@ The `compose.yaml` includes:
 # Build
 docker build -t mygarage:test .
 
+# The container runs as UID 1000; give it ./data
+mkdir -p data && sudo chown 1000:1000 data
+
 # Run
 docker run -d \
   --name mygarage-test \
   -p 8687:8686 \
   -v $(pwd)/data:/data \
-  -e DEBUG=true \
+  -e MYGARAGE_DEBUG=true \
   mygarage:test
 
 # Test
@@ -389,7 +428,7 @@ bun run test:ui
 bun run test:coverage
 
 # Run specific test file
-bun run test:run src/components/VehicleCard.test.tsx
+bun run test:run src/components/__tests__/FamilyMemberCard.test.tsx
 ```
 
 Test framework: **Vitest** with:
@@ -403,17 +442,21 @@ Test framework: **Vitest** with:
 cd backend
 
 # Run all tests
-pytest
+uv run pytest
 
 # Run with coverage
-pytest --cov=app --cov-report=term-missing
+uv run pytest --cov=app --cov-report=term-missing
 
 # Run specific test
-pytest tests/unit/test_vehicles.py::test_create_vehicle
+uv run pytest tests/integration/routes/test_vehicle.py::TestVehicleRoutes::test_create_vehicle
 
 # Run integration tests only
-pytest tests/integration/
+uv run pytest tests/integration/
 ```
+
+Host test runs can differ from CI (different package versions). `bin/ci-check` from
+the repo root runs CI's gates in containers with CI's pins; `--backend` and
+`--frontend` pick one side.
 
 ### End-to-End Tests
 
@@ -459,18 +502,14 @@ bun --version
 
 #### "lockfile out of sync"
 ```bash
-# Regenerate lockfile
-rm bun.lock
+# Update the lockfile in place and commit it; don't delete bun.lock
 bun install
-
-# Or force install
-bun install --force
 ```
 
 #### "Module not found" errors
 ```bash
-# Clean install
-rm -rf node_modules bun.lock
+# Clean install (keep bun.lock)
+rm -rf node_modules
 bun install
 ```
 
@@ -493,11 +532,8 @@ bun run build
 
 #### Type errors
 ```bash
-# Run type checking
+# Run type checking (uses the project's tsconfig files)
 bun run type-check
-
-# Check specific file
-bunx tsc --noEmit src/path/to/file.tsx
 ```
 
 ### Backend Issues
@@ -513,26 +549,25 @@ export MYGARAGE_DATABASE_URL="postgresql+asyncpg://..."
 
 #### Import errors
 ```bash
-# Reinstall dependencies
-pip install --force-reinstall -e ".[dev]"
+# Reinstall dependencies from the lockfile
+uv sync --extra dev --reinstall
 ```
 
 #### Migration errors
 ```bash
-# Reset database (WARNING: deletes data)
-rm data/mygarage.db
-alembic upgrade head
+# Reset a LOCAL dev database (WARNING: deletes data). Migrations rerun on the next start.
+rm "$MYGARAGE_DATA_DIR"/mygarage.db*
 ```
 
 ### Docker Issues
 
 #### Port already in use
 ```bash
-# Change port in compose.yaml
+# Change the host port in compose.yaml
 ports: ["8687:8686"]  # Use 8687 instead
 
-# Or stop conflicting container
-docker ps | grep 12347
+# Or find and stop whatever holds 8686
+docker ps --filter publish=8686
 docker stop <container-name>
 ```
 
@@ -542,43 +577,30 @@ docker stop <container-name>
 docker builder prune
 
 # Rebuild from scratch
-docker compose build --no-cache
+docker build --no-cache -t mygarage:dev .
 ```
 
 #### Container won't start
 ```bash
 # Check logs
-docker compose logs mygarage-dev
+docker compose logs mygarage
 
 # Common issues:
 # 1. Database permission errors - run: sudo chown -R 1000:1000 ./data
 # 2. Port conflict - change port in compose.yaml
-# 3. Missing environment variables - check .env file
+# 3. A setting you meant to pass - check environment: in compose.yaml
 ```
 
 ---
 
 ## Performance
 
-### Bun Benefits
-
-Compared to Node.js 25 + npm:
-- **10-25x faster** package installation (19s vs 30-60s)
-- **1.5-2x faster** build times (2.8s vs 4-5s)
-- **~40-60% smaller** Docker images
-- **~2x faster** CI/CD pipeline
-
 ### Build Optimization
 
-The frontend uses manual chunk splitting for optimal caching:
-- `react-vendor.js` - React, React DOM, React Router
-- `charts.js` - Recharts
-- `calendar.js` - React Big Calendar + date-fns
-- `ui.js` - Lucide React + Sonner
-- `forms.js` - React Hook Form + Zod
-- `utils.js` - Axios
-
-This means when you update application code, users only download changed chunks, not the entire vendor bundle.
+The frontend splits its vendor code into named chunks (React, charts, calendar, UI,
+forms, query, i18n and so on; the list is `codeSplitting` in `frontend/vite.config.ts`),
+so an app-code change only invalidates the chunks that changed, not the whole vendor
+bundle.
 
 ---
 
@@ -587,8 +609,8 @@ This means when you update application code, users only download changed chunks,
 1. Fork the repository
 2. Create a feature branch: `git checkout -b feature/my-feature`
 3. Make changes
-4. Run tests: `bun run test:run && pytest`
-5. Run linters: `bun run lint`
+4. Run the gates: `bin/ci-check` from the repo root (needs Docker, Bun and Node; see [Prerequisites](#prerequisites))
+5. Run linters: `cd frontend && bun run lint`
 6. Commit changes: `git commit -m "feat: add my feature"`
 7. Push: `git push origin feature/my-feature`
 8. Create Pull Request
@@ -617,4 +639,4 @@ Follow [Conventional Commits](https://www.conventionalcommits.org/):
 
 ---
 
-**Last Updated**: 2025-12-09 (Bun 1.3.4 migration)
+**Last Updated**: 2026-11-08

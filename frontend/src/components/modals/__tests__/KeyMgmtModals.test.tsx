@@ -1,9 +1,10 @@
 import { describe, it, expect, vi } from 'vitest'
-import { screen } from '@testing-library/react'
+import { screen, fireEvent } from '@testing-library/react'
 import { render } from '../../../__tests__/test-utils'
 import CreateWidgetKeyModal from '../CreateWidgetKeyModal'
 import TorqueSourceModal from '../TorqueSourceModal'
 import VehicleSharingModal from '../VehicleSharingModal'
+import api from '../../../services/api'
 
 // The two panels load their lists on open; keep the fetch benign so only the
 // Drawer chrome (asserted below) matters. Shape to the component if a run
@@ -38,5 +39,37 @@ describe('key/management modals — Drawer conversion', () => {
     render(<VehicleSharingModal isOpen vin="TEST12345678901234" vehicleNickname="Test Car" onClose={vi.fn()} />)
     expect(screen.getByRole('dialog', { name: 'modal.shareVehicle' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'vehicleSharingModal.done' })).toBeInTheDocument()
+  })
+})
+
+describe('CreateWidgetKeyModal create failure', () => {
+  function submit(): void {
+    render(<CreateWidgetKeyModal isOpen onClose={vi.fn()} />)
+    fireEvent.change(screen.getByPlaceholderText('widgetKeys.namePlaceholder'), {
+      target: { value: 'Homepage' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'widgetKeys.submit' }))
+  }
+
+  it("shows the server's reason for a refused key", async () => {
+    vi.mocked(api.post).mockRejectedValueOnce({
+      isAxiosError: true,
+      message: 'Request failed with status code 403',
+      response: { status: 403, data: { detail: 'Nope' } },
+    })
+    submit()
+    expect(await screen.findByText('Nope')).toBeInTheDocument()
+  })
+
+  it('names the action through its own key when there is no reason', async () => {
+    vi.mocked(api.post).mockRejectedValueOnce({
+      isAxiosError: true,
+      message: 'Request failed with status code 500',
+      response: { status: 500, data: {} },
+    })
+    submit()
+    expect(
+      await screen.findByText('Failed to widgetKeys.createAction. An unexpected server error occurred.')
+    ).toBeInTheDocument()
   })
 })

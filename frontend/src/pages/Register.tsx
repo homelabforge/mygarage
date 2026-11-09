@@ -9,8 +9,8 @@ import { makeRegisterSchema, type RegisterFormData, getPasswordStrength } from '
 import { FormError } from '../components/FormError'
 import AuthPageLayout from '../components/AuthPageLayout'
 import api from '../services/api'
-import { applyServerErrors } from '../hooks/useApiFormErrors'
-import { getActionErrorMessage } from '../utils/httpErrorHandler'
+import { applyServerErrors } from '../utils/apiFormErrors'
+import { actionErrorMessage } from '../utils/httpErrorHandler'
 
 export default function Register() {
   const { t } = useTranslation('common')
@@ -70,14 +70,14 @@ export default function Register() {
       // attached.length === 0 catches a non-422 failure (network drop, 500):
       // it carries no field problems at all, so `unhandled` alone would stay
       // empty and this banner would never show.
-      const { attached, unhandled } = applyServerErrors<RegisterFormData>(setFieldError, err, [
+      const { parsed, attached, unhandled } = applyServerErrors<RegisterFormData>(setFieldError, err, [
         'username',
         'email',
         'password',
         'confirmPassword',
       ])
       if (attached.length === 0 || unhandled.length > 0) {
-        setError(getActionErrorMessage(err, t('registerPage.createAccountAction')))
+        setError(actionErrorMessage(parsed, t('registerPage.createAccountAction')))
       }
     }
   }

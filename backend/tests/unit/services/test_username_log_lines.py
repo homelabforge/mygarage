@@ -30,7 +30,7 @@ from app.services.family_dashboard_service import FamilyDashboardService
 from app.services.sharing_service import SharingService
 from app.services.transfer_service import TransferService
 
-pytestmark = [pytest.mark.unit, pytest.mark.asyncio]
+pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
 # argon2id of "testpassword123", as in tests/conftest.py.
 _HASH = "$argon2id$v=19$m=102400,t=2,p=8$NNbLa8SMLODWY2Es68EvLw$hiGLA+DtO213EMAMi8D8gXvvyjP8EVMFIHWp7SlUVnI"

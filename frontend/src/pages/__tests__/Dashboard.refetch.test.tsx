@@ -6,7 +6,8 @@
  * the user returns through the nav.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { screen, waitFor } from '@testing-library/react'
+import { renderWithQueryClient } from '@/__tests__/queryClient'
 import { fireEvent } from '@testing-library/react'
 import { Link, MemoryRouter, Route, Routes } from 'react-router-dom'
 
@@ -61,7 +62,7 @@ const dashboardCalls = (): number =>
 
 describe('Dashboard refetch on same-route navigation', () => {
   it('a nav click back to the dashboard route refetches without a remount', async () => {
-    render(
+    renderWithQueryClient(
       <MemoryRouter initialEntries={['/']}>
         <Link to="/">go home</Link>
         <Routes>

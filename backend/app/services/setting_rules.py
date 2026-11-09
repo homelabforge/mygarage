@@ -9,8 +9,8 @@ does one of three things:
   it: the restore round-trips the instance's own export, which legitimately
   holds keys the API refuses (the `livelink_*` rows, provider usage counters,
   the Telegram offset).
-- `check_setting_value` refuses a value its reader could not use. Both writers
-  apply it.
+- `check_setting_value` refuses a value its reader could not use, or one the
+  database can't store. Both writers apply it.
 - `canonical_setting_value` stores a switch written as any on/off word as
   "true" or "false" (D5a), so a reader that matches the exact word and one that
   reads leniently agree. Both writers apply it; it never refuses anything.
@@ -23,7 +23,7 @@ made the daily prune delete every raw reading and location point.
 from __future__ import annotations
 
 import math
-from collections.abc import Mapping
+from zoneinfo import ZoneInfo
 
 from app.constants.countries import (
     DEFAULT_COUNTRY_SETTING_KEY,
@@ -38,9 +38,12 @@ from app.services.llm_client import (
     LLM_PROVIDER_PRESETS,
     is_http_url,
 )
+from app.services.oidc.config import OIDC_REDIRECT_URI_KEY, checked_redirect_uri
 from app.services.recalls.rappelconso import API_URL_SETTING as RAPPELCONSO_API_URL_SETTING
+from app.services.setting_switches import SWITCH_SETTING_KEYS
 from app.services.settings_init import DEFAULT_SETTINGS
 from app.services.settings_service import SWITCH_OFF_VALUES, SWITCH_ON_VALUES
+from app.utils.default_unit_prefs import DEFAULT_UNIT_PREFS_KEY, validate_default_unit_prefs_value
 from app.utils.household_time import TIMEZONE_SETTING_KEY
 from app.utils.url_validation import validate_data_economie_url
 
@@ -49,6 +52,12 @@ from app.utils.url_validation import validate_data_economie_url
 #: poller has read.
 SYSTEM_MAINTAINED_KEYS: frozenset[str] = frozenset(
     {"app_version", "nhtsa_last_check", "rappelconso_last_check", "telegram_update_offset"}
+)
+
+#: Map provider keys nothing has read since the POI providers moved on. Migration
+#: 160 deleted them; an old backup still carries them, so the restore skips them.
+RETIRED_MAP_KEYS: frozenset[str] = frozenset(
+    {"google_maps_api_key", "geoapify_api_key", "mapbox_api_key"}
 )
 
 #: The LiveLink settings have their own typed routes (`routes/livelink_admin.py`),
@@ -65,20 +74,6 @@ GENERIC_WRITABLE_KEYS: frozenset[str] = frozenset(
 ) | {TIMEZONE_SETTING_KEY}
 
 _AUTH_MODES = frozenset({"none", "local", "oidc"})
-
-
-def _switch_keys(seed: Mapping[str, Mapping[str, object]]) -> frozenset[str]:
-    """The keys in `seed` whose seeded value is "true" or "false".
-
-    An entry with no `value` (`default_unit_prefs` is derived at seed time) is
-    not a switch; `meta["value"]` there would be a KeyError at import.
-    """
-    return frozenset(key for key, meta in seed.items() if meta.get("value") in ("true", "false"))
-
-
-#: Every seeded on/off setting. Derived from the seed list, so a newly seeded
-#: switch is stored canonically without a second edit here.
-SWITCH_SETTING_KEYS: frozenset[str] = _switch_keys(DEFAULT_SETTINGS)
 
 
 def canonical_setting_value(key: str, value: str | None) -> str | None:
@@ -126,8 +121,16 @@ def check_setting_value(key: str, value: object) -> None:
     that cannot save. Not checked for that reason: `notification_retry_attempts`
     and `email_smtp_port` (read through `_get_setting_int`, which falls back),
     `auto_archive_inactive_days`, `notify_def_low_threshold_percent` and
-    `nhtsa_recall_check_interval` (their readers fall back), and the
-    switches (`SettingsService.get_bool` reads leniently).
+    `nhtsa_recall_check_interval` (their readers fall back).
+
+    Switches are checked, though their reader is lenient too: migration 160
+    stored every switch as "true" or "false" first, so a tab re-sending its
+    stored values never trips on this. The restore runs a file's switches
+    through `stored_switch_value` before this, so an old backup's junk comes
+    back as "false" rather than being skipped.
+
+    Text that won't encode as UTF-8 (a lone surrogate) is refused on every key:
+    the driver, or the cipher on a secret, would 500 on it.
 
     `None` and `""` are blank. Anything else is read as `str(value)`, so a
     backup file's JSON number reaches the same rule as the string a form sends.
@@ -140,6 +143,10 @@ def check_setting_value(key: str, value: object) -> None:
         ValueError: The value would not survive its reader; the message says why.
     """
     text = "" if value is None else str(value)
+    try:
+        text.encode("utf-8")
+    except UnicodeEncodeError:
+        raise ValueError("must be valid Unicode text") from None
 
     if key == "oidc_link_token_expire_minutes":
         # `create_pending_link` does a bare int() on it, and `get_oidc_config`
@@ -200,3 +207,26 @@ def check_setting_value(key: str, value: object) -> None:
                 validate_data_economie_url(text)
             except Exception:  # noqa: BLE001 - SSRF or malformed, same answer
                 raise ValueError("must be an https URL on data.economie.gouv.fr") from None
+    elif key == TIMEZONE_SETTING_KEY:
+        # The reader skips a zone it can't load (`household_time.resolve_zone`).
+        if text:
+            try:
+                ZoneInfo(text)
+            except Exception:  # noqa: BLE001 - not found, bad path, same answer
+                raise ValueError("must be a valid IANA time zone name") from None
+    elif key == OIDC_REDIRECT_URI_KEY:
+        # The SSO settings re-send the stored pin on every save, so a bad one
+        # 422s all of them, the auth-mode switch included. Refused, not
+        # stripped: the reader strips.
+        try:
+            checked_redirect_uri(text)
+        except ValueError:
+            raise ValueError("must be blank or an absolute http(s) URL with no #fragment") from None
+    elif key == DEFAULT_UNIT_PREFS_KEY:
+        # `parse_default_unit_prefs` degrades WHOLE: an unreadable row hands
+        # every anonymous client the imperial preset, a silent 20 percent error
+        # in every volume on a UK or metric instance.
+        validate_default_unit_prefs_value(text)
+    elif key in SWITCH_SETTING_KEYS:
+        if text.strip() and text.strip().lower() not in SWITCH_ON_VALUES | SWITCH_OFF_VALUES:
+            raise ValueError("must be true or false")

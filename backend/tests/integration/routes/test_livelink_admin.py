@@ -4,10 +4,15 @@ Integration tests for LiveLink admin routes.
 Tests settings, device management, parameters, firmware, and MQTT endpoints.
 """
 
+from collections.abc import AsyncIterator
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+import pytest_asyncio
 from httpx import AsyncClient
+from pydantic import ValidationError
+from sqlalchemy import delete, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 @pytest.mark.integration
@@ -236,6 +241,103 @@ class TestLiveLinkParameters:
             )
 
         assert response.status_code == 404
+
+
+_LENGTH_KEY = "PARAMLEN_TEST"
+
+
+@pytest_asyncio.fixture
+async def length_param(db_session: AsyncSession) -> AsyncIterator[str]:
+    """One parameter row to rename, gone again after the test."""
+    from app.models.livelink_parameter import LiveLinkParameter
+
+    async def _wipe() -> None:
+        await db_session.execute(
+            delete(LiveLinkParameter).where(LiveLinkParameter.param_key == _LENGTH_KEY)
+        )
+        await db_session.commit()
+
+    await _wipe()
+    db_session.add(LiveLinkParameter(param_key=_LENGTH_KEY))
+    await db_session.commit()
+    yield _LENGTH_KEY
+    await _wipe()
+
+
+# The column widths: display_name is String(100), category and icon String(50).
+# PostgreSQL refuses a longer value at commit (a 500); SQLite stores it whole.
+_FIELD_WIDTHS = [("display_name", 100), ("category", 50), ("icon", 50)]
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+class TestParameterTextLengths:
+    """PUT /parameters/{key} holds the free-text fields to their column widths."""
+
+    @pytest.mark.parametrize(("field", "width"), _FIELD_WIDTHS)
+    async def test_one_past_the_column_is_a_422(
+        self,
+        client: AsyncClient,
+        auth_headers: dict[str, str],
+        db_session: AsyncSession,
+        length_param: str,
+        field: str,
+        width: int,
+    ) -> None:
+        response = await client.put(
+            f"/api/livelink/parameters/{length_param}",
+            headers=auth_headers,
+            json={field: "x" * (width + 1)},
+        )
+
+        assert response.status_code == 422, response.text
+        assert await _stored(db_session, field) is None
+
+    @pytest.mark.parametrize(("field", "width"), _FIELD_WIDTHS)
+    async def test_exactly_the_column_is_stored(
+        self,
+        client: AsyncClient,
+        auth_headers: dict[str, str],
+        db_session: AsyncSession,
+        length_param: str,
+        field: str,
+        width: int,
+    ) -> None:
+        response = await client.put(
+            f"/api/livelink/parameters/{length_param}",
+            headers=auth_headers,
+            json={field: "x" * width},
+        )
+
+        assert response.status_code == 200, response.text
+        assert response.json()[field] == "x" * width
+        assert await _stored(db_session, field) == "x" * width
+
+
+async def _stored(db: AsyncSession, field: str) -> str | None:
+    """The test parameter's column as committed, not as the session last saw it."""
+    from app.models.livelink_parameter import LiveLinkParameter
+
+    db.expire_all()
+    return (
+        await db.execute(
+            select(getattr(LiveLinkParameter, field)).where(
+                LiveLinkParameter.param_key == _LENGTH_KEY
+            )
+        )
+    ).scalar_one()
+
+
+@pytest.mark.parametrize(("field", "width"), [("display_name", 100), ("category", 50)])
+def test_the_create_schema_holds_the_same_widths(field: str, width: int) -> None:
+    """Nothing posts it yet, but it shouldn't be the one shape that lets a long name through."""
+    from app.schemas.livelink import LiveLinkParameterCreate
+
+    assert getattr(LiveLinkParameterCreate(param_key="K", **{field: "x" * width}), field) == (
+        "x" * width
+    )
+    with pytest.raises(ValidationError):
+        LiveLinkParameterCreate(param_key="K", **{field: "x" * (width + 1)})
 
 
 @pytest.mark.integration

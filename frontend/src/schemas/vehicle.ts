@@ -48,7 +48,7 @@ export const VEHICLE_TYPES = [
  * shows translated labels, so a constant sorted by value is wrong twice over:
  * it is only alphabetical in English, and even there "SUV" would sort before
  * "Snowmobile" because it compares S-U against S-n. localeCompare against the
- * active locale gets both right in all six languages.
+ * active locale gets both right in every supported language.
  */
 export function vehicleTypeOptions(
   translate: TFunction,

@@ -7,9 +7,11 @@ Hours are dimensionless -- no unit conversion, no metric/imperial split.
 from datetime import date as date_type
 from datetime import datetime
 from decimal import Decimal
+from typing import Annotated
 
-from pydantic import BaseModel, Field
+from pydantic import AfterValidator, BaseModel, Field
 
+from app.schemas._figures import to_stored_tenth
 from app.schemas._nullability import reject_null
 
 
@@ -17,7 +19,9 @@ class HoursRecordBase(BaseModel):
     """Base hours record schema with common fields."""
 
     date: date_type = Field(..., description="Reading date")
-    engine_hours: Decimal = Field(..., description="Engine hours reading", ge=0, le=999999999.9)
+    engine_hours: Annotated[Decimal, AfterValidator(to_stored_tenth)] = Field(
+        ..., description="Engine hours reading", ge=0, le=999999999.9
+    )
     notes: str | None = Field(None, description="Additional notes")
 
 
@@ -44,7 +48,7 @@ class HoursRecordUpdate(BaseModel):
     """Schema for updating an existing hours record."""
 
     date: date_type | None = Field(None, description="Reading date")
-    engine_hours: Decimal | None = Field(
+    engine_hours: Annotated[Decimal | None, AfterValidator(to_stored_tenth)] = Field(
         None, description="Engine hours reading", ge=0, le=999999999.9
     )
     notes: str | None = Field(None, description="Additional notes")

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, within, fireEvent, waitFor } from '@testing-library/react'
+import { screen, within, fireEvent, waitFor } from '@testing-library/react'
+import { renderWithQueryClient } from '@/__tests__/queryClient'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import type { Recall } from '../../types/recall'
 
@@ -13,7 +14,11 @@ vi.mock('../../hooks/queries/useRecallRecords', () => ({
   useCheckRecalls: () => ({ mutate: vi.fn(), isPending: false }),
   useToggleRecallResolved: () => ({ mutate: vi.fn(), isPending: false }),
 }))
-vi.mock('@tanstack/react-query', () => ({ useQueryClient: () => ({ invalidateQueries: vi.fn() }) }))
+// Only useQueryClient is faked; useQuery stays real for the shared public settings.
+vi.mock('@tanstack/react-query', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@tanstack/react-query')>()),
+  useQueryClient: () => ({ invalidateQueries: vi.fn() }),
+}))
 const apiGet = vi.hoisted(() => vi.fn())
 vi.mock('../../services/api', () => ({ default: { get: apiGet } }))
 vi.mock('../../hooks/useDateLocale', () => ({ useDateLocale: () => 'en-US' }))
@@ -53,7 +58,7 @@ function Where(): React.ReactElement {
 }
 
 function renderList(): void {
-  render(
+  renderWithQueryClient(
     <MemoryRouter initialEntries={['/vehicles/V1?tab=recalls']}>
       <Routes>
         <Route

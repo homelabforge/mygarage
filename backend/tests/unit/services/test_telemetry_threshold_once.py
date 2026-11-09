@@ -90,7 +90,7 @@ def _at(monkeypatch, when: datetime) -> None:
     monkeypatch.setattr("app.services.telemetry_service.utc_now", lambda: when)
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 class TestNotifyOnce:
     async def test_a_tank_notifies_once_below_low_and_once_below_critical(
@@ -220,7 +220,7 @@ class TestNotifyOnce:
         mock.assert_not_awaited()
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 class TestCooldownModeKnowsCritical:
     async def test_a_wican_reading_below_critical_says_critical(

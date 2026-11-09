@@ -11,8 +11,8 @@ import type { FinancingRecord, FinancingRecordCreate, FinancingRecordUpdate } fr
 import { makeFinancingRecordSchema, type FinancingRecordFormData, FINANCING_CATEGORIES } from '../schemas/financing'
 import { useCreateFinancingRecord, useUpdateFinancingRecord } from '../hooks/queries/useFinancingRecords'
 import { formatDateForInput } from '../utils/dateUtils'
-import { applyServerErrors } from '../hooks/useApiFormErrors'
-import { getActionErrorMessage } from '../utils/httpErrorHandler'
+import { applyServerErrors } from '../utils/apiFormErrors'
+import { actionErrorMessage } from '../utils/httpErrorHandler'
 
 interface FinancingRecordFormProps {
   vin: string
@@ -51,7 +51,7 @@ export default function FinancingRecordForm({ vin, record, onClose, onSuccess }:
       onClose()
     } catch (err) {
       // A non-422 failure (network, 500) attaches no field errors.
-      const { attached, unhandled } = applyServerErrors<FinancingRecordFormData>(setFieldError, err, [
+      const { parsed, attached, unhandled } = applyServerErrors<FinancingRecordFormData>(setFieldError, err, [
         'date',
         'category',
         'amount',
@@ -59,7 +59,7 @@ export default function FinancingRecordForm({ vin, record, onClose, onSuccess }:
         'notes',
       ])
       if (attached.length === 0 || unhandled.length > 0) {
-        setError(getActionErrorMessage(err, t('financing.saveAction')))
+        setError(actionErrorMessage(parsed, t('financing.saveAction')))
       }
     }
   }

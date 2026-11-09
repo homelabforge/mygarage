@@ -33,6 +33,7 @@ from urllib.parse import quote
 
 import pytest
 from sqlalchemy.engine import make_url
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.services.backup_service import BackupService
 
@@ -79,9 +80,11 @@ def _extract_member(archive: Path, member: str, dest: Path) -> Path:
     return target
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
-async def test_full_backup_db_member_is_self_contained(tmp_path: Path) -> None:
+async def test_full_backup_db_member_is_self_contained(
+    tmp_path: Path, db_session: AsyncSession
+) -> None:
     """F2: the archived mygarage.db must contain ALL committed rows on its own.
 
     With the raw file-copy approach, row 2 (committed, un-checkpointed)
@@ -91,7 +94,7 @@ async def test_full_backup_db_member_is_self_contained(tmp_path: Path) -> None:
     writer = _make_wal_db_with_pending_frames(db_path)
     try:
         service = _service(tmp_path, db_path)
-        meta = await service.create_full_backup()
+        meta = await service.create_full_backup(db_session)
         archive = service.backup_dir / meta["filename"]
 
         extracted_db = _extract_member(archive, "mygarage.db", tmp_path)
@@ -117,9 +120,9 @@ async def test_full_backup_db_member_is_self_contained(tmp_path: Path) -> None:
         writer.close()
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
-async def test_restore_removes_stale_wal_sidecars(tmp_path: Path) -> None:
+async def test_restore_removes_stale_wal_sidecars(tmp_path: Path, db_session: AsyncSession) -> None:
     """F2 restore hygiene: stale live -wal/-shm don't survive the restore's apply at the next start.
 
     If they do, SQLite can replay the OLD wal frames over the freshly
@@ -151,7 +154,9 @@ async def test_restore_removes_stale_wal_sidecars(tmp_path: Path) -> None:
     wal_path.write_bytes(b"stale wal bytes")
     shm_path.write_bytes(b"stale shm bytes")
 
-    await service.restore_full_backup("mygarage-full-restoretest.tar.gz", create_safety=False)
+    await service.restore_full_backup(
+        "mygarage-full-restoretest.tar.gz", db_session, create_safety=False
+    )
     service.apply_pending_restore()
 
     assert not wal_path.exists() and not shm_path.exists(), (
@@ -373,10 +378,12 @@ def _assert_each_change_is_durable_before_the_next(trace: Trace) -> None:
     assert not owed, f"{sorted(map(str, owed))} were never fsynced"
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 @pytest.mark.parametrize("name", ["garage.db", "my#garage.db", "mygarage.db"])
-async def test_restore_writes_the_configured_database_file(tmp_path: Path, name: str) -> None:
+async def test_restore_writes_the_configured_database_file(
+    tmp_path: Path, name: str, db_session: AsyncSession
+) -> None:
     """The archive's mygarage.db lands in the file the app opens at the next start, whatever it's called.
 
     It used to land at `mygarage.db` beside the configured file, and the WAL
@@ -396,7 +403,9 @@ async def test_restore_writes_the_configured_database_file(tmp_path: Path, name:
     with tarfile.open(service.backup_dir / "mygarage-full-configured.tar.gz", "w:gz") as tar:
         tar.add(source_db, arcname="mygarage.db")
 
-    await service.restore_full_backup("mygarage-full-configured.tar.gz", create_safety=False)
+    await service.restore_full_backup(
+        "mygarage-full-configured.tar.gz", db_session, create_safety=False
+    )
     service.apply_pending_restore()
 
     assert not Path(f"{db_path}-wal").exists() and not Path(f"{db_path}-shm").exists()
@@ -405,9 +414,11 @@ async def test_restore_writes_the_configured_database_file(tmp_path: Path, name:
         assert not (tmp_path / "mygarage.db").exists(), "the restore wrote a stray mygarage.db"
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
-async def test_an_old_archives_wal_is_folded_into_the_staged_database(tmp_path: Path) -> None:
+async def test_an_old_archives_wal_is_folded_into_the_staged_database(
+    tmp_path: Path, db_session: AsyncSession
+) -> None:
     """A pre-snapshot archive keeps its newest rows in a -wal member; the staged file holds them itself.
 
     Replaces test_an_old_archives_wal_member_follows_the_configured_file. Teeth: skip the -wal
@@ -430,7 +441,7 @@ async def test_an_old_archives_wal_is_folded_into_the_staged_database(tmp_path: 
     finally:
         writer.close()
 
-    await service.restore_full_backup("mygarage-full-old.tar.gz", create_safety=False)
+    await service.restore_full_backup("mygarage-full-old.tar.gz", db_session, create_safety=False)
 
     pending = Path(f"{db_path}.restore-pending")
     assert pending.exists(), "nothing was staged"
@@ -448,10 +459,13 @@ async def test_an_old_archives_wal_is_folded_into_the_staged_database(tmp_path: 
     assert _read_rows(db_path) == [(1, "checkpointed"), (2, "wal-only")]
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_in_memory_sqlite_stays_on_the_sqlite_side(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    db_session: AsyncSession,
 ) -> None:
     """In-memory SQLite has no file to size or snapshot, but it's still SQLite.
 
@@ -474,7 +488,7 @@ async def test_in_memory_sqlite_stays_on_the_sqlite_side(
     }
 
     with caplog.at_level(logging.WARNING, logger="app.services.backup_service"):
-        meta = await service.create_full_backup()
+        meta = await service.create_full_backup(db_session)
 
     with tarfile.open(service.backup_dir / meta["filename"], "r:gz") as tar:
         names = tar.getnames()
@@ -484,10 +498,12 @@ async def test_in_memory_sqlite_stays_on_the_sqlite_side(
     assert warnings == ["in-memory SQLite has no file to back up"]
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 @pytest.mark.parametrize("name", ["my#garage.db", "my?garage.db", "my%41garage.db"])
-async def test_full_backup_snapshots_a_path_with_uri_characters(tmp_path: Path, name: str) -> None:
+async def test_full_backup_snapshots_a_path_with_uri_characters(
+    tmp_path: Path, name: str, db_session: AsyncSession
+) -> None:
     """`#`, `?` and `%` in the database path stay part of the path.
 
     The snapshot opens a `file:` URI. Unescaped, `#garage.db?mode=ro` read as
@@ -502,7 +518,7 @@ async def test_full_backup_snapshots_a_path_with_uri_characters(tmp_path: Path, 
     conn.close()
 
     service = _service(tmp_path, db_path)
-    meta = await service.create_full_backup()
+    meta = await service.create_full_backup(db_session)
     archive = service.backup_dir / meta["filename"]
 
     extracted_db = _extract_member(archive, "mygarage.db", tmp_path)
@@ -535,9 +551,11 @@ def test_pg_dump_names_the_database_the_engine_opens() -> None:
     assert service._parse_pg_url()["dbname"] == make_url(url).database == "myAdb"
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
-async def test_a_full_restore_leaves_the_live_data_alone_until_the_restart(tmp_path: Path) -> None:
+async def test_a_full_restore_leaves_the_live_data_alone_until_the_restart(
+    tmp_path: Path, db_session: AsyncSession
+) -> None:
     """Staging writes nothing the running app has open.
 
     It used to truncate the live file and unlink its -wal under pooled connections. No safety
@@ -546,7 +564,7 @@ async def test_a_full_restore_leaves_the_live_data_alone_until_the_restart(tmp_p
     service, db_path = _live_and_archive(tmp_path)
     before = _live_state(service, db_path)
 
-    result = await service.restore_full_backup(STAGED, create_safety=False)
+    result = await service.restore_full_backup(STAGED, db_session, create_safety=False)
 
     assert _live_state(service, db_path) == before, (
         "the restore changed live data before the restart"
@@ -563,9 +581,11 @@ async def test_a_full_restore_leaves_the_live_data_alone_until_the_restart(tmp_p
     assert str(manifest["prerestore_backup"]).startswith("mygarage-full-safety-prerestore-")
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
-async def test_the_next_start_swaps_the_staged_restore_in(tmp_path: Path) -> None:
+async def test_the_next_start_swaps_the_staged_restore_in(
+    tmp_path: Path, db_session: AsyncSession
+) -> None:
     """The start applies it: database and folders swapped, the live WAL gone, nothing left staged.
 
     A guard on the apply. Mutants: skip the -wal/-shm unlink (the planted WAL is the old
@@ -574,7 +594,7 @@ async def test_the_next_start_swaps_the_staged_restore_in(tmp_path: Path) -> Non
     """
     service, db_path = _live_and_archive(tmp_path)
     (service.data_dir / "documents" / "old.pdf").write_bytes(b"old doc")
-    await service.restore_full_backup(STAGED, create_safety=False)
+    await service.restore_full_backup(STAGED, db_session, create_safety=False)
 
     assert service.apply_pending_restore() == STAGED
 
@@ -590,9 +610,11 @@ async def test_the_next_start_swaps_the_staged_restore_in(tmp_path: Path) -> Non
     assert len(_prerestore_archives(service)) == 1, "a second start wrote another safety archive"
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
-async def test_the_start_archives_the_data_it_replaces_first(tmp_path: Path) -> None:
+async def test_the_start_archives_the_data_it_replaces_first(
+    tmp_path: Path, db_session: AsyncSession
+) -> None:
     """Rows written after the staging, still in the live WAL, are in the start's safety archive.
 
     The staging-time safety backup can't have them: they came later. A guard; mutants: skip
@@ -600,7 +622,7 @@ async def test_the_start_archives_the_data_it_replaces_first(tmp_path: Path) -> 
     with the WAL).
     """
     service, db_path = _live_and_archive(tmp_path)
-    await service.restore_full_backup(STAGED, create_safety=False)
+    await service.restore_full_backup(STAGED, db_session, create_safety=False)
     _write_after_staging(db_path)
 
     service.apply_pending_restore()
@@ -616,7 +638,7 @@ async def test_the_start_archives_the_data_it_replaces_first(tmp_path: Path) -> 
     (listed,) = [b for b in service.get_backup_files("full") if b["filename"] == archive.name]
     assert listed["is_safety"] is True
     # It restores like any other full backup.
-    await service.restore_full_backup(archive.name, create_safety=False)
+    await service.restore_full_backup(archive.name, db_session, create_safety=False)
     assert _read_rows(Path(f"{db_path}.restore-pending")) == [
         (1, "checkpointed"),
         (2, "wal-only"),
@@ -624,10 +646,10 @@ async def test_the_start_archives_the_data_it_replaces_first(tmp_path: Path) -> 
     ]
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_a_safety_archive_cut_off_mid_write_is_written_again(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, db_session: AsyncSession
 ) -> None:
     """The start died inside the archive writer, after bytes were written: the next start writes it again.
 
@@ -638,7 +660,7 @@ async def test_a_safety_archive_cut_off_mid_write_is_written_again(
     photos).
     """
     service, db_path = _live_and_archive(tmp_path)
-    await service.restore_full_backup(STAGED, create_safety=False)
+    await service.restore_full_backup(STAGED, db_session, create_safety=False)
     before = {k: v for k, v in _live_state(service, db_path).items() if k != "db-shm"}
     real_add = tarfile.TarFile.add
     staging_module = importlib.import_module("app.services.restore_staging")
@@ -673,11 +695,11 @@ async def test_a_safety_archive_cut_off_mid_write_is_written_again(
         assert "photos/old.jpg" in tar.getnames()
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 @pytest.mark.parametrize("when", ["request", "start"])
 async def test_a_safety_archive_that_fails_to_write_leaves_no_partial(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, when: str
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, when: str, db_session: AsyncSession
 ) -> None:
     """The writer fails partway (the disk fills at the photos): its .partial goes with it.
 
@@ -687,7 +709,7 @@ async def test_a_safety_archive_that_fails_to_write_leaves_no_partial(
     """
     service, _ = _live_and_archive(tmp_path)
     if when == "start":
-        await service.restore_full_backup(STAGED, create_safety=False)
+        await service.restore_full_backup(STAGED, db_session, create_safety=False)
     real_add = tarfile.TarFile.add
     partials_at_failure: list[Path] = []
 
@@ -701,7 +723,7 @@ async def test_a_safety_archive_that_fails_to_write_leaves_no_partial(
         patched.setattr(tarfile.TarFile, "add", _disk_full_at_the_photos)
         with pytest.raises((OSError, RuntimeError), match="No space left on device"):
             if when == "request":
-                await service.restore_full_backup(STAGED, create_safety=True)
+                await service.restore_full_backup(STAGED, db_session, create_safety=True)
             else:
                 service.apply_pending_restore()
 
@@ -710,7 +732,7 @@ async def test_a_safety_archive_that_fails_to_write_leaves_no_partial(
     assert list(service.backup_dir.glob("mygarage-full-safety-*")) == []
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 @pytest.mark.parametrize("case", ["cant_finish", "missing_archive", "applied"])
 async def test_names_read_from_the_staging_cant_forge_a_log_line(
@@ -718,6 +740,7 @@ async def test_names_read_from_the_staging_cant_forge_a_log_line(
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
     case: str,
+    db_session: AsyncSession,
 ) -> None:
     """The manifest and the marker are files on disk, so what the start logs from them is sanitized.
 
@@ -727,7 +750,7 @@ async def test_names_read_from_the_staging_cant_forge_a_log_line(
     any of those names as read.
     """
     service, _ = _live_and_archive(tmp_path)
-    await service.restore_full_backup(STAGED, create_safety=False)
+    await service.restore_full_backup(STAGED, db_session, create_safety=False)
     staging = service.data_dir / ".restore-pending"
     forged = "pre\nFORGED log line.tar.gz"
     if case != "applied":
@@ -763,11 +786,11 @@ async def test_names_read_from_the_staging_cant_forge_a_log_line(
     assert not [m for m in logged if "\n" in m or "\r" in m], logged
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 @pytest.mark.parametrize("left", ["everything", "nothing"])
 async def test_an_unfinished_staging_is_thrown_away_at_start(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture, left: str
+    tmp_path: Path, caplog: pytest.LogCaptureFixture, left: str, db_session: AsyncSession
 ) -> None:
     """No manifest and no applying marker means the staging never finished: the start drops it.
 
@@ -777,7 +800,7 @@ async def test_an_unfinished_staging_is_thrown_away_at_start(
     as the cleanup of an applied restore).
     """
     service, db_path = _live_and_archive(tmp_path)
-    await service.restore_full_backup(STAGED, create_safety=False)
+    await service.restore_full_backup(STAGED, db_session, create_safety=False)
     staging = service.data_dir / ".restore-pending"
     (staging / "manifest.json").unlink()
     if left == "nothing":
@@ -798,14 +821,14 @@ async def test_an_unfinished_staging_is_thrown_away_at_start(
     assert warnings == ["Discarded an unfinished restore; the current data stays"]
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "problem",
     ["other_database", "unreadable_manifest", "staged_database_gone", "no_archive_name"],
 )
 async def test_a_staged_restore_that_doesnt_fit_waits_and_can_be_cancelled(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture, problem: str
+    tmp_path: Path, caplog: pytest.LogCaptureFixture, problem: str, db_session: AsyncSession
 ) -> None:
     """Untouched staging that can't be applied: the start logs it, swaps nothing and starts.
 
@@ -819,7 +842,7 @@ async def test_a_staged_restore_that_doesnt_fit_waits_and_can_be_cancelled(
     staged database is named after the file it replaces. The half-applied test kills that one.
     """
     service, db_path = _live_and_archive(tmp_path)
-    await service.restore_full_backup(STAGED, create_safety=False)
+    await service.restore_full_backup(STAGED, db_session, create_safety=False)
     live = db_path
     starter = service
     if problem == "other_database":
@@ -856,7 +879,7 @@ async def test_a_staged_restore_that_doesnt_fit_waits_and_can_be_cancelled(
     assert _live_state(starter, live) == before
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 @pytest.mark.parametrize("killed_after", range(1, 14))
 async def test_a_start_killed_after_any_change_finishes_the_job(
@@ -864,6 +887,7 @@ async def test_a_start_killed_after_any_change_finishes_the_job(
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
     killed_after: int,
+    db_session: AsyncSession,
 ) -> None:
     """A start killed right after any of the apply's 13 changes: the next start lands on the restored state.
 
@@ -888,7 +912,7 @@ async def test_a_start_killed_after_any_change_finishes_the_job(
     the restore was discarded would send someone to restore it again. Mutant: log the old WARNING.
     """
     service, db_path = _live_and_archive(tmp_path)
-    await service.restore_full_backup(STAGED, create_safety=False)
+    await service.restore_full_backup(STAGED, db_session, create_safety=False)
     with monkeypatch.context() as patched:
         _kill_after_changes(patched, killed_after)
         with pytest.raises(_KilledError):
@@ -921,12 +945,16 @@ async def test_a_start_killed_after_any_change_finishes_the_job(
     )
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 @pytest.mark.parametrize("killed_after", [5, 6], ids=["database_replaced", "photos_set_aside"])
 @pytest.mark.parametrize("problem", ["other_database", "unreadable_manifest"])
 async def test_a_half_applied_restore_that_cant_finish_stops_the_start(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, killed_after: int, problem: str
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    killed_after: int,
+    problem: str,
+    db_session: AsyncSession,
 ) -> None:
     """Half swapped, then the start can't finish (the setting changed, or the manifest broke): it refuses.
 
@@ -937,7 +965,7 @@ async def test_a_half_applied_restore_that_cant_finish_stops_the_start(
     the new database).
     """
     service, db_path = _live_and_archive(tmp_path)
-    await service.restore_full_backup(STAGED, create_safety=False)
+    await service.restore_full_backup(STAGED, db_session, create_safety=False)
     with monkeypatch.context() as patched:
         _kill_after_changes(patched, killed_after)
         with pytest.raises(_KilledError):
@@ -966,10 +994,10 @@ async def test_a_half_applied_restore_that_cant_finish_stops_the_start(
     assert _every_file(tmp_path) == before
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_every_change_is_on_disk_before_the_next_step_relies_on_it(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, db_session: AsyncSession
 ) -> None:
     """The fsync order a power cut needs, recorded from the real staging, apply and cancel.
 
@@ -989,7 +1017,7 @@ async def test_every_change_is_on_disk_before_the_next_step_relies_on_it(
 
     with monkeypatch.context() as patched:
         trace = _record_durability(patched)
-        await service.restore_full_backup(STAGED, create_safety=False)
+        await service.restore_full_backup(STAGED, db_session, create_safety=False)
 
     published = trace.index(("replace", (staging / "manifest.json.partial", manifest)))
     fsynced = {paths[0] for op, paths in trace[:published] if op.startswith("fsync")}
@@ -1018,7 +1046,7 @@ async def test_every_change_is_on_disk_before_the_next_step_relies_on_it(
     )
     _assert_each_change_is_durable_before_the_next(trace)
 
-    await service.restore_full_backup(STAGED, create_safety=False)
+    await service.restore_full_backup(STAGED, db_session, create_safety=False)
     with monkeypatch.context() as patched:
         trace = _record_durability(patched)
         await service.cancel_pending_restore()
@@ -1027,11 +1055,11 @@ async def test_every_change_is_on_disk_before_the_next_step_relies_on_it(
     _assert_each_change_is_durable_before_the_next(trace)
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 @pytest.mark.parametrize("damage", ["not_a_database", "index_out_of_step"])
 async def test_a_damaged_backup_database_is_refused_and_nothing_is_staged(
-    tmp_path: Path, damage: str
+    tmp_path: Path, damage: str, db_session: AsyncSession
 ) -> None:
     """A database that would break the next start is refused now, with the live data untouched.
 
@@ -1049,14 +1077,16 @@ async def test_a_damaged_backup_database_is_refused_and_nothing_is_staged(
     before = _live_state(service, db_path)
 
     with pytest.raises(ValueError, match="backup's database"):
-        await service.restore_full_backup("mygarage-full-bad.tar.gz", create_safety=False)
+        await service.restore_full_backup(
+            "mygarage-full-bad.tar.gz", db_session, create_safety=False
+        )
 
     assert _live_state(service, db_path) == before
     assert not (service.data_dir / ".restore-pending").exists()
     assert not Path(f"{db_path}.restore-pending").exists()
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("refusal", "keeps_the_first"),
@@ -1068,7 +1098,11 @@ async def test_a_damaged_backup_database_is_refused_and_nothing_is_staged(
     ],
 )
 async def test_a_refused_restore_keeps_or_drops_the_earlier_staging(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, refusal: str, keeps_the_first: bool
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    refusal: str,
+    keeps_the_first: bool,
+    db_session: AsyncSession,
 ) -> None:
     """Refused before the discard, the earlier staging stays; refused after it, nothing is staged.
 
@@ -1077,7 +1111,7 @@ async def test_a_refused_restore_keeps_or_drops_the_earlier_staging(
     (safety_archive_fails then drops the first staging).
     """
     service, _ = _live_and_archive(tmp_path)
-    await service.restore_full_backup(STAGED, create_safety=False)
+    await service.restore_full_backup(STAGED, db_session, create_safety=False)
     name, create_safety = STAGED, False
     if refusal == "bad_name":
         name = "../outside.tar.gz"
@@ -1097,7 +1131,7 @@ async def test_a_refused_restore_keeps_or_drops_the_earlier_staging(
         name = "mygarage-full-bad.tar.gz"
 
     with pytest.raises((OSError, ValueError)):
-        await service.restore_full_backup(name, create_safety=create_safety)
+        await service.restore_full_backup(name, db_session, create_safety=create_safety)
 
     pending = service.pending_restore()
     if keeps_the_first:
@@ -1106,9 +1140,11 @@ async def test_a_refused_restore_keeps_or_drops_the_earlier_staging(
         assert pending is None
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
-async def test_a_symlinked_database_restores_the_file_it_points_at(tmp_path: Path) -> None:
+async def test_a_symlinked_database_restores_the_file_it_points_at(
+    tmp_path: Path, db_session: AsyncSession
+) -> None:
     """The staged file waits beside the real file, and the swap replaces the real file, not the link.
 
     SQLite names the WAL after the real file too (probed), so that's the -wal that goes. A
@@ -1126,7 +1162,7 @@ async def test_a_symlinked_database_restores_the_file_it_points_at(tmp_path: Pat
     _write_one_row_db(source, 99, "restored")
     _write_archive(service, "mygarage-full-link.tar.gz", source)
 
-    await service.restore_full_backup("mygarage-full-link.tar.gz", create_safety=False)
+    await service.restore_full_backup("mygarage-full-link.tar.gz", db_session, create_safety=False)
 
     assert Path(f"{real}.restore-pending").exists()
     assert not Path(f"{link}.restore-pending").exists()
@@ -1138,9 +1174,11 @@ async def test_a_symlinked_database_restores_the_file_it_points_at(tmp_path: Pat
     assert _read_rows(real) == [(99, "restored")]
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
-async def test_in_memory_sqlite_refuses_a_full_restore(tmp_path: Path) -> None:
+async def test_in_memory_sqlite_refuses_a_full_restore(
+    tmp_path: Path, db_session: AsyncSession
+) -> None:
     """In-memory SQLite has no file to restore into.
 
     It wrote mygarage.db into data_dir, for an engine that never opens it, and emptied the
@@ -1153,17 +1191,21 @@ async def test_in_memory_sqlite_refuses_a_full_restore(tmp_path: Path) -> None:
     _write_archive(service, "mygarage-full-mem.tar.gz", source)
 
     with pytest.raises(ValueError, match="In-memory SQLite"):
-        await service.restore_full_backup("mygarage-full-mem.tar.gz", create_safety=False)
+        await service.restore_full_backup(
+            "mygarage-full-mem.tar.gz", db_session, create_safety=False
+        )
 
     assert not (service.data_dir / "mygarage.db").exists()
     assert (service.data_dir / "photos" / "old.jpg").read_bytes() == b"old photo"
     assert not (service.data_dir / ".restore-pending").exists()
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 @pytest.mark.parametrize("member", ["photos/new.jpg", "mygarage.pgdump"])
-async def test_an_archive_without_a_sqlite_database_is_refused(tmp_path: Path, member: str) -> None:
+async def test_an_archive_without_a_sqlite_database_is_refused(
+    tmp_path: Path, member: str, db_session: AsyncSession
+) -> None:
     """A full restore restores the database; an archive without mygarage.db isn't one for SQLite.
 
     A photos-only or PostgreSQL archive emptied the live folders, kept the old database, and
@@ -1177,16 +1219,20 @@ async def test_an_archive_without_a_sqlite_database_is_refused(tmp_path: Path, m
     before = _live_state(service, db_path)
 
     with pytest.raises(ValueError, match="no SQLite database"):
-        await service.restore_full_backup("mygarage-full-nodb.tar.gz", create_safety=False)
+        await service.restore_full_backup(
+            "mygarage-full-nodb.tar.gz", db_session, create_safety=False
+        )
 
     assert _live_state(service, db_path) == before
     assert not (service.data_dir / ".restore-pending").exists()
     assert not (tmp_path / "mygarage.pgdump").exists()
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
-async def test_a_name_outside_the_backup_folder_is_not_restored(tmp_path: Path) -> None:
+async def test_a_name_outside_the_backup_folder_is_not_restored(
+    tmp_path: Path, db_session: AsyncSession
+) -> None:
     """The name is a file in the backup folder, as download and delete take it.
 
     `../` reached past it: a valid archive one folder up was staged. Mutant: build the
@@ -1196,14 +1242,16 @@ async def test_a_name_outside_the_backup_folder_is_not_restored(tmp_path: Path) 
     shutil.copyfile(service.backup_dir / STAGED, tmp_path / "outside.tar.gz")
 
     with pytest.raises(FileNotFoundError):
-        await service.restore_full_backup("../outside.tar.gz", create_safety=False)
+        await service.restore_full_backup("../outside.tar.gz", db_session, create_safety=False)
 
     assert not (service.data_dir / ".restore-pending").exists()
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
-async def test_a_second_restore_replaces_the_first(tmp_path: Path) -> None:
+async def test_a_second_restore_replaces_the_first(
+    tmp_path: Path, db_session: AsyncSession
+) -> None:
     """Restoring again before the restart stages the new backup alone.
 
     A guard; mutant: skip the discard at the start of staging (the first backup's photo
@@ -1218,8 +1266,10 @@ async def test_a_second_restore_replaces_the_first(tmp_path: Path) -> None:
     _write_archive(service, "mygarage-full-first.tar.gz", first, {"photos/a.jpg": b"a"})
     _write_archive(service, "mygarage-full-second.tar.gz", second, {"photos/b.jpg": b"b"})
 
-    await service.restore_full_backup("mygarage-full-first.tar.gz", create_safety=False)
-    await service.restore_full_backup("mygarage-full-second.tar.gz", create_safety=False)
+    await service.restore_full_backup("mygarage-full-first.tar.gz", db_session, create_safety=False)
+    await service.restore_full_backup(
+        "mygarage-full-second.tar.gz", db_session, create_safety=False
+    )
 
     pending = Path(f"{db_path}.restore-pending")
     staging = service.data_dir / ".restore-pending"
@@ -1229,10 +1279,10 @@ async def test_a_second_restore_replaces_the_first(tmp_path: Path) -> None:
     assert _manifest(service)["source_backup"] == "mygarage-full-second.tar.gz"
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_staging_runs_off_the_event_loop(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, db_session: AsyncSession
 ) -> None:
     """The tar, gzip and SQLite work runs in a thread, so the app keeps answering meanwhile.
 
@@ -1262,16 +1312,19 @@ async def test_staging_runs_off_the_event_loop(
         release.set()
 
     await asyncio.gather(
-        service.restore_full_backup(STAGED, create_safety=False), _the_loop_meanwhile()
+        service.restore_full_backup(STAGED, db_session, create_safety=False), _the_loop_meanwhile()
     )
 
     assert seen == [True], "the event loop was blocked while the restore staged"
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_two_restores_at_once_stage_one_after_the_other(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    test_sessionmaker: async_sessionmaker[AsyncSession],
+    init_test_db: None,
 ) -> None:
     """Two restores started together stage one at a time and leave one whole staging.
 
@@ -1299,10 +1352,14 @@ async def test_two_restores_at_once_stage_one_after_the_other(
 
     monkeypatch.setattr(BackupService, "_fold_and_check", staticmethod(_counting_check))
 
-    await asyncio.gather(
-        service.restore_full_backup(STAGED, create_safety=False),
-        service.restore_full_backup("mygarage-full-second.tar.gz", create_safety=False),
-    )
+    # A session each: one session can't run two statements at once.
+    async with test_sessionmaker() as first_db, test_sessionmaker() as second_db:
+        await asyncio.gather(
+            service.restore_full_backup(STAGED, first_db, create_safety=False),
+            service.restore_full_backup(
+                "mygarage-full-second.tar.gz", second_db, create_safety=False
+            ),
+        )
 
     assert most == 1, "two stagings ran at once"
     expected = {
@@ -1314,15 +1371,17 @@ async def test_two_restores_at_once_stage_one_after_the_other(
     assert sorted(p.name for p in staged_photos.iterdir()) == expected[1]
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
-async def test_cancel_drops_the_staging_and_keeps_the_live_data(tmp_path: Path) -> None:
+async def test_cancel_drops_the_staging_and_keeps_the_live_data(
+    tmp_path: Path, db_session: AsyncSession
+) -> None:
     """Cancel before the restart: nothing is staged any more and nothing live changed.
 
     A second cancel finds nothing.
     """
     service, db_path = _live_and_archive(tmp_path)
-    await service.restore_full_backup(STAGED, create_safety=False)
+    await service.restore_full_backup(STAGED, db_session, create_safety=False)
     before = _live_state(service, db_path)
     assert service.pending_restore() == {
         "source_backup": STAGED,
@@ -1340,11 +1399,11 @@ async def test_cancel_drops_the_staging_and_keeps_the_live_data(tmp_path: Path) 
         await service.cancel_pending_restore()
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 @pytest.mark.parametrize("killed_after", [1, 2], ids=["manifest_gone", "staged_database_gone"])
 async def test_a_cancel_cut_short_still_reads_as_no_restore(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, killed_after: int
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, killed_after: int, db_session: AsyncSession
 ) -> None:
     """A cancel killed partway leaves no restore for the next start: the manifest went first.
 
@@ -1352,7 +1411,7 @@ async def test_a_cancel_cut_short_still_reads_as_no_restore(
     cancel leaves a manifest, and the next start applies what's left of a cancelled restore).
     """
     service, db_path = _live_and_archive(tmp_path)
-    await service.restore_full_backup(STAGED, create_safety=False)
+    await service.restore_full_backup(STAGED, db_session, create_safety=False)
     before = _live_state(service, db_path)
 
     with monkeypatch.context() as patched:
@@ -1366,10 +1425,10 @@ async def test_a_cancel_cut_short_still_reads_as_no_restore(
     assert not (service.data_dir / ".restore-pending").exists()
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_a_media_folder_on_another_filesystem_is_refused_before_anything_changes(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, db_session: AsyncSession
 ) -> None:
     """The swap renames folders, which can't cross filesystems, so that layout is refused at the request.
 
@@ -1377,7 +1436,7 @@ async def test_a_media_folder_on_another_filesystem_is_refused_before_anything_c
     mutant: drop the check (the start would then stop on EXDEV mid-swap).
     """
     service, db_path = _live_and_archive(tmp_path)
-    await service.restore_full_backup(STAGED, create_safety=False)
+    await service.restore_full_backup(STAGED, db_session, create_safety=False)
     photos = service.data_dir / "photos"
     real_stat = os.stat
 
@@ -1403,17 +1462,17 @@ async def test_a_media_folder_on_another_filesystem_is_refused_before_anything_c
     with monkeypatch.context() as patched:
         patched.setattr(os, "stat", _photos_elsewhere)
         with pytest.raises(ValueError, match="different filesystem"):
-            await service.restore_full_backup(STAGED, create_safety=True)
+            await service.restore_full_backup(STAGED, db_session, create_safety=True)
 
     assert _live_state(service, db_path) == before
     assert (service.pending_restore() or {}).get("source_backup") == STAGED
     assert not list(service.backup_dir.glob("mygarage-full-safety-2*.tar.gz"))
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_a_swap_that_keeps_failing_stops_the_start_with_the_way_out(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, db_session: AsyncSession
 ) -> None:
     """An OS error partway through the swap (photos on another filesystem) stops the start, with the way out.
 
@@ -1422,7 +1481,7 @@ async def test_a_swap_that_keeps_failing_stops_the_start_with_the_way_out(
     traceback at every start, and no way out in the log).
     """
     service, db_path = _live_and_archive(tmp_path)
-    await service.restore_full_backup(STAGED, create_safety=False)
+    await service.restore_full_backup(STAGED, db_session, create_safety=False)
     staging_module = importlib.import_module("app.services.restore_staging")
     real_replace = staging_module._replace
     live_photos = service.data_dir / "photos"
@@ -1453,11 +1512,11 @@ async def test_a_swap_that_keeps_failing_stops_the_start_with_the_way_out(
     assert _read_rows(db_path) == [(99, "restored")]
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 @pytest.mark.parametrize("cause", ["disk_full", "unreadable_database", "bad_archive_name"])
 async def test_a_start_that_cant_write_its_safety_archive_stops_before_touching_anything(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, cause: str
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, cause: str, db_session: AsyncSession
 ) -> None:
     """The pre-restore archive can't be written: the start stops, nothing live changed, and the log says how to cancel.
 
@@ -1466,7 +1525,7 @@ async def test_a_start_that_cant_write_its_safety_archive_stops_before_touching_
     of the catch (bad_archive_name).
     """
     service, db_path = _live_and_archive(tmp_path)
-    await service.restore_full_backup(STAGED, create_safety=False)
+    await service.restore_full_backup(STAGED, db_session, create_safety=False)
     before = _live_state(service, db_path)
     manifest_path = service.data_dir / ".restore-pending" / "manifest.json"
     manifest: dict[str, Any] = {}
@@ -1501,10 +1560,10 @@ async def test_a_start_that_cant_write_its_safety_archive_stops_before_touching_
     assert service.apply_pending_restore() == STAGED
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_a_missing_pre_restore_archive_stops_a_half_applied_restore(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, db_session: AsyncSession
 ) -> None:
     """Half swapped, and the pre-restore archive is gone: the start refuses rather than write it again.
 
@@ -1512,7 +1571,7 @@ async def test_a_missing_pre_restore_archive_stops_a_half_applied_restore(
     mutant: write the archive whenever the start reaches it, marker or not.
     """
     service, _ = _live_and_archive(tmp_path)
-    await service.restore_full_backup(STAGED, create_safety=False)
+    await service.restore_full_backup(STAGED, db_session, create_safety=False)
     with monkeypatch.context() as patched:
         _kill_after_changes(patched, 5)
         with pytest.raises(_KilledError):
@@ -1528,11 +1587,11 @@ async def test_a_missing_pre_restore_archive_stops_a_half_applied_restore(
     assert _prerestore_archives(service) == []
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 @pytest.mark.parametrize("killed_after", [3, 4])
 async def test_a_marker_deleted_by_hand_keeps_the_pre_restore_archive(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, killed_after: int
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, killed_after: int, db_session: AsyncSession
 ) -> None:
     """Killed after the live -wal (3) or -shm (4) went, then the marker deleted by hand: the archive is kept.
 
@@ -1542,7 +1601,7 @@ async def test_a_marker_deleted_by_hand_keeps_the_pre_restore_archive(
     is rewritten from a database whose WAL rows are gone).
     """
     service, db_path = _live_and_archive(tmp_path)
-    await service.restore_full_backup(STAGED, create_safety=False)
+    await service.restore_full_backup(STAGED, db_session, create_safety=False)
     with monkeypatch.context() as patched:
         _kill_after_changes(patched, killed_after)
         with pytest.raises(_KilledError):
@@ -1558,11 +1617,11 @@ async def test_a_marker_deleted_by_hand_keeps_the_pre_restore_archive(
     assert _read_rows(db_path) == [(99, "restored")]
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 @pytest.mark.parametrize("killed_after", [6, 10])
 async def test_a_swap_begun_and_marker_deleted_by_hand_stops_the_start(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, killed_after: int
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, killed_after: int, db_session: AsyncSession
 ) -> None:
     """Killed after a live folder was set aside, then the marker deleted by hand: the start refuses.
 
@@ -1571,7 +1630,7 @@ async def test_a_swap_begun_and_marker_deleted_by_hand_stops_the_start(
     previous/ check (the start logs a broken staging and serves the half-swapped data).
     """
     service, _ = _live_and_archive(tmp_path)
-    await service.restore_full_backup(STAGED, create_safety=False)
+    await service.restore_full_backup(STAGED, db_session, create_safety=False)
     with monkeypatch.context() as patched:
         _kill_after_changes(patched, killed_after)
         with pytest.raises(_KilledError):
@@ -1586,12 +1645,16 @@ async def test_a_swap_begun_and_marker_deleted_by_hand_stops_the_start(
     assert _prerestore_archives(service)[0].name in str(refused.value)
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 @pytest.mark.parametrize("killed_after", [6, 10])
 @pytest.mark.parametrize("manifest", ["deleted", "unreadable"])
 async def test_a_swap_begun_with_marker_and_manifest_gone_stops_the_start(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, killed_after: int, manifest: str
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    killed_after: int,
+    manifest: str,
+    db_session: AsyncSession,
 ) -> None:
     """Killed mid-swap, then the marker deleted by hand and the manifest gone or broken: the start refuses.
 
@@ -1602,7 +1665,7 @@ async def test_a_swap_begun_with_marker_and_manifest_gone_stops_the_start(
     soon as previous/ is there (drop the nothing-staged check).
     """
     service, db_path = _live_and_archive(tmp_path)
-    await service.restore_full_backup(STAGED, create_safety=False)
+    await service.restore_full_backup(STAGED, db_session, create_safety=False)
     with monkeypatch.context() as patched:
         _kill_after_changes(patched, killed_after)
         with pytest.raises(_KilledError):
@@ -1627,10 +1690,10 @@ async def test_a_swap_begun_with_marker_and_manifest_gone_stops_the_start(
     assert "MYGARAGE_MAINTENANCE_MODE=1" in text
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_a_start_killed_in_the_cleanup_writes_no_new_archive(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, db_session: AsyncSession
 ) -> None:
     """Killed after the marker went (change 12), and the archive then deleted: the next start only cleans up.
 
@@ -1639,7 +1702,7 @@ async def test_a_start_killed_in_the_cleanup_writes_no_new_archive(
     one).
     """
     service, db_path = _live_and_archive(tmp_path)
-    await service.restore_full_backup(STAGED, create_safety=False)
+    await service.restore_full_backup(STAGED, db_session, create_safety=False)
     with monkeypatch.context() as patched:
         _kill_after_changes(patched, 12)
         with pytest.raises(_KilledError):
@@ -1654,10 +1717,10 @@ async def test_a_start_killed_in_the_cleanup_writes_no_new_archive(
     assert _read_rows(db_path) == [(99, "restored")]
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_a_cleanup_that_fails_says_the_restore_is_in_place(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, db_session: AsyncSession
 ) -> None:
     """Everything is swapped and only removing the staging fails: the start stops and says the restore is in place.
 
@@ -1665,7 +1728,7 @@ async def test_a_cleanup_that_fails_says_the_restore_is_in_place(
     through.
     """
     service, db_path = _live_and_archive(tmp_path)
-    await service.restore_full_backup(STAGED, create_safety=False)
+    await service.restore_full_backup(STAGED, db_session, create_safety=False)
     staging_module = importlib.import_module("app.services.restore_staging")
 
     def _not_allowed(path: Path) -> None:
@@ -1681,10 +1744,11 @@ async def test_a_cleanup_that_fails_says_the_restore_is_in_place(
     assert not (service.data_dir / ".restore-pending").exists()
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_an_unreadable_live_database_is_refused_when_the_restore_is_asked_for(
     tmp_path: Path,
+    db_session: AsyncSession,
 ) -> None:
     """The request's safety archive is the gate: a live database it can't read is a 400 now.
 
@@ -1697,16 +1761,16 @@ async def test_an_unreadable_live_database_is_refused_when_the_restore_is_asked_
     db_path.write_bytes(b"not a database " * 600)
 
     with pytest.raises(ValueError, match="current database can't be read"):
-        await service.restore_full_backup(STAGED, create_safety=True)
+        await service.restore_full_backup(STAGED, db_session, create_safety=True)
 
     assert not (service.data_dir / ".restore-pending").exists()
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 @pytest.mark.parametrize("damage", ["truncated", "not_gzip"])
 async def test_a_backup_that_isnt_a_readable_archive_is_refused(
-    tmp_path: Path, damage: str
+    tmp_path: Path, damage: str, db_session: AsyncSession
 ) -> None:
     """A truncated or non-gzip file is a 400 with a plain message.
 
@@ -1720,7 +1784,9 @@ async def test_a_backup_that_isnt_a_readable_archive_is_refused(
     before = _live_state(service, db_path)
 
     with pytest.raises(ValueError, match="can't be read as a tar.gz archive"):
-        await service.restore_full_backup("mygarage-full-broken.tar.gz", create_safety=False)
+        await service.restore_full_backup(
+            "mygarage-full-broken.tar.gz", db_session, create_safety=False
+        )
 
     assert _live_state(service, db_path) == before
     assert not (service.data_dir / ".restore-pending").exists()
@@ -1763,11 +1829,11 @@ def _files_under(folder: Path) -> list[str]:
     )
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 @pytest.mark.parametrize("case", list(_MEDIA_LINKS_TO_NO_FILE))
 async def test_a_media_link_to_no_file_is_skipped_and_the_rest_restores(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture, case: str
+    tmp_path: Path, caplog: pytest.LogCaptureFixture, case: str, db_session: AsyncSession
 ) -> None:
     """A photo that's a link to no file in the archive is left out with a WARNING; the rest restores.
 
@@ -1784,7 +1850,9 @@ async def test_a_media_link_to_no_file_is_skipped_and_the_rest_restores(
         _add_members(tar, [("photos/new.jpg", tarfile.REGTYPE, ""), *extra, *links])
 
     with caplog.at_level(logging.WARNING, logger="app.services.backup_service"):
-        await service.restore_full_backup("mygarage-full-links.tar.gz", create_safety=False)
+        await service.restore_full_backup(
+            "mygarage-full-links.tar.gz", db_session, create_safety=False
+        )
 
     kept = [
         "new.jpg",
@@ -1812,11 +1880,11 @@ _DATABASE_LINKS_TO_NO_FILE: dict[str, list[_Member]] = {
 }
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 @pytest.mark.parametrize("case", list(_DATABASE_LINKS_TO_NO_FILE))
 async def test_a_database_member_that_links_to_no_file_is_refused(
-    tmp_path: Path, case: str
+    tmp_path: Path, case: str, db_session: AsyncSession
 ) -> None:
     """mygarage.db as a link to no file is still a 400, and nothing is staged: only media links are skipped.
 
@@ -1830,17 +1898,19 @@ async def test_a_database_member_that_links_to_no_file_is_refused(
     before = _live_state(service, db_path)
 
     with pytest.raises(ValueError, match="can't be read as a tar.gz archive"):
-        await service.restore_full_backup("mygarage-full-links.tar.gz", create_safety=False)
+        await service.restore_full_backup(
+            "mygarage-full-links.tar.gz", db_session, create_safety=False
+        )
 
     assert _live_state(service, db_path) == before
     assert not (service.data_dir / ".restore-pending").exists()
     assert not Path(f"{db_path}.restore-pending").exists()
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_the_apps_own_backup_of_linked_photos_restores(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
+    tmp_path: Path, caplog: pytest.LogCaptureFixture, db_session: AsyncSession
 ) -> None:
     """The app's own backup of a photos folder holding links stages and applies.
 
@@ -1861,7 +1931,7 @@ async def test_the_apps_own_backup_of_linked_photos_restores(
     (photos / "album").mkdir()
     (photos / "album" / "a.jpg").write_bytes(b"album photo")
     (photos / "album-link").symlink_to("album")
-    meta = await service.create_full_backup()
+    meta = await service.create_full_backup(db_session)
     with tarfile.open(service.backup_dir / meta["filename"], "r:gz") as tar:
         kinds = {
             m.name: (m.issym(), m.islnk()) for m in tar.getmembers() if m.name.startswith("photos/")
@@ -1880,7 +1950,7 @@ async def test_the_apps_own_backup_of_linked_photos_restores(
     (photos / "other.jpg").write_bytes(b"other photo")
 
     with caplog.at_level(logging.WARNING, logger="app.services.backup_service"):
-        await service.restore_full_backup(meta["filename"], create_safety=False)
+        await service.restore_full_backup(meta["filename"], db_session, create_safety=False)
     assert service.apply_pending_restore() == meta["filename"]
 
     restored = {

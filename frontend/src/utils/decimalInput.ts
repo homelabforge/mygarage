@@ -115,10 +115,10 @@ export function parseDecimalInput(raw: string, locale: string): DecimalParseResu
       normalized = parts.join('')
     } else {
       // Exactly one separator. A grouping reading is possible only if the
-      // groups are well formed AND the tail is exactly three digits.
-      const groupingReadingValid = groupingWellFormed(parts) && parts[1].length === 3
+      // groups are well formed, which already means a tail of exactly three digits.
+      const groupingReadingValid = groupingWellFormed(parts)
       if (groupingReadingValid) {
-        // Both readings are legal — this is the ambiguous shape.
+        // Both readings are legal, so this is the ambiguous shape.
         ambiguous = true
         normalized =
           localeDecimalSeparator(locale) === separator ? parts.join('.') : parts.join('')

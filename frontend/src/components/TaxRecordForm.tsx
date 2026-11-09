@@ -10,8 +10,8 @@ import type { TaxRecord, TaxRecordCreate, TaxRecordUpdate } from '../types/tax'
 import { asTaxType, makeTaxRecordSchema, type TaxRecordFormData, taxTypeOptions } from '../schemas/tax'
 import { useCreateTaxRecord, useUpdateTaxRecord } from '../hooks/queries/useTaxRecords'
 import { formatDateForInput } from '../utils/dateUtils'
-import { applyServerErrors } from '../hooks/useApiFormErrors'
-import { getActionErrorMessage } from '../utils/httpErrorHandler'
+import { applyServerErrors } from '../utils/apiFormErrors'
+import { actionErrorMessage } from '../utils/httpErrorHandler'
 import { useResolvedCountry } from '../hooks/useResolvedCountry'
 import { useCountryProfile } from '../hooks/queries/useCountryProfile'
 import api from '../services/api'
@@ -81,7 +81,7 @@ export default function TaxRecordForm({ vin, record, onClose, onSuccess }: TaxRe
       // attached.length === 0 catches a non-422 failure (network drop, 500):
       // it carries no field problems at all, so `unhandled` alone would stay
       // empty and this banner would never show.
-      const { attached, unhandled } = applyServerErrors<TaxRecordFormData>(setFieldError, err, [
+      const { parsed, attached, unhandled } = applyServerErrors<TaxRecordFormData>(setFieldError, err, [
         'date',
         'tax_type',
         'amount',
@@ -89,7 +89,7 @@ export default function TaxRecordForm({ vin, record, onClose, onSuccess }: TaxRe
         'notes',
       ])
       if (attached.length === 0 || unhandled.length > 0) {
-        setError(getActionErrorMessage(err, t('tax.saveAction')))
+        setError(actionErrorMessage(parsed, t('tax.saveAction')))
       }
     }
   }

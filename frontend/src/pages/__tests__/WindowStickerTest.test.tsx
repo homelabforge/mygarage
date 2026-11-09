@@ -5,13 +5,14 @@
  * once a file was chosen it sat on top of Remove and a tap opened the picker
  * instead. jsdom has no layout, so these pin STRUCTURE only: no stretched file
  * input exists while a file is chosen, and Remove brings it back. Whether the
- * click really lands on Remove in a browser is G9's E2E half. Remove also clears
+ * click really lands on Remove in a browser is the E2E spec's job. Remove also clears
  * the last test's result and its error, so nothing describes a file that's gone,
  * and a test still running when the file goes is dropped when it answers.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
+import { screen, fireEvent, waitFor, act } from '@testing-library/react'
+import { renderWithQueryClient } from '@/__tests__/queryClient'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { toast } from 'sonner'
 
@@ -54,7 +55,7 @@ const SUCCESS_RESULT = {
 
 /** Renders the page at its real route and waits for the parser list load to settle. */
 async function renderPage(): Promise<HTMLElement> {
-  const { container } = render(
+  const { container } = renderWithQueryClient(
     <MemoryRouter initialEntries={['/vehicles/1HGCM82633A004352/window-sticker-test']}>
       <Routes>
         <Route path="/vehicles/:vin/window-sticker-test" element={<WindowStickerTest />} />
@@ -124,7 +125,7 @@ describe('WindowStickerTest drop zone', () => {
     expect(container.querySelector(OVERLAY_INPUT)).not.toBeNull()
   })
 
-  // Guard: passes before G8 fix round 1. Kills a mutant where a file choice is
+  // Guard: passed before the run-counter fix too. Kills a mutant where a file choice is
   // ignored once the run counter has moved (Remove moves it); checked once by hand.
   it('takes a new file chosen after Remove', async () => {
     const container = await renderPage()
@@ -280,7 +281,9 @@ describe('WindowStickerTest with a switch off', () => {
     expect(screen.queryByRole('button', { name: 'windowSticker.testExtraction' })).not.toBeInTheDocument()
   })
 
-  // The fallback (Fable F2-4): a failed read hides nothing; the 409 rules.
+  // The fallback: a failed read hides nothing; the 409 rules. Main never hid
+  // anything either, so the visible half is a regression guard; the
+  // /settings/public read is what's new.
   it('when the switches cannot be read, the form is offered', async () => {
     apiGet.mockImplementation((url: string) =>
       url === '/settings/public' ? Promise.reject(new Error('down')) : Promise.resolve({ data: [] }),

@@ -10,7 +10,7 @@ import {
   Eye, EyeOff, Edit, Key, Link2, Link2Off, Power, PowerOff, Trash2,
 } from 'lucide-react'
 import type { FamilyMemberData, FamilyVehicleSummary, TranslateFn } from '@/types/family'
-import type { User as UserType } from '@/types/user'
+import type { components } from '@/types/api.generated'
 import { useTranslation } from 'react-i18next'
 import { formatRelationship } from '@/types/family'
 import { formatDateForDisplay } from '@/utils/dateUtils'
@@ -20,6 +20,8 @@ import { useTimeFormat } from '@/hooks/useTimeFormat'
 import { withBase } from '@/utils/basePath'
 import { isSelectingText } from '@/utils/textSelection'
 import { cameFromNestedControl } from './ClickableCard'
+
+type UserType = components['schemas']['UserResponse']
 
 /** Matches a bare ISO calendar date (YYYY-MM-DD). */
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/

@@ -101,12 +101,3 @@ class POIRecommendationsResponse(BaseModel):
 
     recommendations: list[POIRecommendation]
     count: int
-
-
-# Backward compatibility: Keep old schemas as aliases
-# TODO: Remove in version 2.0.0
-ShopSearchRequest = POISearchRequest
-PlaceResult = POIResult
-ShopSearchResponse = POISearchResponse
-ShopRecommendation = POIRecommendation
-ShopRecommendationsResponse = POIRecommendationsResponse

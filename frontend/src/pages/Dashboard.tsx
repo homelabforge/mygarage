@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import { useQueryClient } from '@tanstack/react-query'
 import { Plus, Car as CarIcon, RefreshCw, ChevronDown, AlertCircle, Users, Archive, CheckSquare } from 'lucide-react'
 import VehicleStatisticsCard from '../components/VehicleStatisticsCard'
 import { VehicleUnitScope } from '../contexts/VehicleUnitScope'
@@ -16,6 +17,8 @@ import type { ExternalVehicle } from '../types/externalVehicle'
 import { listExternalVehicles } from '../services/externalVehicleService'
 import api from '../services/api'
 import { isSettingOn } from '../utils/settingSwitch'
+import type { PublicSetting } from '../utils/publicUnitDefaults'
+import { publicSettingsQuery } from '../hooks/queries/usePublicSettings'
 import { useDashboardSortOrder } from '../hooks/useDashboardSort'
 import { DASHBOARD_SORT_OPTIONS, type DashboardSort } from '../constants/dashboardSort'
 
@@ -39,10 +42,7 @@ function sortVehicles(vehicles: VehicleStatistics[], sortBy: DashboardSort): Veh
   })
 }
 
-function settingEnabled(
-  settings: { key: string; value: string | null }[],
-  key: string,
-): boolean {
+function settingEnabled(settings: PublicSetting[], key: string): boolean {
   const row = settings.find((s) => s.key === key)
   return isSettingOn(row?.value)
 }
@@ -63,6 +63,8 @@ export default function Dashboard() {
   const [selectedVins, setSelectedVins] = useState<Set<string>>(new Set())
   const [showBulkArchive, setShowBulkArchive] = useState(false)
 
+  const queryClient = useQueryClient()
+
   const tRef = useRef(t)
   useEffect(() => {
     tRef.current = t
@@ -71,12 +73,12 @@ export default function Dashboard() {
   const loadDashboard = useCallback(async () => {
     setError(null)
     try {
-      const [dashRes, settingsRes] = await Promise.all([
+      // The shared public settings: cached, so a revisit doesn't ask again,
+      // and a Settings save refreshes it.
+      const [dashRes, settings] = await Promise.all([
         api.get('/dashboard'),
-        api.get('/settings/public').catch(() => ({ data: { settings: [] } })),
+        queryClient.fetchQuery(publicSettingsQuery).catch((): PublicSetting[] => []),
       ])
-      const settings: { key: string; value: string | null }[] =
-        settingsRes.data?.settings ?? []
       const ffEnabled = settingEnabled(settings, 'family_friends_enabled')
       setFamilyFriendsEnabled(ffEnabled)
 
@@ -96,7 +98,7 @@ export default function Dashboard() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [queryClient])
 
   useEffect(() => {
     loadDashboard()

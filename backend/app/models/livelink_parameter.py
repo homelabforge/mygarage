@@ -78,3 +78,6 @@ class LiveLinkParameter(Base):
 # The longest name the column holds. PostgreSQL refuses a longer one, which fails
 # the ingest flush; SQLite stores it whole.
 DISPLAY_NAME_MAX_LENGTH: int = LiveLinkParameter.display_name.type.length
+# Same for the two other free-text fields an admin can set.
+CATEGORY_MAX_LENGTH: int = LiveLinkParameter.category.type.length
+ICON_MAX_LENGTH: int = LiveLinkParameter.icon.type.length

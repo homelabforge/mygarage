@@ -7,12 +7,20 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, BeforeValidator, Field, field_validator, model_validator
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    BeforeValidator,
+    Field,
+    field_validator,
+    model_validator,
+)
 
+from app.schemas._figures import to_stored_tenth
 from app.schemas._money import OptionalMoney
 from app.schemas._nullability import reject_null
 from app.schemas.maintenance import validate_maintenance_type
-from app.schemas.reminder import ReminderCreate  # noqa: F401 — used in type annotations
+from app.schemas.reminder import ReminderCreate  # noqa: F401 (used in type annotations)
 from app.schemas.supply import SupplyUsageInput, SupplyUsageResponse
 from app.utils.lenient_vocab import LenientVocab, lenient_reader
 
@@ -52,7 +60,7 @@ def _strip_description(value: object) -> object:
     return value.strip() if isinstance(value, str) else value
 
 
-#: Each flag and the optional link it allows (D8). The visit writers share it.
+#: Each flag and the optional link it allows. The visit writers share it.
 FLAGGED_LINKS = (("is_recall", "recall_id"), ("is_warranty", "warranty_id"))
 
 
@@ -320,7 +328,7 @@ class ServiceVisitBase(BaseModel):
     odometer_km: Decimal | None = Field(
         None, description="Odometer reading in kilometers", ge=0, le=99999999.99
     )
-    engine_hours: Decimal | None = Field(
+    engine_hours: Annotated[Decimal | None, AfterValidator(to_stored_tenth)] = Field(
         None,
         description=(
             "Engine-hours reading at this service visit (hour-metered vehicles). "
@@ -427,7 +435,7 @@ class ServiceVisitUpdate(BaseModel):
     odometer_km: Decimal | None = Field(
         None, description="Odometer reading in kilometers", ge=0, le=99999999.99
     )
-    engine_hours: Decimal | None = Field(
+    engine_hours: Annotated[Decimal | None, AfterValidator(to_stored_tenth)] = Field(
         None,
         description="Engine-hours reading at this service visit (hour-metered vehicles)",
         ge=0,
@@ -476,7 +484,7 @@ class ServiceVisitUpdate(BaseModel):
                 if ref == item.temp_id:
                     raise ValueError(f"line item with temp_id {ref} cannot link to itself")
                 if ref > 0 and item.id and ref not in existing_ids:
-                    # Positive ref to a real ID that's not in this payload is fine —
+                    # Positive ref to a real ID that's not in this payload is fine:
                     # it could be an existing DB ID not being edited in this payload.
                     pass
         return self

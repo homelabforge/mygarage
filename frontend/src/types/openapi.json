@@ -8586,7 +8586,7 @@
         "type": "object"
       },
       "FuelReceiptParseResponse": {
-        "description": "Response for opt-in LLM receipt parse \u2014 draft only.",
+        "description": "Response for opt-in LLM receipt parse (a draft only).",
         "properties": {
           "draft": {
             "$ref": "#/components/schemas/FuelReceiptDraft"
@@ -8699,7 +8699,7 @@
                 "type": "null"
               }
             ],
-            "description": "DEF tank level (0.00=empty, 1.00=full) \u2014 auto-creates a DEF observation",
+            "description": "DEF tank level (0.00=empty, 1.00=full); auto-creates a DEF observation",
             "title": "Def Fill Level"
           },
           "diesel_grade": {
@@ -9680,7 +9680,7 @@
                 "type": "null"
               }
             ],
-            "description": "Resolved station name for display: the linked address-book entry's business_name, else station_name_freetext. Read-only \u2014 write via station_address_book_id / station_name_freetext (issue #108).",
+            "description": "Resolved station name for display: the linked address-book entry's business_name, else station_name_freetext. Read-only; write via station_address_book_id / station_name_freetext (issue #108).",
             "title": "Station Name"
           },
           "station_name_freetext": {
@@ -9838,7 +9838,7 @@
                 "type": "null"
               }
             ],
-            "description": "DEF tank level (0.00=empty, 1.00=full) \u2014 auto-creates a DEF observation",
+            "description": "DEF tank level (0.00=empty, 1.00=full); auto-creates a DEF observation",
             "title": "Def Fill Level"
           },
           "diesel_grade": {
@@ -13166,6 +13166,7 @@
           "category": {
             "anyOf": [
               {
+                "maxLength": 50,
                 "type": "string"
               },
               {
@@ -13190,6 +13191,7 @@
           "display_name": {
             "anyOf": [
               {
+                "maxLength": 100,
                 "type": "string"
               },
               {
@@ -13215,6 +13217,7 @@
           "icon": {
             "anyOf": [
               {
+                "maxLength": 50,
                 "type": "string"
               },
               {
@@ -14940,7 +14943,7 @@
       },
       "MountPeriodUpdate": {
         "additionalProperties": false,
-        "description": "Correct one mount period's bounds or notes.\n\nEvery field optional, `exclude_unset` semantics: a key absent from the\nbody is untouched, a key sent as null is cleared to unknown. `position`\nis deliberately not here (D14: only mount, dismount and rotate write it),\nand forbid-extra makes sending it a 422 rather than a silent ignore.",
+        "description": "Correct one mount period's bounds or notes.\n\nEvery field optional, `exclude_unset` semantics: a key absent from the\nbody is untouched, a key sent as null is cleared to unknown. `position`\nis deliberately not here (only mount, dismount and rotate write it),\nand forbid-extra makes sending it a 422 rather than a silent ignore.",
         "properties": {
           "dismounted_hours": {
             "anyOf": [
@@ -15632,7 +15635,7 @@
         "type": "object"
       },
       "ObcSuggestionResponse": {
-        "description": "OBC auto-suggest payload \u2014 returned for `GET /api/vehicles/{vin}/fuel/obc-suggestion`.",
+        "description": "OBC auto-suggest payload, returned for `GET /api/vehicles/{vin}/fuel/obc-suggestion`.",
         "properties": {
           "distance_km": {
             "anyOf": [
@@ -17085,139 +17088,6 @@
           }
         },
         "title": "PhotoUpdate",
-        "type": "object"
-      },
-      "PlaceResult": {
-        "description": "Normalized place result from any provider (TomTom or OSM).",
-        "properties": {
-          "address": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Address"
-          },
-          "business_name": {
-            "title": "Business Name",
-            "type": "string"
-          },
-          "category": {
-            "default": "service",
-            "title": "Category",
-            "type": "string"
-          },
-          "city": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "City"
-          },
-          "distance_meters": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Distance Meters"
-          },
-          "external_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "External Id"
-          },
-          "latitude": {
-            "title": "Latitude",
-            "type": "string"
-          },
-          "longitude": {
-            "title": "Longitude",
-            "type": "string"
-          },
-          "phone": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Phone"
-          },
-          "rating": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Rating"
-          },
-          "source": {
-            "title": "Source",
-            "type": "string"
-          },
-          "state": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "State"
-          },
-          "website": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Website"
-          },
-          "zip_code": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Zip Code"
-          }
-        },
-        "required": [
-          "business_name",
-          "latitude",
-          "longitude",
-          "source"
-        ],
-        "title": "PlaceResult",
         "type": "object"
       },
       "PolicyHistoryEntry": {
@@ -19897,7 +19767,7 @@
         "type": "object"
       },
       "ReminderUpdate": {
-        "description": "Schema for updating a vehicle reminder.\n\nStatus is NOT here \u2014 use /done, /dismiss or /complete endpoints.\nValidation is lenient (fields may be absent). The route handler merges\nthis patch onto the existing reminder and validates the final state.\n\n``recurrence`` edits the reminder's rule (or creates one); an explicit\n``null`` deactivates the rule and leaves the reminder as a one-off. For a\nreminder with an active rule the ``due_*`` fields are derived and\nrejected with 422 if sent.",
+        "description": "Schema for updating a vehicle reminder.\n\nStatus is NOT here; use /done, /dismiss or /complete endpoints.\nValidation is lenient (fields may be absent). The route handler merges\nthis patch onto the existing reminder and validates the final state.\n\n``recurrence`` edits the reminder's rule (or creates one); an explicit\n``null`` deactivates the rule and leaves the reminder as a one-off. For a\nreminder with an active rule the ``due_*`` fields are derived and\nrejected with 422 if sent.",
         "properties": {
           "due_date": {
             "anyOf": [
@@ -22113,217 +21983,6 @@
           "total"
         ],
         "title": "SettingsListResponse",
-        "type": "object"
-      },
-      "ShopRecommendation": {
-        "description": "Recommended shop from address book based on usage.",
-        "properties": {
-          "address": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Address"
-          },
-          "business_name": {
-            "title": "Business Name",
-            "type": "string"
-          },
-          "city": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "City"
-          },
-          "id": {
-            "title": "Id",
-            "type": "integer"
-          },
-          "phone": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Phone"
-          },
-          "rating": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Rating"
-          },
-          "state": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "State"
-          },
-          "usage_count": {
-            "title": "Usage Count",
-            "type": "integer"
-          },
-          "user_rating": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "User Rating"
-          }
-        },
-        "required": [
-          "id",
-          "business_name",
-          "usage_count"
-        ],
-        "title": "ShopRecommendation",
-        "type": "object"
-      },
-      "ShopRecommendationsResponse": {
-        "description": "Response with recommended shops.",
-        "properties": {
-          "count": {
-            "title": "Count",
-            "type": "integer"
-          },
-          "recommendations": {
-            "items": {
-              "$ref": "#/components/schemas/ShopRecommendation"
-            },
-            "title": "Recommendations",
-            "type": "array"
-          }
-        },
-        "required": [
-          "recommendations",
-          "count"
-        ],
-        "title": "ShopRecommendationsResponse",
-        "type": "object"
-      },
-      "ShopSearchRequest": {
-        "description": "Request to search for nearby shops.",
-        "properties": {
-          "latitude": {
-            "description": "Latitude coordinate",
-            "maximum": 90.0,
-            "minimum": -90.0,
-            "title": "Latitude",
-            "type": "number"
-          },
-          "longitude": {
-            "description": "Longitude coordinate",
-            "maximum": 180.0,
-            "minimum": -180.0,
-            "title": "Longitude",
-            "type": "number"
-          },
-          "radius_meters": {
-            "anyOf": [
-              {
-                "maximum": 161000.0,
-                "minimum": 100.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": 8000,
-            "description": "Search radius in meters (default: ~5 miles, max: ~100 miles)",
-            "title": "Radius Meters"
-          },
-          "shop_type": {
-            "anyOf": [
-              {
-                "enum": [
-                  "auto",
-                  "rv"
-                ],
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": "auto",
-            "description": "Type of repair shop to search for",
-            "title": "Shop Type"
-          }
-        },
-        "required": [
-          "latitude",
-          "longitude"
-        ],
-        "title": "ShopSearchRequest",
-        "type": "object"
-      },
-      "ShopSearchResponse": {
-        "description": "Response containing search results.",
-        "properties": {
-          "count": {
-            "title": "Count",
-            "type": "integer"
-          },
-          "latitude": {
-            "title": "Latitude",
-            "type": "number"
-          },
-          "longitude": {
-            "title": "Longitude",
-            "type": "number"
-          },
-          "radius_meters": {
-            "title": "Radius Meters",
-            "type": "integer"
-          },
-          "results": {
-            "items": {
-              "$ref": "#/components/schemas/PlaceResult"
-            },
-            "title": "Results",
-            "type": "array"
-          },
-          "source": {
-            "title": "Source",
-            "type": "string"
-          }
-        },
-        "required": [
-          "results",
-          "count",
-          "source",
-          "latitude",
-          "longitude",
-          "radius_meters"
-        ],
-        "title": "ShopSearchResponse",
         "type": "object"
       },
       "SpotRentalBillingCreate": {
@@ -25926,7 +25585,7 @@
       },
       "TireResponse": {
         "additionalProperties": false,
-        "description": "A tire, with where it is now and what is known about its wear.\n\n`position` is RE-DECLARED here as nullable rather than inherited: it left\nthe write schema (D2c) but is still part of every read. Declaring it only\non the base would have made it required on writes; omitting it entirely\nwould have dropped it from responses. Neither is what a reader wants.\n\n`installed_date` is DERIVED, not stored (D12): the `mounted_on` of the\nearliest period **that has one**. When the earliest period is the migrated\nassumed one with a null start, this is null -- NOT the next known remount\ndate. A plain MIN(mounted_on) would skip the unknown and report a later\ndate as the installation date, which is worse than reporting nothing.",
+        "description": "A tire, with where it is now and what is known about its wear.\n\n`position` is RE-DECLARED here as nullable rather than inherited: it left\nthe write schema but is still part of every read. Declaring it only\non the base would have made it required on writes; omitting it entirely\nwould have dropped it from responses. Neither is what a reader wants.\n\n`installed_date` is DERIVED, not stored: the `mounted_on` of the\nearliest period **that has one**. When the earliest period is the migrated\nassumed one with a null start, this is null -- NOT the next known remount\ndate. A plain MIN(mounted_on) would skip the unknown and report a later\ndate as the installation date, which is worse than reporting nothing.",
         "properties": {
           "below_threshold": {
             "default": false,
@@ -26593,7 +26252,7 @@
       },
       "TireUpdate": {
         "additionalProperties": false,
-        "description": "Partial tire update.\n\nNeither `position` nor `installed_date` is writable here: position changes\nthrough mount/dismount (D14), and `installed_date` is derived (D12).",
+        "description": "Partial tire update.\n\nNeither `position` nor `installed_date` is writable here: position changes\nthrough mount/dismount, and `installed_date` is derived.",
         "properties": {
           "brand": {
             "anyOf": [
@@ -30246,6 +29905,7 @@
           "current_hours": {
             "anyOf": [
               {
+                "maximum": 999999999.9,
                 "minimum": 0.0,
                 "type": "number"
               },
@@ -31140,7 +30800,7 @@
         "type": "object"
       },
       "VehicleDetailStats": {
-        "description": "Read-aggregation for the Vehicle Detail hero + key-facts strip (P5).\n\nMetric-canonical: latest_odometer_km is raw km (frontend converts at the\nboundary). spent_this_year is currency (Decimal -> JSON string).",
+        "description": "Read-aggregation for the Vehicle Detail hero + key-facts strip.\n\nMetric-canonical: latest_odometer_km is raw km (frontend converts at the\nboundary). spent_this_year is currency (Decimal -> JSON string).",
         "properties": {
           "average_cost_per_hr": {
             "anyOf": [
@@ -33368,6 +33028,7 @@
           "current_hours": {
             "anyOf": [
               {
+                "maximum": 999999999.9,
                 "minimum": 0.0,
                 "type": "number"
               },
@@ -39325,7 +38986,7 @@
     },
     "/api/backup/create-full": {
       "post": {
-        "description": "Create a full backup including database and all uploaded files.\n\nThis may take several minutes depending on the size of your data. 503 while\na secret setting is still stored as plaintext and can't be encrypted first:\nthe archive copies the database.\n\nArgs:\n    db: Database session, for the preflight only\n\nReturns:\n    Metadata about the created backup file",
+        "description": "Create a full backup including database and all uploaded files.\n\nThis may take several minutes depending on the size of your data. 503 while\na secret setting is still stored as plaintext and can't be encrypted first:\nthe archive copies the database.\n\nArgs:\n    db: Database session, for the preflight and the service's plaintext check\n\nReturns:\n    Metadata about the created backup file",
         "operationId": "create_full_backup_api_backup_create_full_post",
         "responses": {
           "200": {
@@ -39480,7 +39141,7 @@
     },
     "/api/backup/restore/{filename}": {
       "post": {
-        "description": "Restore a settings backup now, or stage a full backup for the next start.\n\nEither way a safety backup comes first. A full restore is SQLite only and finishes when MyGarage\nrestarts. 503 while a secret setting is still stored as plaintext and can't be encrypted first,\nsince the safety backup would copy it.\n\n409 when a settings backup would leave sign-in set to SSO without usable SSO; nothing is\nrestored then.\n\nA settings restore that skipped secret keys (ciphertext no key in the keyring opens, or\nplaintext with no keyring to encrypt it) lists them in `details.skipped_secret_keys` and names\nthem in `warning`; those keys keep their current values.\n\nArgs:\n    filename: Name of the backup file to restore from\n    db: Database session\n\nReturns:\n    Success message with details about restore operation",
+        "description": "Restore a settings backup now, or stage a full backup for the next start.\n\nEither way a safety backup comes first. A full restore is SQLite only and finishes when MyGarage\nrestarts. 503 while a secret setting is still stored as plaintext and can't be encrypted first,\nsince the safety backup would copy it.\n\n409 when a settings backup would leave sign-in set to SSO without usable SSO; nothing is\nrestored then.\n\nA settings restore that skipped secret keys (ciphertext no key in the keyring opens, or\nplaintext with no keyring to encrypt it) lists them in `details.skipped_secret_keys` and names\nthem in `warning`; those keys keep their current values.\n\nA bad name is a 400 and a missing backup a 404, both checked before the preflight, so neither\nreads as a 503 while a secret can't be encrypted.\n\nArgs:\n    filename: Name of the backup file to restore from\n    db: Database session\n\nReturns:\n    Success message with details about restore operation",
         "operationId": "restore_backup_api_backup_restore__filename__post",
         "parameters": [
           {
@@ -46125,7 +45786,7 @@
     },
     "/api/settings/public": {
       "get": {
-        "description": "Get public settings (no authentication required).\n\nReturns only non-sensitive settings required for frontend initialization:\n- auth_mode: Authentication mode (local/oidc)\n- app_name: Application name\n- theme: UI theme preference\n- family_friends_enabled: garage section feature flag\n- the other feature flags and unit defaults every user's UI reads\n\nSecurity: This endpoint is intentionally public to allow frontend\ninitialization before login. All sensitive settings are excluded.",
+        "description": "The settings every client reads at start-up. Anyone may call it, signed in or not.\n\nNo login and no role check: the app reads it before it knows whether\nthere's a user, and non-admins read it after, since `GET /settings` is\nadmin-only. So it answers only the allowlisted rows that exist (auth_mode,\napp_name, theme, the feature switches, the unit and country defaults),\nnever a secret, plus two read-only computed entries:\n`effective_timezone`, the household zone in effect, and\n`document_upload_max_bytes`, the document upload cap.",
         "operationId": "get_public_settings_api_settings_public_get",
         "responses": {
           "200": {
@@ -46393,192 +46054,6 @@
         "summary": "Update Setting",
         "tags": [
           "Settings"
-        ]
-      }
-    },
-    "/api/shop-discovery/increment-usage/{shop_id}": {
-      "post": {
-        "description": "Increment usage count for a shop.\n\nCalled when creating service record with this shop.\n\nArgs:\n    shop_id: Address book entry ID\n    db: Database session\n    current_user: Authenticated user\n\nReturns:\n    None (204 No Content)\n\nRaises:\n    HTTPException: 404 if shop not found",
-        "operationId": "increment_shop_usage_api_shop_discovery_increment_usage__shop_id__post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "shop_id",
-            "required": true,
-            "schema": {
-              "title": "Shop Id",
-              "type": "integer"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Increment Shop Usage",
-        "tags": [
-          "Shop Discovery"
-        ]
-      }
-    },
-    "/api/shop-discovery/recommendations": {
-      "get": {
-        "description": "Get recommended shops based on usage history.\n\nArgs:\n    limit: Maximum number of recommendations (default: 5)\n    db: Database session\n    current_user: Authenticated user\n\nReturns:\n    ShopRecommendationsResponse with top shops by usage\n\nNotes:\n    - Only returns shops whose category is 'service' in any case (the\n      Address Book page stores 'Service'), ignoring surrounding spaces\n    - Sorted by usage_count DESC (most used first)\n    - Only includes shops that have been used at least once",
-        "operationId": "get_shop_recommendations_api_shop_discovery_recommendations_get",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "limit",
-            "required": false,
-            "schema": {
-              "default": 5,
-              "maximum": 50,
-              "minimum": 1,
-              "title": "Limit",
-              "type": "integer"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ShopRecommendationsResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Get Shop Recommendations",
-        "tags": [
-          "Shop Discovery"
-        ]
-      }
-    },
-    "/api/shop-discovery/save": {
-      "post": {
-        "description": "Save a discovered shop to the address book.\n\nArgs:\n    entry_data: Address book entry data\n    db: Database session\n    current_user: Authenticated user\n\nReturns:\n    Created AddressBookEntry\n\nNotes:\n    - Shop source should be set to 'tomtom' or 'osm'\n    - Category is stored as sent (none if omitted); the app sends the\n      Address Book chip for the POI type",
-        "operationId": "save_discovered_shop_api_shop_discovery_save_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AddressBookEntryCreate"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AddressBookEntryResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Save Discovered Shop",
-        "tags": [
-          "Shop Discovery"
-        ]
-      }
-    },
-    "/api/shop-discovery/search": {
-      "post": {
-        "description": "Search for nearby auto repair shops using TomTom or OSM.\n\nArgs:\n    search_request: Search parameters (latitude, longitude, radius)\n    db: Database session\n    current_user: Authenticated user\n\nReturns:\n    ShopSearchResponse with results from TomTom or OSM\n\nNotes:\n    - Tries TomTom API first (if configured)\n    - Falls back to OpenStreetMap if TomTom unavailable\n    - Returns empty results on error (graceful degradation)",
-        "operationId": "search_nearby_shops_api_shop_discovery_search_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ShopSearchRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ShopSearchResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Search Nearby Shops",
-        "tags": [
-          "Shop Discovery"
         ]
       }
     },

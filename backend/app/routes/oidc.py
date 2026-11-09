@@ -8,7 +8,6 @@ Provides endpoints for OIDC/OpenID Connect authentication flow:
 """
 
 import logging
-import secrets
 from datetime import timedelta
 from typing import Any
 
@@ -20,7 +19,6 @@ from pydantic import BaseModel, Field
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
-from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -28,7 +26,6 @@ from app.constants.oidc import SSO_ACCOUNT_DISABLED, SSOError
 from app.database import get_db
 from app.exceptions import OIDCLoginRefusedError, PendingLinkRequiredError, SSRFProtectionError
 from app.models.audit_log import USER_AGENT_MAX_LENGTH, AuditLog
-from app.models.csrf_token import CSRFToken
 from app.models.user import User
 from app.services import oidc as oidc_service
 from app.services.auth import create_access_token, get_current_admin_user
@@ -37,6 +34,7 @@ from app.services.auth_settings import (
     ensure_sso_mode_usable,
     lock_auth_settings,
 )
+from app.services.hashed_tokens import issue_csrf_token
 from app.services.oidc.config import (
     OIDC_CLIENT_SECRET_KEY,
     checked_redirect_uri,
@@ -586,22 +584,7 @@ async def oidc_callback(
         await _audit_login_refused(db, request, SSO_ACCOUNT_DISABLED, user.username)
         return _to_login(request, SSOError.ACCOUNT_DISABLED)
 
-    # Clean up expired CSRF tokens for this user
-    await db.execute(
-        delete(CSRFToken).where(
-            CSRFToken.user_id == user.id,
-            CSRFToken.expires_at <= utc_now(),
-        )
-    )
-
-    # Generate CSRF token (Security Enhancement v2.10.0)
-    csrf_token_value = secrets.token_urlsafe(48)  # 64-character token
-    csrf_token = CSRFToken(
-        token=csrf_token_value,
-        user_id=user.id,
-        expires_at=CSRFToken.get_expiry_time(),
-    )
-    db.add(csrf_token)
+    csrf_token_value = await issue_csrf_token(db, user.id)
     await db.commit()
 
     # Create MyGarage JWT token for the user with explicit expiration
@@ -674,7 +657,9 @@ async def test_oidc_connection(
     client_secret = test_request.client_secret
     if not client_secret or oidc_service.is_masked_secret(client_secret):
         stored = await SettingsService.get(db, OIDC_CLIENT_SECRET_KEY)
-        if stored is not None and stored.unreadable:
+        # One decrypt for both questions: can it be read, and what is it.
+        read = stored.decrypted() if stored is not None else None
+        if read is not None and read.unreadable:
             # Testing with "" would report a provider failure for what is a
             # local one; answer in the §5.4(4) envelope instead (R2-1).
             return OIDCTestResult(
@@ -682,7 +667,7 @@ async def test_oidc_connection(
                 error="secret_unreadable",
                 detail=reenter_message("OIDC client secret"),
             )
-        client_secret = (stored.value if stored is not None else None) or ""
+        client_secret = (read.plaintext if read is not None else None) or ""
 
     issuer_url = test_request.issuer_url.strip().rstrip("/")
 
@@ -796,22 +781,7 @@ async def link_oidc_account(
         await _audit_login_refused(db, request, SSO_ACCOUNT_DISABLED, user.username)
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=SSO_ACCOUNT_DISABLED)
 
-    # Clean up expired CSRF tokens for this user
-    await db.execute(
-        delete(CSRFToken).where(
-            CSRFToken.user_id == user.id,
-            CSRFToken.expires_at <= utc_now(),
-        )
-    )
-
-    # Generate CSRF token
-    csrf_token_value = secrets.token_urlsafe(48)  # 64-character token
-    csrf_token = CSRFToken(
-        token=csrf_token_value,
-        user_id=user.id,
-        expires_at=CSRFToken.get_expiry_time(),
-    )
-    db.add(csrf_token)
+    csrf_token_value = await issue_csrf_token(db, user.id)
     await db.commit()
 
     # Create JWT token for the user

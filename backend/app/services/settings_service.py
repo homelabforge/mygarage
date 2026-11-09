@@ -8,6 +8,22 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.settings import Setting
 
 
+def reenter_message(label: str) -> str:
+    """The advice shown when a stored secret can't be decrypted.
+
+    The one wording for it: the API's details and messages, the error below
+    and the logs that report one all use it.
+
+    Args:
+        label: What the secret is, for a person ("ntfy token", "MQTT password"),
+            or its setting key in a log.
+
+    Returns:
+        "The stored <label> can't be decrypted; re-enter it".
+    """
+    return f"The stored {label} can't be decrypted; re-enter it"
+
+
 class SecretUnreadableError(Exception):
     """A secret setting is configured, but its ciphertext can't be decrypted.
 
@@ -23,19 +39,7 @@ class SecretUnreadableError(Exception):
     def __init__(self, key: str) -> None:
         """Build the error for one setting key."""
         self.key = key
-        super().__init__(f"The stored {key} can't be decrypted; re-enter it")
-
-
-def reenter_message(label: str) -> str:
-    """The advice shown when a stored secret can't be decrypted.
-
-    Args:
-        label: What the secret is, for a person ("ntfy token", "MQTT password").
-
-    Returns:
-        "The stored <label> can't be decrypted; re-enter it".
-    """
-    return f"The stored {label} can't be decrypted; re-enter it"
+        super().__init__(reenter_message(key))
 
 
 #: What an on/off setting reads as on, after a strip and lower-casing (R5).
@@ -100,9 +104,10 @@ class SettingsService:
         setting = await SettingsService.get(db, key)
         if setting is None:
             return None
-        if setting.unreadable:
+        result = setting.decrypted()
+        if result.unreadable:
             raise SecretUnreadableError(key)
-        return setting.value
+        return result.plaintext
 
     @staticmethod
     async def get_bool(db: AsyncSession, key: str, default: bool = False) -> bool:

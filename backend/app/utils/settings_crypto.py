@@ -29,10 +29,15 @@ Keyring sources, in order; the first one present wins, even when it is broken:
 
 Each source holds one or more base64url-encoded 32-byte keys separated by commas
 or newlines. The first encrypts; the rest only decrypt, which is how a key is
-rotated. A source that is present but malformed (or a ``_FILE`` path that
-doesn't exist) makes the keyring unavailable. It never falls through to a
-lower-priority source, and never generates a key over a file that exists. An
-empty env var counts as unset.
+rotated. Two different keys with the same key id make the source malformed. A
+source that is present but malformed (or a ``_FILE`` path that doesn't exist)
+makes the keyring unavailable. It never falls through to a lower-priority
+source, and never generates a key over a file that holds anything. The one
+exception is the data dir's own ``settings.key`` holding nothing at all (zero
+bytes or only whitespace, as a crash between creating and writing it leaves):
+there's no key in it to lose, so a new one is written into it, with a WARNING.
+Not when it's a symlink, though: an empty target is reported like an empty
+``_FILE``, and the link is never replaced. An empty env var counts as unset.
 
 When the keyring is unavailable, ``encrypt`` raises ``SettingsKeyUnavailable``,
 legacy plaintext still reads, and ciphertext reads as unreadable. There is never
@@ -59,7 +64,7 @@ from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from app.config import settings
-from app.utils.secret_key import create_key_file
+from app.utils.secret_key import create_key_file, fill_after_create_race, fill_empty_key_file
 
 __all__ = [
     "CIPHERTEXT_PREFIX",
@@ -103,14 +108,36 @@ class SettingsKeyUnavailable(Exception):  # noqa: N818 - the name the plan and l
         reason: Why it isn't usable. Never contains key material.
     """
 
-    def __init__(self, source: str, reason: str) -> None:
-        """Build the exception from the source tried and why it failed."""
+    def __init__(self, source: str, reason: str, advice: str | None = None) -> None:
+        """Build the exception from the source tried, why it failed and how to fix it.
+
+        ``advice`` defaults to the usual fix for that source.
+        """
         self.source = source
         self.reason = reason
         super().__init__(
             f"The settings encryption key is unavailable ({source}: {reason}). "
-            f"{_fix_advice(source)}"
+            f"{advice or _fix_advice(source)}"
         )
+
+
+class SettingValueNotText(Exception):  # noqa: N818 - named like its neighbours
+    """A setting's value won't encode as UTF-8 (a lone surrogate), so it can't be stored.
+
+    The generic settings routes refuse it earlier through the value rules; the
+    model's setter and ``encrypt`` raise this for every other writer, the typed
+    routes included.
+    Not a ``ValueError``, so a route's own ``except ValueError`` can't turn it
+    into some other answer. Mapped to a 422. Carries the key name only.
+
+    Attributes:
+        key: The setting key that was being written.
+    """
+
+    def __init__(self, key: str) -> None:
+        """Build the error for one setting key."""
+        self.key = key
+        super().__init__(f"Setting '{key}' must be valid Unicode text")
 
 
 def _fix_advice(source: str) -> str:
@@ -173,6 +200,13 @@ class _Keyring:
 class _Unavailable:
     source: str
     reason: str
+    # Set when the source's usual fix is wrong for this reason.
+    own_advice: str | None = None
+
+    @property
+    def advice(self) -> str:
+        """How to fix it: its own advice, or the usual one for the source."""
+        return self.own_advice or _fix_advice(self.source)
 
 
 class _MalformedSourceError(ValueError):
@@ -210,6 +244,7 @@ def _parse_keys(source: str, text: str) -> _Keyring:
     if not entries:
         raise _MalformedSourceError("it holds no keys")
     keys: dict[str, AESGCM] = {}
+    seen: dict[str, tuple[int, bytes]] = {}
     kids: list[str] = []
     for position, entry in enumerate(entries, start=1):
         try:
@@ -221,13 +256,28 @@ def _parse_keys(source: str, text: str) -> _Keyring:
                 f"key {position} of {len(entries)} is not a base64url-encoded {_KEY_BYTES}-byte key"
             )
         kid = _kid_of(raw)
+        first = seen.setdefault(kid, (position, raw))
+        if first[1] != raw:
+            # A kid is only 32 bits, so two keys can share one. Merged, the second
+            # key's ciphertext would be tried against the first and read as unreadable.
+            raise _MalformedSourceError(
+                f"keys {first[0]} and {position} of {len(entries)} are different keys with "
+                "the same key id; replace one of them"
+            )
         kids.append(kid)
         keys.setdefault(kid, AESGCM(raw))
     return _Keyring(source=source, current_kid=kids[0], keys=keys)
 
 
-def _read_key_file(source: str, path: Path) -> _Keyring | _Unavailable:
-    """Load the keyring from a file that is expected to exist."""
+def _read_key_file(
+    source: str, path: Path, *, refill_empty: bool = False
+) -> _Keyring | _Unavailable:
+    """Load the keyring from a file that is expected to exist.
+
+    With ``refill_empty`` (the data dir's own file only), a file that holds
+    nothing gets a new key written into it first, unless it's a symlink: that
+    one is reported, never replaced.
+    """
     try:
         data = path.read_bytes()
     except FileNotFoundError:
@@ -238,27 +288,72 @@ def _read_key_file(source: str, path: Path) -> _Keyring | _Unavailable:
         text = data.decode("ascii")
     except UnicodeDecodeError:
         return _Unavailable(source, "the file is not ASCII text")
+    if refill_empty and not text.strip():
+        if path.is_symlink():
+            # Someone pointed it somewhere on purpose, like the _FILE variable, so
+            # the empty target is theirs to fill. Swapping the link for a new file
+            # would quietly leave their copy empty for good.
+            return _Unavailable(
+                source,
+                "it is a symlink to an empty file",
+                own_advice=(
+                    "Put a key in the file the symlink points to, or remove the link so one "
+                    "is generated."
+                ),
+            )
+        return _refill_empty_key_file(source, path)
     try:
         return _parse_keys(source, text)
     except _MalformedSourceError as e:
         return _Unavailable(source, str(e))
 
 
+def _new_key_text() -> str:
+    return _b64url_encode(os.urandom(_KEY_BYTES))
+
+
 def _generate_key_file(source: str, path: Path) -> _Keyring | _Unavailable:
     """Create the data-dir key file with a new key, then load it back from disk."""
+    candidate = _new_key_text()
     try:
-        create_key_file(path, _b64url_encode(os.urandom(_KEY_BYTES)) + "\n")
-    except FileExistsError:
-        # Another process created it first; whatever it wrote is the key now.
-        pass
+        try:
+            key = create_key_file(path, candidate + "\n")
+        except FileExistsError:
+            # Another process created it first. It may not have written yet, so fill
+            # it under the lock if it's still empty; otherwise its key is the key.
+            key = fill_after_create_race(path, candidate + "\n")
     except OSError as e:
         return _Unavailable(
             source, f"a new key file can't be created ({e.strerror or type(e).__name__})"
         )
-    else:
+    except UnicodeDecodeError:
+        key = None  # Something that isn't a key landed there; the read below says so.
+    if key == candidate:
         logger.warning(
             "Generated a new settings encryption key at %s. Keep a copy: without it, "
             "the secrets stored in this database can't be read.",
+            path,
+        )
+    return _read_key_file(source, path)
+
+
+def _refill_empty_key_file(source: str, path: Path) -> _Keyring | _Unavailable:
+    """Write a new key into the data-dir key file that holds nothing, then load it."""
+    candidate = _new_key_text()
+    try:
+        key = fill_empty_key_file(path, candidate + "\n")
+    except OSError as e:
+        return _Unavailable(
+            source,
+            f"the file is empty and a key can't be written ({e.strerror or type(e).__name__})",
+        )
+    except UnicodeDecodeError:
+        key = None  # Something that isn't a key landed there; the read below says so.
+    if key == candidate:
+        logger.warning(
+            "The settings encryption key file %s was empty, so a new key was written to it. "
+            "Any secrets saved under an earlier key can't be read: re-enter them, or put that "
+            "key back in the file as a second, comma-separated entry after the new one.",
             path,
         )
     return _read_key_file(source, path)
@@ -293,7 +388,7 @@ def _load() -> _Keyring | _Unavailable:
         return _generate_key_file(source, path)
     except OSError as e:
         return _Unavailable(source, f"the file can't be checked ({e.strerror or type(e).__name__})")
-    return _read_key_file(source, path)
+    return _read_key_file(source, path, refill_empty=True)
 
 
 def _get_keyring() -> _Keyring | _Unavailable:
@@ -324,7 +419,7 @@ def _get_keyring() -> _Keyring | _Unavailable:
                 "once; fixing it needs no restart.",
                 result.source,
                 result.reason,
-                _fix_advice(result.source),
+                result.advice,
             )
         return result
 
@@ -341,22 +436,27 @@ def encrypt(name: str, plaintext: str) -> str:
 
     Raises:
         SettingsKeyUnavailable: There is no usable keyring.
+        SettingValueNotText: ``plaintext`` won't encode as UTF-8.
     """
+    try:
+        raw = plaintext.encode("utf-8")
+    except UnicodeEncodeError:
+        raise SettingValueNotText(name) from None
     keyring = _get_keyring()
     if isinstance(keyring, _Unavailable):
-        raise SettingsKeyUnavailable(keyring.source, keyring.reason)
+        raise SettingsKeyUnavailable(keyring.source, keyring.reason, keyring.advice)
     nonce = os.urandom(_NONCE_BYTES)
-    sealed = keyring.keys[keyring.current_kid].encrypt(
-        nonce, plaintext.encode("utf-8"), name.encode("utf-8")
-    )
+    sealed = keyring.keys[keyring.current_kid].encrypt(nonce, raw, name.encode("utf-8"))
     return f"{CIPHERTEXT_PREFIX}{keyring.current_kid}:{_b64url_encode(nonce + sealed)}"
 
 
 def _unreadable(name: str, kid: str | None, why: str) -> DecryptResult:
     """Build an UNREADABLE result, logging once per (setting key, kid) per process."""
     marker = (name, kid)
-    if marker not in _unreadable_logged:
+    with _lock:
+        first = marker not in _unreadable_logged
         _unreadable_logged.add(marker)
+    if first:
         logger.warning(
             "Secret setting %s can't be decrypted (key id %s): %s. It reads as unset until "
             "the right key is added back to the keyring or the value is re-entered.",
@@ -439,7 +539,7 @@ def keyring_status() -> KeyringStatus:
     if isinstance(keyring, _Keyring):
         return KeyringStatus(kid=keyring.current_kid, source=None, advice=None)
     source = {ENV_KEY: "env", ENV_KEY_FILE: "env_file"}.get(keyring.source, "data_dir")
-    return KeyringStatus(kid=None, source=source, advice=_fix_advice(keyring.source))
+    return KeyringStatus(kid=None, source=source, advice=keyring.advice)
 
 
 def keyring_fix_advice() -> str | None:

@@ -26,7 +26,8 @@ class OIDCPendingLink(Base):
     - Short expiration (5 minutes default)
     - Limited password attempts (3 default)
     - One-time use (token deleted after successful link)
-    - Cryptographically random tokens
+    - Cryptographically random tokens, stored as their SHA-256 hex digest
+      (``app.services.hashed_tokens``); the browser holds the token itself
     """
 
     __tablename__ = "oidc_pending_links"

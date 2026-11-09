@@ -73,7 +73,7 @@ async def fuel_records_the_tests_reference(db_session: AsyncSession, test_vehicl
     await db_session.commit()
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_the_fixture_covers_every_fuel_source_id():
     """Guard on the fixture. A test added with a new fuel `source_id` would
@@ -90,7 +90,7 @@ async def test_the_fixture_covers_every_fuel_source_id():
     )
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 class TestOdometerSync:
     """Test odometer sync utility function."""

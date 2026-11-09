@@ -22,6 +22,7 @@ from sqlalchemy import Engine, Table, inspect, text
 import app.migrations as _m
 from app.models.dtc_definition import DTCDefinition
 from app.models.vehicle_dtc import VehicleDTC
+from tests._logged import CaplogOnly, problems
 
 pytestmark = pytest.mark.migrations
 
@@ -151,15 +152,6 @@ def _dump(engine: Engine) -> tuple[list[tuple[Any, ...]], list[tuple[Any, ...]]]
 
 def _errors(caplog: pytest.LogCaptureFixture) -> list[str]:
     return [r.getMessage() for r in caplog.records if r.levelno == logging.ERROR]
-
-
-def _not_corrected_has_traceback(caplog: pytest.LogCaptureFixture) -> list[bool]:
-    """One entry per "not corrected" ERROR: whether it carries the traceback."""
-    return [
-        r.exc_info is not None
-        for r in caplog.records
-        if r.levelno == logging.ERROR and _NOT_CORRECTED in r.getMessage()
-    ]
 
 
 def test_125_corrects_a_shifted_table(engine_for_migration: tuple[str, Engine, str]) -> None:
@@ -442,6 +434,7 @@ def test_125_swallows_a_bad_data_file(
     engine_for_migration: tuple[str, Engine, str],
     tmp_path: Path,
     caplog: pytest.LogCaptureFixture,
+    caplog_only: CaplogOnly,
     attr: str,
     case: str,
 ) -> None:
@@ -455,18 +448,22 @@ def test_125_swallows_a_bad_data_file(
         bad.write_text(content, encoding="utf-8")
     setattr(mod, attr, bad)
 
-    with caplog.at_level(logging.INFO):
+    with caplog.at_level(logging.INFO), caplog_only(mod.logger.name):
         mod.upgrade(engine)
 
     assert _description(engine, "P0300") == _SHIFTED_P0300
     assert _count(engine) == 1
-    assert _not_corrected_has_traceback(caplog) == [True]
+    (logged,) = problems(caplog, mod.logger.name)
+    assert logged.levelno == logging.ERROR
+    assert logged.getMessage().startswith(_NOT_CORRECTED)
+    assert logged.exc_info is not None
 
 
 @pytest.mark.parametrize("statement", ["_ENRICH", "_FILL_VEHICLE_DTCS"])
 def test_125_rolls_back_a_failure_after_the_writes_start(
     engine_for_migration: tuple[str, Engine, str],
     caplog: pytest.LogCaptureFixture,
+    caplog_only: CaplogOnly,
     statement: str,
 ) -> None:
     """The reset, the DELETE and the upsert have run when this fails; all of it rolls back."""
@@ -479,7 +476,7 @@ def test_125_rolls_back_a_failure_after_the_writes_start(
     mod = _load()
     setattr(mod, statement, text("UPDATE no_such_table SET x = 1"))
 
-    with caplog.at_level(logging.INFO):
+    with caplog.at_level(logging.INFO), caplog_only(mod.logger.name):
         mod.upgrade(engine)
 
     assert _description(engine, "P1000") == _MAKER_P1000
@@ -487,7 +484,10 @@ def test_125_rolls_back_a_failure_after_the_writes_start(
     assert _count(engine) == 2
     assert _vehicle_row(engine, "P0104") == (None, "warning")
     assert _vehicle_row(engine, "P0300") == (_SHIFTED_P0300, "warning")
-    assert _not_corrected_has_traceback(caplog) == [True]
+    (logged,) = problems(caplog, mod.logger.name)
+    assert logged.levelno == logging.ERROR
+    assert logged.getMessage().startswith(_NOT_CORRECTED)
+    assert logged.exc_info is not None
 
 
 def test_125_is_not_fatal() -> None:

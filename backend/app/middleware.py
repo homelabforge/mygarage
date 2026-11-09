@@ -24,6 +24,7 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from app.database import get_db_context
 from app.models.csrf_token import CSRFToken
+from app.services.hashed_tokens import hash_token
 from app.utils.datetime_utils import utc_now
 from app.utils.logging_utils import sanitize_for_log
 
@@ -211,9 +212,10 @@ class CSRFProtectionMiddleware:
 
         try:
             async with get_db_context() as db:
+                # The table holds digests, so the token itself never matches a row.
                 result = await db.execute(
                     select(CSRFToken).where(
-                        CSRFToken.token == csrf_token,
+                        CSRFToken.token == hash_token(csrf_token),
                         CSRFToken.expires_at > utc_now(),
                     )
                 )

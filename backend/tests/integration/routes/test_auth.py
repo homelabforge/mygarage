@@ -803,6 +803,7 @@ class TestSessionLifetime:
     async def test_login_csrf_expiry(self, client: AsyncClient, test_user, db_session):
         """Test CSRF token expiry matches configured lifetime."""
         from app.models.csrf_token import CSRFToken
+        from app.services.hashed_tokens import hash_token
         from app.utils.datetime_utils import utc_now
 
         response = await client.post(
@@ -813,7 +814,7 @@ class TestSessionLifetime:
 
         csrf_token_value = response.json()["csrf_token"]
         result = await db_session.execute(
-            select(CSRFToken).where(CSRFToken.token == csrf_token_value)
+            select(CSRFToken).where(CSRFToken.token == hash_token(csrf_token_value))
         )
         csrf_record = result.scalar_one()
 

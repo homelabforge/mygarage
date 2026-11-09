@@ -17,7 +17,12 @@ from app.services.notifications.pushover import PushoverNotificationService
 from app.services.notifications.slack import SlackNotificationService
 from app.services.notifications.telegram import TelegramNotificationService
 from app.services.settings_init import DEFAULT_SETTINGS
-from app.services.settings_service import SecretUnreadableError, SettingsService, parse_bool
+from app.services.settings_service import (
+    SecretUnreadableError,
+    SettingsService,
+    parse_bool,
+    reenter_message,
+)
 from app.utils.render_context import RenderContext
 from app.utils.unit_formatting import format_forced_volume_pair, format_quantity
 
@@ -172,10 +177,7 @@ class NotificationDispatcher:
                 # must stop here rather than read as blank (R1-M1).
                 api_key = await SettingsService.get_secret(self.db, "ntfy_token") or ""
             except SecretUnreadableError as e:
-                logger.error(
-                    "Skipping ntfy: the stored %s can't be decrypted; re-enter it in Settings",
-                    e.key,
-                )
+                logger.error("Skipping ntfy. %s in Settings", reenter_message(e.key))
             else:
                 if server and topic:
                     services.append(NtfyNotificationService(server, topic, api_key))

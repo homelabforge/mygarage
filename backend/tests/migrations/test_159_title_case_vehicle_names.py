@@ -7,6 +7,7 @@ import pytest
 from sqlalchemy import Engine, text
 
 import app.migrations as _m
+from tests._logged import problems
 
 pytestmark = pytest.mark.migrations
 
@@ -149,7 +150,9 @@ def test_a_missing_table_is_skipped(engine_for_migration):
 
 
 @pytest.mark.parametrize("engine_for_migration", ["sqlite", "pg"], indirect=True)
-def test_a_failing_table_is_logged_and_the_rest_still_runs(engine_for_migration):
+def test_a_failing_table_is_logged_and_the_rest_still_runs(
+    engine_for_migration, caplog, caplog_only
+):
     # external_vehicles without a model column: its SELECT fails inside the
     # savepoint, vehicles still commits, and nothing raises to stop the chain.
     _dialect, engine, _url = engine_for_migration
@@ -159,9 +162,13 @@ def test_a_failing_table_is_logged_and_the_rest_still_runs(engine_for_migration)
             text("CREATE TABLE external_vehicles (id INTEGER PRIMARY KEY, make VARCHAR(50))")
         )
 
-    _upgrade(engine)
+    with caplog_only(_NAME):
+        _upgrade(engine)
 
     assert _vehicles(engine)["JA3MIG15900000001"] == ("Mitsubishi", "Mirage")
+    (logged,) = problems(caplog, _NAME)
+    assert logged.getMessage() == "159: external_vehicles left as it was; the rewrite failed"
+    assert logged.exc_info is not None
 
 
 @pytest.mark.parametrize("engine_for_migration", ["sqlite", "pg"], indirect=True)

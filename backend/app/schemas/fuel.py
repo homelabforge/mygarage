@@ -23,8 +23,16 @@ validated against `FuelTypeEnum`.
 from datetime import date as date_type
 from datetime import datetime
 from decimal import Decimal
+from typing import Annotated
 
-from pydantic import BaseModel, Field, ValidationInfo, field_validator, model_validator
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    Field,
+    ValidationInfo,
+    field_validator,
+    model_validator,
+)
 
 from app.constants.fuel import (
     FUEL_GRADE_VALUES,
@@ -32,6 +40,7 @@ from app.constants.fuel import (
     PAYMENT_METHOD_VALUES,
     TRIP_TYPE_VALUES,
 )
+from app.schemas._figures import to_stored_tenth
 from app.schemas._money import OptionalMoney, OptionalUnitPrice
 from app.schemas._nullability import reject_null
 
@@ -77,7 +86,7 @@ def _validate_charge_location(v: str | None) -> str | None:
 
 
 DIESEL_GRADE_VALUES = ("onroad", "offroad")
-#: The two octane scales (B4): Research Octane Number, printed on European
+#: The two octane scales: Research Octane Number, printed on European
 #: pumps, and the (R+M)/2 Anti-Knock Index of North American ones.
 OCTANE_SCALE_VALUES = ("RON", "AKI")
 
@@ -94,7 +103,7 @@ def _validate_octane(v: int | None) -> int | None:
 
 
 def _validate_octane_scale(v: str | None) -> str | None:
-    """'RON' | 'AKI', case-insensitive; blank clears (B4).
+    """'RON' | 'AKI', case-insensitive; blank clears.
 
     Module-level like its siblings: the CSV/JSON importers construct rows
     outside Pydantic and run the same check per row.
@@ -110,7 +119,7 @@ def _validate_octane_scale(v: str | None) -> str | None:
 
 
 def _validate_diesel_grade(v: str | None) -> str | None:
-    """'onroad' | 'offroad' — the US clear-vs-dyed (farm) distinction."""
+    """'onroad' | 'offroad': the US clear-vs-dyed (farm) distinction."""
     if v is not None and v not in DIESEL_GRADE_VALUES:
         raise ValueError(f"diesel_grade must be one of {DIESEL_GRADE_VALUES}, got {v!r}")
     return v
@@ -240,7 +249,7 @@ class FuelRecordBase(BaseModel):
     odometer_km: Decimal | None = Field(
         None, description="Odometer reading in kilometers", ge=0, le=99999999.99
     )
-    engine_hours: Decimal | None = Field(
+    engine_hours: Annotated[Decimal | None, AfterValidator(to_stored_tenth)] = Field(
         None,
         description=(
             "Engine-hours reading at this fill-up (hour-metered vehicles). "
@@ -336,7 +345,7 @@ class FuelRecordBase(BaseModel):
     is_hauling: bool = Field(False, description="Vehicle was towing/hauling during this fuel cycle")
     notes: str | None = Field(None, description="Additional notes")
 
-    # Issue #69 — extended fuel tracking
+    # Issue #69: extended fuel tracking
     station_address_book_id: int | None = Field(
         None,
         description=(
@@ -412,7 +421,7 @@ class FuelRecordCreate(FuelRecordBase):
     vin: str = Field(..., description="Vehicle VIN", min_length=17, max_length=17)
     def_fill_level: Decimal | None = Field(
         None,
-        description="DEF tank level (0.00=empty, 1.00=full) — auto-creates a DEF observation",
+        description="DEF tank level (0.00=empty, 1.00=full); auto-creates a DEF observation",
         ge=Decimal("0.00"),
         le=Decimal("1.00"),
     )
@@ -510,7 +519,7 @@ class FuelRecordCreate(FuelRecordBase):
             refill (see ``is_tank_refill`` below).
           - At least one of ``liters``, ``propane_liters``, ``kwh``, or
             the propane ``tank_size_kg`` + ``tank_quantity`` pair is
-            required, EXCEPT when ``missed_fillup=True`` — that's the
+            required, EXCEPT when ``missed_fillup=True``; that's the
             explicit "I noticed the odometer but I don't have the
             fuel amount" escape hatch.
 
@@ -563,7 +572,7 @@ class FuelRecordUpdate(BaseModel):
     odometer_km: Decimal | None = Field(
         None, description="Odometer reading in kilometers", ge=0, le=99999999.99
     )
-    engine_hours: Decimal | None = Field(
+    engine_hours: Annotated[Decimal | None, AfterValidator(to_stored_tenth)] = Field(
         None,
         description="Engine-hours reading at this fill-up (hour-metered vehicles)",
         ge=0,
@@ -608,7 +617,7 @@ class FuelRecordUpdate(BaseModel):
         description="Actual fuel dispensed (canonical enum)",
         max_length=20,
     )
-    # #164 — same shape as on FuelRecordBase; validators wired below.
+    # #164: same shape as on FuelRecordBase; validators wired below.
     octane: int | None = Field(
         None, description="Octane rating for gasoline/E85 fill-ups (AKI or RON)"
     )
@@ -635,12 +644,12 @@ class FuelRecordUpdate(BaseModel):
     notes: str | None = Field(None, description="Additional notes")
     def_fill_level: Decimal | None = Field(
         None,
-        description="DEF tank level (0.00=empty, 1.00=full) — auto-creates a DEF observation",
+        description="DEF tank level (0.00=empty, 1.00=full); auto-creates a DEF observation",
         ge=Decimal("0.00"),
         le=Decimal("1.00"),
     )
 
-    # Issue #69 — extended fuel tracking
+    # Issue #69: extended fuel tracking
     station_address_book_id: int | None = Field(None, ge=1)
     station_name_freetext: str | None = Field(None, max_length=150)
     one_time_visit: bool | None = Field(
@@ -847,7 +856,7 @@ class FuelRecordResponse(FuelRecordBase):
         None,
         description=(
             "Resolved station name for display: the linked address-book entry's "
-            "business_name, else station_name_freetext. Read-only — write via "
+            "business_name, else station_name_freetext. Read-only; write via "
             "station_address_book_id / station_name_freetext (issue #108)."
         ),
     )
@@ -919,7 +928,7 @@ class FuelRecordListResponse(BaseModel):
 
 
 class ObcSuggestionResponse(BaseModel):
-    """OBC auto-suggest payload — returned for `GET /api/vehicles/{vin}/fuel/obc-suggestion`."""
+    """OBC auto-suggest payload, returned for `GET /api/vehicles/{vin}/fuel/obc-suggestion`."""
 
     session_id: int = Field(..., description="DriveSession.id used for the suggestion")
     ended_at: datetime = Field(..., description="When the matched DriveSession ended")
@@ -945,7 +954,7 @@ class FuelReceiptDraft(BaseModel):
 
 
 class FuelReceiptParseResponse(BaseModel):
-    """Response for opt-in LLM receipt parse — draft only."""
+    """Response for opt-in LLM receipt parse (a draft only)."""
 
     draft: FuelReceiptDraft
     source: str = "llm"

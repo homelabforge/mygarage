@@ -23,9 +23,11 @@ from httpx import AsyncClient
 from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models import settings as settings_model
 from app.models.settings import Setting
-from app.utils.settings_crypto import encrypt
+from app.utils.settings_crypto import DecryptResult, encrypt
 from tests.integration._secret_helpers import (
+    REENTER,
     Keep,
     raw_column,
     read_back,
@@ -36,7 +38,6 @@ from tests.integration._secret_helpers import (
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
 PLACEHOLDER = "********"
-REENTER = "can't be decrypted; re-enter it"
 
 
 # ------------------------------------------------------------------ settings GET
@@ -291,6 +292,41 @@ async def test_the_oidc_test_route_stops_on_an_unreadable_stored_secret(
         assert response.json()["ok"] is True, response.text
         probe.assert_called_once()
         assert probe.call_args.args[0]["client_secret"] == "typed-secret"
+
+
+async def test_the_oidc_test_route_decrypts_the_stored_secret_once(
+    client: AsyncClient, auth_headers, db_session: AsyncSession, keep_rows: Keep
+) -> None:
+    """Asking "unreadable?" and then for the value used to open the ciphertext twice."""
+    await seed_rows(
+        db_session, keep_rows, {"oidc_client_secret": encrypt("oidc_client_secret", "s3")}
+    )
+    probe = AsyncMock(return_value={"success": True, "metadata": {"issuer": "x"}})
+    real_decrypt = settings_model.decrypt
+    opened: list[str] = []
+
+    def counted(name: str, stored: str) -> DecryptResult:
+        if name == "oidc_client_secret":
+            opened.append(name)
+        return real_decrypt(name, stored)
+
+    with (
+        patch("app.services.oidc.test_oidc_connection", probe),
+        patch.object(settings_model, "decrypt", counted),
+    ):
+        response = await client.post(
+            "/api/auth/oidc/test",
+            headers=auth_headers,
+            json={
+                "issuer_url": "https://auth.example.com",
+                "client_id": "test-id",
+                "client_secret": PLACEHOLDER,
+            },
+        )
+
+    assert response.json()["ok"] is True, response.text
+    assert probe.call_args.args[0]["client_secret"] == "s3"
+    assert len(opened) == 1
 
 
 async def test_the_mqtt_get_reports_an_unreadable_password_as_configured(

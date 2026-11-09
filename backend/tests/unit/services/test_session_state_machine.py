@@ -609,6 +609,7 @@ class TestDrivingAndStopped:
 
         sessions = await _all_sessions(db_session, device.device_id)
         assert len(sessions) == 2
+        assert sessions[0].ended_at is not None
         assert sessions[1].started_at >= sessions[0].ended_at, (
             f"session 2 starts at {sessions[1].started_at}, inside session 1's "
             f"window which ends at {sessions[0].ended_at}"

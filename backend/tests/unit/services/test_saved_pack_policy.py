@@ -85,7 +85,7 @@ def _pack(creator_id: int | None) -> ReminderPack:
     )
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 class TestWhoMayChangeAPack:
     def test_with_auth_disabled_everyone_may(self):
         """`auth_mode='none'` is supported and `require_auth` returns None in it,
@@ -110,7 +110,7 @@ class TestWhoMayChangeAPack:
         assert may_edit(_pack(None), pack_admin) is True
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 class TestWhatAPackMayContain:
     def test_a_typeless_rule_is_refused(self):
         rule = MaintenanceRule(vin=OWNER_VIN, title="Check the winch", maintenance_type=None)
@@ -128,7 +128,7 @@ class TestWhatAPackMayContain:
         assert unsavable_reason(rule, set()) is None
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 class TestAWronglyShapedVehicleTypesColumn:
     """`vehicle_types` is a JSON column, so a hand-edited row can hand the
     service any JSON value, not just a list of strings. Anything that is not a
@@ -157,7 +157,7 @@ class TestAWronglyShapedVehicleTypesColumn:
         assert _vehicle_types(row) == ["Truck", "Boat"]
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 class TestTheCustomNamespace:
     def test_no_shipped_pack_could_collide_with_a_saved_one(self):
         """The `custom-` prefix is what makes a collision impossible rather than
@@ -180,7 +180,7 @@ class TestTheCustomNamespace:
         assert custom_pack_id("Truck & Trailer Standard") == "custom-truck-trailer-standard"
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 class TestPublishingNeedsWriteAccess:
     async def test_a_read_share_cannot_publish_the_owners_schedule(

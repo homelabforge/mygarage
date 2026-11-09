@@ -20,12 +20,13 @@ import { isSettingOn } from '@/utils/settingSwitch'
 import { useAuth } from '@/contexts/AuthContext'
 import { familyService } from '@/services/familyService'
 import type { FamilyMemberData } from '@/types/family'
-import type { User } from '@/types/user'
+import type { components } from '@/types/api.generated'
 import FamilyMemberCard from '@/components/FamilyMemberCard'
 import AddEditUserModal from '@/components/modals/AddEditUserModal'
 import DeleteUserModal from '@/components/modals/DeleteUserModal'
 import LocalAuthModal from '@/components/modals/LocalAuthModal'
 
+type User = components['schemas']['UserResponse']
 type RawSetting = { key: string; value?: string | null }
 
 interface FamilyManagementModalProps {

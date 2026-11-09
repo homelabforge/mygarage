@@ -96,7 +96,7 @@ async def _isolated_rows(db_session: AsyncSession):
     await _clear(db_session)
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 class TestSettingsRestoreValidatesDefaultUnitPrefs:
     """The restore loop applies the same rule the settings routes apply."""
@@ -163,7 +163,7 @@ class TestSettingsRestoreValidatesDefaultUnitPrefs:
         assert details["restored_count"] == 2
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_a_settings_name_outside_the_backup_folder_is_not_read(
     db_session: AsyncSession, tmp_path: Path
@@ -213,7 +213,7 @@ async def pinned_redirect_uri(db_session: AsyncSession) -> AsyncIterator[None]:
     await db_session.commit()
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("pinned_redirect_uri")
 class TestSettingsRestoreValidatesOidcRedirectUri:
@@ -255,7 +255,8 @@ class TestSettingsRestoreValidatesOidcRedirectUri:
             if r.name == "app.services.backup_service" and r.levelno == logging.WARNING
         ]
         assert warnings == [
-            f"Skipping {REDIRECT_URI_KEY} during restore: not a blank or absolute http(s) URL"
+            f"Skipping {REDIRECT_URI_KEY} during restore: "
+            "must be blank or an absolute http(s) URL with no #fragment"
         ]
 
     @pytest.mark.parametrize(
@@ -283,7 +284,7 @@ class TestSettingsRestoreValidatesOidcRedirectUri:
 
 
 # A restore also round-trips keys the generic API refuses, so the value rules
-# the API applies are applied here per row (PR 0: O-T1, G3b-20).
+# the API applies are applied here per row.
 _RULED_KEYS = ("livelink_telemetry_retention_days", "oidc_link_token_expire_minutes")
 
 
@@ -300,7 +301,7 @@ async def ruled_rows(db_session: AsyncSession, keep_rows) -> AsyncIterator[None]
     yield
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("ruled_rows")
 class TestSettingsRestoreAppliesTheValueRules:
@@ -368,7 +369,7 @@ class TestSettingsRestoreAppliesTheValueRules:
     async def test_a_json_switch_is_stored_as_the_lowercase_word(
         self, db_session: AsyncSession, tmp_path: Path, keep_rows
     ) -> None:
-        """`LiveLinkService.is_enabled` matches exactly "true", so `str(True)` would read as off."""
+        """Stored switches are canonical "true"/"false", so a JSON true can't land as `str(True)`."""
         await keep_rows("livelink_enabled")
         service = _service(tmp_path)
         filename = _write_backup(
@@ -415,13 +416,13 @@ _SWITCH_KEY = "nhtsa_enabled"
 _NON_SWITCH_KEY = "auto_archive_inactive_days"
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 class TestSettingsRestoreCanonicalizesSwitches:
-    """The restore stores a switch the way the settings routes do (batch 5, D5a)."""
+    """The restore stores a switch the way the settings routes do."""
 
     async def _restore_one(
-        self, db_session: AsyncSession, tmp_path: Path, keep_rows, key: str, raw: str
+        self, db_session: AsyncSession, tmp_path: Path, keep_rows, key: str, raw: object
     ) -> dict[str, object]:
         """Restore a file holding just `key` = `raw`; the original row goes back afterwards."""
         await keep_rows(key)
@@ -440,13 +441,33 @@ class TestSettingsRestoreCanonicalizesSwitches:
         assert await _stored(db_session, _SWITCH_KEY) == stored
         assert details["restored_count"] == 1
 
-    async def test_an_unrecognised_switch_value_is_restored_as_found(
+    @pytest.mark.parametrize(
+        ("raw", "stored"),
+        [
+            pytest.param(1, "true", id="json-1"),
+            pytest.param(True, "true", id="json-true"),
+            pytest.param(0, "false", id="json-0"),
+            pytest.param(False, "false", id="json-false"),
+        ],
+    )
+    async def test_a_json_number_or_bool_on_a_switch_is_stored_canonically(
+        self, db_session: AsyncSession, tmp_path: Path, keep_rows, raw: object, stored: str
+    ) -> None:
+        """The JSON coercion and the switch tidy-up run one after the other: a 1
+        becomes "1" first, then "true", not a "1" left for the readers."""
+        details = await self._restore_one(db_session, tmp_path, keep_rows, _SWITCH_KEY, raw)
+
+        assert await _stored(db_session, _SWITCH_KEY) == stored
+        assert details["restored_count"] == 1
+
+    async def test_an_unrecognised_switch_value_is_restored_as_false(
         self, db_session: AsyncSession, tmp_path: Path, keep_rows
     ) -> None:
-        """Regression guard, passes on main too: "maybe" is not skipped or rewritten."""
+        """A pre-160 backup can hold junk; it read as off, so it comes back as "false"
+        rather than being skipped by the switch rule."""
         details = await self._restore_one(db_session, tmp_path, keep_rows, _SWITCH_KEY, "maybe")
 
-        assert await _stored(db_session, _SWITCH_KEY) == "maybe"
+        assert await _stored(db_session, _SWITCH_KEY) == "false"
         assert details["restored_count"] == 1
 
     async def test_a_non_switch_key_keeps_a_switch_like_value(
@@ -479,7 +500,7 @@ async def _llm_rows(db_session: AsyncSession):
     await db_session.commit()
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 class TestSettingsRestoreValidatesLlmRows:
     @pytest.mark.parametrize(
@@ -530,3 +551,86 @@ class TestSettingsRestoreValidatesLlmRows:
         assert await _stored(db_session, LLM_URL_KEY) == "https://openrouter.ai/api/v1"
         assert await _stored(db_session, LLM_PRESET_KEY) == "openrouter"
         assert details["restored_count"] == 3
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_a_bad_time_zone_is_skipped_with_the_rule_message(
+    db_session: AsyncSession, tmp_path: Path, keep_rows, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Same rule and wording as the settings routes now, not a copy of its own."""
+    await keep_rows("timezone")
+    await db_session.execute(delete(Setting).where(Setting.key == "timezone"))
+    db_session.add(Setting(key="timezone", value="Europe/London", category="general"))
+    await db_session.commit()
+    service = _service(tmp_path)
+    filename = _write_backup(
+        service,
+        [
+            {"key": "timezone", "value": "Mars/Olympus_Mons", "category": "general"},
+            {"key": COMPANION_KEY, "value": "restored", "category": "general"},
+        ],
+    )
+
+    with caplog.at_level(logging.WARNING, logger="app.services.backup_service"):
+        details = await service.restore_settings_backup(filename, db_session, create_safety=False)
+
+    assert await _stored(db_session, "timezone") == "Europe/London"
+    assert await _stored(db_session, COMPANION_KEY) == "restored"
+    assert details["restored_count"] == 1
+    assert "Skipping timezone during restore: must be a valid IANA time zone name" in [
+        r.getMessage() for r in caplog.records if r.name == "app.services.backup_service"
+    ]
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_text_that_cannot_be_stored_is_skipped(
+    db_session: AsyncSession, tmp_path: Path, keep_rows, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A lone surrogate in the file made the driver choke mid-restore."""
+    await keep_rows("ntfy_topic")
+    service = _service(tmp_path)
+    filename = _write_backup(
+        service,
+        [
+            {"key": "ntfy_topic", "value": "a\ud800b", "category": "notifications"},
+            {"key": COMPANION_KEY, "value": "restored", "category": "general"},
+        ],
+    )
+
+    with caplog.at_level(logging.WARNING, logger="app.services.backup_service"):
+        details = await service.restore_settings_backup(filename, db_session, create_safety=False)
+
+    assert await _stored(db_session, COMPANION_KEY) == "restored"
+    assert details["restored_count"] == 1
+    assert "Skipping ntfy_topic during restore: must be valid Unicode text" in [
+        r.getMessage() for r in caplog.records if r.name == "app.services.backup_service"
+    ]
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_the_retired_map_keys_are_not_restored(
+    db_session: AsyncSession, tmp_path: Path, keep_rows
+) -> None:
+    """Migration 160 dropped them; an old backup would just put them back."""
+    retired = ("google_maps_api_key", "geoapify_api_key", "mapbox_api_key")
+    await keep_rows(*retired)
+    await db_session.execute(delete(Setting).where(Setting.key.in_(retired)))
+    await db_session.commit()
+    service = _service(tmp_path)
+    filename = _write_backup(
+        service,
+        [
+            *({"key": key, "value": "", "category": "poi"} for key in retired),
+            {"key": COMPANION_KEY, "value": "restored", "category": "general"},
+        ],
+    )
+
+    details = await service.restore_settings_backup(filename, db_session, create_safety=False)
+
+    for key in retired:
+        assert await _stored(db_session, key) is None, key
+    assert await _stored(db_session, COMPANION_KEY) == "restored"
+    assert details["restored_count"] == 1

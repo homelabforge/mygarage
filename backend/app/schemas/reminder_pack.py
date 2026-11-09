@@ -12,9 +12,19 @@ from __future__ import annotations
 
 import re
 from decimal import Decimal
+from typing import Annotated
 
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    AfterValidator,
+    AliasChoices,
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_validator,
+    model_validator,
+)
 
+from app.schemas._figures import to_stored_positive_tenth
 from app.schemas.maintenance import (
     AnchorChoice,
     IntervalOverride,
@@ -96,7 +106,7 @@ class ReminderPackItem(BaseModel):
     interval_days: int | None = Field(
         None, gt=0, validation_alias=AliasChoices("interval_days", "due_date_offset_days")
     )
-    interval_hours: Decimal | None = Field(
+    interval_hours: Annotated[Decimal | None, AfterValidator(to_stored_positive_tenth)] = Field(
         None, gt=0, validation_alias=AliasChoices("interval_hours", "due_hours")
     )
     #: v1 field, accepted and ignored: the type is derived from the intervals.

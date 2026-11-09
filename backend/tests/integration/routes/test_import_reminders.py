@@ -159,7 +159,7 @@ async def test_an_imported_reminder_stores_both_readings(
     )
 
 
-async def test_a_one_time_legacy_reminder_keeps_its_due_date_and_mileage(  # D7
+async def test_a_one_time_legacy_reminder_keeps_its_due_date_and_mileage(
     client: AsyncClient, non_admin_headers, non_admin_user, db_session: AsyncSession
 ):
     vin = await _seed_vehicle(db_session, non_admin_user["id"], "5NPE24AF0FH216105")
@@ -194,7 +194,7 @@ async def test_a_one_time_legacy_reminder_keeps_its_due_date_and_mileage(  # D7
     assert reminder.due_mileage_km == Decimal("51499.01")  # 32,000 mi; main: None
 
 
-async def test_a_recurring_row_with_no_interval_is_refused(  # Codex R1-M2
+async def test_a_recurring_row_with_no_interval_is_refused(
     client: AsyncClient, non_admin_headers, non_admin_user, db_session: AsyncSession
 ):
     vin = await _seed_vehicle(db_session, non_admin_user["id"], "5NPE24AF0FH216106")
@@ -215,7 +215,7 @@ async def test_a_recurring_row_with_no_interval_is_refused(  # Codex R1-M2
     assert reminder.title == "Plates"  # main: 2 rows, one never due
 
 
-async def test_a_completed_legacy_reminder_imports_as_done(  # D8
+async def test_a_completed_legacy_reminder_imports_as_done(
     client: AsyncClient, non_admin_headers, non_admin_user, db_session: AsyncSession
 ):
     vin = await _seed_vehicle(db_session, non_admin_user["id"], "5NPE24AF0FH216107")
@@ -304,7 +304,8 @@ async def test_a_due_point_the_api_refuses_fails(
         },
     )
     assert data["reminders"]["success_count"] == 0, data
-    # The row's own mileage is rounded before its bounds check, so it shows the stored figure.
+    # The row's own mileage is rounded before its bounds check, so the message shows the figure
+    # we'd have stored. Nothing is stored: the row is refused.
     assert "Reminder 0: due_mileage_km must be more than 0, not -5.00" in data["errors"], data
     assert (
         "Reminder 1: due_mileage_km must be at most 99999999.99, not 100000999.00" in data["errors"]
@@ -425,11 +426,11 @@ async def test_a_blank_due_date_imports_on_the_mileage(
     )
 
 
-async def test_a_repeating_legacy_reminder_keeps_its_exported_due_point(  # S3-02, J3
+async def test_a_repeating_legacy_reminder_keeps_its_exported_due_point(
     client: AsyncClient, non_admin_headers, non_admin_user, db_session: AsyncSession
 ):
-    """Due at 45,000 mi with the odometer at 43,000: R8 would count 5,000 mi on from
-    43,000 and land 3,000 mi late. 45,000 mi is 72,420.48 km."""
+    """Due at 45,000 mi with the odometer at 43,000: counting 5,000 mi on from
+    43,000 would land 3,000 mi late. 45,000 mi is 72,420.48 km."""
     vin = await _seed_vehicle(db_session, non_admin_user["id"], "5NPE24AF0FH216113")
     due = (household_today() + timedelta(days=30)).isoformat()
     data = await _import(
@@ -462,7 +463,7 @@ async def test_a_repeating_legacy_reminder_keeps_its_exported_due_point(  # S3-0
     )
 
 
-async def test_a_date_and_mileage_interval_with_no_reading_warns_that_it_kept_the_date(  # D9
+async def test_a_date_and_mileage_interval_with_no_reading_warns_that_it_kept_the_date(
     client: AsyncClient, non_admin_headers, non_admin_user, db_session: AsyncSession
 ):
     vin = await _seed_vehicle(db_session, non_admin_user["id"], "5NPE24AF0FH216114")
@@ -513,7 +514,7 @@ _METRIC = {"export_version": "3", "units": "metric"}
     ],
     ids=["metric-snan", "metric-1e26", "legacy-snan", "legacy-1e26", "metric-abc", "legacy-abc"],
 )
-async def test_a_due_mileage_that_cannot_be_rounded_gets_the_bounds_message(  # S3-03
+async def test_a_due_mileage_that_cannot_be_rounded_gets_the_bounds_message(
     client: AsyncClient,
     non_admin_headers,
     non_admin_user,
@@ -539,7 +540,7 @@ async def test_a_due_mileage_that_cannot_be_rounded_gets_the_bounds_message(  # 
     assert data["errors"] == [f"Reminder 0: {reason}"], data
 
 
-async def test_reimporting_a_backup_does_not_double_its_notes_or_reminders(  # N-1
+async def test_reimporting_a_backup_does_not_double_its_notes_or_reminders(
     client: AsyncClient, non_admin_headers, non_admin_user, db_session: AsyncSession
 ):
     vin = await _seed_vehicle(db_session, non_admin_user["id"], "5NPE24AF0FH216115")
@@ -617,7 +618,7 @@ async def test_a_reimport_matches_a_due_mileage_stored_off_the_cent(
     assert len(await _reminders(db_session, vin)) == 1
 
 
-async def test_a_note_needs_content_but_not_a_title(  # S1d-07
+async def test_a_note_needs_content_but_not_a_title(
     client: AsyncClient, non_admin_headers, non_admin_user, db_session: AsyncSession
 ):
     vin = await _seed_vehicle(db_session, non_admin_user["id"], "5NPE24AF0FH216116")
@@ -646,7 +647,7 @@ async def test_a_note_needs_content_but_not_a_title(  # S1d-07
 async def test_a_note_title_is_keyed_only_when_the_row_has_one_and_blank_is_null(
     client: AsyncClient, non_admin_headers, non_admin_user, db_session: AsyncSession
 ):
-    """T-16: a note with no title key matches a stored note that has one; "" stores NULL (F-7)."""
+    """A note with no title key matches a stored note that has one; "" stores NULL."""
     vin = await _seed_vehicle(db_session, non_admin_user["id"], "5NPE24AF0FH216128")
     db_session.add(Note(vin=vin, date=date(2026, 1, 9), title="Tyres", content="Rotated"))
     await db_session.commit()
@@ -674,7 +675,7 @@ async def test_a_note_title_is_keyed_only_when_the_row_has_one_and_blank_is_null
 async def test_a_note_title_that_is_not_text_is_a_row_error(
     client: AsyncClient, non_admin_headers, non_admin_user, db_session: AsyncSession
 ):
-    """R2: the file's own bad type is the row's error. PostgreSQL would refuse it anyway."""
+    """The file's own bad type is the row's error. PostgreSQL would refuse it anyway."""
     vin = await _seed_vehicle(db_session, non_admin_user["id"], "5NPE24AF0FH216129")
     data = await _import(
         client,

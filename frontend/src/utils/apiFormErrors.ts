@@ -1,26 +1,35 @@
 import type { FieldValues, UseFormSetError, Path } from 'react-hook-form'
-import { parseApiError } from '@/utils/httpErrorHandler'
-import type { FieldProblem } from '@/utils/apiValidation'
+import { parseApiError } from './httpErrorHandler'
+import type { ParsedApiError } from './httpErrorHandler'
+import type { FieldProblem } from './apiValidation'
 
-export interface ApplyResult {
+interface FieldSplit {
   /** Problems attached to a control the user can see. */
   attached: FieldProblem[]
-  /** Problems with nowhere to go — the caller MUST surface these itself. */
+  /** Problems with nowhere to go: the caller MUST surface these itself. */
   unhandled: FieldProblem[]
+}
+
+export interface ApplyResult extends FieldSplit {
+  /**
+   * The failed request, parsed once. Build the banner from it with
+   * `actionErrorMessage` rather than parsing the error a second time.
+   */
+  parsed: ParsedApiError
 }
 
 /**
  * Split a failed request's field problems into ones matching a rendered
  * control ("attached") vs everything else ("unhandled"). Shared by the two
- * split-application paths below — react-hook-form's `setFieldError` and a
- * controlled form's own `Record<field, message>` state — so both use the
+ * split-application paths below (react-hook-form's `setFieldError` and a
+ * controlled form's own `Record<field, message>` state), so both use the
  * exact same matching rule instead of two independently-maintained copies.
  *
  * Matching is exact-string on the field name. Nested react-hook-form paths
  * like `items.0.qty` will only attach if the caller enumerates that exact
- * expanded path — otherwise they route to `unhandled` for the caller's toast.
+ * expanded path; otherwise they route to `unhandled` for the caller's toast.
  */
-function splitFieldProblems(fieldErrors: FieldProblem[], knownFields: readonly string[]): ApplyResult {
+function splitFieldProblems(fieldErrors: FieldProblem[], knownFields: readonly string[]): FieldSplit {
   const attached: FieldProblem[] = []
   const unhandled: FieldProblem[] = []
   for (const problem of fieldErrors) {
@@ -49,12 +58,12 @@ export function applyServerErrors<T extends FieldValues>(
   error: unknown,
   knownFields: ReadonlyArray<Path<T>>
 ): ApplyResult {
-  const { fieldErrors } = parseApiError(error)
-  const result = splitFieldProblems(fieldErrors, knownFields)
+  const parsed = parseApiError(error)
+  const result = splitFieldProblems(parsed.fieldErrors, knownFields)
   for (const problem of result.attached) {
     setFieldError(problem.field as Path<T>, { type: 'server', message: problem.message })
   }
-  return result
+  return { ...result, parsed }
 }
 
 /**
@@ -63,7 +72,7 @@ export function applyServerErrors<T extends FieldValues>(
  * `Record<field, message>` instead of calling an RHF `setFieldError`.
  *
  * The caller owns showing the banner: `attached.length === 0 ||
- * unhandled.length > 0` mirrors the RHF-side gate (Task 9) — a 422 that
+ * unhandled.length > 0` mirrors the RHF-side gate: a 422 that
  * matches nothing, or leaves a problem unmapped, must still surface
  * SOMETHING, or it writes to state, renders nothing, and suppresses the
  * banner too (the exact silent-failure bug this function exists to close).
@@ -72,10 +81,10 @@ export function applyControlledFieldErrors(
   error: unknown,
   knownFields: readonly string[]
 ): ApplyResult & { errorsByField: Record<string, string> } {
-  const { fieldErrors } = parseApiError(error)
-  const result = splitFieldProblems(fieldErrors, knownFields)
+  const parsed = parseApiError(error)
+  const result = splitFieldProblems(parsed.fieldErrors, knownFields)
   const errorsByField = Object.fromEntries(result.attached.map((p) => [p.field, p.message]))
-  return { ...result, errorsByField }
+  return { ...result, parsed, errorsByField }
 }
 
 /**

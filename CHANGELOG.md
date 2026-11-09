@@ -13,6 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Make and model pickers with brand logos in Add Vehicle and the reference vehicle form (#219, thanks @marcomatrella)
 
 ### Changed
+- **BREAKING (API):** the legacy `/api/shop-discovery` routes are gone; use `/api/poi`
+- Engine hours round to one decimal everywhere, like tires and brakes
+- A vehicle's current hours are capped at 999,999,999.9; a bigger value used to be stored and then broke its reminders
+- CSRF tokens and pending SSO links are stored hashed; you may need to sign in again after the upgrade if you're mid-link
+- `DELETE /api/settings/{key}` answers 422 for a key the settings API can't write, like a save does
 - Makes and models are saved in Title Case, so HONDA reads Honda and MERCEDES-BENZ reads Mercedes-Benz. Migration 159 rewrites the ones already stored
 - New installs start with a blank ntfy topic instead of the shared `mygarage`, since anyone who knows a topic can read it on ntfy.sh
 - The sign-in key file follows `MYGARAGE_DATA_DIR`; a key already at /data/secret.key is copied over, so nobody is signed out
@@ -27,6 +32,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A setting the server refuses is named in the save message.
 - PDF tables fit the page, a cut description ends in "…", and the hours PDF fills its Source column.
 - The backup refusal and the Settings banner name the encryption key setting that is actually broken.
+- Error messages say "not found", "no permission" or "session expired" instead of "check your input", and show the server's reason on a 503.
+- Creating a widget API key shows the real error.
+- A failed photo edit, service visit delete or vehicle export or import shows one error line instead of a title over the same message.
+- An empty settings key file (left by a crash on first start) gets a new key instead of leaving secrets switched off for good.
+- An on/off setting only takes on/off values; migration 160 tidies stored ones.
+- A setting with an invalid character answers 422 instead of 500.
+- Long LiveLink parameter names answer 422 instead of failing on PostgreSQL.
+- An hours interval or reminder due hours that rounds to zero answers 422, instead of a 500 for rules and recurrences or a reminder silently stored at 0.0.
+- The Settings secrets banner updates after you re-enter a secret, without a reload, and names secrets by label instead of setting key.
+- Settings > Files and System drop a load error once a reload works.
+- Restoring a backup answers a bad file name with 400 and a missing one with 404 first, not 503 while a secret is still waiting to be encrypted.
+- A Settings change made while the previous save is still finishing gets saved too, instead of dropped.
 
 ## [3.10.0] - 2026-11-05
 

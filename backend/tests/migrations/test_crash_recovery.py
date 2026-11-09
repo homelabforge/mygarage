@@ -15,7 +15,7 @@ import types
 from pathlib import Path
 
 import pytest
-from sqlalchemy import create_engine, text
+from sqlalchemy import text
 
 
 def _load_migration(name: str) -> types.ModuleType:
@@ -192,11 +192,11 @@ def test_026_retry_after_stale_service_records_new(migration_db):
 
 
 @pytest.mark.migrations
-def test_002_retry_after_stale_address_book_new(migration_db):
+def test_002_retry_after_stale_address_book_new(migration_db, sync_engine):
     """Migration 002 cleans up stale address_book_new and updates schema."""
     db_file, sync_url = migration_db
 
-    engine = create_engine(sync_url)
+    engine = sync_engine(sync_url)
     with engine.begin() as conn:
         conn.execute(
             text("""
@@ -247,11 +247,11 @@ def test_002_retry_after_stale_address_book_new(migration_db):
 
 
 @pytest.mark.migrations
-def test_030_retry_after_stale_attachments_new(migration_db):
+def test_030_retry_after_stale_attachments_new(migration_db, sync_engine):
     """Migration 030 cleans up stale attachments_new and updates constraint."""
     db_file, sync_url = migration_db
 
-    engine = create_engine(sync_url)
+    engine = sync_engine(sync_url)
     with engine.begin() as conn:
         conn.execute(text("CREATE TABLE vehicles (vin VARCHAR(17) PRIMARY KEY)"))
         conn.execute(

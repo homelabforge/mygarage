@@ -283,7 +283,6 @@
     "creatingBackup": "Criando...",
     "createSettingsBackup": "Criar backup de configurações",
     "uploadSettingsBackup": "Enviar backup de configurações",
-    "createSettingsError": "Não foi possível criar o backup de configurações",
     "filename": "Nome do arquivo",
     "size": "Tamanho",
     "created": "Criado",
@@ -299,7 +298,6 @@
     "creatingFullBackup": "Criando...",
     "createFullBackup": "Criar backup completo",
     "uploadFullBackup": "Enviar backup completo",
-    "createFullError": "Não foi possível criar o backup completo",
     "restoreOverwrite": "Restaurar (sobrescreve todos os dados)",
     "noFullBackups": "Nenhum backup completo encontrado. Crie o primeiro para começar."
   },

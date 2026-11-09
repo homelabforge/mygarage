@@ -9,7 +9,7 @@ import importlib.util
 import sqlite3
 from pathlib import Path
 
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import inspect, text
 
 import app.migrations as _m
 
@@ -77,9 +77,9 @@ def test_145_is_fatal():
     assert _load().FATAL is True
 
 
-def test_145_sqlite_declares_integer_nullable(tmp_path: Path) -> None:
+def test_145_sqlite_declares_integer_nullable(tmp_path: Path, sync_engine) -> None:
     db_file = tmp_path / "m145.db"
-    engine = create_engine(f"sqlite:///{db_file}")
+    engine = sync_engine(f"sqlite:///{db_file}")
     _make_rules(engine)
     _load().upgrade(engine)
 

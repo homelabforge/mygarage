@@ -19,7 +19,7 @@ import logging
 import os
 from pathlib import Path
 
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import Engine, create_engine, inspect, text
 
 logger = logging.getLogger(__name__)
 
@@ -41,9 +41,14 @@ def _index_exists(inspector, table: str, index: str) -> bool:
     return index in {i["name"] for i in inspector.get_indexes(table)}
 
 
-def upgrade(engine=None) -> None:
+def upgrade(engine: Engine | None = None) -> None:
     if engine is None:
+        # Run standalone: it builds its own engine, so it closes it too.
         engine = _get_fallback_engine()
+        try:
+            return upgrade(engine)
+        finally:
+            engine.dispose()
 
     inspector = inspect(engine)
 

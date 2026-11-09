@@ -579,7 +579,6 @@
     "creatingBackup": "Creazione in corso...",
     "createSettingsBackup": "Crea backup impostazioni",
     "uploadSettingsBackup": "Carica backup impostazioni",
-    "createSettingsError": "Impossibile creare il backup delle impostazioni",
     "filename": "Nome file",
     "size": "Dimensione",
     "created": "Creato il",
@@ -595,7 +594,6 @@
     "creatingFullBackup": "Creazione in corso...",
     "createFullBackup": "Crea backup completo",
     "uploadFullBackup": "Carica backup completo",
-    "createFullError": "Impossibile creare il backup completo",
     "restoreOverwrite": "Ripristina (sovrascrive tutti i dati)",
     "noFullBackups": "Nessun backup completo presente. Creane uno per iniziare."
   },

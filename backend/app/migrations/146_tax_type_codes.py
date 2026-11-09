@@ -51,7 +51,12 @@ def _get_fallback_engine() -> Engine:
 def upgrade(engine: Engine | None = None) -> None:
     """Drop the tax_type CHECK and rewrite the legacy values to codes."""
     if engine is None:
+        # Run standalone: it builds its own engine, so it closes it too.
         engine = _get_fallback_engine()
+        try:
+            return upgrade(engine)
+        finally:
+            engine.dispose()
     if not inspect(engine).has_table(_TABLE):
         return
 

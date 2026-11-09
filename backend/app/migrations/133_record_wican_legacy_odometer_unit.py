@@ -437,7 +437,12 @@ def _label_odometer_params(conn: Connection) -> int:
 def upgrade(engine: Engine | None = None) -> None:
     """Keep main's reading of each WiCAN odometer key, and move raw ODOMETER_MI to km."""
     if engine is None:
+        # Run standalone: it builds its own engine, so it closes it too.
         engine = _get_fallback_engine()
+        try:
+            return upgrade(engine)
+        finally:
+            engine.dispose()
 
     if not inspect(engine).has_table("livelink_device_units"):
         print("  → livelink_device_units missing; skip (nothing to record into)")

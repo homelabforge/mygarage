@@ -980,7 +980,7 @@ export interface paths {
          *     the archive copies the database.
          *
          *     Args:
-         *         db: Database session, for the preflight only
+         *         db: Database session, for the preflight and the service's plaintext check
          *
          *     Returns:
          *         Metadata about the created backup file
@@ -1090,6 +1090,9 @@ export interface paths {
          *     A settings restore that skipped secret keys (ciphertext no key in the keyring opens, or
          *     plaintext with no keyring to encrypt it) lists them in `details.skipped_secret_keys` and names
          *     them in `warning`; those keys keep their current values.
+         *
+         *     A bad name is a 400 and a missing backup a 404, both checked before the preflight, so neither
+         *     reads as a 503 while a secret can't be encrypted.
          *
          *     Args:
          *         filename: Name of the backup file to restore from
@@ -3891,17 +3894,15 @@ export interface paths {
         };
         /**
          * Get Public Settings
-         * @description Get public settings (no authentication required).
+         * @description The settings every client reads at start-up. Anyone may call it, signed in or not.
          *
-         *     Returns only non-sensitive settings required for frontend initialization:
-         *     - auth_mode: Authentication mode (local/oidc)
-         *     - app_name: Application name
-         *     - theme: UI theme preference
-         *     - family_friends_enabled: garage section feature flag
-         *     - the other feature flags and unit defaults every user's UI reads
-         *
-         *     Security: This endpoint is intentionally public to allow frontend
-         *     initialization before login. All sensitive settings are excluded.
+         *     No login and no role check: the app reads it before it knows whether
+         *     there's a user, and non-admins read it after, since `GET /settings` is
+         *     admin-only. So it answers only the allowlisted rows that exist (auth_mode,
+         *     app_name, theme, the feature switches, the unit and country defaults),
+         *     never a secret, plus two read-only computed entries:
+         *     `effective_timezone`, the household zone in effect, and
+         *     `document_upload_max_bytes`, the document upload cap.
          */
         get: operations["get_public_settings_api_settings_public_get"];
         put?: never;
@@ -4031,139 +4032,6 @@ export interface paths {
          * @description Delete a setting (admin only).
          */
         delete: operations["delete_setting_api_settings__key__delete"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/shop-discovery/increment-usage/{shop_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Increment Shop Usage
-         * @description Increment usage count for a shop.
-         *
-         *     Called when creating service record with this shop.
-         *
-         *     Args:
-         *         shop_id: Address book entry ID
-         *         db: Database session
-         *         current_user: Authenticated user
-         *
-         *     Returns:
-         *         None (204 No Content)
-         *
-         *     Raises:
-         *         HTTPException: 404 if shop not found
-         */
-        post: operations["increment_shop_usage_api_shop_discovery_increment_usage__shop_id__post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/shop-discovery/recommendations": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Shop Recommendations
-         * @description Get recommended shops based on usage history.
-         *
-         *     Args:
-         *         limit: Maximum number of recommendations (default: 5)
-         *         db: Database session
-         *         current_user: Authenticated user
-         *
-         *     Returns:
-         *         ShopRecommendationsResponse with top shops by usage
-         *
-         *     Notes:
-         *         - Only returns shops whose category is 'service' in any case (the
-         *           Address Book page stores 'Service'), ignoring surrounding spaces
-         *         - Sorted by usage_count DESC (most used first)
-         *         - Only includes shops that have been used at least once
-         */
-        get: operations["get_shop_recommendations_api_shop_discovery_recommendations_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/shop-discovery/save": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Save Discovered Shop
-         * @description Save a discovered shop to the address book.
-         *
-         *     Args:
-         *         entry_data: Address book entry data
-         *         db: Database session
-         *         current_user: Authenticated user
-         *
-         *     Returns:
-         *         Created AddressBookEntry
-         *
-         *     Notes:
-         *         - Shop source should be set to 'tomtom' or 'osm'
-         *         - Category is stored as sent (none if omitted); the app sends the
-         *           Address Book chip for the POI type
-         */
-        post: operations["save_discovered_shop_api_shop_discovery_save_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/shop-discovery/search": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Search Nearby Shops
-         * @description Search for nearby auto repair shops using TomTom or OSM.
-         *
-         *     Args:
-         *         search_request: Search parameters (latitude, longitude, radius)
-         *         db: Database session
-         *         current_user: Authenticated user
-         *
-         *     Returns:
-         *         ShopSearchResponse with results from TomTom or OSM
-         *
-         *     Notes:
-         *         - Tries TomTom API first (if configured)
-         *         - Falls back to OpenStreetMap if TomTom unavailable
-         *         - Returns empty results on error (graceful degradation)
-         */
-        post: operations["search_nearby_shops_api_shop_discovery_search_post"];
-        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -11550,7 +11418,7 @@ export interface components {
         };
         /**
          * FuelReceiptParseResponse
-         * @description Response for opt-in LLM receipt parse — draft only.
+         * @description Response for opt-in LLM receipt parse (a draft only).
          */
         FuelReceiptParseResponse: {
             draft: components["schemas"]["FuelReceiptDraft"];
@@ -11604,7 +11472,7 @@ export interface components {
             date: string;
             /**
              * Def Fill Level
-             * @description DEF tank level (0.00=empty, 1.00=full) — auto-creates a DEF observation
+             * @description DEF tank level (0.00=empty, 1.00=full); auto-creates a DEF observation
              */
             def_fill_level?: number | string | null;
             /**
@@ -12032,7 +11900,7 @@ export interface components {
             station_address_book_id?: number | null;
             /**
              * Station Name
-             * @description Resolved station name for display: the linked address-book entry's business_name, else station_name_freetext. Read-only — write via station_address_book_id / station_name_freetext (issue #108).
+             * @description Resolved station name for display: the linked address-book entry's business_name, else station_name_freetext. Read-only; write via station_address_book_id / station_name_freetext (issue #108).
              */
             station_name?: string | null;
             /**
@@ -12085,7 +11953,7 @@ export interface components {
             date?: string | null;
             /**
              * Def Fill Level
-             * @description DEF tank level (0.00=empty, 1.00=full) — auto-creates a DEF observation
+             * @description DEF tank level (0.00=empty, 1.00=full); auto-creates a DEF observation
              */
             def_fill_level?: number | string | null;
             /**
@@ -14323,7 +14191,7 @@ export interface components {
          *
          *     Every field optional, `exclude_unset` semantics: a key absent from the
          *     body is untouched, a key sent as null is cleared to unknown. `position`
-         *     is deliberately not here (D14: only mount, dismount and rotate write it),
+         *     is deliberately not here (only mount, dismount and rotate write it),
          *     and forbid-extra makes sending it a 422 rather than a silent ignore.
          */
         MountPeriodUpdate: {
@@ -14686,7 +14554,7 @@ export interface components {
         };
         /**
          * ObcSuggestionResponse
-         * @description OBC auto-suggest payload — returned for `GET /api/vehicles/{vin}/fuel/obc-suggestion`.
+         * @description OBC auto-suggest payload, returned for `GET /api/vehicles/{vin}/fuel/obc-suggestion`.
          */
         ObcSuggestionResponse: {
             /**
@@ -15252,43 +15120,6 @@ export interface components {
             caption?: string | null;
             /** Is Main */
             is_main?: boolean | null;
-        };
-        /**
-         * PlaceResult
-         * @description Normalized place result from any provider (TomTom or OSM).
-         */
-        PlaceResult: {
-            /** Address */
-            address?: string | null;
-            /** Business Name */
-            business_name: string;
-            /**
-             * Category
-             * @default service
-             */
-            category: string;
-            /** City */
-            city?: string | null;
-            /** Distance Meters */
-            distance_meters?: number | null;
-            /** External Id */
-            external_id?: string | null;
-            /** Latitude */
-            latitude: string;
-            /** Longitude */
-            longitude: string;
-            /** Phone */
-            phone?: string | null;
-            /** Rating */
-            rating?: string | null;
-            /** Source */
-            source: string;
-            /** State */
-            state?: string | null;
-            /** Website */
-            website?: string | null;
-            /** Zip Code */
-            zip_code?: string | null;
         };
         /**
          * PolicyHistoryEntry
@@ -16245,7 +16076,7 @@ export interface components {
          * ReminderUpdate
          * @description Schema for updating a vehicle reminder.
          *
-         *     Status is NOT here — use /done, /dismiss or /complete endpoints.
+         *     Status is NOT here; use /done, /dismiss or /complete endpoints.
          *     Validation is lenient (fields may be absent). The route handler merges
          *     this patch onto the existing reminder and validates the final state.
          *
@@ -17242,86 +17073,6 @@ export interface components {
             settings: components["schemas"]["SettingResponse"][];
             /** Total */
             total: number;
-        };
-        /**
-         * ShopRecommendation
-         * @description Recommended shop from address book based on usage.
-         */
-        ShopRecommendation: {
-            /** Address */
-            address?: string | null;
-            /** Business Name */
-            business_name: string;
-            /** City */
-            city?: string | null;
-            /** Id */
-            id: number;
-            /** Phone */
-            phone?: string | null;
-            /** Rating */
-            rating?: string | null;
-            /** State */
-            state?: string | null;
-            /** Usage Count */
-            usage_count: number;
-            /** User Rating */
-            user_rating?: number | null;
-        };
-        /**
-         * ShopRecommendationsResponse
-         * @description Response with recommended shops.
-         */
-        ShopRecommendationsResponse: {
-            /** Count */
-            count: number;
-            /** Recommendations */
-            recommendations: components["schemas"]["ShopRecommendation"][];
-        };
-        /**
-         * ShopSearchRequest
-         * @description Request to search for nearby shops.
-         */
-        ShopSearchRequest: {
-            /**
-             * Latitude
-             * @description Latitude coordinate
-             */
-            latitude: number;
-            /**
-             * Longitude
-             * @description Longitude coordinate
-             */
-            longitude: number;
-            /**
-             * Radius Meters
-             * @description Search radius in meters (default: ~5 miles, max: ~100 miles)
-             * @default 8000
-             */
-            radius_meters: number | null;
-            /**
-             * Shop Type
-             * @description Type of repair shop to search for
-             * @default auto
-             */
-            shop_type: ("auto" | "rv") | null;
-        };
-        /**
-         * ShopSearchResponse
-         * @description Response containing search results.
-         */
-        ShopSearchResponse: {
-            /** Count */
-            count: number;
-            /** Latitude */
-            latitude: number;
-            /** Longitude */
-            longitude: number;
-            /** Radius Meters */
-            radius_meters: number;
-            /** Results */
-            results: components["schemas"]["PlaceResult"][];
-            /** Source */
-            source: string;
         };
         /**
          * SpotRentalBillingCreate
@@ -18566,11 +18317,11 @@ export interface components {
          * @description A tire, with where it is now and what is known about its wear.
          *
          *     `position` is RE-DECLARED here as nullable rather than inherited: it left
-         *     the write schema (D2c) but is still part of every read. Declaring it only
+         *     the write schema but is still part of every read. Declaring it only
          *     on the base would have made it required on writes; omitting it entirely
          *     would have dropped it from responses. Neither is what a reader wants.
          *
-         *     `installed_date` is DERIVED, not stored (D12): the `mounted_on` of the
+         *     `installed_date` is DERIVED, not stored: the `mounted_on` of the
          *     earliest period **that has one**. When the earliest period is the migrated
          *     assumed one with a null start, this is null -- NOT the next known remount
          *     date. A plain MIN(mounted_on) would skip the unknown and report a later
@@ -18777,7 +18528,7 @@ export interface components {
          * @description Partial tire update.
          *
          *     Neither `position` nor `installed_date` is writable here: position changes
-         *     through mount/dismount (D14), and `installed_date` is derived (D12).
+         *     through mount/dismount, and `installed_date` is derived.
          */
         TireUpdate: {
             /** Brand */
@@ -20736,7 +20487,7 @@ export interface components {
         };
         /**
          * VehicleDetailStats
-         * @description Read-aggregation for the Vehicle Detail hero + key-facts strip (P5).
+         * @description Read-aggregation for the Vehicle Detail hero + key-facts strip.
          *
          *     Metric-canonical: latest_odometer_km is raw km (frontend converts at the
          *     boundary). spent_this_year is currency (Decimal -> JSON string).
@@ -28641,132 +28392,6 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    increment_shop_usage_api_shop_discovery_increment_usage__shop_id__post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                shop_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_shop_recommendations_api_shop_discovery_recommendations_get: {
-        parameters: {
-            query?: {
-                limit?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ShopRecommendationsResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    save_discovered_shop_api_shop_discovery_save_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["AddressBookEntryCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AddressBookEntryResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    search_nearby_shops_api_shop_discovery_search_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ShopSearchRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ShopSearchResponse"];
-                };
             };
             /** @description Validation Error */
             422: {

@@ -12,11 +12,13 @@ from pathlib import Path
 from types import ModuleType
 
 import pytest
-from sqlalchemy import Engine, create_engine, text
+from sqlalchemy import Engine, text
 from sqlalchemy.exc import OperationalError
 
 import app.migrations as _m
 from app.migrations.runner import MigrationRunner
+from tests._engines import SyncEngine
+from tests._logged import CaplogOnly, problems
 
 pytestmark = pytest.mark.migrations
 
@@ -330,7 +332,10 @@ def test_a_torque_device_on_miles_gets_a_warning_and_nothing_else(engine_for_mig
 
 
 def test_a_failure_is_logged_not_raised(
-    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    caplog_only: CaplogOnly,
+    sync_engine: SyncEngine,
 ) -> None:
     """A non-FATAL failure that raises stops every migration after it, so 139 logs it instead."""
     mod = _load()
@@ -339,12 +344,17 @@ def test_a_failure_is_logged_not_raised(
         raise OperationalError("UPDATE livelink_parameters", {}, Exception("database is locked"))
 
     monkeypatch.setattr(mod, "_rename", boom)
-    mod.upgrade(create_engine("sqlite://"))
-    assert "139: parameter names not updated" in caplog.text
+    with caplog_only(mod.logger.name):
+        mod.upgrade(sync_engine("sqlite://"))
+    (logged,) = problems(caplog, mod.logger.name)
+    assert logged.getMessage().startswith("139: parameter names not updated")
+    assert logged.exc_info is not None
 
 
 @pytest.mark.parametrize("engine_for_migration", ["pg"], indirect=True)
-def test_a_failed_rename_through_the_runner_still_stamps_139(engine_for_migration, caplog):
+def test_a_failed_rename_through_the_runner_still_stamps_139(
+    engine_for_migration, caplog, caplog_only
+):
     """PG only: there a caught error inside the runner's transaction aborts it, and the
     stamp fails with it. 139 runs in its own transaction, so the stamp lands (R8, F1-8).
 
@@ -365,13 +375,16 @@ def test_a_failed_rename_through_the_runner_still_stamps_139(engine_for_migratio
                     {"n": stem},
                 )
 
+    # The runner's copy of 139 logs under the stem, like ours.
     try:
-        runner.run_pending_migrations()
+        with caplog_only(_NAME):
+            runner.run_pending_migrations()
     finally:
         runner.engine.dispose()
 
-    errors = [r.getMessage() for r in caplog.records if r.levelname == "ERROR"]
-    assert any(m.startswith("139: parameter names not updated") for m in errors), errors
+    (logged,) = problems(caplog, _NAME)
+    assert logged.getMessage().startswith("139: parameter names not updated")
+    assert logged.exc_info is not None
     with engine.connect() as conn:
         applied = set(conn.execute(text("SELECT migration_name FROM schema_migrations")).scalars())
     assert _NAME in applied

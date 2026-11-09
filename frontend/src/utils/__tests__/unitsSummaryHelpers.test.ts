@@ -9,12 +9,13 @@
  * `decimalSafe` would have made the two disagree on one page, which is worse
  * than being uniformly wrong.
  *
- * Every gallon case pins the INSTANCE standard to `us` first: these helpers now
- * take the client's resolved `UnitSet`, and one still reading
- * `UnitConverter.getGallonStandard()` cannot pass a `gal_uk` case.
+ * These helpers take the client's resolved `UnitSet`. The gallon cases used to
+ * pin the instance gallon to `us` first so a helper still reading it couldn't
+ * pass a `gal_uk` case; that instance gallon is deleted now, so the set is the
+ * only flavour there is to read.
  */
 
-import { beforeEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { makeUnitSet } from '@/__tests__/factories'
 import { UnitConverter, UnitFormatter } from '../units'
 import { adapterFor } from '../unitAdapters'
@@ -22,10 +23,6 @@ import { adapterFor } from '../unitAdapters'
 const METRIC = makeUnitSet()
 const US = makeUnitSet({ volume: 'gal_us', secondary_gallon: 'us' })
 const UK = makeUnitSet({ volume: 'gal_uk', secondary_gallon: 'uk' })
-
-beforeEach(() => {
-  UnitConverter.setGallonStandard('us')
-})
 
 // All summary card helpers take CANONICAL METRIC inputs:
 // - formatVolumeTotal: liters
@@ -47,7 +44,7 @@ describe('UnitConverter.litersToVolumeUnit', () => {
 
 describe('UnitFormatter summary card helpers', () => {
   describe('formatVolume', () => {
-    it('renders in the resolved volume unit, not the instance gallon standard', () => {
+    it('renders in the resolved volume unit', () => {
       // 47.317625 L is 12.50 US gallons and 10.41 imperial ones.
       expect(UnitFormatter.formatVolume(47.317625, METRIC)).toBe('47.32 L')
       expect(UnitFormatter.formatVolume(47.317625, US)).toBe('12.50 gal')

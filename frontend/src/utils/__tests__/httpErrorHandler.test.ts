@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseApiError, getActionErrorMessage } from '@/utils/httpErrorHandler'
+import { parseApiError, getActionErrorMessage, actionErrorMessage } from '@/utils/httpErrorHandler'
 
 const axios422 = (detail: unknown): unknown => ({
   isAxiosError: true,
@@ -114,26 +114,18 @@ describe('getActionErrorMessage on a 404', () => {
     )
   })
 
-  it('falls back to the translated template (never the axios status line) when a 404 has no data.detail at all', () => {
-    // parseApiError leaves `detail` undefined both when the raw detail is a
-    // 422-shaped validation array AND when there is no string detail at all
-    // (C1 fix — the old code fell back to the AxiosError's own `.message`,
-    // i.e. "Request failed with status code 404", the exact opaque string
-    // this release exists to remove. That fallback was reachable on all 11
-    // `responseType: 'blob'` download sites, where axios leaves the error
-    // body an unreadable Blob, so `.detail` can never resolve there
-    // regardless of what the backend raised). getActionErrorMessage now
-    // falls through to the translated `actionFailedCheckInput` template,
-    // with the action filled in by the en singleton from setup.ts.
+  it('says not found (never the axios status line) when a 404 has no data.detail at all', () => {
+    // No string detail means `detail` stays undefined (never axios's own
+    // "Request failed with status code 404", which is all a blob download's
+    // error leaves). "Check your input" was false here: nothing the user typed
+    // made the thing go missing, so it gets the not-found template instead.
     const message = getActionErrorMessage(axios404(), 'restore the backup')
-    expect(message).toBe('Failed to restore the backup. Please check your input.')
+    expect(message).toBe('Failed to restore the backup. The requested resource was not found.')
   })
 
-  it('surfaces a 404 detail that is a validation-problem array as the generic phrasing, never stringified', () => {
-    // Contrived (FastAPI only sends array `detail` on 422 in this backend),
-    // but exercises the branch where `parsed.detail` is genuinely undefined
-    // at 404 status, proving the "check your input" fallback is reachable
-    // and that an array never leaks through as [object Object].
+  it('treats a 404 whose detail is a validation-problem array as detail-less, never stringified', () => {
+    // Contrived (only a 422 sends an array detail here), but it proves an
+    // array never leaks through as [object Object].
     const message = getActionErrorMessage(
       {
         isAxiosError: true,
@@ -146,7 +138,7 @@ describe('getActionErrorMessage on a 404', () => {
       'restore the backup'
     )
     expect(message).not.toContain('[object Object]')
-    expect(message).toBe('Failed to restore the backup. Please check your input.')
+    expect(message).toBe('Failed to restore the backup. The requested resource was not found.')
   })
 })
 
@@ -180,5 +172,98 @@ describe('getActionErrorMessage on 401 and 403', () => {
         'register'
       )
     ).toBe('Registration is disabled. Please contact an administrator to create an account.')
+  })
+})
+
+describe('getActionErrorMessage without a detail', () => {
+  const axiosStatus = (status: number, detail?: unknown): unknown => ({
+    isAxiosError: true,
+    message: `Request failed with status code ${status}`,
+    response: { status, data: detail === undefined ? {} : { detail } },
+  })
+
+  it('gives a detail-less 401, 403 or 404 its status template, not "check your input"', () => {
+    expect(getActionErrorMessage(axiosStatus(401), 'load the vehicles')).toBe(
+      'Failed to load the vehicles. Session expired. Please log in again.'
+    )
+    expect(getActionErrorMessage(axiosStatus(403), 'load the vehicles')).toBe(
+      'Failed to load the vehicles. You do not have permission to perform this action.'
+    )
+    expect(getActionErrorMessage(axiosStatus(404), 'load the vehicles')).toBe(
+      'Failed to load the vehicles. The requested resource was not found.'
+    )
+  })
+
+  it('keeps "check your input" for a detail-less 400 or 422', () => {
+    expect(getActionErrorMessage(axiosStatus(400), 'save the record')).toBe(
+      'Failed to save the record. Please check your input.'
+    )
+    expect(getActionErrorMessage(axiosStatus(422), 'save the record')).toBe(
+      'Failed to save the record. Please check your input.'
+    )
+  })
+})
+
+describe('getActionErrorMessage on a 502, 503 or 504', () => {
+  const axiosStatus = (status: number, detail?: unknown): unknown => ({
+    isAxiosError: true,
+    message: `Request failed with status code ${status}`,
+    response: { status, data: detail === undefined ? {} : { detail } },
+  })
+
+  it("puts a 503's detail after the action, so the fix it names reaches the user", () => {
+    const detail = 'Set MYGARAGE_SETTINGS_KEY to a valid key, then try again.'
+    expect(getActionErrorMessage(axiosStatus(503, detail), 'create the backup')).toBe(
+      `Failed to create the backup. ${detail}`
+    )
+    expect(getActionErrorMessage(axiosStatus(502, 'AutoRef is down'), 'look up the VIN')).toBe(
+      'Failed to look up the VIN. AutoRef is down'
+    )
+  })
+
+  it('keeps the retry line for a 503 without a detail', () => {
+    expect(getActionErrorMessage(axiosStatus(503), 'create the backup')).toBe(
+      'Failed to create the backup. Service temporarily unavailable. Please try again shortly.'
+    )
+  })
+
+  it("never shows axios's own text for a network failure", () => {
+    // A network error retries too, and its `detail` is axios's "Network Error".
+    expect(
+      getActionErrorMessage({ isAxiosError: true, message: 'Network Error' }, 'save the record')
+    ).toBe('Failed to save the record. Network error. Please check your connection.')
+  })
+})
+
+describe('an already-parsed error', () => {
+  const err403 = {
+    isAxiosError: true,
+    message: 'Request failed with status code 403',
+    response: { status: 403, data: { detail: 'Nope' } },
+  }
+
+  it('comes back from parseApiError as is', () => {
+    const parsed = parseApiError(err403)
+    expect(parseApiError(parsed)).toBe(parsed)
+  })
+
+  it('still shows its detail when handed to getActionErrorMessage', () => {
+    expect(getActionErrorMessage(parseApiError(err403), 'x')).toBe('Nope')
+  })
+
+  it('reads the same through actionErrorMessage', () => {
+    expect(actionErrorMessage(parseApiError(err403), 'x')).toBe('Nope')
+    expect(
+      actionErrorMessage(
+        parseApiError({ ...err403, response: { status: 500, data: {} } }),
+        'save the record'
+      )
+    ).toBe('Failed to save the record. An unexpected server error occurred.')
+  })
+
+  it('is not mistaken for a plain object that only looks like one', () => {
+    // JSON drops the stamp, so the copy is parsed like any unknown value.
+    const lookalike: unknown = JSON.parse(JSON.stringify(parseApiError(err403)))
+    expect(parseApiError(lookalike).message).toBe('An unexpected error occurred.')
   })
 })

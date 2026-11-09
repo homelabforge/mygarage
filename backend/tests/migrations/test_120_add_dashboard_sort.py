@@ -8,8 +8,6 @@ import sqlite3
 import types
 from pathlib import Path
 
-from sqlalchemy import create_engine
-
 
 def _load() -> types.ModuleType:
     path = Path(__file__).parent.parent.parent / "app" / "migrations" / "120_add_dashboard_sort.py"
@@ -32,10 +30,12 @@ def _setup(db_file: Path) -> None:
     conn.close()
 
 
-def test_adds_a_not_null_column_and_existing_users_open_on_name(tmp_path: Path) -> None:
+def test_adds_a_not_null_column_and_existing_users_open_on_name(
+    tmp_path: Path, sync_engine
+) -> None:
     db_file = tmp_path / "m120.db"
     _setup(db_file)
-    _load().upgrade(create_engine(f"sqlite:///{db_file}"))
+    _load().upgrade(sync_engine(f"sqlite:///{db_file}"))
 
     conn = sqlite3.connect(str(db_file))
     cols = {r[1]: r for r in conn.execute("PRAGMA table_info(users)")}
@@ -49,10 +49,10 @@ def test_adds_a_not_null_column_and_existing_users_open_on_name(tmp_path: Path) 
     conn.close()
 
 
-def test_is_idempotent(tmp_path: Path) -> None:
+def test_is_idempotent(tmp_path: Path, sync_engine) -> None:
     db_file = tmp_path / "m120.db"
     _setup(db_file)
-    engine = create_engine(f"sqlite:///{db_file}")
+    engine = sync_engine(f"sqlite:///{db_file}")
     module = _load()
     module.upgrade(engine)
     module.upgrade(engine)  # must not raise "duplicate column"

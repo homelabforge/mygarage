@@ -14,8 +14,6 @@ import sqlite3
 import types
 from pathlib import Path
 
-from sqlalchemy import create_engine
-
 
 def _load_migration() -> types.ModuleType:
     path = (
@@ -53,10 +51,10 @@ def _accents(db_file: Path) -> dict[str, str | None]:
     return rows
 
 
-def test_resets_defaulted_blue_preserves_explicit(tmp_path: Path) -> None:
+def test_resets_defaulted_blue_preserves_explicit(tmp_path: Path, sync_engine) -> None:
     db_file = tmp_path / "m081.db"
     _setup_db(db_file)
-    engine = create_engine(f"sqlite:///{db_file}")
+    engine = sync_engine(f"sqlite:///{db_file}")
 
     m = _load_migration()
     m.upgrade(engine)
@@ -66,10 +64,10 @@ def test_resets_defaulted_blue_preserves_explicit(tmp_path: Path) -> None:
     assert accents["chose-amber"] == "amber", "an explicit non-blue pick must be preserved"
 
 
-def test_idempotent_rerun(tmp_path: Path) -> None:
+def test_idempotent_rerun(tmp_path: Path, sync_engine) -> None:
     db_file = tmp_path / "m081.db"
     _setup_db(db_file)
-    engine = create_engine(f"sqlite:///{db_file}")
+    engine = sync_engine(f"sqlite:///{db_file}")
 
     m = _load_migration()
     m.upgrade(engine)
@@ -80,13 +78,13 @@ def test_idempotent_rerun(tmp_path: Path) -> None:
     assert accents["chose-amber"] == "amber"
 
 
-def test_absent_users_table_is_noop(tmp_path: Path) -> None:
+def test_absent_users_table_is_noop(tmp_path: Path, sync_engine) -> None:
     db_file = tmp_path / "m081-empty.db"
     conn = sqlite3.connect(str(db_file))
     conn.execute("CREATE TABLE unrelated (id INTEGER PRIMARY KEY)")
     conn.commit()
     conn.close()
-    engine = create_engine(f"sqlite:///{db_file}")
+    engine = sync_engine(f"sqlite:///{db_file}")
 
     m = _load_migration()
     m.upgrade(engine)  # must not raise with no users table

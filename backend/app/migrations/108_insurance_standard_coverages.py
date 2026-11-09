@@ -317,7 +317,12 @@ def upgrade(engine=None) -> None:
     `coverage_limits` to convert.
     """
     if engine is None:
+        # Run standalone: it builds its own engine, so it closes it too.
         engine = _get_fallback_engine()
+        try:
+            return upgrade(engine)
+        finally:
+            engine.dispose()
 
     inspector = inspect(engine)
     if not inspector.has_table("insurance_policy_vehicles"):

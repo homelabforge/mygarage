@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useId, useState } from 'react'
 import type { ReactElement } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Play, RefreshCw, Server, Wifi } from 'lucide-react'
 
 import { Button, Chip, Drawer, Field, Input, Toggle } from '@/components/ui'
 import { parseWholeInRange } from '@/constants/livelink'
 import { getActiveLocale } from '@/constants/i18n'
+import { SECRETS_STATUS_QUERY_KEY } from '@/hooks/queries/useSecretsStatus'
 import { livelinkService } from '@/services/livelinkService'
 import type { IntegrationTab, MQTTSettings, MQTTSettingsUpdate, MQTTStatus } from '@/types/livelink'
 import { getActionErrorMessage } from '@/utils/httpErrorHandler'
@@ -104,6 +106,8 @@ export default function MosquittoSettingsDrawer({ open, tab, onClose, onChanged 
   const set = <K extends keyof Draft>(key: K, value: Draft[K]): void =>
     setDraft((current) => (current ? { ...current, [key]: value } : current))
 
+  const queryClient = useQueryClient()
+
   const persist = async (update: MQTTSettingsUpdate): Promise<boolean> => {
     setSaving(true)
     try {
@@ -137,6 +141,9 @@ export default function MosquittoSettingsDrawer({ open, tab, onClose, onChanged 
     if (await persist(update)) {
       toast.success(t('modal.mqttSettingsSaved'))
       setDraft((current) => (current ? { ...current, password: '' } : current))
+      // A re-entered password can clear the secrets banner (Settings mounts
+      // this drawer from Integrations).
+      if (update.password) void queryClient.invalidateQueries({ queryKey: SECRETS_STATUS_QUERY_KEY })
     }
   }
 
