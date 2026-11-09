@@ -919,7 +919,7 @@ describe('VehicleEditDrawer — the DEF tank capacity is the eighth gallon write
     fireEvent.click(screen.getByRole('button', { name: 'edit.saveChanges' }))
     await waitFor(() => expect(mockedApi.put).toHaveBeenCalled())
     const [, payload] = mockedApi.put.mock.calls[0] as [string, Record<string, unknown>]
-    // ★ 19, not 19.003, and the difference is the untouched-save origin. This field had
+    // ★ 19, not 19.003, and the difference comes from the untouched-save origin. This field had
     // the entry-grid shift the three fuel forms had: 19 L seeds a UK-gallon
     // box as 4.18, and 4.18 x 4.54609 = 19.0026562, which the wire precision
     // rounds to 19.003. Opening this drawer to change a nickname moved a

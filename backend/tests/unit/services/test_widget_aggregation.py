@@ -37,6 +37,9 @@ from app.services.fuel_service import calculate_l_per_100km
 from app.services.widget_aggregation import WidgetAggregationService
 from app.utils.units import UnitConverter
 
+# Every class here seeds rows in the test DB.
+pytestmark = pytest.mark.integration
+
 GALLON_STANDARD_KEY = "imperial_gallon_standard"
 
 
@@ -820,7 +823,6 @@ class TestArchiveVisibility:
         assert after.archived_vehicles == baseline.archived_vehicles
 
 
-@pytest.mark.integration
 class TestVehicleV2:
     """v2 per-vehicle rollup: both unit systems, and a strict superset of v1."""
 
@@ -876,7 +878,6 @@ class TestVehicleV2:
         assert result is None
 
 
-@pytest.mark.integration
 class TestVehicleV2HoursFields:
     """Part A (Task 8): v2 widget hours stats — nullable latest_hours /
     average_l_per_hr / average_cost_per_hr, populated per the vehicle's
@@ -1042,7 +1043,6 @@ class TestVehicleV2HoursFields:
         assert result.recent_mpg is not None
 
 
-@pytest.mark.integration
 class TestVehicleV2HoursAwareOverdueCount:
     """Part B (Task 8, P5-review gap): the overdue count now routes through
     the shared `is_reminder_overdue` helper so a pure-hours reminder counts,
