@@ -49,6 +49,7 @@ from app.models import (
 from app.models.vehicle import Vehicle
 from app.services.vehicle_lock import lock_vehicle_for_write
 from tests._importer_source import importer_modules
+from tests._logged import problems
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
@@ -389,7 +390,7 @@ class TestAFailureAfterRowsAreWrittenLeavesNothing:
         "index", range(len(_every_import("X"))), ids=[c.route for c in _every_import("X")]
     )
     async def test_every_import_route(
-        self, vin, auth_headers, test_sessionmaker, monkeypatch, index
+        self, vin, auth_headers, test_sessionmaker, monkeypatch, index, caplog, caplog_only
     ):
         """The commit fails after every row's savepoint has been released.
 
@@ -406,13 +407,18 @@ class TestAFailureAfterRowsAreWrittenLeavesNothing:
                 raise RuntimeError("the disk filled up at commit")
 
             monkeypatch.setattr(session, "commit", commit_that_fails)
-            response = await _post(client, auth_headers, vin, call)
+            with caplog_only("app.utils.error_handlers"):
+                response = await _post(client, auth_headers, vin, call)
 
         committed = await _committed_rows(test_sessionmaker, vin)
         assert response.status_code == 500, response.text
         assert len(written_before_commit) == 1
         assert written_before_commit[0], "the import wrote nothing before its commit"
         assert committed == {}, f"written {written_before_commit[0]}, committed {committed}"
+        # The 500 came from the injected commit failure, not something earlier.
+        (logged,) = problems(caplog, "app.utils.error_handlers")
+        assert logged.exc_info is not None
+        assert str(logged.exc_info[1]) == "the disk filled up at commit"
 
 
 @pytest.fixture

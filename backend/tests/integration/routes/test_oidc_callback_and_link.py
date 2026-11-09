@@ -58,6 +58,7 @@ from app.models.user import User
 from app.services.oidc import create_pending_link_token, store_oidc_state
 from app.services.oidc import linking as oidc_linking
 from app.utils.datetime_utils import utc_now
+from tests._logged import CaplogOnly, problems
 from tests.integration._csrf import assert_csrf_hashed_and_enforced, sha256_hex
 from tests.integration._oidc_refusals import (
     DISABLED,
@@ -844,10 +845,15 @@ class TestCallbackGuards:
         assert await _refusal_rows(test_sessionmaker, user_agent) == []
 
     async def test_an_unexpected_service_error_still_surfaces(
-        self, client: AsyncClient, user_agent: str
+        self,
+        client: AsyncClient,
+        user_agent: str,
+        caplog: pytest.LogCaptureFixture,
+        caplog_only: CaplogOnly,
     ):
         """Only the refusal and the pending link are caught; a bug isn't a sign-in failure."""
         with (
+            caplog_only("app.utils.error_handlers"),
             _idp(_claims()),
             patch(
                 "app.services.oidc.create_or_update_user_from_oidc",
@@ -857,6 +863,11 @@ class TestCallbackGuards:
             pytest.raises(RuntimeError, match="not a refusal"),
         ):
             await _callback(client, user_agent)
+
+        (logged,) = problems(caplog, "app.utils.error_handlers")
+        assert logged.getMessage().startswith("Unhandled exception")
+        assert logged.exc_info is not None
+        assert str(logged.exc_info[1]) == "not a refusal"
 
 
 class TestLinkStepInactiveTarget:
@@ -1022,6 +1033,8 @@ class TestLinkAudit:
         test_sessionmaker: async_sessionmaker[AsyncSession],
         made_users: list[_Account],
         user_agent: str,
+        caplog: pytest.LogCaptureFixture,
+        caplog_only: CaplogOnly,
     ):
         """No link without its audit row, and the token is still there to try again."""
         target = await _account(db_session, made_users)
@@ -1029,8 +1042,15 @@ class TestLinkAudit:
             db_session, target.username, _claims(email=target.email), None, {}
         )
 
-        with _failing_audit_insert("oidc_account_linked"), pytest.raises(_AuditInsertError):
+        with (
+            caplog_only("app.utils.error_handlers"),
+            _failing_audit_insert("oidc_account_linked"),
+            pytest.raises(_AuditInsertError),
+        ):
             await _link(client, token, _PASSWORD, user_agent)
+        (logged,) = problems(caplog, "app.utils.error_handlers")
+        assert logged.exc_info is not None
+        assert isinstance(logged.exc_info[1], _AuditInsertError)
 
         stored = await _stored_user(test_sessionmaker, target.id)
         assert stored.oidc_subject is None, "the link committed without its audit row"

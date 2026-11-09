@@ -11,13 +11,15 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
-from sqlalchemy import Engine, create_engine, inspect, text
+from sqlalchemy import DateTime, Engine, bindparam, inspect, text
 from sqlalchemy.exc import IntegrityError, OperationalError
 
 import app.migrations as _m
 from app.database import Base
 from app.models.recall import Recall
 from app.models.vehicle_dtc import VehicleDTC
+from tests._engines import SyncEngine
+from tests._logged import CaplogOnly, problems
 
 pytestmark = pytest.mark.migrations
 
@@ -87,7 +89,7 @@ def _add_dtc(conn, vin: str, code: str, last_seen: datetime, *, active: bool = T
             "INSERT INTO vehicle_dtcs (vin, device_id, code, severity, user_notes, first_seen,"
             " last_seen, is_active) VALUES (:vin, 'dev1', :code, 'warning', :notes, :seen, :seen,"
             " :active)"
-        ),
+        ).bindparams(bindparam("seen", type_=DateTime())),
         {"vin": vin, "code": code, "notes": notes, "seen": last_seen, "active": active},
     )
 
@@ -122,9 +124,9 @@ def test_the_model_takes_what_the_api_and_the_sync_take():
     assert Recall.__table__.c.component.type.length == 200
 
 
-def test_the_model_allows_one_active_row_per_code():
+def test_the_model_allows_one_active_row_per_code(sync_engine):
     """create_all builds the partial index, so the test database has it too."""
-    engine = create_engine("sqlite://")
+    engine = sync_engine("sqlite://")
     Base.metadata.create_all(engine, tables=[VehicleDTC.__table__])
     seen = datetime(2026, 6, 1, 8, 0, 0)
     with engine.begin() as conn:
@@ -253,7 +255,11 @@ _LOGGED = {
 
 @pytest.mark.parametrize("half", _HALVES)
 def test_a_failure_is_logged_not_raised(
-    half: str, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    half: str,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    caplog_only: CaplogOnly,
+    sync_engine: SyncEngine,
 ) -> None:
     """A non-FATAL failure that raises stops every migration after it, so 137 logs it instead."""
     mod = _load(_NAME)
@@ -266,7 +272,10 @@ def test_a_failure_is_logged_not_raised(
     monkeypatch.setattr(mod, half, boom)
     monkeypatch.setattr(mod, other, lambda _engine: ran.append(other))
     # 29e738c9: the OperationalError comes straight out of upgrade.
-    mod.upgrade(create_engine("sqlite://"))
-    assert _LOGGED[half] in caplog.text
+    with caplog_only(mod.logger.name):
+        mod.upgrade(sync_engine("sqlite://"))
+    (logged,) = problems(caplog, mod.logger.name)
+    assert logged.getMessage().startswith(_LOGGED[half])
+    assert logged.exc_info is not None
     # One half failing never keeps the other from running.
     assert ran == [other]

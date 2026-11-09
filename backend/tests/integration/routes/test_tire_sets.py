@@ -31,6 +31,7 @@ from app.models.vehicle import Vehicle
 from app.services.odometer_service import latest_odometer_km_and_date
 from app.services.tire_service import ODOMETER_SOURCE_SET
 from app.utils.odometer_sync import auto_sync_marker
+from tests._logged import problems
 from tests.integration.routes._low_tread import fail_the_second_sync, low_tread_rows
 
 TODAY = date(2026, 4, 1)
@@ -688,13 +689,23 @@ class TestTheFitMovesTheLowTreadReminders:
         )
 
     async def test_a_failing_sync_rolls_back_the_whole_fit(
-        self, client: AsyncClient, auth_headers, vehicle, db_session, monkeypatch
+        self,
+        client: AsyncClient,
+        auth_headers,
+        vehicle,
+        db_session,
+        monkeypatch,
+        caplog,
+        caplog_only,
     ):
         """The displaced tire's sync has dismissed its reminder when the fitted one's raises."""
         winter, stored, displaced = await _worn_swap(client, auth_headers, vehicle)
         calls = fail_the_second_sync(monkeypatch)
 
-        with pytest.raises(RuntimeError, match="sync failed"):
+        with (
+            caplog_only("app.utils.error_handlers"),
+            pytest.raises(RuntimeError, match="sync failed"),
+        ):
             await client.post(
                 f"/api/vehicles/{vehicle}/tire-sets/{winter['id']}/mount",
                 headers=auth_headers,
@@ -703,6 +714,10 @@ class TestTheFitMovesTheLowTreadReminders:
 
         # Order pinned: the displaced sync runs first, so the rollback has something to undo.
         assert calls == [displaced["id"], stored["id"]]
+        (logged,) = problems(caplog, "app.utils.error_handlers")
+        assert logged.getMessage().startswith("Unhandled exception")
+        assert logged.exc_info is not None
+        assert str(logged.exc_info[1]) == "sync failed"
         db_session.expire_all()
         placed = {
             t.id: t.position

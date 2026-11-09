@@ -12,6 +12,7 @@ to raise, and on PostgreSQL a real overflowing UPDATE through the request's
 session, so the driver's own exception shape is what the handler sees.
 """
 
+import logging
 import uuid
 from collections.abc import AsyncGenerator
 from decimal import Decimal
@@ -27,6 +28,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.vehicle import Vehicle
 from app.services.spot_rental_service import SpotRentalService
+from tests._logged import problems
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
@@ -103,14 +105,19 @@ async def test_a_numeric_overflow_is_a_422(client, auth_headers, own_vin, monkey
     ],
 )
 async def test_any_other_database_error_keeps_its_500(
-    client, auth_headers, own_vin, monkeypatch, exc
+    client, auth_headers, own_vin, monkeypatch, exc, caplog, caplog_only
 ):
     monkeypatch.setattr(SpotRentalService, "list_rentals", _raising(exc))
 
-    response = await client.get(f"/api/vehicles/{own_vin}/spot-rentals", headers=auth_headers)
+    with caplog_only("app.utils.error_handlers"):
+        response = await client.get(f"/api/vehicles/{own_vin}/spot-rentals", headers=auth_headers)
 
     assert response.status_code == 500, response.text
     assert response.json()["message"] == DATABASE_ERROR
+    (logged,) = problems(caplog, "app.utils.error_handlers")
+    assert logged.getMessage().startswith("Database error")
+    assert logged.exc_info is not None
+    assert logged.exc_info[1] is exc
 
 
 async def test_a_real_postgresql_overflow_is_a_422(
@@ -166,11 +173,18 @@ async def test_debug_mode_maps_the_overflow_too():
             await client.get("/other")
 
 
-async def test_production_mode_keeps_the_database_error_500():
+async def test_production_mode_keeps_the_database_error_500(caplog, caplog_only):
     transport = ASGITransport(app=_app(debug=False))
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        assert (await client.get("/overflow")).status_code == 422
+        with caplog_only("app.utils.error_handlers"):
+            assert (await client.get("/overflow")).status_code == 422
 
-        response = await client.get("/other")
+            response = await client.get("/other")
         assert response.status_code == 500, response.text
         assert response.json()["message"] == DATABASE_ERROR
+
+    overflow, other = problems(caplog, "app.utils.error_handlers")
+    assert (overflow.levelno, overflow.exc_info) == (logging.WARNING, None)
+    assert other.getMessage().startswith("Database error")
+    assert other.exc_info is not None
+    assert isinstance(other.exc_info[1], DataError)

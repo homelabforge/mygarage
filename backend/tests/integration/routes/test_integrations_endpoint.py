@@ -12,6 +12,8 @@ import pytest
 import pytest_asyncio
 from sqlalchemy import delete
 
+from tests._logged import problems
+
 BASE = "/api/livelink/integrations"
 _SEQ = itertools.count()
 
@@ -279,15 +281,24 @@ async def test_broker_status_comes_from_the_subscriber(client, auth_headers):
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_a_broker_read_failure_does_not_take_the_strip_down(client, auth_headers):
+async def test_a_broker_read_failure_does_not_take_the_strip_down(
+    client, auth_headers, caplog, caplog_only
+):
     """G8. This card is one of six on the settings tab; a 500 here would blank
     the others too. A broker whose status cannot be read is exactly 'not
     currently healthy'."""
-    with patch(
-        "app.routes.livelink_admin.get_subscriber_status",
-        side_effect=RuntimeError("subscriber exploded"),
+    with (
+        caplog_only("app.routes.livelink_admin"),
+        patch(
+            "app.routes.livelink_admin.get_subscriber_status",
+            side_effect=RuntimeError("subscriber exploded"),
+        ),
     ):
         response = await client.get(BASE, headers=auth_headers)
 
     assert response.status_code == 200
     assert _by_id(response.json())["broker"]["status"] == "attention"
+    (logged,) = problems(caplog, "app.routes.livelink_admin")
+    assert logged.getMessage() == "Could not read MQTT subscriber status"
+    assert logged.exc_info is not None
+    assert str(logged.exc_info[1]) == "subscriber exploded"

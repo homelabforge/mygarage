@@ -481,7 +481,7 @@ def test_130_is_idempotent(engine_for_migration):
     ids=["sqlalchemy", "value"],
 )
 def test_130_a_failure_moves_nothing_and_does_not_raise(
-    engine_for_migration, monkeypatch, caplog, error
+    engine_for_migration, monkeypatch, caplog, caplog_only, error
 ):
     """One transaction with no DDL, so the raw moves roll back with the failed step.
     Not only a database error: anything 125 swallows (D12)."""
@@ -495,7 +495,7 @@ def test_130_a_failure_moves_nothing_and_does_not_raise(
         raise error()
 
     monkeypatch.setattr(mod, "_move_summaries", _boom)
-    with caplog.at_level(logging.ERROR):
+    with caplog.at_level(logging.ERROR), caplog_only(mod.logger.name):
         mod.upgrade(engine)
     assert (_telemetry(engine), _latest(engine)) == before
     errors = [

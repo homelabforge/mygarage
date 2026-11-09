@@ -15,6 +15,7 @@ from app import main as app_main
 from app.config import settings
 from app.services import auth, session_repair, settings_init, settings_secrets
 from app.tasks import scheduled
+from tests._logged import CaplogOnly, problems
 
 
 class _StopStartupError(Exception):
@@ -61,7 +62,10 @@ def test_startup_recomputes_the_listed_trips(
 
 
 def test_a_failed_repair_is_caught_and_the_scheduler_starts_after_it(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    caplog_only: CaplogOnly,
 ) -> None:
     """A database error keeps the list for the next start but doesn't stop
     this one, and the repair runs before the scheduler starts."""
@@ -80,10 +84,16 @@ def test_a_failed_repair_is_caught_and_the_scheduler_starts_after_it(
     monkeypatch.setattr(session_repair, "recompute_pending_sessions", _repair)
     monkeypatch.setattr(scheduled, "start_scheduler", _scheduler)
 
-    with pytest.raises(_StopStartupError):
+    with caplog_only("app.main"), pytest.raises(_StopStartupError):
         with TestClient(app_main.app):
             pass
     assert order == ["repair", "scheduler"]
+    (logged,) = problems(caplog, "app.main")
+    assert (
+        logged.getMessage() == "Recomputing older Torque trips failed; the next start tries again"
+    )
+    assert logged.exc_info is not None
+    assert isinstance(logged.exc_info[1], OperationalError)
 
 
 def test_maintenance_mode_leaves_the_list_for_later(

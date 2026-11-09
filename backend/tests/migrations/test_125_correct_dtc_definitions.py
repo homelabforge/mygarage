@@ -22,6 +22,7 @@ from sqlalchemy import Engine, Table, inspect, text
 import app.migrations as _m
 from app.models.dtc_definition import DTCDefinition
 from app.models.vehicle_dtc import VehicleDTC
+from tests._logged import CaplogOnly
 
 pytestmark = pytest.mark.migrations
 
@@ -442,6 +443,7 @@ def test_125_swallows_a_bad_data_file(
     engine_for_migration: tuple[str, Engine, str],
     tmp_path: Path,
     caplog: pytest.LogCaptureFixture,
+    caplog_only: CaplogOnly,
     attr: str,
     case: str,
 ) -> None:
@@ -455,7 +457,7 @@ def test_125_swallows_a_bad_data_file(
         bad.write_text(content, encoding="utf-8")
     setattr(mod, attr, bad)
 
-    with caplog.at_level(logging.INFO):
+    with caplog.at_level(logging.INFO), caplog_only(mod.logger.name):
         mod.upgrade(engine)
 
     assert _description(engine, "P0300") == _SHIFTED_P0300
@@ -467,6 +469,7 @@ def test_125_swallows_a_bad_data_file(
 def test_125_rolls_back_a_failure_after_the_writes_start(
     engine_for_migration: tuple[str, Engine, str],
     caplog: pytest.LogCaptureFixture,
+    caplog_only: CaplogOnly,
     statement: str,
 ) -> None:
     """The reset, the DELETE and the upsert have run when this fails; all of it rolls back."""
@@ -479,7 +482,7 @@ def test_125_rolls_back_a_failure_after_the_writes_start(
     mod = _load()
     setattr(mod, statement, text("UPDATE no_such_table SET x = 1"))
 
-    with caplog.at_level(logging.INFO):
+    with caplog.at_level(logging.INFO), caplog_only(mod.logger.name):
         mod.upgrade(engine)
 
     assert _description(engine, "P1000") == _MAKER_P1000

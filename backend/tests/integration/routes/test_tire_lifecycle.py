@@ -22,6 +22,7 @@ from sqlalchemy import delete, select
 from app.models.reminder import Reminder
 from app.models.tire import Tire, TireMountPeriod, TireReading
 from app.models.vehicle import Vehicle
+from tests._logged import problems
 from tests.integration.routes._low_tread import fail_the_second_sync, low_tread_rows
 
 
@@ -771,7 +772,14 @@ class TestTheLowTreadReminderFollowsTheTire:
         assert (row.status, row.title) == ("pending", "Tire tread low (FL)")
 
     async def test_a_failing_sync_rolls_back_the_whole_rotation(
-        self, client: AsyncClient, auth_headers, vehicle, db_session, monkeypatch
+        self,
+        client: AsyncClient,
+        auth_headers,
+        vehicle,
+        db_session,
+        monkeypatch,
+        caplog,
+        caplog_only,
     ):
         """R1-F1: the second tire's sync raises after the first one's has written.
 
@@ -781,7 +789,10 @@ class TestTheLowTreadReminderFollowsTheTire:
         other = await _mount(client, auth_headers, vehicle, "RL")
         fail_the_second_sync(monkeypatch)
 
-        with pytest.raises(RuntimeError, match="sync failed"):
+        with (
+            caplog_only("app.utils.error_handlers"),
+            pytest.raises(RuntimeError, match="sync failed"),
+        ):
             await client.post(
                 f"/api/vehicles/{vehicle}/tires/rotate",
                 headers=auth_headers,
@@ -814,6 +825,10 @@ class TestTheLowTreadReminderFollowsTheTire:
         assert all(p.dismounted_on is None for p in periods)
         (row,) = await low_tread_rows(db_session, vehicle)
         assert (row.status, row.title) == ("pending", "Tire tread low (FL)")
+        (logged,) = problems(caplog, "app.utils.error_handlers")
+        assert logged.getMessage().startswith("Unhandled exception")
+        assert logged.exc_info is not None
+        assert str(logged.exc_info[1]) == "sync failed"
 
     async def test_delete_dismisses_the_pending_one_and_detaches_every_row(
         self, client: AsyncClient, auth_headers, vehicle, db_session

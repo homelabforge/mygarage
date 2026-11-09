@@ -28,6 +28,7 @@ if "TEST_DATABASE_URL" in os.environ:
     os.environ["MYGARAGE_DATABASE_URL"] = os.environ["TEST_DATABASE_URL"]
 
 from collections.abc import AsyncGenerator, Generator, Iterator
+from contextlib import contextmanager
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
@@ -69,6 +70,7 @@ from app.services.widget_auth import widget_limiter
 from app.utils.pg_session import create_utc_async_engine
 from tests._engines import SyncEngine
 from tests._keep_rows import Keep
+from tests._logged import CaplogOnly
 from tests._shard import apply_shard
 from tests._users import TEST_PASSWORD_HASH
 
@@ -345,6 +347,32 @@ def sync_engine() -> Iterator[SyncEngine]:
     yield make
     for engine in made:
         engine.dispose()
+
+
+@pytest.fixture
+def caplog_only(caplog: pytest.LogCaptureFixture) -> CaplogOnly:
+    """Send the named loggers' records to caplog alone, for a block.
+
+    log_cli prints every record live, so a test that breaks something on purpose
+    would spill the expected traceback into the run's output. The records still
+    land in caplog.records, so assert on them.
+    """
+
+    @contextmanager
+    def only(*names: str) -> Iterator[None]:
+        loggers = [logging.getLogger(name) for name in names]
+        previous = [lg.propagate for lg in loggers]
+        for lg in loggers:
+            lg.addHandler(caplog.handler)
+            lg.propagate = False
+        try:
+            yield
+        finally:
+            for lg, propagate in zip(loggers, previous, strict=True):
+                lg.propagate = propagate
+                lg.removeHandler(caplog.handler)
+
+    return only
 
 
 @pytest_asyncio.fixture
