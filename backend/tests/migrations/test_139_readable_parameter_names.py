@@ -352,7 +352,9 @@ def test_a_failure_is_logged_not_raised(
 
 
 @pytest.mark.parametrize("engine_for_migration", ["pg"], indirect=True)
-def test_a_failed_rename_through_the_runner_still_stamps_139(engine_for_migration, caplog):
+def test_a_failed_rename_through_the_runner_still_stamps_139(
+    engine_for_migration, caplog, caplog_only
+):
     """PG only: there a caught error inside the runner's transaction aborts it, and the
     stamp fails with it. 139 runs in its own transaction, so the stamp lands (R8, F1-8).
 
@@ -373,13 +375,16 @@ def test_a_failed_rename_through_the_runner_still_stamps_139(engine_for_migratio
                     {"n": stem},
                 )
 
+    # The runner's copy of 139 logs under the stem, like ours.
     try:
-        runner.run_pending_migrations()
+        with caplog_only(_NAME):
+            runner.run_pending_migrations()
     finally:
         runner.engine.dispose()
 
-    errors = [r.getMessage() for r in caplog.records if r.levelname == "ERROR"]
-    assert any(m.startswith("139: parameter names not updated") for m in errors), errors
+    (logged,) = problems(caplog, _NAME)
+    assert logged.getMessage().startswith("139: parameter names not updated")
+    assert logged.exc_info is not None
     with engine.connect() as conn:
         applied = set(conn.execute(text("SELECT migration_name FROM schema_migrations")).scalars())
     assert _NAME in applied
