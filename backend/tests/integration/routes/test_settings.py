@@ -16,6 +16,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 from app.models.settings import Setting
+from tests._retired_seeds import RETIRED_SEED_KEYS
 
 
 async def _set_setting(db_session, key: str, value: str) -> None:
@@ -1435,16 +1436,6 @@ class TestSwitchValuesAreCanonicalized:
 # ---------------------------------------------------------------------------
 
 
-# Seeded once and read by nothing; off the write allowlist now (D1a).
-_RETIRED_KEYS = (
-    "max_upload_size_mb",
-    "allowed_photo_types",
-    "allowed_attachment_types",
-    "date_format",
-    "distance_unit",
-    "fuel_unit",
-)
-
 # Read by the Recalls tab and the window sticker UI, which non-admins see (R3).
 _PUBLIC_FLAGS = {
     "nhtsa_enabled": "false",
@@ -1523,7 +1514,7 @@ class TestUploadLimits:
 class TestRetiredSettingsAreNotWritable:
     """The six retired seeds left `GENERIC_WRITABLE_KEYS` with the seed."""
 
-    @pytest.mark.parametrize("key", _RETIRED_KEYS)
+    @pytest.mark.parametrize("key", RETIRED_SEED_KEYS)
     async def test_a_batch_carrying_a_retired_key_is_a_422(
         self, client, auth_headers, db_session, keep_rows, key
     ):

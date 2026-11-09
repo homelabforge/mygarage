@@ -798,7 +798,9 @@ describe('VehicleEditDrawer — window sticker section', () => {
       expect(screen.getByRole('link', { name: 'detail.misc.testOcr' })).toBeInTheDocument()
     })
 
-    // The fallback (Fable F2-4): a failed read hides nothing; the 409 rules.
+    // The fallback: a failed read hides nothing; the 409 rules. Main never hid
+    // anything either, so the visible half is a regression guard; the
+    // /settings/public read is what's new.
     it('keeps Upload when the public settings cannot be read', async () => {
       mockedApi.get.mockImplementation((url: string) => {
         if (url.includes('detail-stats')) return Promise.resolve({ data: baseDetailStats })

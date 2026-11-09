@@ -425,7 +425,7 @@ class TestCheckDefLevels:
         row = await db_session.get(Setting, "notify_def_low")
         assert row is not None
         row.stored_value = "1"
-        await db_session.flush()
+        await db_session.commit()
         vehicle = await make_vehicle()
         await add_def_record(vehicle.vin, fill_level=Decimal("0.05"), record_date=date(2026, 7, 1))
         mock = _patch_notify_def_low(monkeypatch)

@@ -297,6 +297,86 @@ async def test_oidc_login_reads_a_stored_one_as_enabled(
     assert response.headers["location"].startswith("https://auth.example.com/")
 
 
+_ENABLED_OFF = [
+    pytest.param(None, id="missing"),
+    pytest.param("", id="blank"),
+    pytest.param("   ", id="spaces"),
+]
+
+
+async def _oidc_enabled_off(db: AsyncSession, keep: Keep, raw: str | None) -> None:
+    """No ``oidc_enabled`` row at all, or one holding blank text."""
+    if raw is None:
+        await _forget(db, keep, "oidc_enabled")
+    else:
+        await seed_rows(db, keep, {"oidc_enabled": raw})
+
+
+@pytest.mark.parametrize("raw", _ENABLED_OFF)
+async def test_the_public_oidc_config_reads_a_blank_enabled_as_off(
+    raw: str | None, client: AsyncClient, db_session: AsyncSession, keep_rows: Keep
+) -> None:
+    """Regression guard: missing and blank both read off here. Passes on main."""
+    await _oidc_enabled_off(db_session, keep_rows, raw)
+
+    response = await client.get("/api/auth/oidc/config")
+
+    assert response.status_code == 200, response.text
+    assert response.json()["enabled"] is False
+
+
+@pytest.mark.parametrize("raw", _ENABLED_OFF)
+async def test_the_admin_oidc_config_reads_a_blank_enabled_as_off(
+    raw: str | None,
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    db_session: AsyncSession,
+    keep_rows: Keep,
+) -> None:
+    """Regression guard: missing and blank both read off here. Passes on main."""
+    await _oidc_enabled_off(db_session, keep_rows, raw)
+
+    response = await client.get("/api/auth/oidc/config/admin", headers=auth_headers)
+
+    assert response.status_code == 200, response.text
+    assert response.json()["enabled"] is False
+
+
+@pytest.mark.parametrize("raw", _ENABLED_OFF)
+async def test_oidc_login_reads_a_blank_enabled_as_off(
+    raw: str | None, client: AsyncClient, db_session: AsyncSession, keep_rows: Keep
+) -> None:
+    """Regression guard: missing and blank both refuse to start SSO. Passes on main.
+
+    Issuer and client are set and the IdP is stubbed, so the switch is the only
+    thing that can send the browser back to the login page.
+    """
+    await seed_rows(
+        db_session,
+        keep_rows,
+        {"oidc_issuer_url": "https://auth.example.com/", "oidc_client_id": "test-client-id"},
+    )
+    await _oidc_enabled_off(db_session, keep_rows, raw)
+
+    with (
+        patch(
+            "app.services.oidc.get_provider_metadata",
+            new_callable=AsyncMock,
+            return_value={"authorization_endpoint": "https://auth.example.com/authorize"},
+        ),
+        patch(
+            "app.services.oidc.create_authorization_url",
+            new_callable=AsyncMock,
+            return_value=("https://auth.example.com/authorize?client_id=test", "state123"),
+        ) as authorize,
+    ):
+        response = await client.get("/api/auth/oidc/login", follow_redirects=False)
+
+    assert response.status_code == 302
+    assert response.headers["location"].endswith("/login?sso_error=failed")
+    authorize.assert_not_called()
+
+
 # --------------------------------------------------------------------------- multi-user
 
 
@@ -352,7 +432,9 @@ async def test_creating_a_user_with_multi_user_blank_is_refused(
     assert await _create_user(client, auth_headers, made_users) == 403
 
 
-@pytest.mark.parametrize("value", ["1", " Yes "])
+@pytest.mark.parametrize(
+    "value", [pytest.param("1", id="guard-1"), pytest.param(" Yes ", id="padded-yes")]
+)
 async def test_the_dashboard_reads_multi_user_as_on(
     value: str,
     client: AsyncClient,

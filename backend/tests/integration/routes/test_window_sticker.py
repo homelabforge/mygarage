@@ -1035,6 +1035,8 @@ async def test_stickers_off_refuses_the_test_scan(
     assert response.status_code == 409, response.text
     assert response.json()["detail"] == STICKERS_OFF
     ocr.test_extraction.assert_not_awaited()
+    # Regression guard: main passes this line too, since its finally deleted the
+    # temp file. The not-awaited scan above is what's red on main.
     assert _files_under(tmp_path) == [sticker_on_file]
 
 
@@ -1179,6 +1181,8 @@ async def test_ocr_off_refuses_the_test_scan(
     assert response.status_code == 409, response.text
     assert response.json()["detail"] == OCR_OFF
     ocr.test_extraction.assert_not_awaited()
+    # Regression guard: main passes this line too, since its finally deleted the
+    # temp file. The not-awaited scan above is what's red on main.
     assert _files_under(tmp_path) == [sticker_on_file]
 
 

@@ -790,7 +790,7 @@ async def test_the_no_claims_class_round_trips_the_csv_and_the_json(
     assert entry["no_claims_class"] == "0.50"
 
     # Restored from the backup, the class comes back; an unreadable one is dropped.
-    await db_session.execute(delete(InsurancePolicy).where(scope.mine()))
+    await scope.drop(db_session)
     await db_session.commit()
     entry["no_claims_class"] = "a value far too long for the column"
     backup["insurance_policies"] = [entry]

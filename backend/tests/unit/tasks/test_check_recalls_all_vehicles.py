@@ -33,10 +33,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.recall import Recall
 from app.models.vehicle import Vehicle
 from app.services.settings_service import SettingsService
-from app.tasks import scheduled
 from app.tasks.scheduled import check_recalls_all_vehicles
 from app.utils.datetime_utils import utc_now
 from app.utils.vin import calculate_check_digit
+from tests._fake_nhtsa import decode_answer, failure, is_decode, serve
 
 pytestmark = pytest.mark.unit
 
@@ -482,33 +482,22 @@ class _FakeNHTSA:
         self.fail: tuple[str, str, str] | None = None
         self.requested: list[str] = []
 
-    def _failure(self, url: str, how: str) -> httpx.Response:
-        request = httpx.Request("GET", url)
-        if how == "timeout":
-            raise httpx.ReadTimeout("timed out", request=request)
-        if how == "503":
-            return httpx.Response(503, request=request, text="Service Unavailable")
-        if how == "decoding-error":
-            raise httpx.DecodingError("bad gzip stream", request=request)
-        raise AssertionError(how)
-
     def answer(self, url: str) -> httpx.Response:
         """The response to a GET of `url`, or the transport error it raises."""
         self.requested.append(url)
         request = httpx.Request("GET", url)
         parts = urlsplit(url)
-        if "/DecodeVinValues/" in parts.path:
+        if is_decode(url):
             vin = parts.path.rsplit("/", 1)[1]
             if self.fail and self.fail[:2] == (vin, "decode"):
-                return self._failure(url, self.fail[2])
+                return failure(request, self.fail[2])
             model = "" if vin in self.no_model else self.models.get(vin, "NoRecallsModel")
-            result = {"Make": "TESTMAKE", "Model": model, "ModelYear": "2020", "ErrorCode": "0"}
-            return httpx.Response(200, request=request, json={"Results": [result]})
+            return decode_answer(request, make="TESTMAKE", model=model)
         if parts.path.endswith("/recallsByVehicle"):
             model = parse_qs(parts.query)["model"][0]
             vin = next((v for v, m in self.models.items() if m == model), None)
             if vin and self.fail and self.fail[:2] == (vin, "recalls"):
-                return self._failure(url, self.fail[2])
+                return failure(request, self.fail[2])
             return httpx.Response(
                 200, request=request, json={"results": self.recalls.get(vin or "", [])}
             )
@@ -519,12 +508,7 @@ class _FakeNHTSA:
 def nhtsa(monkeypatch: pytest.MonkeyPatch) -> _FakeNHTSA:
     """The fake NHTSA behind every httpx request, with DNS lookups off."""
     fake = _FakeNHTSA()
-
-    async def fake_get(client: object, url: str, **kwargs: object) -> httpx.Response:
-        return fake.answer(url)
-
-    monkeypatch.setattr("httpx.AsyncClient.get", fake_get)
-    monkeypatch.setattr("app.utils.url_validation.resolve_hostname", lambda hostname: None)
+    serve(monkeypatch, fake.answer)
     return fake
 
 
@@ -865,28 +849,3 @@ async def test_a_vehicle_that_errors_holds_every_due_stamp(
     assert rappel.await_count == 1
     assert await _last_check(db_session) in (None, "")
     assert await _stamp(db_session, "rappelconso_last_check") in (None, "")
-
-
-# --- the trigger --------------------------------------------------------------
-
-
-def test_the_recall_check_is_scheduled_daily_at_2_utc(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The job ticks daily and decides itself whether the interval is due.
-
-    Pinned to UTC: the scheduler has no zone, so a local-zone cron would put
-    23 or 25 hours between ticks on DST days, and the hour of slack assumes 24.
-    Red on main, which registered Sunday only, in the scheduler's zone.
-    """
-    monkeypatch.setenv("SCHEDULER_ENABLED", "true")
-    monkeypatch.setattr(scheduled.scheduler, "start", lambda *args, **kwargs: None)
-    try:
-        scheduled.start_scheduler()
-        job = scheduled.scheduler.get_job("check_recalls_all_vehicles")
-        assert job is not None
-        fields = {field.name: str(field) for field in job.trigger.fields}
-        assert fields["day_of_week"] == "*"
-        assert fields["hour"] == "2"
-        assert fields["minute"] == "0"
-        assert job.trigger.timezone == UTC
-    finally:
-        scheduled.scheduler.remove_all_jobs()

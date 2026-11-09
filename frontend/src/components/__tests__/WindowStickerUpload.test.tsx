@@ -436,7 +436,9 @@ describe('WindowStickerUpload: the sticker and OCR switches', () => {
     expect(onClose).toHaveBeenCalledWith(false)
   })
 
-  // The fallback (Fable F2-4): a failed read hides nothing; the 409 rules.
+  // The fallback: a failed read hides nothing; the 409 rules. Main never hid
+  // anything either, so the visible half is a regression guard; the
+  // /settings/public read is what's new.
   it('when the switches cannot be read, the upload is offered with no OCR notice', async () => {
     apiGet.mockRejectedValue(new Error('down'))
     render(<WindowStickerUpload vin="V1" onSuccess={vi.fn()} onClose={vi.fn()} />)

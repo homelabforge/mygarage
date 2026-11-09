@@ -640,7 +640,7 @@ def auth_headers(test_user: dict[str, object]) -> dict[str, str]:
 
 
 @pytest_asyncio.fixture
-async def non_admin_user(db_session: AsyncSession) -> dict[str, object]:
+async def non_admin_user(db_session: AsyncSession) -> AsyncGenerator[dict[str, object]]:
     """Create a non-admin test user for authorization testing.
 
     Unlike test_user (which is admin), this user has no admin privileges.
@@ -672,13 +672,25 @@ async def non_admin_user(db_session: AsyncSession) -> dict[str, object]:
         await db_session.commit()
         await db_session.refresh(user)
 
-    return {
-        "id": user.id,
+    user_id = user.id
+    yield {
+        "id": user_id,
         "username": user.username,
         "email": user.email,
         "is_active": user.is_active,
         "is_admin": user.is_admin,
     }
+    # This user is one row for the whole run, so a vehicle a test leaves in its
+    # garage (pending reminders and all) shows up in the next test's dashboard.
+    await db_session.rollback()
+    leftovers = (
+        (await db_session.execute(select(Vehicle).where(Vehicle.user_id == user_id)))
+        .scalars()
+        .all()
+    )
+    for vehicle in leftovers:
+        await db_session.delete(vehicle)
+    await db_session.commit()
 
 
 @pytest.fixture

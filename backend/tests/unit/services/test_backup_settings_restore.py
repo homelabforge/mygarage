@@ -96,7 +96,7 @@ async def _isolated_rows(db_session: AsyncSession):
     await _clear(db_session)
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 class TestSettingsRestoreValidatesDefaultUnitPrefs:
     """The restore loop applies the same rule the settings routes apply."""
@@ -163,7 +163,7 @@ class TestSettingsRestoreValidatesDefaultUnitPrefs:
         assert details["restored_count"] == 2
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_a_settings_name_outside_the_backup_folder_is_not_read(
     db_session: AsyncSession, tmp_path: Path
@@ -213,7 +213,7 @@ async def pinned_redirect_uri(db_session: AsyncSession) -> AsyncIterator[None]:
     await db_session.commit()
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("pinned_redirect_uri")
 class TestSettingsRestoreValidatesOidcRedirectUri:
@@ -301,7 +301,7 @@ async def ruled_rows(db_session: AsyncSession, keep_rows) -> AsyncIterator[None]
     yield
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("ruled_rows")
 class TestSettingsRestoreAppliesTheValueRules:
@@ -416,13 +416,13 @@ _SWITCH_KEY = "nhtsa_enabled"
 _NON_SWITCH_KEY = "auto_archive_inactive_days"
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 class TestSettingsRestoreCanonicalizesSwitches:
     """The restore stores a switch the way the settings routes do (batch 5, D5a)."""
 
     async def _restore_one(
-        self, db_session: AsyncSession, tmp_path: Path, keep_rows, key: str, raw: str
+        self, db_session: AsyncSession, tmp_path: Path, keep_rows, key: str, raw: object
     ) -> dict[str, object]:
         """Restore a file holding just `key` = `raw`; the original row goes back afterwards."""
         await keep_rows(key)
@@ -436,6 +436,25 @@ class TestSettingsRestoreCanonicalizesSwitches:
     async def test_a_switch_word_is_stored_canonically(
         self, db_session: AsyncSession, tmp_path: Path, keep_rows, raw: str, stored: str
     ) -> None:
+        details = await self._restore_one(db_session, tmp_path, keep_rows, _SWITCH_KEY, raw)
+
+        assert await _stored(db_session, _SWITCH_KEY) == stored
+        assert details["restored_count"] == 1
+
+    @pytest.mark.parametrize(
+        ("raw", "stored"),
+        [
+            pytest.param(1, "true", id="json-1"),
+            pytest.param(True, "true", id="json-true"),
+            pytest.param(0, "false", id="json-0"),
+            pytest.param(False, "false", id="json-false"),
+        ],
+    )
+    async def test_a_json_number_or_bool_on_a_switch_is_stored_canonically(
+        self, db_session: AsyncSession, tmp_path: Path, keep_rows, raw: object, stored: str
+    ) -> None:
+        """The JSON coercion and the switch tidy-up run one after the other: a 1
+        becomes "1" first, then "true", not a "1" left for the readers."""
         details = await self._restore_one(db_session, tmp_path, keep_rows, _SWITCH_KEY, raw)
 
         assert await _stored(db_session, _SWITCH_KEY) == stored
@@ -481,7 +500,7 @@ async def _llm_rows(db_session: AsyncSession):
     await db_session.commit()
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 class TestSettingsRestoreValidatesLlmRows:
     @pytest.mark.parametrize(
@@ -534,7 +553,7 @@ class TestSettingsRestoreValidatesLlmRows:
         assert details["restored_count"] == 3
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_a_bad_time_zone_is_skipped_with_the_rule_message(
     db_session: AsyncSession, tmp_path: Path, keep_rows, caplog: pytest.LogCaptureFixture
@@ -564,7 +583,7 @@ async def test_a_bad_time_zone_is_skipped_with_the_rule_message(
     ]
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_text_that_cannot_be_stored_is_skipped(
     db_session: AsyncSession, tmp_path: Path, keep_rows, caplog: pytest.LogCaptureFixture
@@ -590,7 +609,7 @@ async def test_text_that_cannot_be_stored_is_skipped(
     ]
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_the_retired_map_keys_are_not_restored(
     db_session: AsyncSession, tmp_path: Path, keep_rows

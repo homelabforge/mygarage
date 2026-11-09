@@ -28,6 +28,7 @@ from app.schemas.recall import RecallUpdate
 from app.schemas.service_visit import ServiceLineItemCreate, ServiceVisitCreate
 from app.services import recall_links
 from app.services import recall_service as recall_service_module
+from app.services.nhtsa import NHTSAService
 from app.services.recall_links import resolved_at_for
 from app.services.recall_service import RecallService
 from app.services.service_visit_service import ServiceVisitService
@@ -606,6 +607,15 @@ class TestCheckNhtsaSwitch:
         await db_session.commit()
         fetch = AsyncMock(return_value=[])
         monkeypatch.setattr("app.services.nhtsa.NHTSAService.get_vehicle_recalls", fetch)
+        # The switch is read before the client is even built, not just before the fetch.
+        built: list[NHTSAService] = []
+        real_init = NHTSAService.__init__
+
+        def recording_init(self: NHTSAService) -> None:
+            built.append(self)
+            real_init(self)
+
+        monkeypatch.setattr(NHTSAService, "__init__", recording_init)
 
         response = await client.post(
             f"/api/vehicles/{test_vehicle['vin']}/recalls/check-nhtsa",
@@ -617,8 +627,10 @@ class TestCheckNhtsaSwitch:
             assert response.json()["detail"] == (
                 "NHTSA recalls are switched off in Settings > Integrations"
             )
+            assert built == []
             fetch.assert_not_awaited()
         else:
+            assert len(built) == 1
             fetch.assert_awaited_once()
 
     async def test_a_non_owner_still_gets_403_with_the_switch_off(

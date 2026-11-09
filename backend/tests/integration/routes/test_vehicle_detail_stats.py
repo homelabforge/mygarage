@@ -1,9 +1,11 @@
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from datetime import date, timedelta
 from decimal import Decimal
 
 import pytest
+import pytest_asyncio
 from httpx import AsyncClient
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import (
@@ -17,22 +19,41 @@ from app.models import (
 )
 from app.models.vehicle_share import VehicleShare
 
+SeedVehicle = Callable[[object, str], Awaitable[str]]
 
-async def _seed_vehicle(db_session: AsyncSession, owner_id, vin: str) -> str:
-    """Create a fresh vehicle owned by `owner_id` with a unique VIN (pollution-proof counts)."""
-    db_session.add(
-        Vehicle(
-            vin=vin,
-            user_id=owner_id,
-            nickname="Stats Rig",
-            vehicle_type="Car",
-            year=2020,
-            make="Test",
-            model="Rig",
+
+@pytest_asyncio.fixture
+async def seed_vehicle(db_session: AsyncSession) -> AsyncGenerator[SeedVehicle]:
+    """Seed fresh vehicles with unique VINs (pollution-proof counts), deleted afterwards.
+
+    The users are shared rows on the session-wide test DB, so a leftover
+    vehicle with pending reminders shows up in later tests' dashboards.
+    """
+    seeded: list[str] = []
+
+    async def _seed(owner_id: object, vin: str) -> str:
+        db_session.add(
+            Vehicle(
+                vin=vin,
+                user_id=owner_id,
+                nickname="Stats Rig",
+                vehicle_type="Car",
+                year=2020,
+                make="Test",
+                model="Rig",
+            )
         )
-    )
-    await db_session.commit()
-    return vin
+        await db_session.commit()
+        seeded.append(vin)
+        return vin
+
+    yield _seed
+    # A failed assert can leave the session mid-transaction. The FK cascade
+    # takes the records, reminders and shares with each vehicle.
+    await db_session.rollback()
+    if seeded:
+        await db_session.execute(delete(Vehicle).where(Vehicle.vin.in_(seeded)))
+        await db_session.commit()
 
 
 @pytest.mark.asyncio
@@ -41,13 +62,18 @@ class TestVehicleDetailStats:
     #     ownership/share checks in get_vehicle_or_403 and mask a broken scope.
 
     async def test_structure_and_types(
-        self, client: AsyncClient, non_admin_headers, non_admin_user, db_session: AsyncSession
+        self,
+        seed_vehicle: SeedVehicle,
+        client: AsyncClient,
+        non_admin_headers,
+        non_admin_user,
+        db_session: AsyncSession,
     ):
         """detail-stats carries the full contract; year is this year; Decimals
         serialize to JSON strings; a records-free vehicle reads zeros/nulls.
         Runs as the non-admin owner, so it also proves the owner branch grants
         access (not the admin bypass)."""
-        vin = await _seed_vehicle(db_session, non_admin_user["id"], "5NPE24AF0FH100001")
+        vin = await seed_vehicle(non_admin_user["id"], "5NPE24AF0FH100001")
         response = await client.get(f"/api/vehicles/{vin}/detail-stats", headers=non_admin_headers)
         assert response.status_code == 200
         body = response.json()
@@ -95,6 +121,7 @@ class TestVehicleDetailStats:
 
     async def test_read_share_grants_access(
         self,
+        seed_vehicle: SeedVehicle,
         client: AsyncClient,
         non_admin_headers,
         non_admin_user,
@@ -103,7 +130,7 @@ class TestVehicleDetailStats:
     ):
         """A read-share (permission='read') on the ADMIN's vehicle grants the
         non-admin 200 (auth.py:417-424). Breaks if the share branch is dropped."""
-        vin = await _seed_vehicle(db_session, test_user["id"], "5NPE24AF0FH100009")
+        vin = await seed_vehicle(test_user["id"], "5NPE24AF0FH100009")
         db_session.add(
             VehicleShare(
                 vehicle_vin=vin,
@@ -118,7 +145,12 @@ class TestVehicleDetailStats:
         assert set(response.json().keys()) >= {"overdue_count", "spent_this_year", "year"}
 
     async def test_overdue_and_upcoming_disjoint(
-        self, client: AsyncClient, non_admin_headers, non_admin_user, db_session: AsyncSession
+        self,
+        seed_vehicle: SeedVehicle,
+        client: AsyncClient,
+        non_admin_headers,
+        non_admin_user,
+        db_session: AsyncSession,
     ):
         """Predicate mirrors dashboard.calculate_vehicle_stats (G8): overdue =
         due_date<=today; upcoming = ALL pending non-overdue (broad partition);
@@ -126,7 +158,7 @@ class TestVehicleDetailStats:
         due_date NOR a due_mileage_km is upcoming. Breaks if the <=/< boundary
         flips, the status filter is dropped, or 'upcoming' is narrowed to a
         strict future window."""
-        vin = await _seed_vehicle(db_session, non_admin_user["id"], "5NPE24AF0FH100002")
+        vin = await seed_vehicle(non_admin_user["id"], "5NPE24AF0FH100002")
         today = date.today()
         db_session.add_all(
             [
@@ -181,13 +213,18 @@ class TestVehicleDetailStats:
         assert body["due_soon_count"] == 1  # only the 10-days one is expected within 30 days
 
     async def test_overdue_by_mileage_boundaries(
-        self, client: AsyncClient, non_admin_headers, non_admin_user, db_session: AsyncSession
+        self,
+        seed_vehicle: SeedVehicle,
+        client: AsyncClient,
+        non_admin_headers,
+        non_admin_user,
+        db_session: AsyncSession,
     ):
         """Mileage predicate (G8): due_mileage_km <= current odometer is overdue
         (>= boundary — exactly-at-due is overdue); a mileage-only reminder with
         NO odometer reading on the vehicle is upcoming (mileage branch cannot
         fire). Breaks if the mileage branch is dropped or the boundary flips."""
-        vin = await _seed_vehicle(db_session, non_admin_user["id"], "5NPE24AF0FH100003")
+        vin = await seed_vehicle(non_admin_user["id"], "5NPE24AF0FH100003")
         db_session.add_all(
             [
                 OdometerRecord(vin=vin, date=date.today(), odometer_km=Decimal("50000.00")),
@@ -225,11 +262,16 @@ class TestVehicleDetailStats:
         assert body["upcoming_count"] == 1  # 60k still upcoming
 
     async def test_mileage_reminder_without_odometer_is_upcoming(
-        self, client: AsyncClient, non_admin_headers, non_admin_user, db_session: AsyncSession
+        self,
+        seed_vehicle: SeedVehicle,
+        client: AsyncClient,
+        non_admin_headers,
+        non_admin_user,
+        db_session: AsyncSession,
     ):
         """A mileage-only reminder on a vehicle with NO odometer reading cannot be
         overdue (current_odometer_km is None) → upcoming (G8)."""
-        vin = await _seed_vehicle(db_session, non_admin_user["id"], "5NPE24AF0FH100010")
+        vin = await seed_vehicle(non_admin_user["id"], "5NPE24AF0FH100010")
         db_session.add(
             Reminder(
                 vin=vin,
@@ -248,7 +290,12 @@ class TestVehicleDetailStats:
         assert body["upcoming_count"] == 1
 
     async def test_overdue_and_upcoming_hours_boundaries(
-        self, client: AsyncClient, non_admin_headers, non_admin_user, db_session: AsyncSession
+        self,
+        seed_vehicle: SeedVehicle,
+        client: AsyncClient,
+        non_admin_headers,
+        non_admin_user,
+        db_session: AsyncSession,
     ):
         """Phase 6b parity fix: detail-stats must use the SAME hours-aware
         is_reminder_overdue predicate as the dashboard, family dashboard, and
@@ -257,7 +304,7 @@ class TestVehicleDetailStats:
         Mirrors test_dashboard.test_dashboard_mixed_date_mileage_hours_reminders_all_evaluated:
         pre-existing date/mileage behavior stays exactly as-is (G8) while the
         new hours branch is exercised alongside them on one vehicle."""
-        vin = await _seed_vehicle(db_session, non_admin_user["id"], "5NPE24AF0FH100020")
+        vin = await seed_vehicle(non_admin_user["id"], "5NPE24AF0FH100020")
         db_session.add(OdometerRecord(vin=vin, date=date.today(), odometer_km=Decimal("60000")))
         db_session.add(HoursRecord(vin=vin, date=date.today(), engine_hours=Decimal("50.0")))
         db_session.add_all(
@@ -303,6 +350,7 @@ class TestVehicleDetailStats:
 
     async def test_spent_this_year_is_ytd_scoped(
         self,
+        seed_vehicle: SeedVehicle,
         client: AsyncClient,
         non_admin_headers,
         non_admin_user,
@@ -331,7 +379,7 @@ class TestVehicleDetailStats:
 
         monkeypatch.setattr(vehicles_route, "date", _FrozenDate)
 
-        vin = await _seed_vehicle(db_session, non_admin_user["id"], "5NPE24AF0FH100004")
+        vin = await seed_vehicle(non_admin_user["id"], "5NPE24AF0FH100004")
         db_session.add_all(
             [
                 # In range (frozen today): service 100 + fuel 40 + DEF 20 = 160.
@@ -363,12 +411,17 @@ class TestVehicleDetailStats:
         assert body["year"] == 2026
 
     async def test_latest_odometer_is_canonical_km_and_most_recent(
-        self, client: AsyncClient, non_admin_headers, non_admin_user, db_session: AsyncSession
+        self,
+        seed_vehicle: SeedVehicle,
+        client: AsyncClient,
+        non_admin_headers,
+        non_admin_user,
+        db_session: AsyncSession,
     ):
         """latest_odometer_km is the most-recent reading in raw canonical km
         (NOT converted to miles), and latest_odometer_date tracks it. Breaks if
         the query converts units or orders wrong."""
-        vin = await _seed_vehicle(db_session, non_admin_user["id"], "5NPE24AF0FH100005")
+        vin = await seed_vehicle(non_admin_user["id"], "5NPE24AF0FH100005")
         today = date.today()
         db_session.add_all(
             [
@@ -387,7 +440,12 @@ class TestVehicleDetailStats:
         assert body["latest_odometer_date"] == today.isoformat()
 
     async def test_same_date_readings_use_the_highest_for_display_and_mileage(
-        self, client: AsyncClient, non_admin_headers, non_admin_user, db_session: AsyncSession
+        self,
+        seed_vehicle: SeedVehicle,
+        client: AsyncClient,
+        non_admin_headers,
+        non_admin_user,
+        db_session: AsyncSession,
     ):
         """Two odometer readings on the SAME date: the highest reading of the day is
         the current one, deterministically on SQLite AND PG (B2). The SAME row
@@ -396,7 +454,7 @@ class TestVehicleDetailStats:
         today, so the higher reading is the OLDER row; the 50100 row must win,
         and a reminder due at 50050 must be OVERDUE (would be upcoming if the
         50000 row leaked in)."""
-        vin = await _seed_vehicle(db_session, non_admin_user["id"], "5NPE24AF0FH100007")
+        vin = await seed_vehicle(non_admin_user["id"], "5NPE24AF0FH100007")
         today = date.today()
         first = OdometerRecord(vin=vin, date=today, odometer_km=Decimal("50100.00"))
         db_session.add(first)
@@ -423,6 +481,7 @@ class TestVehicleDetailStats:
 
     async def test_dashboard_and_detail_agree_on_same_date_counts(
         self,
+        seed_vehicle: SeedVehicle,
         client: AsyncClient,
         non_admin_headers,
         non_admin_user,
@@ -458,7 +517,7 @@ class TestVehicleDetailStats:
         monkeypatch.setattr(vehicle_routes, "latest_odometer_km_and_date", detail_spy)
         monkeypatch.setattr(dashboard_routes, "latest_odometer_km_and_date", dashboard_spy)
 
-        vin = await _seed_vehicle(db_session, non_admin_user["id"], "5NPE24AF0FH100008")
+        vin = await seed_vehicle(non_admin_user["id"], "5NPE24AF0FH100008")
         today = date.today()
         db_session.add(OdometerRecord(vin=vin, date=today, odometer_km=Decimal("50000.00")))
         await db_session.commit()  # lower id
@@ -500,10 +559,15 @@ class TestVehicleDetailStats:
         assert detail["upcoming_count"] == card["upcoming_maintenance_count"] == 0
 
     async def test_last_service_and_fillup_pick_latest(
-        self, client: AsyncClient, non_admin_headers, non_admin_user, db_session: AsyncSession
+        self,
+        seed_vehicle: SeedVehicle,
+        client: AsyncClient,
+        non_admin_headers,
+        non_admin_user,
+        db_session: AsyncSession,
     ):
         """last_service_date / last_fillup_date are the most-recent record dates."""
-        vin = await _seed_vehicle(db_session, non_admin_user["id"], "5NPE24AF0FH100006")
+        vin = await seed_vehicle(non_admin_user["id"], "5NPE24AF0FH100006")
         today = date.today()
         db_session.add_all(
             [
@@ -548,14 +612,19 @@ class TestVehicleDetailStats:
         assert response.status_code == 401
 
     async def test_hours_fields_present_and_agree_with_dashboard(
-        self, client: AsyncClient, non_admin_headers, non_admin_user, db_session: AsyncSession
+        self,
+        seed_vehicle: SeedVehicle,
+        client: AsyncClient,
+        non_admin_headers,
+        non_admin_user,
+        db_session: AsyncSession,
     ):
         """Part A: latest_hours (via latest_engine_hours_and_date — the MAX
         reading, not the newest-dated one) + average_l_per_hr/average_cost_per_hr
         (via the fuel hours-economy average) + secondary_usage_enabled must be
         populated identically on BOTH the detail-stats payload AND the
         garage-list VehicleStatistics card."""
-        vin = await _seed_vehicle(db_session, non_admin_user["id"], "5NPE24AF0FH100013")
+        vin = await seed_vehicle(non_admin_user["id"], "5NPE24AF0FH100013")
         vehicle = (await db_session.execute(select(Vehicle).where(Vehicle.vin == vin))).scalar_one()
         vehicle.usage_unit = "hours"
         vehicle.secondary_usage_enabled = True
@@ -612,14 +681,19 @@ class TestVehicleDetailStats:
         assert card["secondary_usage_enabled"] is True
 
     async def test_latest_hours_ignores_stale_current_hours_column(
-        self, client: AsyncClient, non_admin_headers, non_admin_user, db_session: AsyncSession
+        self,
+        seed_vehicle: SeedVehicle,
+        client: AsyncClient,
+        non_admin_headers,
+        non_admin_user,
+        db_session: AsyncSession,
     ):
         """R2-H1: latest_hours must be derived from hours_records via the
         canonical helper, NEVER from the retired vehicles.current_hours
         column — even when that column holds a stale legacy value with no
         matching hours_records row. current_hours is kept in the response
         for API compat only, unrelated to latest_hours."""
-        vin = await _seed_vehicle(db_session, non_admin_user["id"], "5NPE24AF0FH100014")
+        vin = await seed_vehicle(non_admin_user["id"], "5NPE24AF0FH100014")
         vehicle = (await db_session.execute(select(Vehicle).where(Vehicle.vin == vin))).scalar_one()
         vehicle.current_hours = Decimal("999.9")  # stale legacy value, no hours_records row
         await db_session.commit()

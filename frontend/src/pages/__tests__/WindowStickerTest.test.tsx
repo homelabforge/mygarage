@@ -281,7 +281,9 @@ describe('WindowStickerTest with a switch off', () => {
     expect(screen.queryByRole('button', { name: 'windowSticker.testExtraction' })).not.toBeInTheDocument()
   })
 
-  // The fallback (Fable F2-4): a failed read hides nothing; the 409 rules.
+  // The fallback: a failed read hides nothing; the 409 rules. Main never hid
+  // anything either, so the visible half is a regression guard; the
+  // /settings/public read is what's new.
   it('when the switches cannot be read, the form is offered', async () => {
     apiGet.mockImplementation((url: string) =>
       url === '/settings/public' ? Promise.reject(new Error('down')) : Promise.resolve({ data: [] }),

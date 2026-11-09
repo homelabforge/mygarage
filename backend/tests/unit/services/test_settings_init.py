@@ -26,6 +26,7 @@ from app.utils.default_unit_prefs import (
     UK_IMPERIAL_PRESET,
     parse_default_unit_prefs,
 )
+from tests._retired_seeds import RETIRED_SEED_KEYS
 
 
 @pytest.mark.unit
@@ -156,20 +157,6 @@ class TestDefaultSettingLogLine:
         assert secret_default not in caplog.text
         assert "Added default setting: ntfy_token = <secret>" in caplog.text
         assert f"Added default setting: oidc_provider_name = {plain_default}" in caplog.text
-
-
-# Seeded, and read by nothing (batch 5, Task 5): uploads follow the server's
-# configuration (sizes from the environment, each kind's file types from
-# defaults in code the environment can override), and the three display
-# settings were never read at all.
-RETIRED_SEED_KEYS = (
-    "max_upload_size_mb",
-    "allowed_photo_types",
-    "allowed_attachment_types",
-    "date_format",
-    "distance_unit",
-    "fuel_unit",
-)
 
 
 @pytest_asyncio.fixture

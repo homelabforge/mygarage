@@ -12,61 +12,33 @@ The name is looked up on the module inside each test, so on code without it
 each test fails on its own instead of the whole file failing to import.
 """
 
-from urllib.parse import urlsplit
-
 import httpx
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services import nhtsa as nhtsa_module
 from app.services.nhtsa import NHTSAService
+from tests._fake_nhtsa import decode_answer, failure, is_decode, serve
 
 pytestmark = pytest.mark.unit
 
 VIN = "1HGCM82673A123456"
-MAINTENANCE_PAGE = "<html><body>NHTSA is down for maintenance</body></html>"
-
-
-def _decode_answer(request: httpx.Request, *, model: str = "Accord") -> httpx.Response:
-    """vPIC decoding the VIN to a 2020 Honda `model`."""
-    result = {"Make": "HONDA", "Model": model, "ModelYear": "2020", "ErrorCode": "0"}
-    return httpx.Response(200, request=request, json={"Results": [result]})
-
-
-def _failure(request: httpx.Request, how: str) -> httpx.Response:
-    """The response for `how`, or the transport error it stands for."""
-    if how == "timeout":
-        raise httpx.ReadTimeout("timed out", request=request)
-    if how == "read-error":
-        raise httpx.ReadError("connection reset", request=request)
-    if how == "decoding-error":
-        raise httpx.DecodingError("bad gzip stream", request=request)
-    if how == "too-many-redirects":
-        raise httpx.TooManyRedirects("redirect loop", request=request)
-    if how == "503":
-        return httpx.Response(503, request=request, text=MAINTENANCE_PAGE)
-    if how == "400":
-        return httpx.Response(400, request=request, text=MAINTENANCE_PAGE)
-    if how == "not-json":
-        return httpx.Response(200, request=request, text=MAINTENANCE_PAGE)
-    raise AssertionError(how)
 
 
 def _serve(monkeypatch: pytest.MonkeyPatch, *, step: str | None, how: str = "") -> None:
     """Answer both requests normally except `step` ("decode" or "recalls"),
-    which fails as `how`. No network, no DNS."""
+    which fails as `how`."""
 
-    async def fake_get(client: object, url: str, **kwargs: object) -> httpx.Response:
+    def answer(url: str) -> httpx.Response:
         request = httpx.Request("GET", url)
-        is_decode = "/DecodeVinValues/" in urlsplit(url).path
-        if step == ("decode" if is_decode else "recalls"):
-            return _failure(request, how)
-        if is_decode:
-            return _decode_answer(request)
+        decode = is_decode(url)
+        if step == ("decode" if decode else "recalls"):
+            return failure(request, how)
+        if decode:
+            return decode_answer(request)
         return httpx.Response(200, request=request, json={"results": []})
 
-    monkeypatch.setattr("httpx.AsyncClient.get", fake_get)
-    monkeypatch.setattr("app.utils.url_validation.resolve_hostname", lambda hostname: None)
+    serve(monkeypatch, answer)
 
 
 _ORIGINAL = {
@@ -110,11 +82,7 @@ async def test_an_undecodable_vin_is_still_a_value_error(
     """vPIC answering without a model is a vehicle that can't be checked, not
     an outage."""
 
-    async def fake_get(client: object, url: str, **kwargs: object) -> httpx.Response:
-        return _decode_answer(httpx.Request("GET", url), model="")
-
-    monkeypatch.setattr("httpx.AsyncClient.get", fake_get)
-    monkeypatch.setattr("app.utils.url_validation.resolve_hostname", lambda hostname: None)
+    serve(monkeypatch, lambda url: decode_answer(httpx.Request("GET", url), model=""))
 
     with pytest.raises(ValueError, match="make, model, and year"):
         await NHTSAService().get_vehicle_recalls(VIN, db_session)
@@ -131,14 +99,13 @@ async def test_a_400_saying_no_recalls_is_no_recalls(
     `results`. That's an answer: red on 3.10.0-rc1, where the scheduled check
     read it as an outage and held `nhtsa_last_check` back every night."""
 
-    async def fake_get(client: object, url: str, **kwargs: object) -> httpx.Response:
+    def answer(url: str) -> httpx.Response:
         request = httpx.Request("GET", url)
-        if "/DecodeVinValues/" in urlsplit(url).path:
-            return _decode_answer(request)
+        if is_decode(url):
+            return decode_answer(request)
         return httpx.Response(400, request=request, json=NO_RECALLS)
 
-    monkeypatch.setattr("httpx.AsyncClient.get", fake_get)
-    monkeypatch.setattr("app.utils.url_validation.resolve_hostname", lambda hostname: None)
+    serve(monkeypatch, answer)
 
     recalls = await NHTSAService().get_vehicle_recalls(VIN, db_session)
 
@@ -154,14 +121,13 @@ async def test_any_other_400_is_still_an_outage(
     """Only the empty answer passes: a 400 with results in it, or without a
     `results` list at all, is still NHTSA not answering usably."""
 
-    async def fake_get(client: object, url: str, **kwargs: object) -> httpx.Response:
+    def answer(url: str) -> httpx.Response:
         request = httpx.Request("GET", url)
-        if "/DecodeVinValues/" in urlsplit(url).path:
-            return _decode_answer(request)
+        if is_decode(url):
+            return decode_answer(request)
         return httpx.Response(400, request=request, json=body)
 
-    monkeypatch.setattr("httpx.AsyncClient.get", fake_get)
-    monkeypatch.setattr("app.utils.url_validation.resolve_hostname", lambda hostname: None)
+    serve(monkeypatch, answer)
 
     with pytest.raises(nhtsa_module.NHTSAUnavailableError):
         await NHTSAService().get_vehicle_recalls(VIN, db_session)

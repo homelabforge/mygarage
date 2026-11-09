@@ -26,7 +26,7 @@ from typing import Any
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, event, func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.database import get_db
@@ -314,34 +314,58 @@ _TWO_SERVICE_RECORDS = [
 ]
 
 
+def _count_flushes(session: AsyncSession) -> list[int]:
+    """Grows by one each time the route's session flushes anything."""
+    flushes: list[int] = []
+
+    def _after_flush(*_args: object) -> None:
+        flushes.append(1)
+
+    event.listen(session.sync_session, "after_flush", _after_flush)
+    return flushes
+
+
 class TestJsonSectionsAreCheckedBeforeAnyWrite:
     @pytest.mark.parametrize("bad", [5, "records", {"date": "2027-10-03"}])
     async def test_a_section_that_is_not_a_list_is_refused_whole(
-        self, vin, auth_headers, test_sessionmaker, bad
+        self, vin, auth_headers, test_sessionmaker, lock_calls, bad
     ):
-        """It used to fail after the service records loop had committed its rows."""
+        """The bad section is refused before the lock and before anything is flushed.
+
+        Nothing committed can't show the order: the import rolls back whole
+        either way. A check that ran late would have taken the lock, and the
+        service records ahead of it would have flushed.
+        """
         payload = {
             "export_version": "3",
             "units": "metric",
             "service_records": _TWO_SERVICE_RECORDS,
             "fuel_records": bad,
         }
-        async with _own_request_session(test_sessionmaker) as (client, _session):
+        async with _own_request_session(test_sessionmaker) as (client, session):
+            flushes = _count_flushes(session)
             response = await _post_json(client, auth_headers, vin, payload)
         committed = await _committed_rows(test_sessionmaker, vin)
         assert (response.status_code, committed) == (400, {}), response.text
         assert "fuel_records" in response.json()["detail"]
+        assert (lock_calls, flushes) == ([], [])
 
-    async def test_a_null_section_is_an_empty_one(self, vin, auth_headers, test_sessionmaker):
+    async def test_a_null_section_is_an_empty_one(
+        self, vin, auth_headers, test_sessionmaker, lock_calls
+    ):
+        """Also shows the lock spy and the flush counter see a real import."""
         payload = {
             "export_version": "3",
             "units": "metric",
             "service_records": _TWO_SERVICE_RECORDS,
             "fuel_records": None,
         }
-        async with _own_request_session(test_sessionmaker) as (client, _session):
+        async with _own_request_session(test_sessionmaker) as (client, session):
+            flushes = _count_flushes(session)
             response = await _post_json(client, auth_headers, vin, payload)
         assert response.status_code == 200, response.text
+        assert lock_calls == [vin]
+        assert flushes, "the import flushed nothing"
         assert response.json()["service_records"]["success_count"] == 2
         assert response.json()["fuel_records"]["success_count"] == 0
         assert await _committed_rows(test_sessionmaker, vin) == {
@@ -350,12 +374,14 @@ class TestJsonSectionsAreCheckedBeforeAnyWrite:
         }
 
     async def test_a_file_that_is_not_an_object_is_refused(
-        self, vin, auth_headers, test_sessionmaker
+        self, vin, auth_headers, test_sessionmaker, lock_calls
     ):
-        async with _own_request_session(test_sessionmaker) as (client, _session):
+        async with _own_request_session(test_sessionmaker) as (client, session):
+            flushes = _count_flushes(session)
             response = await _post_json(client, auth_headers, vin, [_TWO_SERVICE_RECORDS])
         assert response.status_code == 400, response.text
         assert await _committed_rows(test_sessionmaker, vin) == {}
+        assert (lock_calls, flushes) == ([], [])
 
 
 class TestAFailureAfterRowsAreWrittenLeavesNothing:

@@ -156,8 +156,10 @@ describe('RecallList — the NHTSA and CarComplaints switches come from /setting
     }
   })
 
-  // The fallback (Fable F2-4): absent or unreadable reads as on, the backend's
-  // default, so a failed read never takes the button away; the 409 rules.
+  // The fallback: absent or unreadable reads as on, the backend's default, so
+  // a failed read never takes the button away; the 409 rules. Main never hid
+  // it either, so the enabled half is a regression guard; the
+  // /settings/public read is what's new.
   it.each([
     ['absent', []],
     ['unreadable', new Error('down')],
