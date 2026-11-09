@@ -43,6 +43,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The Settings secrets banner updates after you re-enter a secret, without a reload, and names secrets by label instead of setting key.
 - Settings > Files and System drop a load error once a reload works.
 - Restoring a backup answers a bad file name with 400 and a missing one with 404 first, not 503 while a secret is still waiting to be encrypted.
+- A Settings change made while the previous save is still finishing gets saved too, instead of dropped.
 
 ## [3.10.0] - 2026-11-05
 
