@@ -16,6 +16,7 @@ from collections.abc import Callable
 from multiprocessing.queues import Queue
 from multiprocessing.synchronize import Barrier
 from pathlib import Path
+from typing import cast
 
 
 class _Collect(logging.Handler):
@@ -104,3 +105,8 @@ def run_race(target: Callable[..., None], arg: str, processes: int) -> list[tupl
             if child.is_alive():
                 child.terminate()
                 child.join(timeout=5)
+
+
+def race_warnings(results: list[tuple[object, ...]]) -> list[str]:
+    """Every WARNING message the racers logged, in one list."""
+    return [m for r in results for m in cast(list[str], r[3])]

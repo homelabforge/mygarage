@@ -1,8 +1,8 @@
 """The JWT key file and the key-file writer it shares with the settings keyring.
 
-The writer creates the file with O_EXCL and mode 0600 in one step, so there is
-no window in which a umask-default file holds a key, and it never overwrites a
-key someone else already wrote. `get_or_create_secret_key` records what it did
+The writer puts the key in an O_EXCL, mode 0600 temp file and hard-links it into
+place, so the file never holds a key under the umask's mode, never shows up
+empty, and never overwrites a key someone else already wrote. `get_or_create_secret_key` records what it did
 in `KEY_SOURCE`, which the lifespan logs once logging is configured.
 """
 
@@ -19,7 +19,7 @@ import pytest
 from app import main as app_main
 from app.utils import secret_key
 from app.utils.secret_key import create_key_file, get_or_create_secret_key
-from tests.unit.utils._key_race_child import jwt_key_child, run_race
+from tests.unit.utils._key_race_child import jwt_key_child, race_warnings, run_race
 
 RACERS = 8
 
@@ -49,6 +49,20 @@ def open_umask() -> Iterator[None]:
 
 
 skip_as_root = pytest.mark.skipif(os.geteuid() == 0, reason="root ignores file permissions")
+
+
+@pytest.fixture
+def no_hard_links(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A filesystem with no hard links (vfat, some FUSE), where link says EPERM."""
+
+    def refuse(src: object, dst: object, **kwargs: object) -> None:
+        raise OSError(errno.EPERM, os.strerror(errno.EPERM))
+
+    monkeypatch.setattr(secret_key.os, "link", refuse)
+
+
+def _entries(directory: Path) -> list[str]:
+    return sorted(p.name for p in directory.iterdir())
 
 
 class TestCreateKeyFile:
@@ -97,6 +111,123 @@ class TestCreateKeyFile:
                 create_key_file(locked / "k.key", "abc")
         finally:
             locked.chmod(0o700)
+
+    def test_the_file_never_shows_up_empty(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Another process reading it mid-create used to find it empty, take it for an
+        emptied key file, write its own key and warn that old secrets were lost."""
+        path = tmp_path / "k.key"
+        seen: list[bytes] = []
+        real_open, real_link = os.open, os.link
+
+        def look() -> None:
+            if path.exists():
+                seen.append(path.read_bytes())
+
+        def spy_open(*args: object, **kwargs: object) -> int:
+            fd = real_open(*args, **kwargs)  # pyright: ignore[reportArgumentType, reportCallIssue]
+            look()
+            return fd
+
+        def spy_link(*args: object, **kwargs: object) -> None:
+            real_link(*args, **kwargs)  # pyright: ignore[reportArgumentType, reportCallIssue]
+            look()
+
+        monkeypatch.setattr(secret_key.os, "open", spy_open)
+        monkeypatch.setattr(secret_key.os, "link", spy_link)
+
+        create_key_file(path, "abc\n")
+
+        assert seen
+        assert set(seen) == {b"abc\n"}
+
+    def test_leaves_no_temp_file_behind(self, tmp_path: Path) -> None:
+        path = tmp_path / "k.key"
+
+        create_key_file(path, "abc\n")
+        with pytest.raises(FileExistsError):
+            create_key_file(path, "def\n")
+
+        assert _entries(tmp_path) == ["k.key"]
+        assert path.read_text() == "abc\n"
+
+    def test_a_failed_write_leaves_nothing_behind(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        path = tmp_path / "k.key"
+
+        def disk_full(fd: int, data: bytes, offset: int) -> int:
+            raise OSError(errno.ENOSPC, "No space left on device")
+
+        monkeypatch.setattr(secret_key.os, "pwrite", disk_full)
+
+        with pytest.raises(OSError):
+            create_key_file(path, "abc\n")
+
+        assert _entries(tmp_path) == []
+
+    @pytest.mark.parametrize(
+        "code",
+        [errno.EPERM, errno.EOPNOTSUPP, errno.ENOSYS, errno.EACCES, errno.EXDEV, errno.EIO],
+        ids=["EPERM", "EOPNOTSUPP", "ENOSYS", "EACCES", "EXDEV", "EIO"],
+    )
+    def test_any_link_failure_but_exists_falls_back_to_creating_in_place(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, open_umask: None, code: int
+    ) -> None:
+        """CIFS reports a share with no hard links as EACCES, so guessing which errnos
+        mean "no hard links" would lose the key; the old in-place create is always safe."""
+        path = tmp_path / "k.key"
+
+        def broken(src: object, dst: object, **kwargs: object) -> None:
+            raise OSError(code, os.strerror(code))
+
+        monkeypatch.setattr(secret_key.os, "link", broken)
+
+        assert create_key_file(path, "abc\n") == "abc"
+
+        assert path.read_text() == "abc\n"
+        assert _mode(path) == 0o600
+        assert _entries(tmp_path) == ["k.key"]
+
+    def test_a_leftover_temp_with_the_same_name_gets_a_new_name(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A collision on the temp name must not read as the key file already existing."""
+        path = tmp_path / "k.key"
+        tokens = iter(["0" * 16, "0" * 16, "1" * 16])
+        monkeypatch.setattr(secret_key.secrets, "token_hex", lambda n: next(tokens))
+        (tmp_path / f".k.key.{'0' * 16}.tmp").write_text("leftover")
+
+        assert create_key_file(path, "abc\n") == "abc"
+
+        assert path.read_text() == "abc\n"
+        assert _entries(tmp_path) == [f".k.key.{'0' * 16}.tmp", "k.key"]
+
+    def test_temp_names_running_out_never_read_as_the_key_file_existing(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Callers take FileExistsError to mean the key file is there and go join it."""
+        path = tmp_path / "k.key"
+        monkeypatch.setattr(secret_key.secrets, "token_hex", lambda n: "0" * 16)
+        (tmp_path / f".k.key.{'0' * 16}.tmp").write_text("leftover")
+
+        with pytest.raises(OSError) as raised:
+            create_key_file(path, "abc\n")
+
+        assert not isinstance(raised.value, FileExistsError)
+        assert _entries(tmp_path) == [f".k.key.{'0' * 16}.tmp"]
+
+    def test_without_hard_links_it_creates_the_file_in_place(
+        self, tmp_path: Path, open_umask: None, no_hard_links: None
+    ) -> None:
+        path = tmp_path / "k.key"
+
+        assert create_key_file(path, "abc\n") == "abc"
+
+        assert path.read_text() == "abc\n"
+        assert _mode(path) == 0o600
+        assert _entries(tmp_path) == ["k.key"]
 
 
 class TestGetOrCreateSecretKey:
@@ -311,11 +442,14 @@ class TestKeyFileWriters:
         # Each child really used the file: one wrote it, the rest read it back.
         assert sources.count("generated") == 1
         assert set(sources) <= {"generated", "loaded"}
+        # A racer that found the file mid-create used to take it for an emptied one.
+        assert not [m for m in race_warnings(results) if "empty" in m]
 
     def test_a_create_race_loser_waits_for_the_creator_to_fill_the_file(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, no_hard_links: None
     ) -> None:
-        """The creator has made the file but not locked it yet, so it's empty.
+        """With no hard links the creator makes the file in place, and it's empty
+        until the creator locks it.
 
         A loser that only read the file would find nothing there. It fills it
         under the lock instead, and the creator then reads that key back.
@@ -378,10 +512,11 @@ class TestKeyFileWriters:
 
     @pytest.mark.parametrize("existing", [None, b""], ids=["missing", "empty"])
     @pytest.mark.parametrize("written", [0, 5], ids=["nothing-written", "short-write"])
-    def test_a_failed_write_leaves_an_empty_file_the_next_start_fills(
+    def test_a_failed_write_leaves_no_half_key_and_the_next_start_writes_one(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, existing: bytes | None, written: int
     ) -> None:
-        """A full disk mid-write leaves zero bytes, not a missing file or half a key."""
+        """A full disk mid-write never leaves half a key: a missing file stays missing,
+        an empty one stays empty."""
         path = tmp_path / "secret.key"
         if existing is not None:
             path.write_bytes(existing)
@@ -395,27 +530,43 @@ class TestKeyFileWriters:
         monkeypatch.setattr(secret_key.os, "pwrite", disk_full)
         get_or_create_secret_key(path)
         assert secret_key.KEY_SOURCE == "memory"
-        assert path.read_bytes() == b""
+        if existing is None:
+            assert _entries(tmp_path) == []
+        else:
+            assert path.read_bytes() == b""
 
         monkeypatch.setattr(secret_key.os, "pwrite", real_pwrite)
         key = get_or_create_secret_key(path)
         assert secret_key.KEY_SOURCE == "generated"
         assert path.read_text().strip() == key
 
-    def test_create_key_file_keeps_the_empty_file_when_the_write_fails(
+    def test_without_hard_links_a_failed_write_keeps_the_empty_file(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
+        """A racing process may already be waiting on it, so it isn't removed."""
         path = tmp_path / "k.key"
+        real_pwrite = os.pwrite
+        refused: list[bool] = []
 
-        def disk_full(fd: int, data: bytes, offset: int) -> int:
+        def refuse(src: object, dst: object, **kwargs: object) -> None:
+            refused.append(True)
+            raise OSError(errno.EPERM, os.strerror(errno.EPERM))
+
+        def disk_full_after_the_link(fd: int, data: bytes, offset: int) -> int:
+            # The temp file gets written; the in-place write is the one that fails.
+            if not refused:
+                return real_pwrite(fd, data, offset)
             raise OSError(errno.ENOSPC, "No space left on device")
 
-        monkeypatch.setattr(secret_key.os, "pwrite", disk_full)
+        monkeypatch.setattr(secret_key.os, "link", refuse)
+        monkeypatch.setattr(secret_key.os, "pwrite", disk_full_after_the_link)
 
         with pytest.raises(OSError):
             create_key_file(path, "abc\n")
 
+        assert refused
         assert path.read_bytes() == b""
+        assert _entries(tmp_path) == ["k.key"]
 
     def test_a_carry_over_that_loses_the_race_keeps_the_key_on_disk(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
@@ -472,7 +623,9 @@ class TestFilesystemWithoutLocks:
         caplog: pytest.LogCaptureFixture,
         code: int,
         existing: bytes | None,
+        no_hard_links: None,
     ) -> None:
+        """A missing file only takes the lock where it's made in place (no hard links)."""
         path = tmp_path / "secret.key"
         if existing is not None:
             path.write_bytes(existing)
@@ -491,11 +644,27 @@ class TestFilesystemWithoutLocks:
         assert os.strerror(code) in lock_warning
         assert not [r for r in caplog.records if r.levelno >= logging.ERROR]
 
+    def test_a_new_file_needs_no_lock_where_hard_links_work(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        path = tmp_path / "secret.key"
+
+        def no_locks(fd: int, operation: int) -> None:
+            raise OSError(errno.ENOLCK, os.strerror(errno.ENOLCK))
+
+        monkeypatch.setattr(secret_key.fcntl, "flock", no_locks)
+
+        with caplog.at_level(logging.DEBUG, logger=secret_key.logger.name):
+            key = get_or_create_secret_key(path)
+
+        assert path.read_text() == key + "\n"
+        assert not [m for m in _warnings(caplog) if "lock" in m]
+
     @pytest.mark.parametrize(
         "code", [errno.EIO, errno.EBADF, errno.EINTR], ids=["EIO", "EBADF", "EINTR"]
     )
     def test_any_other_lock_failure_still_fails(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, code: int
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, code: int, no_hard_links: None
     ) -> None:
         path = tmp_path / "k.key"
 

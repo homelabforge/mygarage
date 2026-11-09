@@ -36,7 +36,7 @@ from app.utils.settings_crypto import (
     keyring_fix_advice,
     keyring_status,
 )
-from tests.unit.utils._key_race_child import run_race, settings_key_child
+from tests.unit.utils._key_race_child import race_warnings, run_race, settings_key_child
 
 ENV_KEY = "MYGARAGE_SETTINGS_KEY"
 ENV_KEY_FILE = "MYGARAGE_SETTINGS_KEY_FILE"
@@ -738,13 +738,22 @@ class TestKeyFileWriters:
         assert {r[2] for r in results} == {str(path)}
         generated = [r[0] for r in results if any("Generated" in m for m in r[3])]
         assert len(generated) == 1
+        # A racer that found the file mid-create used to take it for an emptied one
+        # and warn that secrets saved under an earlier key were lost.
+        assert not [m for m in race_warnings(results) if "was empty" in m]
 
     def test_a_create_race_loser_waits_for_the_creator_to_fill_the_file(
         self, monkeypatch: pytest.MonkeyPatch, data_dir: Path, caplog: pytest.LogCaptureFixture
     ) -> None:
-        """The creator has made the file but not locked it yet, so it's empty. A loser
-        that only read it would find no key; it fills it under the lock instead."""
+        """With no hard links the creator makes the file in place, and it's empty until
+        the creator locks it. A loser that only read it would find no key; it fills it
+        under the lock instead."""
         path = data_dir / "settings.key"
+
+        def refuse(src: object, dst: object, **kwargs: object) -> None:
+            raise OSError(errno.EPERM, os.strerror(errno.EPERM))
+
+        monkeypatch.setattr(secret_key.os, "link", refuse)
         real_flock = fcntl.flock
         loser: dict[str, str | None] = {}
 
@@ -792,7 +801,7 @@ class TestKeyFileWriters:
         assert len([m for m in _warnings(caplog) if "was empty" in m]) == 1
 
     @pytest.mark.parametrize("written", [0, 5], ids=["nothing-written", "short-write"])
-    def test_a_failed_write_leaves_an_empty_file_the_next_load_fills(
+    def test_a_failed_write_leaves_no_file_and_the_next_load_writes_one(
         self, monkeypatch: pytest.MonkeyPatch, data_dir: Path, written: int
     ) -> None:
         path = data_dir / "settings.key"
@@ -805,7 +814,7 @@ class TestKeyFileWriters:
 
         monkeypatch.setattr(secret_key.os, "pwrite", disk_full)
         _assert_unavailable()
-        assert path.read_bytes() == b""
+        assert list(data_dir.iterdir()) == []
 
         monkeypatch.setattr(secret_key.os, "pwrite", real_pwrite)
         assert current_kid() == _kid_on_disk(path)
