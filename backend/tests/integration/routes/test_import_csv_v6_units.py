@@ -694,7 +694,9 @@ class TestHistoricalShapes:
 
 
 @pytest_asyncio.fixture
-async def opposing_users(db_session: AsyncSession) -> dict[str, dict[str, object]]:
+async def opposing_users(
+    db_session: AsyncSession,
+) -> AsyncIterator[dict[str, dict[str, object]]]:
     """Two accounts with opposing unit preferences, including US vs UK gallons.
 
     A grep cannot prove R1: every importer already receives `current_user`, so

@@ -232,7 +232,7 @@ def admin_user_headers(admin_user: User) -> dict[str, str]:
 @pytest_asyncio.fixture
 async def set_auth_mode(
     db_session: AsyncSession,
-) -> Callable[[str], Awaitable[None]]:
+) -> AsyncIterator[Callable[[str], Awaitable[None]]]:
     """Return an async setter for the ``auth_mode`` Setting; restores to local."""
     from app.models.settings import Setting
 

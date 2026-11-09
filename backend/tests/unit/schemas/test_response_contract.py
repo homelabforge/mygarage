@@ -136,7 +136,7 @@ def _response_roots() -> list[Any]:
         if route.response_model is not None:
             roots.append(route.response_model)
         for extra in route.responses.values():
-            if isinstance(extra, dict) and extra.get("model") is not None:
+            if extra.get("model") is not None:
                 roots.append(extra["model"])
     return roots
 
@@ -1279,13 +1279,21 @@ def _lenient_probe() -> type[BaseModel]:
 
     Built when called, so a missing reader fails its test and not the module.
     """
-    lenient = Annotated[
-        _ModuleVocab | None, BeforeValidator(lenient_reader(_ModuleVocab)), LenientVocab(None)
-    ]
 
+    # Spelled out twice on purpose. A local variable isn't a valid type, and a
+    # `type` alias would probe the alias shape instead of a bare Annotated.
     class _LenientProbe(BaseModel):
-        nullable: lenient = None
-        nested: lenient | None = None
+        nullable: Annotated[
+            _ModuleVocab | None, BeforeValidator(lenient_reader(_ModuleVocab)), LenientVocab(None)
+        ] = None
+        nested: (
+            Annotated[
+                _ModuleVocab | None,
+                BeforeValidator(lenient_reader(_ModuleVocab)),
+                LenientVocab(None),
+            ]
+            | None
+        ) = None
         required: Annotated[
             _ModuleVocab,
             BeforeValidator(lenient_reader(_ModuleVocab, fallback="x")),

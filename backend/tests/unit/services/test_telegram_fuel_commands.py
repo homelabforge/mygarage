@@ -68,6 +68,7 @@ async def test_another_chat_is_told_its_id_and_logs_nothing(db_session, test_veh
     )
 
     assert result.logged is False
+    assert result.reply is not None
     assert "can't log fuel" in result.reply
     assert "123" in result.reply
     assert await _fill_ups(db_session, vin) == 0
@@ -105,6 +106,7 @@ async def test_a_command_from_another_group_is_told_its_id(db_session):
     result = await handle_message(
         db_session, _message("/fuel Civic 10000 40", chat=-100123, chat_type="supergroup"), "42"
     )
+    assert result.reply is not None
     assert "-100123" in result.reply
 
 
@@ -124,6 +126,7 @@ async def test_help_answers_with_the_usage(db_session, text):
 async def test_a_bad_command_says_why(db_session):
     result = await handle_message(db_session, _message("fuel wat"), "42")
     assert result.logged is False
+    assert result.reply is not None
     assert result.reply.startswith("Could not log that")
 
 
@@ -133,6 +136,7 @@ async def test_an_out_of_range_value_logs_nothing(db_session, test_vehicle):
     result = await handle_message(db_session, _message(f"fuel {vin} 999999999999 40"), "42")
 
     assert result.logged is False
+    assert result.reply is not None
     assert "out of range" in result.reply
     assert await _fill_ups(db_session, vin) == 0
 
@@ -146,6 +150,7 @@ async def test_a_command_logs_a_fill_up(db_session, test_vehicle):
 
     assert result.logged is True
     # The reply names each number in the unit it was READ in (#172).
+    assert result.reply is not None
     assert "10,000 mi" in result.reply and "12 gal" in result.reply
     record = await db_session.scalar(
         select(FuelRecord).where(FuelRecord.vin == vin, FuelRecord.notes == "via telegram")
@@ -206,6 +211,7 @@ async def test_a_bare_reading_uses_the_vehicles_unit_and_the_reply_says_so(
     try:
         result = await handle_message(db_session, _message(f"/fuel {vin} 10000 40"), "42")
         assert result.logged is True
+        assert result.reply is not None
         assert "10,000 mi" in result.reply and "40 L" in result.reply
         record = await db_session.scalar(
             select(FuelRecord).where(FuelRecord.vin == vin, FuelRecord.notes == "via telegram")
@@ -236,6 +242,7 @@ async def test_a_bare_reading_on_an_account_default_vehicle_uses_the_owner(
     try:
         result = await handle_message(db_session, _message(f"/fuel {vin} 10000 40"), "42")
         assert result.logged is True
+        assert result.reply is not None
         assert "10,000 mi" in result.reply
         record = await db_session.scalar(
             select(FuelRecord).where(FuelRecord.vin == vin, FuelRecord.notes == "via telegram")
@@ -278,6 +285,7 @@ async def test_a_bare_reading_on_an_ownerless_vehicle_uses_the_instance_default(
     try:
         result = await handle_message(db_session, _message(f"/fuel {vin} 10000 40"), "42")
         assert result.logged is True
+        assert result.reply is not None
         assert "10,000 km" in result.reply
         record = await db_session.scalar(select(FuelRecord).where(FuelRecord.vin == vin))
         assert record.odometer_km == Decimal("10000")

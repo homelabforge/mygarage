@@ -81,7 +81,8 @@ ignore = ["E501"]
 # Reference: https://microsoft.github.io/pyright/#/configuration
 
 # Project Structure
-include = ["app"]
+# Tests and the one-off tools get the same strict pass as app/.
+include = ["app", "tests", "tools", "scripts", "migrations", "unlink_oidc_wrapper.py"]
 exclude = [
     "**/__pycache__",
     "**/.pytest_cache",

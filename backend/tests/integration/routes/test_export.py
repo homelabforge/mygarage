@@ -191,6 +191,7 @@ class TestFuelCSVExportEngineHours:
 
         reader = csv.DictReader(io.StringIO(response.text))
         rows = list(reader)
+        assert reader.fieldnames is not None
         assert "Engine Hours" in reader.fieldnames
 
         row = next(r for r in rows if r["Date"] == "2026-04-01")
@@ -290,6 +291,7 @@ class TestServiceCSVExportEngineHours:
         assert response.status_code == 200
         reader = csv.DictReader(io.StringIO(response.text))
         rows = list(reader)
+        assert reader.fieldnames is not None
         assert "Engine Hours" in reader.fieldnames
         row = next(r for r in rows if r["Date"] == "2026-04-02")
         assert row["Engine Hours"] == "55.5"

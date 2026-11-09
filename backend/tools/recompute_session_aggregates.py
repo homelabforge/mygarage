@@ -104,13 +104,14 @@ def _movers(
     Rows where either side is None are dropped: a value that appeared or
     vanished is not a move and has no magnitude to rank.
     """
-    moved = [
-        (sid, before[field], after[field])
-        for sid, before, after in changed
-        if before[field] is not None
-        and after[field] is not None
-        and (after[field] > before[field] if rising else after[field] < before[field])
-    ]
+    moved: list[tuple[int, float, float]] = []
+    for sid, before, after in changed:
+        # Pull them into locals so the None checks actually narrow.
+        old, new = before[field], after[field]
+        if old is None or new is None:
+            continue
+        if new > old if rising else new < old:
+            moved.append((sid, old, new))
     moved.sort(key=lambda row: abs(row[2] - row[1]), reverse=True)
     return moved
 

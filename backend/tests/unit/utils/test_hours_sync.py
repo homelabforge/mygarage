@@ -7,6 +7,7 @@ by SOURCE IDENTITY (fuel_record_id / service_visit_id) — never (vin, date)
 and never note-parsing. See the hours-usage-model plan §3/§5 (R1-H2).
 """
 
+from collections.abc import AsyncIterator
 from datetime import date
 from decimal import Decimal
 
@@ -20,7 +21,9 @@ from app.utils.hours_sync import remove_synced_hours, sync_hours_from_record
 
 
 @pytest_asyncio.fixture
-async def fuel_record(db_session: AsyncSession, test_vehicle, clean_hours_records) -> FuelRecord:
+async def fuel_record(
+    db_session: AsyncSession, test_vehicle, clean_hours_records
+) -> AsyncIterator[FuelRecord]:
     """A minimal fuel record — the FK parent for fuel-sourced hours rows."""
     record = FuelRecord(vin=test_vehicle["vin"], date=date(2024, 1, 15))
     db_session.add(record)
@@ -35,7 +38,7 @@ async def fuel_record(db_session: AsyncSession, test_vehicle, clean_hours_record
 @pytest_asyncio.fixture
 async def service_visit(
     db_session: AsyncSession, test_vehicle, clean_hours_records
-) -> ServiceVisit:
+) -> AsyncIterator[ServiceVisit]:
     """A minimal service visit — the FK parent for service-sourced hours rows."""
     visit = ServiceVisit(vin=test_vehicle["vin"], date=date(2024, 2, 1))
     db_session.add(visit)
