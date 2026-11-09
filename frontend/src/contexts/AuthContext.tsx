@@ -225,7 +225,10 @@ export function AuthProvider({ children }: { children: ReactNode}) {
       await loadUserFor(rows)
     } catch {
       // The public settings read failed: keep whatever is showing. A refresh
-      // that gets an answer later loads the user then.
+      // that lands later loads the user then. One that already landed left
+      // the user to us, so load it from that refresh's rows.
+      const applied = appliedRef.current
+      if (applied && authModeRef.current === null) await loadUserFor(applied.rows)
     } finally {
       loadsInFlightRef.current -= 1
       setLoading(false)

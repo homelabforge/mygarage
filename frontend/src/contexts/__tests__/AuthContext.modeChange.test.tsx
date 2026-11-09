@@ -97,6 +97,45 @@ describe('AuthContext follows the sign-in mode', () => {
     await waitFor(() => expect(screen.getByTestId('state')).toHaveTextContent('none:false:false'))
   })
 
+  it('a boot read that fails after a refresh landed still loads the user from that refresh', async () => {
+    // Boot's read stays out until we fail it; the refresh's read answers right away.
+    let failBoot: (err: Error) => void = () => {}
+    let settingsCalls = 0
+    mockedApi.get.mockImplementation((url: string) => {
+      if (url === '/settings/public') {
+        settingsCalls += 1
+        if (settingsCalls === 1) {
+          return new Promise((_resolve, reject) => {
+            failBoot = reject
+          })
+        }
+        return Promise.resolve({ data: { settings: [{ key: 'auth_mode', value: 'local' }] } })
+      }
+      if (url === '/auth/me') return Promise.resolve({ data: ADMIN })
+      return Promise.resolve({ data: {} })
+    })
+    renderWithQueryClient(<AuthProvider><Probe /></AuthProvider>)
+    await waitFor(() => expect(settingsCalls).toBe(1))
+
+    act(() => {
+      Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true })
+      document.dispatchEvent(new Event('visibilitychange'))
+    })
+    await waitFor(() => expect(settingsCalls).toBe(2))
+    // Let the refresh land while boot is still out.
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(mockedApi.get.mock.calls.some(([u]) => u === '/auth/me')).toBe(false)
+
+    await act(async () => {
+      failBoot(new Error('network down'))
+    })
+
+    await waitFor(() => expect(screen.getByTestId('state')).toHaveTextContent('local:true:true'))
+    expect(screen.getByRole('button')).not.toBeDisabled()
+  })
+
   it('a visibility refresh with the same mode does not ask for the user again', async () => {
     serve('local')
     renderWithQueryClient(<AuthProvider><Probe /></AuthProvider>)
