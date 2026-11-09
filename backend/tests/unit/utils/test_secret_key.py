@@ -454,6 +454,63 @@ class TestKeyFileWriters:
         assert path.stat().st_ino == inode
 
 
+class TestFilesystemWithoutLocks:
+    """A mount with no advisory locks (NFSv3 without lockd, some FUSE or 9p)
+    can't flock. The key still gets written, unlocked, as it was before the
+    lock existed, rather than falling back to a memory key."""
+
+    @pytest.mark.parametrize(
+        "code",
+        [errno.ENOLCK, errno.EOPNOTSUPP, errno.ENOTSUP, errno.ENOSYS, errno.EINVAL],
+        ids=["ENOLCK", "EOPNOTSUPP", "ENOTSUP", "ENOSYS", "EINVAL"],
+    )
+    @pytest.mark.parametrize("existing", [None, b""], ids=["missing", "empty"])
+    def test_the_key_is_written_without_the_lock(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+        code: int,
+        existing: bytes | None,
+    ) -> None:
+        path = tmp_path / "secret.key"
+        if existing is not None:
+            path.write_bytes(existing)
+
+        def no_locks(fd: int, operation: int) -> None:
+            raise OSError(code, os.strerror(code))
+
+        monkeypatch.setattr(secret_key.fcntl, "flock", no_locks)
+
+        with caplog.at_level(logging.DEBUG, logger=secret_key.logger.name):
+            key = get_or_create_secret_key(path)
+
+        assert secret_key.KEY_SOURCE == "generated"
+        assert path.read_text() == key + "\n"
+        (lock_warning,) = [m for m in _warnings(caplog) if "lock" in m]
+        assert os.strerror(code) in lock_warning
+        assert not [r for r in caplog.records if r.levelno >= logging.ERROR]
+
+    @pytest.mark.parametrize(
+        "code", [errno.EIO, errno.EBADF, errno.EINTR], ids=["EIO", "EBADF", "EINTR"]
+    )
+    def test_any_other_lock_failure_still_fails(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, code: int
+    ) -> None:
+        path = tmp_path / "k.key"
+
+        def broken(fd: int, operation: int) -> None:
+            raise OSError(code, os.strerror(code))
+
+        monkeypatch.setattr(secret_key.fcntl, "flock", broken)
+
+        with pytest.raises(OSError) as raised:
+            create_key_file(path, "abc\n")
+
+        assert raised.value.errno == code
+        assert path.read_bytes() == b""
+
+
 class TestLifespanKeyStatus:
     """The lifespan logs from KEY_SOURCE, not from whether /data/secret.key exists."""
 

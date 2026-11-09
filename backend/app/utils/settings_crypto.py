@@ -36,7 +36,8 @@ source, and never generates a key over a file that holds anything. The one
 exception is the data dir's own ``settings.key`` holding nothing at all (zero
 bytes or only whitespace, as a crash between creating and writing it leaves):
 there's no key in it to lose, so a new one is written into it, with a WARNING.
-An empty env var counts as unset.
+Not when it's a symlink, though: an empty target is reported like an empty
+``_FILE``, and the link is never replaced. An empty env var counts as unset.
 
 When the keyring is unavailable, ``encrypt`` raises ``SettingsKeyUnavailable``,
 legacy plaintext still reads, and ciphertext reads as unreadable. There is never
@@ -264,7 +265,8 @@ def _read_key_file(
     """Load the keyring from a file that is expected to exist.
 
     With ``refill_empty`` (the data dir's own file only), a file that holds
-    nothing gets a new key written into it first.
+    nothing gets a new key written into it first, unless it's a symlink: that
+    one is reported, never replaced.
     """
     try:
         data = path.read_bytes()
@@ -277,6 +279,15 @@ def _read_key_file(
     except UnicodeDecodeError:
         return _Unavailable(source, "the file is not ASCII text")
     if refill_empty and not text.strip():
+        if path.is_symlink():
+            # Someone pointed it somewhere on purpose, like the _FILE variable, so
+            # the empty target is theirs to fill. Swapping the link for a new file
+            # would quietly leave their copy empty for good.
+            return _Unavailable(
+                source,
+                "it is a symlink to an empty file; put a key in the file it points to, "
+                "or remove the link to have one generated",
+            )
         return _refill_empty_key_file(source, path)
     try:
         return _parse_keys(source, text)

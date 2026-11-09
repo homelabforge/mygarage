@@ -235,3 +235,65 @@ async def test_a_validator_quoting_a_secret_gets_a_generic_msg(
     if not kept:
         assert error["msg"] == "Invalid value"
         assert QUOTED not in caplog.text
+
+
+def _password_app() -> FastAPI:
+    """The three real password bodies behind the real handler."""
+    from app.schemas.user import AdminPasswordReset, UserCreate, UserPasswordUpdate
+
+    probe = FastAPI()
+    probe.add_exception_handler(RequestValidationError, handle_validation_error)  # type: ignore[arg-type]
+
+    @probe.post("/create")
+    async def _create(body: UserCreate) -> dict[str, str]:  # pyright: ignore[reportUnusedFunction]
+        return {"ok": body.username}
+
+    @probe.post("/change")
+    async def _change(body: UserPasswordUpdate) -> dict[str, str]:  # pyright: ignore[reportUnusedFunction]
+        return {"ok": "changed"}
+
+    @probe.post("/reset")
+    async def _reset(body: AdminPasswordReset) -> dict[str, str]:  # pyright: ignore[reportUnusedFunction]
+        return {"ok": "reset"}
+
+    return probe
+
+
+_PASSWORD_BODIES = {
+    "/create": ("password", {"username": "someone", "email": "someone@example.com"}),
+    "/change": ("new_password", {"current_password": "Current-Pa55word"}),
+    "/reset": ("new_password", {}),
+}
+
+
+@pytest.mark.parametrize("path", sorted(_PASSWORD_BODIES))
+@pytest.mark.parametrize(
+    ("rejected", "reason"),
+    [
+        ("lower-only-5a7c!", "Password must contain at least one uppercase letter"),
+        ("UPPER-ONLY-5A7C!", "Password must contain at least one lowercase letter"),
+        ("No-Digits-Here-xq!", "Password must contain at least one digit"),
+        ("NoSpecial5a7cQx", "Password must contain at least one special character"),
+    ],
+)
+async def test_a_password_rule_names_the_rule_but_never_the_password(
+    path: str, rejected: str, reason: str, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The strength rules are fixed text, so they reach the client; the password doesn't."""
+    field, rest = _PASSWORD_BODIES[path]
+    async with AsyncClient(
+        transport=ASGITransport(app=_password_app()), base_url="http://t"
+    ) as probe:
+        with caplog.at_level(logging.DEBUG):
+            response = await probe.post(path, json={**rest, field: rejected})
+
+    assert response.status_code == 422, response.text
+    (error,) = response.json()["details"]
+    assert error["loc"] == ["body", field]
+    assert error["type"] == "value_error"
+    assert error["msg"] == f"Value error, {reason}"
+    assert "input" not in error
+    assert "ctx" not in error
+    assert rejected not in response.text
+    assert _validation_records(caplog), "the handler logs a validation error"
+    assert rejected not in caplog.text

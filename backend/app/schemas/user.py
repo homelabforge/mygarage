@@ -48,6 +48,7 @@ from app.constants.units import (
 )
 from app.schemas._nullability import reject_null
 from app.utils.unit_resolution import resolve_units
+from app.utils.validation_errors import FixedRuleError
 
 # The vocabulary each raw unit column accepts, keyed by column name (which is
 # also the UserResponse field name). Derived from UnitSet so a twelfth quantity
@@ -101,6 +102,25 @@ class UserBase(BaseModel):
     full_name: str | None = Field(None, max_length=255)
 
 
+def check_password_strength(v: Any) -> Any:
+    """Refuse a password that misses one of the strength rules.
+
+    Each rule's message is fixed text, so it's a FixedRuleError: the 422 can
+    say which rule failed without ever echoing the password.
+    """
+    if len(v) < 8:
+        raise FixedRuleError("Password must be at least 8 characters long")
+    if not re.search(r"[A-Z]", v):
+        raise FixedRuleError("Password must contain at least one uppercase letter")
+    if not re.search(r"[a-z]", v):
+        raise FixedRuleError("Password must contain at least one lowercase letter")
+    if not re.search(r"\d", v):
+        raise FixedRuleError("Password must contain at least one digit")
+    if not re.search(r"[!@#$%^&*(),.?\":{}|<>]", v):
+        raise FixedRuleError("Password must contain at least one special character")
+    return v
+
+
 class UserCreate(UserBase):
     """Schema for creating a new user."""
 
@@ -121,17 +141,7 @@ class UserCreate(UserBase):
     @classmethod
     def validate_password(cls, v: Any) -> Any:
         """Validate password strength."""
-        if len(v) < 8:
-            raise ValueError("Password must be at least 8 characters long")
-        if not re.search(r"[A-Z]", v):
-            raise ValueError("Password must contain at least one uppercase letter")
-        if not re.search(r"[a-z]", v):
-            raise ValueError("Password must contain at least one lowercase letter")
-        if not re.search(r"\d", v):
-            raise ValueError("Password must contain at least one digit")
-        if not re.search(r"[!@#$%^&*(),.?\":{}|<>]", v):
-            raise ValueError("Password must contain at least one special character")
-        return v
+        return check_password_strength(v)
 
 
 class UserSelfUpdate(BaseModel):
@@ -427,17 +437,7 @@ class UserPasswordUpdate(BaseModel):
     @classmethod
     def validate_password(cls, v: Any) -> Any:
         """Validate password strength."""
-        if len(v) < 8:
-            raise ValueError("Password must be at least 8 characters long")
-        if not re.search(r"[A-Z]", v):
-            raise ValueError("Password must contain at least one uppercase letter")
-        if not re.search(r"[a-z]", v):
-            raise ValueError("Password must contain at least one lowercase letter")
-        if not re.search(r"\d", v):
-            raise ValueError("Password must contain at least one digit")
-        if not re.search(r"[!@#$%^&*(),.?\":{}|<>]", v):
-            raise ValueError("Password must contain at least one special character")
-        return v
+        return check_password_strength(v)
 
 
 class AdminPasswordReset(BaseModel):
@@ -449,17 +449,7 @@ class AdminPasswordReset(BaseModel):
     @classmethod
     def validate_password(cls, v: Any) -> Any:
         """Validate password strength."""
-        if len(v) < 8:
-            raise ValueError("Password must be at least 8 characters long")
-        if not re.search(r"[A-Z]", v):
-            raise ValueError("Password must contain at least one uppercase letter")
-        if not re.search(r"[a-z]", v):
-            raise ValueError("Password must contain at least one lowercase letter")
-        if not re.search(r"\d", v):
-            raise ValueError("Password must contain at least one digit")
-        if not re.search(r"[!@#$%^&*(),.?\":{}|<>]", v):
-            raise ValueError("Password must contain at least one special character")
-        return v
+        return check_password_strength(v)
 
 
 class UserResponse(UserBase):

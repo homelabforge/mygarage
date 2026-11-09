@@ -361,7 +361,11 @@ async def test_a_busy_checkpoint_is_logged_and_the_sweep_still_commits(
 async def test_a_failed_flush_does_not_leave_secure_delete_on_in_the_pool(
     tmp_path: Path, use_keys: UseKeys, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """The session refuses the PRAGMA that would turn it back, so the connection goes."""
+    """A flush that raises sends the connection away rather than back to the pool.
+
+    The patched flush raises before any SQL runs, so the session isn't in its
+    failed-transaction state here; the test below fails a real statement for that.
+    """
     use_keys(KEY_A)
     engine, _path = await file_db(tmp_path)
     try:
@@ -375,6 +379,36 @@ async def test_a_failed_flush_does_not_leave_secure_delete_on_in_the_pool(
 
         assert report == SweepReport()
         assert await raw_column(sessionmaker, "ntfy_token") == REMNANT
+        assert "next start" in caplog.text
+        assert await pooled_pragma(engine, "secure_delete") == 0
+    finally:
+        await engine.dispose()
+
+
+async def test_a_statement_that_fails_in_the_flush_drops_the_connection(
+    tmp_path: Path, use_keys: UseKeys, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A real failed UPDATE: the session refuses every statement until a rollback,
+    so the PRAGMA can't be turned back on it and the connection has to go."""
+    use_keys(KEY_A)
+    engine, _path = await file_db(tmp_path)
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(
+                text(
+                    "CREATE TRIGGER refuse_settings_update BEFORE UPDATE ON settings "
+                    "BEGIN SELECT RAISE(ABORT, 'refused by the test'); END"
+                )
+            )
+        sessionmaker = async_sessionmaker(engine, expire_on_commit=False)
+
+        with caplog.at_level(logging.INFO, logger="app.services.settings_secrets"):
+            async with sessionmaker() as db:
+                report = await sweep_secret_settings(db)
+
+        assert report == SweepReport()
+        assert await raw_column(sessionmaker, "ntfy_token") == REMNANT
+        assert "IntegrityError" in caplog.text
         assert "next start" in caplog.text
         assert await pooled_pragma(engine, "secure_delete") == 0
     finally:

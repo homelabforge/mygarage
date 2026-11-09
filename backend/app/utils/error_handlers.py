@@ -2,6 +2,7 @@
 
 import logging
 import math
+from collections.abc import Mapping
 from typing import cast
 
 from fastapi import FastAPI, Request, status
@@ -16,6 +17,7 @@ from app.utils.settings_crypto import (
     SettingValueNotText,
 )
 from app.utils.settings_errors import PlaintextSecretsRemain, SettingCiphertextValue
+from app.utils.validation_errors import FixedRuleError
 
 logger = logging.getLogger(__name__)
 
@@ -122,7 +124,8 @@ _SECRET_FIELD_MARKERS = ("password", "secret", "token", "key")
 #: which can quote the value it rejected.
 _VALIDATOR_MESSAGE_TYPES = frozenset({"value_error", "assertion_error"})
 
-#: What a secret-named field's validator message is replaced with.
+#: What a secret-named field's validator message is replaced with, unless the
+#: validator raised a FixedRuleError (fixed text that never quotes the input).
 GENERIC_VALIDATOR_MSG = "Invalid value"
 
 #: All the log line keeps of each error. `input` is the rejected value (for a
@@ -142,6 +145,14 @@ def _is_secret_field(loc: object) -> bool:
     return any(marker in name for marker in _SECRET_FIELD_MARKERS)
 
 
+def _is_fixed_rule(error: Mapping[str, object]) -> bool:
+    """Whether a validator error came from a FixedRuleError, whose text is safe to show."""
+    ctx = error.get("ctx")
+    return isinstance(ctx, dict) and isinstance(
+        cast("dict[str, object]", ctx).get("error"), FixedRuleError
+    )
+
+
 async def handle_validation_error(request: Request, exc: RequestValidationError) -> JSONResponse:
     """Handle validation errors.
 
@@ -149,7 +160,8 @@ async def handle_validation_error(request: Request, exc: RequestValidationError)
     like a secret, which loses both, and except for an `input` that is a dict
     or a list (the whole parent object, on a missing field), which is dropped
     for any field. A secret-named field's validator error also gets a generic
-    `msg`, since the validator's text can quote the value. The log line keeps
+    `msg`, since the validator's text can quote the value, unless it raised a
+    FixedRuleError (a fixed rule like the password strength checks). The log line keeps
     only `type`, `loc` and `msg`, so no rejected secret reaches the log.
 
     Args:
@@ -182,7 +194,7 @@ async def handle_validation_error(request: Request, exc: RequestValidationError)
             # `ctx` too: a validator's exception lands in `ctx.error`, value and all (F-2).
             json_error.pop("input", None)
             json_error.pop("ctx", None)
-            if error.get("type") in _VALIDATOR_MESSAGE_TYPES:
+            if error.get("type") in _VALIDATOR_MESSAGE_TYPES and not _is_fixed_rule(error):
                 json_error["msg"] = GENERIC_VALIDATOR_MSG
         elif isinstance(error.get("input"), dict | list | tuple):
             # A whole object, not one value: on a missing field it is the parent

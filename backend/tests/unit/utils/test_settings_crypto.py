@@ -434,6 +434,46 @@ class TestNoFallthrough:
         # Hedged: on a cold start a racing process may land here with nothing lost.
         assert "Any secrets saved under an earlier key" in warning
 
+    def test_a_symlinked_data_dir_file_with_an_empty_target_is_left_alone(
+        self, data_dir: Path, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Someone pointed it somewhere on purpose, so the empty target is theirs to fill.
+        Swapping the link for a new file would leave their managed copy empty for good."""
+        target = tmp_path / "managed" / "settings.key"
+        target.parent.mkdir()
+        target.write_bytes(b"")
+        path = data_dir / "settings.key"
+        path.symlink_to(target)
+
+        with caplog.at_level(logging.DEBUG, logger=LOGGER):
+            _assert_unavailable()
+
+        assert path.is_symlink()
+        assert path.readlink() == target
+        assert target.read_bytes() == b""
+        (error,) = [r.getMessage() for r in caplog.records if r.levelno >= logging.ERROR]
+        assert "symlink" in error
+
+        text, raw = _new_key()
+        target.write_text(text)
+        assert current_kid() == _kid(raw)
+
+    def test_a_first_start_on_a_mount_without_locks_still_writes_the_key(
+        self, data_dir: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        def no_locks(fd: int, operation: int) -> None:
+            raise OSError(errno.ENOLCK, os.strerror(errno.ENOLCK))
+
+        monkeypatch.setattr(secret_key.fcntl, "flock", no_locks)
+        path = data_dir / "settings.key"
+
+        with caplog.at_level(logging.DEBUG):
+            kid = current_kid()
+
+        assert kid is not None
+        assert kid == _kid_on_disk(path)
+        assert not [r for r in caplog.records if r.levelno >= logging.ERROR]
+
     def test_an_empty_key_file_variable_still_refuses(
         self, monkeypatch: pytest.MonkeyPatch, data_dir: Path, tmp_path: Path
     ) -> None:

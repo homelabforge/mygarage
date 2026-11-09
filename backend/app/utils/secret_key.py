@@ -14,9 +14,12 @@ Every key-file writer fills the file under an exclusive ``flock`` and only
 when it holds nothing, then returns what's on disk. So when two processes race
 (two starts, or a CLI tool next to the app), whoever locks first writes and the
 other reads that key back: nobody keeps a key in memory that isn't the file's.
+On a mount that can't lock at all, the fill goes ahead unlocked with a WARNING,
+as it did before the lock existed.
 """
 
 import contextlib
+import errno
 import fcntl
 import logging
 import os
@@ -45,6 +48,32 @@ KEY_SOURCE: KeySource = "memory"
 _OPEN_EXISTING = os.O_RDWR | os.O_NOFOLLOW | os.O_CLOEXEC
 
 
+# What flock raises on a mount with no advisory locks (NFSv3 without lockd, some
+# FUSE or 9p setups). Our LOCK_EX is always a valid operation, so EINVAL here
+# means the filesystem said no, not a bug in the call.
+_LOCKS_UNSUPPORTED = frozenset(
+    {errno.ENOLCK, errno.EOPNOTSUPP, errno.ENOTSUP, errno.ENOSYS, errno.EINVAL}
+)
+
+
+def _lock_if_supported(fd: int) -> None:
+    """Take ``LOCK_EX`` on ``fd``, or carry on without it where the mount can't lock."""
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX)
+    except OSError as e:
+        if e.errno not in _LOCKS_UNSUPPORTED:
+            raise
+        # The key files were written unlocked before the lock existed, and a
+        # lone start is still fine. Only two processes starting at once could
+        # each write a key, so say so rather than fall back to a memory key.
+        logger.warning(
+            "This filesystem doesn't support file locks (%s), so the key file is "
+            "written without one. Two processes starting at the same moment could "
+            "each write a different key.",
+            os.strerror(e.errno),
+        )
+
+
 def _read_fd(fd: int) -> bytes:
     """Everything in the file behind ``fd``, from the start."""
     chunks: list[bytes] = []
@@ -65,13 +94,16 @@ def _locked_fill(fd: int, content: str) -> str:
     Returns:
         The key now on disk, stripped: ours if we wrote it, theirs if not.
 
+    On a mount that can't lock at all the fill goes ahead unlocked, with a
+    WARNING; any other lock failure raises.
+
     Raises:
         OSError: The lock, the read or the write failed. A failed write leaves
             the file empty, so the next start fills it again.
         UnicodeDecodeError: The file holds something that isn't UTF-8 text.
     """
     data = content.encode("ascii")
-    fcntl.flock(fd, fcntl.LOCK_EX)
+    _lock_if_supported(fd)
     existing = _read_fd(fd).decode("utf-8").strip()
     if existing:
         return existing
