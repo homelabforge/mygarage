@@ -32,7 +32,6 @@ down in `finally`, and the VIN/username are scoped to this module.
 from __future__ import annotations
 
 import json
-import logging
 from datetime import date
 from decimal import Decimal
 
@@ -447,10 +446,7 @@ class TestCheckDueRemindersUnits:
 
         monkeypatch.setattr(reminder_service, "is_reminder_snoozed", _snoozed_or_raise)
 
-        with (
-            caplog.at_level(logging.ERROR, logger=_SERVICE_LOGGER),
-            caplog_only(_SERVICE_LOGGER),
-        ):
+        with caplog_only(_SERVICE_LOGGER):
             await check_due_reminders(db_session)
 
         assert self._own(sent, "Reminder Units Owned Service") == []
@@ -463,11 +459,10 @@ class TestCheckDueRemindersUnits:
                 )
             ).scalar_one()
         assert stamped is not None
-        failures = [
-            r for r in caplog.records if r.getMessage() == f"Reminder {failing_id} check failed"
-        ]
-        assert len(failures) == 1
-        assert failures[0].exc_info is not None
+        (logged,) = problems(caplog, _SERVICE_LOGGER)
+        assert logged.getMessage() == f"Reminder {failing_id} check failed"
+        assert logged.exc_info is not None
+        assert str(logged.exc_info[1]) == "evaluation blew up"
 
     @pytest.mark.parametrize(
         "failing_vin, healthy_vin, healthy_title",

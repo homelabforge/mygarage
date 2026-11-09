@@ -11,6 +11,7 @@ from sqlalchemy.exc import OperationalError
 
 import app.migrations as _m
 from app.migrations.runner import MigrationRunner
+from tests._logged import problems
 
 _NAME = "130_move_torque_one_digit_pid_keys"
 T1, T2, T3 = "2026-10-01 10:00:00", "2026-10-01 10:00:05", "2026-10-01 10:00:10"
@@ -495,17 +496,15 @@ def test_130_a_failure_moves_nothing_and_does_not_raise(
         raise error()
 
     monkeypatch.setattr(mod, "_move_summaries", _boom)
-    with caplog.at_level(logging.ERROR), caplog_only(mod.logger.name):
+    with caplog_only(mod.logger.name):
         mod.upgrade(engine)
     assert (_telemetry(engine), _latest(engine)) == before
-    errors = [
-        r
-        for r in caplog.records
-        if r.levelno == logging.ERROR and r.getMessage().startswith("130:")
-    ]
-    assert len(errors) == 1
+    (logged,) = problems(caplog, mod.logger.name)
+    assert logged.levelno == logging.ERROR
+    assert logged.getMessage().startswith("130: Torque keys not moved, the old ones stay")
+    assert logged.exc_info is not None
     # One raise in the traceback: a shared instance drags the other dialect's raise along.
-    assert [f.name for f in traceback.extract_tb(errors[0].exc_info[2])].count("_boom") == 1
+    assert [f.name for f in traceback.extract_tb(logged.exc_info[2])].count("_boom") == 1
 
 
 def test_130_without_a_torque_source_changes_nothing(engine_for_migration):

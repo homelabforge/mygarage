@@ -25,6 +25,7 @@ from app.models.vehicle import Vehicle
 from app.routes import window_sticker as window_sticker_route
 from app.services.settings_service import SettingsService
 from tests._keep_rows import Keep
+from tests._logged import problems
 from tests.integration.routes._legacy_reads import read_ok
 
 
@@ -490,10 +491,6 @@ OLD_BYTES = b"%PDF-1.4 the sticker already on file"
 ROUTE_LOGGER = "app.routes.window_sticker"
 
 
-def _route_errors(caplog: pytest.LogCaptureFixture) -> list[logging.LogRecord]:
-    return [r for r in caplog.records if r.name == ROUTE_LOGGER and r.levelno == logging.ERROR]
-
-
 # What DELETE cleared before the lists became module constants, copied off
 # the route as it stood. The upload wrote the same set minus path and time.
 TODAY_DELETE_CLEARS = (
@@ -661,7 +658,7 @@ async def test_a_scan_that_read_nothing_keeps_the_values_and_says_so(
     assert not sticker_on_file.exists()
     assert uploaded.json().get("scan_read_nothing") is True
     expected = ["OCR extraction failed: tesseract fell over"] if isinstance(scan, Exception) else []
-    assert [r.getMessage() for r in _route_errors(caplog)] == expected
+    assert [r.getMessage() for r in problems(caplog, ROUTE_LOGGER)] == expected
 
 
 @pytest.mark.integration
@@ -684,7 +681,7 @@ async def test_a_failed_write_keeps_the_sticker_on_file(
     assert sticker_on_file.exists()
     assert sticker_on_file.read_bytes() == OLD_BYTES
     assert {c: await _stored(test_sessionmaker, vin, c) for c in columns} == before
-    (error,) = _route_errors(caplog)
+    (error,) = problems(caplog, ROUTE_LOGGER)
     assert error.getMessage() == f"Failed to save window sticker for {vin}"
     assert error.exc_info is not None and error.exc_info[0] is OSError
 
@@ -714,7 +711,7 @@ async def test_a_failed_commit_keeps_the_sticker_on_file(
     assert list(vin_dir.iterdir()) == [sticker_on_file]
     assert await _stored(test_sessionmaker, vin, "window_sticker_file_path") == str(sticker_on_file)
     assert await _stored(test_sessionmaker, vin, "msrp_base") == Decimal("25000")
-    (error,) = _route_errors(caplog)
+    (error,) = problems(caplog, ROUTE_LOGGER)
     assert error.getMessage() == f"Window sticker upload failed for {vin}"
     assert error.exc_info is not None and error.exc_info[0] is SQLAlchemyError
 
@@ -859,7 +856,7 @@ async def test_delete_keeps_the_file_when_the_commit_fails(
     assert sticker_on_file.read_bytes() == OLD_BYTES
     assert await _stored(test_sessionmaker, vin, "window_sticker_file_path") == str(sticker_on_file)
     assert await _stored(test_sessionmaker, vin, "msrp_base") == Decimal("25000")
-    (error,) = _route_errors(caplog)
+    (error,) = problems(caplog, ROUTE_LOGGER)
     assert error.getMessage() == f"Window sticker delete failed for {vin}"
     assert error.exc_info is not None and error.exc_info[0] is SQLAlchemyError
 

@@ -22,7 +22,7 @@ from sqlalchemy import Engine, Table, inspect, text
 import app.migrations as _m
 from app.models.dtc_definition import DTCDefinition
 from app.models.vehicle_dtc import VehicleDTC
-from tests._logged import CaplogOnly
+from tests._logged import CaplogOnly, problems
 
 pytestmark = pytest.mark.migrations
 
@@ -152,15 +152,6 @@ def _dump(engine: Engine) -> tuple[list[tuple[Any, ...]], list[tuple[Any, ...]]]
 
 def _errors(caplog: pytest.LogCaptureFixture) -> list[str]:
     return [r.getMessage() for r in caplog.records if r.levelno == logging.ERROR]
-
-
-def _not_corrected_has_traceback(caplog: pytest.LogCaptureFixture) -> list[bool]:
-    """One entry per "not corrected" ERROR: whether it carries the traceback."""
-    return [
-        r.exc_info is not None
-        for r in caplog.records
-        if r.levelno == logging.ERROR and _NOT_CORRECTED in r.getMessage()
-    ]
 
 
 def test_125_corrects_a_shifted_table(engine_for_migration: tuple[str, Engine, str]) -> None:
@@ -462,7 +453,10 @@ def test_125_swallows_a_bad_data_file(
 
     assert _description(engine, "P0300") == _SHIFTED_P0300
     assert _count(engine) == 1
-    assert _not_corrected_has_traceback(caplog) == [True]
+    (logged,) = problems(caplog, mod.logger.name)
+    assert logged.levelno == logging.ERROR
+    assert logged.getMessage().startswith(_NOT_CORRECTED)
+    assert logged.exc_info is not None
 
 
 @pytest.mark.parametrize("statement", ["_ENRICH", "_FILL_VEHICLE_DTCS"])
@@ -490,7 +484,10 @@ def test_125_rolls_back_a_failure_after_the_writes_start(
     assert _count(engine) == 2
     assert _vehicle_row(engine, "P0104") == (None, "warning")
     assert _vehicle_row(engine, "P0300") == (_SHIFTED_P0300, "warning")
-    assert _not_corrected_has_traceback(caplog) == [True]
+    (logged,) = problems(caplog, mod.logger.name)
+    assert logged.levelno == logging.ERROR
+    assert logged.getMessage().startswith(_NOT_CORRECTED)
+    assert logged.exc_info is not None
 
 
 def test_125_is_not_fatal() -> None:
