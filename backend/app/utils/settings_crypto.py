@@ -108,13 +108,16 @@ class SettingsKeyUnavailable(Exception):  # noqa: N818 - the name the plan and l
         reason: Why it isn't usable. Never contains key material.
     """
 
-    def __init__(self, source: str, reason: str) -> None:
-        """Build the exception from the source tried and why it failed."""
+    def __init__(self, source: str, reason: str, advice: str | None = None) -> None:
+        """Build the exception from the source tried, why it failed and how to fix it.
+
+        ``advice`` defaults to the usual fix for that source.
+        """
         self.source = source
         self.reason = reason
         super().__init__(
             f"The settings encryption key is unavailable ({source}: {reason}). "
-            f"{_fix_advice(source)}"
+            f"{advice or _fix_advice(source)}"
         )
 
 
@@ -197,6 +200,13 @@ class _Keyring:
 class _Unavailable:
     source: str
     reason: str
+    # Set when the source's usual fix is wrong for this reason.
+    own_advice: str | None = None
+
+    @property
+    def advice(self) -> str:
+        """How to fix it: its own advice, or the usual one for the source."""
+        return self.own_advice or _fix_advice(self.source)
 
 
 class _MalformedSourceError(ValueError):
@@ -285,8 +295,11 @@ def _read_key_file(
             # would quietly leave their copy empty for good.
             return _Unavailable(
                 source,
-                "it is a symlink to an empty file; put a key in the file it points to, "
-                "or remove the link to have one generated",
+                "it is a symlink to an empty file",
+                own_advice=(
+                    "Put a key in the file the symlink points to, or remove the link so one "
+                    "is generated."
+                ),
             )
         return _refill_empty_key_file(source, path)
     try:
@@ -406,7 +419,7 @@ def _get_keyring() -> _Keyring | _Unavailable:
                 "once; fixing it needs no restart.",
                 result.source,
                 result.reason,
-                _fix_advice(result.source),
+                result.advice,
             )
         return result
 
@@ -431,7 +444,7 @@ def encrypt(name: str, plaintext: str) -> str:
         raise SettingValueNotText(name) from None
     keyring = _get_keyring()
     if isinstance(keyring, _Unavailable):
-        raise SettingsKeyUnavailable(keyring.source, keyring.reason)
+        raise SettingsKeyUnavailable(keyring.source, keyring.reason, keyring.advice)
     nonce = os.urandom(_NONCE_BYTES)
     sealed = keyring.keys[keyring.current_kid].encrypt(nonce, raw, name.encode("utf-8"))
     return f"{CIPHERTEXT_PREFIX}{keyring.current_kid}:{_b64url_encode(nonce + sealed)}"
@@ -526,7 +539,7 @@ def keyring_status() -> KeyringStatus:
     if isinstance(keyring, _Keyring):
         return KeyringStatus(kid=keyring.current_kid, source=None, advice=None)
     source = {ENV_KEY: "env", ENV_KEY_FILE: "env_file"}.get(keyring.source, "data_dir")
-    return KeyringStatus(kid=None, source=source, advice=_fix_advice(keyring.source))
+    return KeyringStatus(kid=None, source=source, advice=keyring.advice)
 
 
 def keyring_fix_advice() -> str | None:

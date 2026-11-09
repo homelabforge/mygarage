@@ -43,11 +43,19 @@ export function SettingsProvider({ children, onSaved }: SettingsProviderProps) {
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isSavingRef = useRef(false)
 
+  // A tab's last handler once it unmounts, so a save it already asked for
+  // (still debouncing, or queued behind a running one) still lands. The tabs
+  // re-register on every change, so its closure holds the values they had.
+  const departedHandlers = useRef<Map<string, () => Promise<void>>>(new Map())
+
   const registerSaveHandler = useCallback((tabId: string, handler: () => Promise<void>) => {
     saveHandlers.current.set(tabId, handler)
+    departedHandlers.current.delete(tabId)
   }, [])
 
   const unregisterSaveHandler = useCallback((tabId: string) => {
+    const handler = saveHandlers.current.get(tabId)
+    if (handler) departedHandlers.current.set(tabId, handler)
     saveHandlers.current.delete(tabId)
   }, [])
 
@@ -57,8 +65,11 @@ export function SettingsProvider({ children, onSaved }: SettingsProviderProps) {
   const queuedTabRef = useRef<string | null>(null)
 
   const saveTab = useCallback(async (tabId: string): Promise<void> => {
-    const handler = saveHandlers.current.get(tabId)
+    const departed = departedHandlers.current.get(tabId)
+    const handler = saveHandlers.current.get(tabId) ?? departed
     if (!handler) return
+    // Used once: the tab's gone, so nothing newer can come from it.
+    if (handler === departed) departedHandlers.current.delete(tabId)
 
     const toastId = toast.loading(t('settingsContext.saving'))
     try {

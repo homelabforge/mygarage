@@ -446,13 +446,21 @@ class TestNoFallthrough:
         path.symlink_to(target)
 
         with caplog.at_level(logging.DEBUG, logger=LOGGER):
-            _assert_unavailable()
+            with pytest.raises(SettingsKeyUnavailable) as raised:
+                encrypt("llm_api_key", "x")
 
         assert path.is_symlink()
         assert path.readlink() == target
         assert target.read_bytes() == b""
+        # Only its own fix: the generic "make the data directory writable" would
+        # generate nothing here, since the link is never replaced.
+        fix = "Put a key in the file the symlink points to, or remove the link so one is generated."
         (error,) = [r.getMessage() for r in caplog.records if r.levelno >= logging.ERROR]
-        assert "symlink" in error
+        assert "symlink to an empty file" in error
+        for said in (error, str(raised.value), keyring_fix_advice()):
+            assert said is not None
+            assert fix in said
+            assert "writable" not in said
 
         text, raw = _new_key()
         target.write_text(text)

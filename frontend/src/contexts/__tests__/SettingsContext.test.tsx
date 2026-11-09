@@ -42,6 +42,24 @@ function FakeTab(): ReactElement {
   return <button onClick={triggerSave}>edit</button>
 }
 
+// Like the real tabs: the handler is a closure over the tab's values, and the
+// tab registers a new one on every change and unregisters when it unmounts.
+function ClosureTab({ value }: { value: string }): ReactElement {
+  const { registerSaveHandler, unregisterSaveHandler, triggerSave, setCurrentTabId } =
+    useSettings()
+  useEffect(() => {
+    setCurrentTabId('system')
+  }, [setCurrentTabId])
+  useEffect(() => {
+    registerSaveHandler('system', async () => {
+      saved.push(value)
+      if (handlerGate) await handlerGate.promise
+    })
+    return () => unregisterSaveHandler('system')
+  }, [value, registerSaveHandler, unregisterSaveHandler])
+  return <button onClick={triggerSave}>edit</button>
+}
+
 function edit(value: string): void {
   draft = value
   fireEvent.click(screen.getByRole('button', { name: 'edit' }))
@@ -141,5 +159,47 @@ describe('SettingsProvider autosave', () => {
     await wait(0)
     // The handler reads the tab's latest state, so one more save covers both.
     expect(saved).toEqual(['first', 'third'])
+  })
+
+  it("still saves a queued edit after its tab unmounts, with the tab's last values", async () => {
+    handlerGate = gate()
+    const slowSave = handlerGate
+    const page = (value: string | null): ReactElement => (
+      <SettingsProvider>{value !== null && <ClosureTab value={value} />}</SettingsProvider>
+    )
+    const { rerender } = render(page('first'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'edit' }))
+    await wait(1000)
+    expect(saved).toEqual(['first'])
+
+    // An edit queues behind the slow save, then the user switches tabs.
+    rerender(page('second'))
+    fireEvent.click(screen.getByRole('button', { name: 'edit' }))
+    await wait(1000)
+    rerender(page(null))
+
+    handlerGate = null
+    await act(async () => {
+      slowSave.open()
+    })
+    await wait(0)
+    expect(saved).toEqual(['first', 'second'])
+    expect(toast.success).toHaveBeenCalledTimes(2)
+    expect(toast.error).not.toHaveBeenCalled()
+  })
+
+  it('still saves an edit whose debounce fires after its tab unmounted', async () => {
+    const page = (value: string | null): ReactElement => (
+      <SettingsProvider>{value !== null && <ClosureTab value={value} />}</SettingsProvider>
+    )
+    const { rerender } = render(page('first'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'edit' }))
+    rerender(page(null))
+    await wait(1000)
+
+    expect(saved).toEqual(['first'])
+    expect(toast.success).toHaveBeenCalledTimes(1)
   })
 })
