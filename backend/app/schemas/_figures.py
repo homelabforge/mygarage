@@ -24,8 +24,8 @@ def _rounded(value: Decimal | None, step: Decimal) -> Decimal | None:
     try:
         return value.quantize(step, rounding=ROUND_HALF_UP)
     except InvalidOperation:
-        # Too many digits to round, only reachable on a field with no `le`. Leave
-        # it for the database to refuse, like ScaledNumeric does, not a 500 here.
+        # Too many digits to round. Every request field's `le` refuses this first;
+        # past that, hand it on unrounded like ScaledNumeric, not a 500 from here.
         return value
 
 

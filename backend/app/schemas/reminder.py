@@ -29,9 +29,9 @@ from app.schemas.maintenance import (
 )
 
 ReminderType = Literal["date", "mileage", "both", "smart", "hours"]
-#: Where a pending reminder stands (#192 D1). Computed, never stored.
+#: Where a pending reminder stands (#192). Computed, never stored.
 DueStatus = Literal["overdue", "due_soon", "on_track", "snoozed"]
-#: The dimension a reminder's progress is measured along (#192 D3).
+#: The dimension a reminder's progress is measured along (#192).
 ProgressBasis = Literal["date", "distance", "hours"]
 
 
@@ -149,7 +149,7 @@ class ReminderResponse(BaseModel):
     #: What made this reminder: "low_tread" for the tire sync, null for one a person wrote.
     source: str | None = None
     tire_id: int | None = None
-    #: A low-tread reminder's tread and minimum, canonical mm, rendered by each reader (G3a-21).
+    #: A low-tread reminder's tread and minimum, canonical mm, rendered by each reader.
     tread_depth_mm: Decimal | None = None
     tread_threshold_mm: Decimal | None = None
     #: Hide-until-date snooze. The due fields above stay real; while

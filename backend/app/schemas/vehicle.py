@@ -172,7 +172,10 @@ class VehicleBase(BaseModel):
         description="Usage tracking dimension: 'distance' (odometer) or 'hours' (hour meter)",
     )
     current_hours: Annotated[Decimal | None, AfterValidator(to_stored_tenth)] = Field(
-        None, description="Current engine-hour reading (used when usage_unit == 'hours')", ge=0
+        None,
+        description="Current engine-hour reading (used when usage_unit == 'hours')",
+        ge=0,
+        le=999999999.9,
     )
     secondary_usage_enabled: bool = Field(
         False,
@@ -871,7 +874,7 @@ class VehicleBulkArchiveRequest(BaseModel):
 
 
 class VehicleDetailStats(BaseModel):
-    """Read-aggregation for the Vehicle Detail hero + key-facts strip (P5).
+    """Read-aggregation for the Vehicle Detail hero + key-facts strip.
 
     Metric-canonical: latest_odometer_km is raw km (frontend converts at the
     boundary). spent_this_year is currency (Decimal -> JSON string).
@@ -880,23 +883,23 @@ class VehicleDetailStats(BaseModel):
     overdue_count: int
     upcoming_count: int
     # The subset of upcoming that is due soon: expected within DUE_SOON_WINDOW,
-    # or DUE_SOON_PROGRESS along a usage span no rate can project (#192 D2).
+    # or DUE_SOON_PROGRESS along a usage span no rate can project (#192).
     # The hero badge (reminder_service.reminder_due_status, as on the dashboard).
     due_soon_count: int
     usage_unit: LenientUsageUnit  # drives the odometer/hours relabel
-    # Kept for API compat only, NO LONGER the display source (R2-H1). The
+    # Kept for API compat only, NO LONGER the display source. The
     # canonical reading is `latest_hours` below, via `latest_engine_hours_and_date`.
     current_hours: Decimal | None  # required-but-nullable, legacy column value
-    # Canonical latest engine-hours reading (the §1 helper) + hours-economy
-    # figures, required-but-nullable (M2), NO `= None` default. Null for a
+    # Canonical latest engine-hours reading + hours-economy
+    # figures, required-but-nullable, NO `= None` default. Null for a
     # pure-distance vehicle.
     latest_hours: Decimal | None
     average_l_per_hr: Decimal | None
     average_cost_per_hr: Decimal | None
     secondary_usage_enabled: bool
-    latest_odometer_km: Decimal | None  # required-but-nullable (M2), NO `= None` default
-    latest_odometer_date: date | None  # required-but-nullable (M2), NO `= None` default
-    last_service_date: date | None  # required-but-nullable (M2), NO `= None` default
-    last_fillup_date: date | None  # required-but-nullable (M2), NO `= None` default
+    latest_odometer_km: Decimal | None  # required-but-nullable, NO `= None` default
+    latest_odometer_date: date | None  # required-but-nullable, NO `= None` default
+    last_service_date: date | None  # required-but-nullable, NO `= None` default
+    last_fillup_date: date | None  # required-but-nullable, NO `= None` default
     spent_this_year: Decimal
     year: int

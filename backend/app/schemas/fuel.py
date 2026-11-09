@@ -86,7 +86,7 @@ def _validate_charge_location(v: str | None) -> str | None:
 
 
 DIESEL_GRADE_VALUES = ("onroad", "offroad")
-#: The two octane scales (B4): Research Octane Number, printed on European
+#: The two octane scales: Research Octane Number, printed on European
 #: pumps, and the (R+M)/2 Anti-Knock Index of North American ones.
 OCTANE_SCALE_VALUES = ("RON", "AKI")
 
@@ -103,7 +103,7 @@ def _validate_octane(v: int | None) -> int | None:
 
 
 def _validate_octane_scale(v: str | None) -> str | None:
-    """'RON' | 'AKI', case-insensitive; blank clears (B4).
+    """'RON' | 'AKI', case-insensitive; blank clears.
 
     Module-level like its siblings: the CSV/JSON importers construct rows
     outside Pydantic and run the same check per row.

@@ -60,7 +60,7 @@ def _strip_description(value: object) -> object:
     return value.strip() if isinstance(value, str) else value
 
 
-#: Each flag and the optional link it allows (D8). The visit writers share it.
+#: Each flag and the optional link it allows. The visit writers share it.
 FLAGGED_LINKS = (("is_recall", "recall_id"), ("is_warranty", "warranty_id"))
 
 

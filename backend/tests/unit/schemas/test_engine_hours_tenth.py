@@ -130,10 +130,10 @@ CASES = [
         {"vin": VIN, "nickname": "Tractor", "vehicle_type": "Car"},
         _HOURS,
         "ge",
-        None,
+        _LOG_MAX,
         True,
     ),
-    Case(VehicleUpdate, "current_hours", {}, _HOURS, "ge", None, True),
+    Case(VehicleUpdate, "current_hours", {}, _HOURS, "ge", _LOG_MAX, True),
     Case(AnchorSpec, "hours", {}, _column(Reminder, "anchor_hours"), "ge", _READING_MAX, True),
     # An interval needs a second one beside it for its null case to be a valid rule.
     Case(RecurrenceSpec, "interval_hours", {"interval_months": 6}, _INTERVAL, "gt", _LOG_MAX, True),
@@ -198,10 +198,11 @@ def test_the_column_keeps_a_tenth(case: Case) -> None:
 @pytest.mark.parametrize("case", CASES, ids=IDS)
 def test_the_bounds_still_refuse(case: Case) -> None:
     # -0.04 and le + 0.04 would round back inside the bounds; they're checked first.
+    # 1E+30 is past any column: SQLite would store it, and summing it 500s later.
     refused = ["-0.1", "-0.04"] if case.floor == "ge" else ["0", "-0.04"]
     if case.le is not None:
         assert case.read(str(case.le)) == case.le
-        refused += [str(case.le + Decimal("0.1")), str(case.le + Decimal("0.04"))]
+        refused += [str(case.le + Decimal("0.1")), str(case.le + Decimal("0.04")), "1E+30"]
     for value in refused:
         with pytest.raises(ValidationError, match=case.field):
             case.read(value)
@@ -229,9 +230,8 @@ def test_a_positive_figure_never_rounds_to_zero(case: Case) -> None:
     assert case.read("0.05") == Decimal("0.1")
 
 
-def test_a_figure_too_long_to_round_is_left_for_the_database() -> None:
-    # current_hours has no `le`, so a huge figure gets this far. Quantize can't fit
-    # it in 28 digits; leave it as is and the database refuses it, as it did before.
+def test_a_figure_too_long_to_round_passes_through_unrounded() -> None:
+    # Every request field has an `le` that refuses this first. Past one, quantize
+    # can't fit it in 28 digits, and a validator that raised would be a 500.
     huge = Decimal("1E+30")
     assert to_stored_tenth(huge) == huge
-    assert VehicleUpdate.model_validate({"current_hours": "1E+30"}).current_hours == huge

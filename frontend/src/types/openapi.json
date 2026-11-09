@@ -14943,7 +14943,7 @@
       },
       "MountPeriodUpdate": {
         "additionalProperties": false,
-        "description": "Correct one mount period's bounds or notes.\n\nEvery field optional, `exclude_unset` semantics: a key absent from the\nbody is untouched, a key sent as null is cleared to unknown. `position`\nis deliberately not here (D14: only mount, dismount and rotate write it),\nand forbid-extra makes sending it a 422 rather than a silent ignore.",
+        "description": "Correct one mount period's bounds or notes.\n\nEvery field optional, `exclude_unset` semantics: a key absent from the\nbody is untouched, a key sent as null is cleared to unknown. `position`\nis deliberately not here (only mount, dismount and rotate write it),\nand forbid-extra makes sending it a 422 rather than a silent ignore.",
         "properties": {
           "dismounted_hours": {
             "anyOf": [
@@ -25585,7 +25585,7 @@
       },
       "TireResponse": {
         "additionalProperties": false,
-        "description": "A tire, with where it is now and what is known about its wear.\n\n`position` is RE-DECLARED here as nullable rather than inherited: it left\nthe write schema (D2c) but is still part of every read. Declaring it only\non the base would have made it required on writes; omitting it entirely\nwould have dropped it from responses. Neither is what a reader wants.\n\n`installed_date` is DERIVED, not stored (D12): the `mounted_on` of the\nearliest period **that has one**. When the earliest period is the migrated\nassumed one with a null start, this is null -- NOT the next known remount\ndate. A plain MIN(mounted_on) would skip the unknown and report a later\ndate as the installation date, which is worse than reporting nothing.",
+        "description": "A tire, with where it is now and what is known about its wear.\n\n`position` is RE-DECLARED here as nullable rather than inherited: it left\nthe write schema but is still part of every read. Declaring it only\non the base would have made it required on writes; omitting it entirely\nwould have dropped it from responses. Neither is what a reader wants.\n\n`installed_date` is DERIVED, not stored: the `mounted_on` of the\nearliest period **that has one**. When the earliest period is the migrated\nassumed one with a null start, this is null -- NOT the next known remount\ndate. A plain MIN(mounted_on) would skip the unknown and report a later\ndate as the installation date, which is worse than reporting nothing.",
         "properties": {
           "below_threshold": {
             "default": false,
@@ -26252,7 +26252,7 @@
       },
       "TireUpdate": {
         "additionalProperties": false,
-        "description": "Partial tire update.\n\nNeither `position` nor `installed_date` is writable here: position changes\nthrough mount/dismount (D14), and `installed_date` is derived (D12).",
+        "description": "Partial tire update.\n\nNeither `position` nor `installed_date` is writable here: position changes\nthrough mount/dismount, and `installed_date` is derived.",
         "properties": {
           "brand": {
             "anyOf": [
@@ -29905,6 +29905,7 @@
           "current_hours": {
             "anyOf": [
               {
+                "maximum": 999999999.9,
                 "minimum": 0.0,
                 "type": "number"
               },
@@ -30799,7 +30800,7 @@
         "type": "object"
       },
       "VehicleDetailStats": {
-        "description": "Read-aggregation for the Vehicle Detail hero + key-facts strip (P5).\n\nMetric-canonical: latest_odometer_km is raw km (frontend converts at the\nboundary). spent_this_year is currency (Decimal -> JSON string).",
+        "description": "Read-aggregation for the Vehicle Detail hero + key-facts strip.\n\nMetric-canonical: latest_odometer_km is raw km (frontend converts at the\nboundary). spent_this_year is currency (Decimal -> JSON string).",
         "properties": {
           "average_cost_per_hr": {
             "anyOf": [
@@ -33027,6 +33028,7 @@
           "current_hours": {
             "anyOf": [
               {
+                "maximum": 999999999.9,
                 "minimum": 0.0,
                 "type": "number"
               },

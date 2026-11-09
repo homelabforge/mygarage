@@ -14191,7 +14191,7 @@ export interface components {
          *
          *     Every field optional, `exclude_unset` semantics: a key absent from the
          *     body is untouched, a key sent as null is cleared to unknown. `position`
-         *     is deliberately not here (D14: only mount, dismount and rotate write it),
+         *     is deliberately not here (only mount, dismount and rotate write it),
          *     and forbid-extra makes sending it a 422 rather than a silent ignore.
          */
         MountPeriodUpdate: {
@@ -18317,11 +18317,11 @@ export interface components {
          * @description A tire, with where it is now and what is known about its wear.
          *
          *     `position` is RE-DECLARED here as nullable rather than inherited: it left
-         *     the write schema (D2c) but is still part of every read. Declaring it only
+         *     the write schema but is still part of every read. Declaring it only
          *     on the base would have made it required on writes; omitting it entirely
          *     would have dropped it from responses. Neither is what a reader wants.
          *
-         *     `installed_date` is DERIVED, not stored (D12): the `mounted_on` of the
+         *     `installed_date` is DERIVED, not stored: the `mounted_on` of the
          *     earliest period **that has one**. When the earliest period is the migrated
          *     assumed one with a null start, this is null -- NOT the next known remount
          *     date. A plain MIN(mounted_on) would skip the unknown and report a later
@@ -18528,7 +18528,7 @@ export interface components {
          * @description Partial tire update.
          *
          *     Neither `position` nor `installed_date` is writable here: position changes
-         *     through mount/dismount (D14), and `installed_date` is derived (D12).
+         *     through mount/dismount, and `installed_date` is derived.
          */
         TireUpdate: {
             /** Brand */
@@ -20487,7 +20487,7 @@ export interface components {
         };
         /**
          * VehicleDetailStats
-         * @description Read-aggregation for the Vehicle Detail hero + key-facts strip (P5).
+         * @description Read-aggregation for the Vehicle Detail hero + key-facts strip.
          *
          *     Metric-canonical: latest_odometer_km is raw km (frontend converts at the
          *     boundary). spent_this_year is currency (Decimal -> JSON string).
