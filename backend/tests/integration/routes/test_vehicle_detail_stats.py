@@ -58,7 +58,7 @@ async def seed_vehicle(db_session: AsyncSession) -> AsyncGenerator[SeedVehicle]:
 
 @pytest.mark.asyncio
 class TestVehicleDetailStats:
-    # --- Positive data tests run as the NON-ADMIN OWNER (B1) — admin would bypass
+    # --- Positive data tests run as the NON-ADMIN OWNER. An admin would bypass
     #     ownership/share checks in get_vehicle_or_403 and mask a broken scope.
 
     async def test_structure_and_types(
@@ -100,7 +100,7 @@ class TestVehicleDetailStats:
         assert body["year"] == date.today().year
         # Decimal -> JSON string.
         assert isinstance(body["spent_this_year"], str)
-        # Required-but-nullable (M2): the keys are PRESENT and null on an empty vehicle.
+        # Required-but-nullable: the keys are PRESENT and null on an empty vehicle.
         assert body["overdue_count"] == 0
         assert body["upcoming_count"] == 0
         assert body["due_soon_count"] == 0
@@ -112,7 +112,7 @@ class TestVehicleDetailStats:
         # Usage tracking defaults to distance; no hours reading on a fresh vehicle.
         assert body["usage_unit"] == "distance"
         assert body["current_hours"] is None
-        # Part A: hours stats fields, null/false for a pure-distance vehicle
+        # Hours stats fields, null/false for a pure-distance vehicle
         # with no hours_records.
         assert body["latest_hours"] is None
         assert body["average_l_per_hr"] is None
@@ -152,7 +152,7 @@ class TestVehicleDetailStats:
         non_admin_user,
         db_session: AsyncSession,
     ):
-        """Predicate mirrors dashboard.calculate_vehicle_stats (G8): overdue =
+        """Predicate mirrors dashboard.calculate_vehicle_stats: overdue =
         due_date<=today; upcoming = ALL pending non-overdue (broad partition);
         a completed reminder counts as neither; a pending reminder with neither a
         due_date NOR a due_mileage_km is upcoming. Breaks if the <=/< boundary
@@ -220,8 +220,8 @@ class TestVehicleDetailStats:
         non_admin_user,
         db_session: AsyncSession,
     ):
-        """Mileage predicate (G8): due_mileage_km <= current odometer is overdue
-        (>= boundary — exactly-at-due is overdue); a mileage-only reminder with
+        """Mileage predicate: due_mileage_km <= current odometer is overdue
+        (>= boundary, so exactly-at-due is overdue); a mileage-only reminder with
         NO odometer reading on the vehicle is upcoming (mileage branch cannot
         fire). Breaks if the mileage branch is dropped or the boundary flips."""
         vin = await seed_vehicle(non_admin_user["id"], "5NPE24AF0FH100003")
@@ -270,7 +270,7 @@ class TestVehicleDetailStats:
         db_session: AsyncSession,
     ):
         """A mileage-only reminder on a vehicle with NO odometer reading cannot be
-        overdue (current_odometer_km is None) → upcoming (G8)."""
+        overdue (current_odometer_km is None) → upcoming."""
         vin = await seed_vehicle(non_admin_user["id"], "5NPE24AF0FH100010")
         db_session.add(
             Reminder(
@@ -297,12 +297,12 @@ class TestVehicleDetailStats:
         non_admin_user,
         db_session: AsyncSession,
     ):
-        """Phase 6b parity fix: detail-stats must use the SAME hours-aware
+        """Parity: detail-stats must use the SAME hours-aware
         is_reminder_overdue predicate as the dashboard, family dashboard, and
-        calendar — a pure `hours` reminder can no longer show overdue on the
+        calendar, so a pure `hours` reminder can no longer show overdue on the
         dashboard card but 'upcoming' on this SAME vehicle's detail page.
         Mirrors test_dashboard.test_dashboard_mixed_date_mileage_hours_reminders_all_evaluated:
-        pre-existing date/mileage behavior stays exactly as-is (G8) while the
+        pre-existing date/mileage behavior stays exactly as-is while the
         new hours branch is exercised alongside them on one vehicle."""
         vin = await seed_vehicle(non_admin_user["id"], "5NPE24AF0FH100020")
         db_session.add(OdometerRecord(vin=vin, date=date.today(), odometer_km=Decimal("60000")))
@@ -361,11 +361,11 @@ class TestVehicleDetailStats:
         later-this-year records are both excluded (true YTD, <= today upper
         bound).
 
-        The route clock is FROZEN to a fixed mid-year date (m3) so the
+        The route clock is FROZEN to a fixed mid-year date so the
         'later-this-year' record stays a strictly-in-year future date on EVERY
         calendar day. Unfrozen `today + 1 day` rolls into next year on Dec 31,
         where it no longer distinguishes the correct `<= today` bound from a
-        buggy `< next_year_start` one — the test would silently stop
+        buggy `< next_year_start` one, and the test would silently stop
         discriminating. Freezing `app.routes.vehicles.date` (a date subclass
         whose today() is fixed) makes the assertion calendar-independent."""
         import app.routes.vehicles as vehicles_route
@@ -391,9 +391,9 @@ class TestVehicleDetailStats:
                 ),
                 FuelRecord(vin=vin, date=frozen, cost=Decimal("40.00")),
                 DEFRecord(vin=vin, date=frozen, cost=Decimal("20.00")),
-                # Prior calendar year — excluded.
+                # Prior calendar year: excluded.
                 FuelRecord(vin=vin, date=date(frozen.year - 1, 6, 1), cost=Decimal("999.00")),
-                # Later THIS year (strictly after frozen today, still in-year) —
+                # Later THIS year (strictly after frozen today, still in-year):
                 # excluded by `<= today`; a buggy `< next_year_start` WOULD include it.
                 ServiceVisit(
                     vin=vin,
@@ -448,7 +448,7 @@ class TestVehicleDetailStats:
         db_session: AsyncSession,
     ):
         """Two odometer readings on the SAME date: the highest reading of the day is
-        the current one, deterministically on SQLite AND PG (B2). The SAME row
+        the current one, deterministically on SQLite AND PG. The SAME row
         drives both the displayed reading and the mileage-reminder evaluation,
         one fetch reused, so they can never disagree. Seed 50100 then 50000 on
         today, so the higher reading is the OLDER row; the 50100 row must win,
@@ -488,18 +488,18 @@ class TestVehicleDetailStats:
         db_session: AsyncSession,
         monkeypatch,
     ):
-        """R2-B1 / R3-B1 (cross-route): the locked decision — SAME vehicle => SAME
+        """Cross-route: the locked decision is SAME vehicle => SAME
         overdue/upcoming on the dashboard card AND the detail hero. Both routes MUST
         derive the latest odometer from the ONE shared helper
         (`odometer_service.latest_odometer_km_and_date`, date DESC, odometer DESC, id DESC).
 
-        R3-B1 — a data-only assertion is NOT discriminating: on the default SQLite
+        A data-only assertion is NOT discriminating: on the default SQLite
         test schema the `(vin, date)` index reverse-scan returns the higher-id row
         even for a bare `ORDER BY date DESC`, so reverting EITHER route to an inline
         date-only query would STILL pass the count assertions below. To prove both
         routes actually go through the shared helper we wrap it with an AsyncMock in
-        BOTH route modules' namespaces (each imports it as a bare name — see Step
-        3b-ii / Step 4 — so the lookup is the module attribute) and assert each was
+        BOTH route modules' namespaces (each imports it as a bare name, so the
+        lookup is the module attribute) and assert each was
         awaited for the target vin. Reverting either call site to an inline query
         then leaves that route's spy un-awaited and fails deterministically,
         independent of the engine's same-date row choice. The behavioural equality
@@ -540,7 +540,7 @@ class TestVehicleDetailStats:
         dashboard = (await client.get("/api/dashboard", headers=non_admin_headers)).json()
         card = next(v for v in dashboard["vehicles"] if v["vin"] == vin)
 
-        # (1) STRUCTURAL (R3-B1): both routes went through the shared helper for
+        # (1) STRUCTURAL: both routes went through the shared helper for
         # this vin. Reverting EITHER call site to an inline query leaves that
         # route's spy un-awaited -> this fails deterministically, independent of the
         # engine's same-date row choice. (The dashboard iterates all of the user's
@@ -554,7 +554,7 @@ class TestVehicleDetailStats:
         )
         # (2) BEHAVIOURAL: same row on both routes -> identical, correct counts
         # (dashboard exposes overdue_maintenance_count / upcoming_maintenance_count;
-        # detail-stats exposes overdue_count / upcoming_count — the same values).
+        # detail-stats exposes overdue_count / upcoming_count, the same values).
         assert detail["overdue_count"] == card["overdue_maintenance_count"] == 1
         assert detail["upcoming_count"] == card["upcoming_maintenance_count"] == 0
 
@@ -619,7 +619,7 @@ class TestVehicleDetailStats:
         non_admin_user,
         db_session: AsyncSession,
     ):
-        """Part A: latest_hours (via latest_engine_hours_and_date — the MAX
+        """latest_hours (via latest_engine_hours_and_date: the MAX
         reading, not the newest-dated one) + average_l_per_hr/average_cost_per_hr
         (via the fuel hours-economy average) + secondary_usage_enabled must be
         populated identically on BOTH the detail-stats payload AND the
@@ -634,7 +634,7 @@ class TestVehicleDetailStats:
         db_session.add_all(
             [
                 # A lower reading dated LATER must still lose to the max reading
-                # (the helper's ORDER BY engine_hours DESC rule) — proves this
+                # (the helper's ORDER BY engine_hours DESC rule), which proves this
                 # isn't just picking the newest-dated row.
                 HoursRecord(vin=vin, date=today, engine_hours=Decimal("90.0"), source="manual"),
                 HoursRecord(
@@ -688,9 +688,9 @@ class TestVehicleDetailStats:
         non_admin_user,
         db_session: AsyncSession,
     ):
-        """R2-H1: latest_hours must be derived from hours_records via the
+        """latest_hours must be derived from hours_records via the
         canonical helper, NEVER from the retired vehicles.current_hours
-        column — even when that column holds a stale legacy value with no
+        column, even when that column holds a stale legacy value with no
         matching hours_records row. current_hours is kept in the response
         for API compat only, unrelated to latest_hours."""
         vin = await seed_vehicle(non_admin_user["id"], "5NPE24AF0FH100014")

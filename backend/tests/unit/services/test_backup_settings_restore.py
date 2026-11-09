@@ -284,7 +284,7 @@ class TestSettingsRestoreValidatesOidcRedirectUri:
 
 
 # A restore also round-trips keys the generic API refuses, so the value rules
-# the API applies are applied here per row (PR 0: O-T1, G3b-20).
+# the API applies are applied here per row.
 _RULED_KEYS = ("livelink_telemetry_retention_days", "oidc_link_token_expire_minutes")
 
 
@@ -419,7 +419,7 @@ _NON_SWITCH_KEY = "auto_archive_inactive_days"
 @pytest.mark.integration
 @pytest.mark.asyncio
 class TestSettingsRestoreCanonicalizesSwitches:
-    """The restore stores a switch the way the settings routes do (batch 5, D5a)."""
+    """The restore stores a switch the way the settings routes do."""
 
     async def _restore_one(
         self, db_session: AsyncSession, tmp_path: Path, keep_rows, key: str, raw: object

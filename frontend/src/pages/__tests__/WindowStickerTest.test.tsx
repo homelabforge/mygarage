@@ -5,7 +5,7 @@
  * once a file was chosen it sat on top of Remove and a tap opened the picker
  * instead. jsdom has no layout, so these pin STRUCTURE only: no stretched file
  * input exists while a file is chosen, and Remove brings it back. Whether the
- * click really lands on Remove in a browser is G9's E2E half. Remove also clears
+ * click really lands on Remove in a browser is the E2E spec's job. Remove also clears
  * the last test's result and its error, so nothing describes a file that's gone,
  * and a test still running when the file goes is dropped when it answers.
  */
@@ -125,7 +125,7 @@ describe('WindowStickerTest drop zone', () => {
     expect(container.querySelector(OVERLAY_INPUT)).not.toBeNull()
   })
 
-  // Guard: passes before G8 fix round 1. Kills a mutant where a file choice is
+  // Guard: passed before the run-counter fix too. Kills a mutant where a file choice is
   // ignored once the run counter has moved (Remove moves it); checked once by hand.
   it('takes a new file chosen after Remove', async () => {
     const container = await renderPage()

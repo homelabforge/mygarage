@@ -35,7 +35,7 @@ beforeEach(() => {
 
 // Drives the form to the post-extraction edit screen (extractedData set),
 // which is the real-world precondition for a field-level 422 from the
-// `/window-sticker/data` PATCH — the extraction endpoint itself doesn't know
+// `/window-sticker/data` PATCH. The extraction endpoint itself doesn't know
 // about individual MSRP/color/warranty fields.
 const uploadAndReachEditScreen = async (user: ReturnType<typeof userEvent.setup>) => {
   const input = document.querySelector('input[type="file"]') as HTMLInputElement
@@ -52,12 +52,12 @@ const editAndSave = async (user: ReturnType<typeof userEvent.setup>) => {
   await user.click(screen.getByRole('button', { name: 'windowSticker.misc.saveData' }))
 }
 
-// Final-review I4 regression fence: WindowStickerUpload has 9 fieldErrors-wired
+// Regression fence: WindowStickerUpload has 9 fieldErrors-wired
 // render targets against ~25 possible ExtractedData payload keys. Before the
 // fix, `if (problems.length > 0) { setFieldErrors(...) } else { setError(...) }`
 // meant a 422 naming an unmapped key (e.g. fuel_economy_city, which has no
 // Field in this form) wrote to fieldErrors state, rendered nothing, and
-// suppressed the banner too — total silence on a real backend rejection.
+// suppressed the banner too: total silence on a real backend rejection.
 describe('WindowStickerUpload — server-side error wiring (final-review I4)', () => {
   it('a 422 naming ONLY an unmapped field (fuel_economy_city) on save still shows the banner, not silence', async () => {
     const user = userEvent.setup({ applyAccept: false })
@@ -103,7 +103,7 @@ describe('WindowStickerUpload — server-side error wiring (final-review I4)', (
     const alert = await screen.findByRole('alert')
     expect(alert).toHaveTextContent('Input should be >= 0')
     // Fully-mapped 422 (attached>0, unhandled===0): the field error alone is
-    // enough, the generic banner must stay silent — no double-report.
+    // enough, the generic banner must stay silent, no double-report.
     expect(screen.queryByText('Failed to windowSticker.saveAction. Please check your input.')).not.toBeInTheDocument()
   })
 
@@ -128,7 +128,7 @@ describe('WindowStickerUpload — server-side error wiring (final-review I4)', (
     await editAndSave(user)
 
     await vi.waitFor(() => expect(apiPatch).toHaveBeenCalledTimes(1))
-    // Two alerts now: the field's own and the banner (G1b-78).
+    // Two alerts now: the field's own and the banner.
     await vi.waitFor(() => expect(screen.getAllByRole('alert')).toHaveLength(2))
     expect(
       await screen.findByText('Failed to windowSticker.saveAction. Please check your input.')
@@ -137,7 +137,7 @@ describe('WindowStickerUpload — server-side error wiring (final-review I4)', (
 })
 
 // The banners and field errors have to reach a screen reader, not just the
-// eye (G1b-78).
+// eye.
 describe('WindowStickerUpload: errors and results are announced', () => {
   it('a field error is the description of its box, so it is heard on return', async () => {
     const user = userEvent.setup({ applyAccept: false })
@@ -189,10 +189,10 @@ describe('WindowStickerUpload: errors and results are announced', () => {
   })
 })
 
-// The comma-decimal MSRP fence (final-review I9) lives in WindowStickerUpload.review.test.tsx,
+// The comma-decimal MSRP fence lives in WindowStickerUpload.review.test.tsx,
 // asserted on the posted payload now that the input keeps the typed text.
 
-// D1: with a sticker already on file the upload fills empty fields only,
+// With a sticker already on file the upload fills empty fields only,
 // unless the user turns "keep" off, which sends replace=true.
 describe('WindowStickerUpload: keep the values already saved (D1)', () => {
   const uploadAndGetForm = async (user: ReturnType<typeof userEvent.setup>): Promise<FormData> => {
@@ -392,7 +392,7 @@ describe('WindowStickerUpload: the sticker and OCR switches', () => {
   })
 
   // Regression guard: an unscanned upload reviews like a scan that read
-  // nothing, so these pass on main for that case already (R1-F4).
+  // nothing, so these pass on main for that case already.
   it('after an ocr_skipped upload, an untouched review saves nothing and still finishes', async () => {
     const user = userEvent.setup({ applyAccept: false })
     switches({ window_sticker_ocr_enabled: 'false' })
@@ -408,7 +408,7 @@ describe('WindowStickerUpload: the sticker and OCR switches', () => {
   })
 
   // Regression guard: closing reports the upload by the seed's presence,
-  // whatever the scan did, so this passes on main too (R1-F4).
+  // whatever the scan did, so this passes on main too.
   it('closing after an ocr_skipped upload tells the page a sticker was saved', async () => {
     const user = userEvent.setup({ applyAccept: false })
     switches({ window_sticker_ocr_enabled: 'false' })
@@ -450,7 +450,7 @@ describe('WindowStickerUpload: the sticker and OCR switches', () => {
   })
 })
 
-// B5-7: the cap is the server's documents limit, served with the public
+// The cap is the server's documents limit, served with the public
 // settings, not a hardcoded 10 MB.
 describe('WindowStickerUpload: the size cap (B5-7)', () => {
   const bigPdf = (bytes: number) =>

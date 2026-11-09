@@ -145,8 +145,8 @@ class TestMapping:
         assert haversine_km(45.78, 3.08, 45.78, 3.08) == 0
 
 
-@pytest.mark.unit
 class TestRegistry:
+    @pytest.mark.unit
     def test_france_names_the_instant_feed_and_others_name_none(self):
         provider = provider_for(profile_for_country("FR"))
         assert provider is not None and provider.id == "fr_instantane"
@@ -155,6 +155,7 @@ class TestRegistry:
         assert provider_for(None) is None
         assert provider_by_id("nope") is None
 
+    @pytest.mark.integration
     async def test_the_setting_turns_it_off(self, db_session):
         await _set(db_session, france.ENABLED_SETTING, "false")
         try:
@@ -164,17 +165,19 @@ class TestRegistry:
         assert await enabled_provider_for(db_session, profile_for_country("FR")) is not None
 
 
-@pytest.mark.unit
 class TestAllowlist:
+    @pytest.mark.unit
     def test_the_default_url_passes(self):
         validate_data_economie_url(france.DEFAULT_API_URL)
 
+    @pytest.mark.unit
     def test_another_host_and_plain_http_are_refused(self):
         with pytest.raises(SSRFProtectionError):
             validate_data_economie_url("https://example.com/records")
         with pytest.raises((SSRFProtectionError, ValueError)):
             validate_data_economie_url("http://data.economie.gouv.fr/records")
 
+    @pytest.mark.integration
     async def test_a_refused_setting_falls_back_to_the_default(self, db_session):
         await _set(db_session, france.API_URL_SETTING, "https://example.com/records")
         try:
@@ -184,7 +187,7 @@ class TestAllowlist:
         assert await FrenchFuelPriceProvider().api_url(db_session) == france.DEFAULT_API_URL
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 class TestNearby:
     async def test_asks_within_the_radius_nearest_first_and_maps_the_stations(self, db_session):
         france.clear_cache()

@@ -1,7 +1,7 @@
 """`get_vehicle_recalls`: an NHTSA outage is not "no recalls".
 
 The scheduled recall check leaves `nhtsa_last_check` alone when NHTSA didn't
-answer, and the manual check answers 502 (B5-1). A timeout, any other transport error, a body
+answer, and the manual check answers 502. A timeout, any other transport error, a body
 httpx can't decode, a redirect loop, an HTTP error status or a 200 whose body
 isn't JSON raises `NHTSAUnavailableError` from the vPIC decode and from the
 recalls fetch alike. A VIN vPIC can't
@@ -20,7 +20,7 @@ from app.services import nhtsa as nhtsa_module
 from app.services.nhtsa import NHTSAService
 from tests._fake_nhtsa import decode_answer, failure, is_decode, serve
 
-pytestmark = pytest.mark.unit
+pytestmark = pytest.mark.integration
 
 VIN = "1HGCM82673A123456"
 

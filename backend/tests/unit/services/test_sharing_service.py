@@ -161,7 +161,7 @@ async def share_vehicle(db_session, owner_user) -> Vehicle:
     return vehicle
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 class TestShareVehicle:
     """Test vehicle sharing functionality."""
@@ -332,7 +332,7 @@ class TestShareVehicle:
         assert exc_info.value.status_code == 409
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 class TestUpdateShare:
     """Test share update functionality."""
@@ -392,7 +392,7 @@ class TestUpdateShare:
         assert result.permission == "write"
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 class TestRevokeShare:
     """Test share revocation functionality."""
@@ -449,7 +449,7 @@ class TestRevokeShare:
         assert exc_info.value.status_code == 403
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 class TestGetVehicleShares:
     """Test getting vehicle shares."""
@@ -491,7 +491,7 @@ class TestGetVehicleShares:
         assert exc_info.value.status_code == 403
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 class TestCheckSharePermission:
     """Test checking share permissions."""
@@ -533,7 +533,7 @@ class TestCheckSharePermission:
         assert permission is None
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 class TestGetShareableUsers:
     """Test getting shareable users."""

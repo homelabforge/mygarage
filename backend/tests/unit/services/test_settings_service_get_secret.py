@@ -17,7 +17,7 @@ from app.routes.settings import _stored_secret_mask  # pyright: ignore[reportPri
 from app.services.settings_service import SecretUnreadableError, SettingsService, reenter_message
 from app.utils.settings_crypto import DecryptResult, encrypt
 
-pytestmark = [pytest.mark.unit, pytest.mark.asyncio]
+pytestmark = pytest.mark.asyncio
 
 KEY = "ntfy_token"
 
@@ -29,6 +29,7 @@ async def _store(db: AsyncSession, raw: str | None) -> None:
     await db.commit()
 
 
+@pytest.mark.integration
 async def test_get_secret(
     db_session: AsyncSession, keep_rows: Callable[..., Awaitable[None]]
 ) -> None:
@@ -57,6 +58,7 @@ async def test_get_secret(
     assert (await SettingsService.get(db_session, KEY)).value is None  # type: ignore[union-attr]
 
 
+@pytest.mark.integration
 @pytest.mark.parametrize("readable", [True, False], ids=["readable", "unreadable"])
 async def test_one_read_decrypts_once(
     db_session: AsyncSession, keep_rows: Callable[..., Awaitable[None]], readable: bool
@@ -86,5 +88,6 @@ async def test_one_read_decrypts_once(
         assert len(calls) == 1
 
 
+@pytest.mark.unit
 def test_the_error_carries_the_shared_re_enter_wording() -> None:
     assert str(SecretUnreadableError(KEY)) == reenter_message(KEY)

@@ -661,7 +661,7 @@ class TestCheckNhtsaSwitch:
 @pytest.mark.integration
 @pytest.mark.asyncio
 class TestRecallsWithoutAVin:
-    """#226 / R1-H2: NHTSA works from the VIN, so a vehicle without one gets a
+    """#226: NHTSA works from the VIN, so a vehicle without one gets a
     clear 409 from the NHTSA check and the generic check skips NHTSA."""
 
     @pytest.mark.parametrize("nhtsa_enabled", ["true", "false"])
@@ -913,7 +913,7 @@ def uuid_tail() -> str:
 
 
 # ============================================================================
-#  Recalls tab vs line item links (D10, D11, I1, I2)
+#  Recalls tab vs line item links
 # ============================================================================
 
 Sessions = async_sessionmaker[AsyncSession]
@@ -1003,7 +1003,7 @@ class TestRecallsTabAndVisitLinks:
         db_session: AsyncSession,
         test_sessionmaker: Sessions,
     ) -> None:
-        """Keyed on the link, not on resolved_via (D11, F-2)."""
+        """Keyed on the link, not on resolved_via."""
         vin = await new_vehicle()
         rid = await _stored_recall(db_session, vin)
         r = await _put_recall(client, auth_headers, vin, rid, {"is_resolved": True})
@@ -1049,7 +1049,7 @@ class TestRecallsTabAndVisitLinks:
         db_session: AsyncSession,
         test_sessionmaker: Sessions,
     ) -> None:
-        """Only an import leaves one of these; it reads as manual (F-1)."""
+        """Only an import leaves one of these; it reads as manual."""
         vin = await new_vehicle()
         rid = await _stored_recall(
             db_session,
@@ -1200,7 +1200,7 @@ class TestRecallsTabAndVisitLinks:
         test_sessionmaker: Sessions,
     ) -> None:
         """The session's copy says unlinked; another request linked it since.
-        The 409 has to see the link, or I1 breaks."""
+        The 409 has to see the link, or the linked recall gets reopened."""
         vin = await new_vehicle()
         rid = await _stored_recall(db_session, vin)
         # Hold the ORM copy, link loaded as None, so the identity map keeps it.
@@ -1273,7 +1273,7 @@ class TestRecallsTabAndVisitLinks:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Without the lock a delete can commit between a visit PUT's link check
-        and its flush, and the PUT gets a bogus 409 on PG (FB-1)."""
+        and its flush, and the PUT gets a bogus 409 on PG."""
         vin = await new_vehicle()
         rid = await _stored_recall(db_session, vin)
         order: list[str] = []
@@ -1314,7 +1314,7 @@ class TestRecallPutRacesAVisitLink:
     ) -> None:
         """Session A links the recall through a visit and holds the lock; B's
         Recalls PUT, sent while the recall was open, waits and then finds it
-        resolved, so service_visit and the visit's date stay (R1-H1)."""
+        resolved, so service_visit and the visit's date stay."""
         vin = await new_vehicle()
         rid = await _stored_recall(db_session, vin)
         linked = asyncio.Event()
@@ -1364,7 +1364,7 @@ class TestRecallPutRacesAVisitLink:
 @pytest.mark.integration
 @pytest.mark.asyncio
 class TestManualCheckOutage:
-    """The manual check never reads an NHTSA outage as "no new recalls" (B5-1)."""
+    """The manual check never reads an NHTSA outage as "no new recalls"."""
 
     @pytest.mark.parametrize(
         "error",
@@ -1408,7 +1408,7 @@ class TestManualCheckOutage:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """vPIC decodes, then the recalls API times out: a 502, not a 200 with
-        nothing new. Red before B5-1, which answered 200."""
+        nothing new. Red before the outage fix, which answered 200."""
         monkeypatch.setattr("app.utils.url_validation.resolve_hostname", lambda hostname: None)
 
         async def fake_get(self: object, url: str, **kwargs: object) -> httpx.Response:

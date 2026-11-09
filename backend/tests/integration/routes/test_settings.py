@@ -65,7 +65,7 @@ class TestSettingsRoutes:
                 # (#211): the import cards hide behind it. A flag, not a key.
                 "llm_document_reading_enabled",
                 "default_unit_prefs",
-                # Feature flags the non-admin UI reads (batch 5, R3).
+                # Feature flags the non-admin UI reads.
                 "nhtsa_enabled",
                 "carcomplaints_enabled",
                 "window_sticker_enabled",
@@ -77,12 +77,12 @@ class TestSettingsRoutes:
                 # never a stored row (every write path rejects the key).
                 "effective_timezone",
                 # Computed from MYGARAGE_MAX_DOCUMENT_SIZE_MB, never stored: the
-                # upload forms check the cap the server enforces (B5-7).
+                # upload forms check the cap the server enforces.
                 "document_upload_max_bytes",
             }
 
     async def test_public_settings_serve_the_document_cap(self, client: AsyncClient):
-        """The sticker and document forms read the cap the server enforces (B5-7)."""
+        """The sticker and document forms read the cap the server enforces."""
         from app.config import settings as app_settings
 
         response = await client.get("/api/settings/public")
@@ -114,7 +114,7 @@ class TestSettingsRoutes:
         exist; settings_init creates them at startup in a real instance.
 
         Cleaned up in `finally`: the test DB is shared and not rolled back
-        between tests, and `resolve_gallon_flavour` (units phase 0, Task 3)
+        between tests, and `resolve_gallon_flavour`
         now reads `imperial_gallon_standard` straight from this table on every
         call. An un-reset "uk" row here previously leaked silently; it now
         corrupts every later test that resolves gallon flavour against real
@@ -595,7 +595,7 @@ class TestSensitiveSettingMasking:
 
 
 # ---------------------------------------------------------------------------
-# default_unit_prefs write validation (units phase 4, task 5)
+# default_unit_prefs write validation
 # ---------------------------------------------------------------------------
 
 
@@ -604,8 +604,8 @@ def _settings_value_write_endpoints() -> set[str]:
 
     ★ DERIVED, NOT LISTED, and the derivation is the point. The plan named three
     routes that can write `default_unit_prefs`; validating only the one the UI
-    happens to call leaves the other two open, which is the same back door D9b
-    closed on the user schemas. A hand-written list of three would go stale the
+    happens to call leaves the other two open, which is the same back door the
+    user schemas closed. A hand-written list of three would go stale the
     moment a fourth writer is added, and nothing would say so.
 
     The rule: parse each endpoint on `app.routes.settings.router` and report it
@@ -903,7 +903,7 @@ async def provider_rows(db_session) -> AsyncIterator[None]:
     rows = (
         await db_session.execute(select(Setting).where(Setting.key.in_(_PROVIDER_KEYS)))
     ).scalars()
-    # The raw stored form, so an unreadable secret's ciphertext survives (R2-10).
+    # The raw stored form, so an unreadable secret's ciphertext survives.
     saved = [(r.key, r.stored_value, r.category, r.description, r.encrypted) for r in rows]
     await db_session.execute(delete(Setting).where(Setting.key.in_(_PROVIDER_KEYS)))
     await db_session.commit()
@@ -1082,7 +1082,7 @@ async def listed_provider(db_session, provider_rows) -> None:
 @pytest.mark.usefixtures("listed_provider")
 class TestPOIProviderListIsAdminOnly:
     """The provider list was public, so anyone could read each key's first 8
-    characters and its usage (A-10). It's admin-only now, like the rest of
+    characters and its usage. It's admin-only now, like the rest of
     /api/settings."""
 
     async def test_anonymous_is_a_401(self, client: AsyncClient, set_auth_mode):
@@ -1103,7 +1103,7 @@ class TestPOIProviderListIsAdminOnly:
         self, client: AsyncClient, set_auth_mode, auth_headers
     ):
         """Control, passes before the gate too. The admin sees the key as configured, masked
-        as the placeholder: the 8-character prefix is gone (I4)."""
+        as the placeholder: the 8-character prefix is gone."""
         await set_auth_mode("local")
         response = await client.get("/api/settings/poi-providers", headers=auth_headers)
         assert response.status_code == 200, response.text
@@ -1147,7 +1147,7 @@ class TestSettingsBatchKeyWidth:
 
 
 # ---------------------------------------------------------------------------
-# The generic write allowlist and value rules (PR 0: G3b-20, O-T1)
+# The generic write allowlist and value rules
 # ---------------------------------------------------------------------------
 
 
@@ -1179,8 +1179,8 @@ _SEED = "seeded-before-the-write"
 @pytest.mark.asyncio
 class TestGenericWriteAllowlist:
     """`POST /settings`, `PUT /settings/{key}` and `POST /settings/batch` took
-    any key up to 50 characters (G3b-20). A telemetry retention of 0 written
-    that way made the daily pruner delete every raw reading (O-T1)."""
+    any key up to 50 characters. A telemetry retention of 0 written
+    that way made the daily pruner delete every raw reading."""
 
     async def test_an_unknown_key_cannot_be_created(
         self, client, auth_headers, db_session, keep_rows
@@ -1233,7 +1233,7 @@ class TestGenericWriteAllowlist:
     async def test_a_zero_retention_cannot_be_batched(
         self, client, auth_headers, db_session, keep_rows
     ):
-        """O-T1 as it happened: 0 days, through the batch the settings screens use."""
+        """The retention bug as it happened: 0 days, through the batch the settings screens use."""
         key = "livelink_telemetry_retention_days"
         await keep_rows(key)
         await _set_setting(db_session, key, "90")
@@ -1344,7 +1344,7 @@ class TestGenericWriteAllowlist:
         db_session: AsyncSession,
         keep_rows: Callable[..., Awaitable[None]],
     ) -> None:
-        """`notify_service_days` left `DEFAULT_SETTINGS` (D1c), so the allowlist
+        """`notify_service_days` left `DEFAULT_SETTINGS`, so the allowlist
         drops it too. Main saved it."""
         key = "notify_service_days"
         await keep_rows(key)
@@ -1376,7 +1376,7 @@ class TestGenericWriteAllowlist:
 
 
 # ---------------------------------------------------------------------------
-# Switch values are stored canonically (batch 5, D5a)
+# Switch values are stored canonically
 # ---------------------------------------------------------------------------
 
 
@@ -1432,11 +1432,11 @@ class TestSwitchValuesAreCanonicalized:
 
 
 # ---------------------------------------------------------------------------
-# Upload limits, the retired seeds and the public feature flags (batch 5, Task 5)
+# Upload limits, the retired seeds and the public feature flags
 # ---------------------------------------------------------------------------
 
 
-# Read by the Recalls tab and the window sticker UI, which non-admins see (R3).
+# Read by the Recalls tab and the window sticker UI, which non-admins see.
 _PUBLIC_FLAGS = {
     "nhtsa_enabled": "false",
     "carcomplaints_enabled": "true",
@@ -1554,7 +1554,7 @@ class TestRetiredSettingsAreNotWritable:
 @pytest.mark.asyncio
 class TestPublicFeatureFlags:
     """`GET /settings` is admin-only, so a non-admin never saw the CarComplaints
-    link and couldn't tell NHTSA or the sticker upload was off (R3)."""
+    link and couldn't tell NHTSA or the sticker upload was off."""
 
     async def test_the_four_flags_are_served_without_auth(
         self, client: AsyncClient, db_session, keep_rows, set_auth_mode
@@ -1687,7 +1687,7 @@ class TestLlmSettingsWriteValidation:
     async def test_a_base_url_write_forgets_cached_localities(
         self, client: AsyncClient, auth_headers, db_session, endpoint: str
     ):
-        """FB-3: saving the URL again is how an admin makes the consent check
+        """Saving the URL again is how an admin makes the consent check
         look the host up afresh (a DNS move), not five minutes later."""
         from app.services import llm_client
 

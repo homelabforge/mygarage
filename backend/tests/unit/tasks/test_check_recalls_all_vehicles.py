@@ -38,7 +38,7 @@ from app.utils.datetime_utils import utc_now
 from app.utils.vin import calculate_check_digit
 from tests._fake_nhtsa import decode_answer, failure, is_decode, serve
 
-pytestmark = pytest.mark.unit
+pytestmark = pytest.mark.integration
 
 # Every vehicle this module creates has a VIN starting with this, so cleanup
 # and call counting can tell this module's vehicles from other modules'.
@@ -213,7 +213,7 @@ async def test_auto_check_off_stops_only_nhtsa(
     recalls_fetch: AsyncMock,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """F-4: `nhtsa_auto_check` is NHTSA's switch. With it off, a French
+    """`nhtsa_auto_check` is NHTSA's switch. With it off, a French
     vehicle still gets its scheduled RappelConso check, and NHTSA is never
     asked about the American one."""
     rappel = AsyncMock(return_value=[])
@@ -248,7 +248,7 @@ async def test_a_vehicle_without_a_vin_reaches_rappelconso_never_nhtsa(
     monkeypatch: pytest.MonkeyPatch,
     nhtsa_enabled: str,
 ) -> None:
-    """R1-H2 / F-3: the sweep stays inclusive, so a French tractor keyed by a
+    """The sweep stays inclusive, so a French tractor keyed by a
     Q key still gets RappelConso (make and model, no VIN), whatever NHTSA's
     switch says. NHTSA is never asked about a Q key, not even for a vehicle
     with no country, which NHTSA would otherwise cover."""

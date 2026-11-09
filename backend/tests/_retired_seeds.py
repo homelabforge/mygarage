@@ -1,4 +1,4 @@
-"""The six settings batch 5 stopped seeding, shared by the seed and write tests.
+"""The six settings we stopped seeding, shared by the seed and write tests.
 
 Nothing read them: uploads follow the server's configuration (sizes from the
 environment, each kind's file types from defaults in code the environment can

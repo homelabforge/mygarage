@@ -299,7 +299,7 @@ async def seeded_reminders(db_session: AsyncSession):
         await db_session.commit()
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 class TestCheckDueRemindersUnits:
     """Wiring, not formatting: which context the scheduler entry point resolves.
 

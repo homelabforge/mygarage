@@ -288,7 +288,7 @@ def _messages_for(mock: AsyncMock, nickname: str) -> list[str]:
     ]
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.notifications
 class TestCheckOdometerMilestonesUnits:
     async def test_owned_vehicle_renders_in_the_owners_units(

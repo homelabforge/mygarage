@@ -1,12 +1,11 @@
 """Unit tests for default settings seeding.
 
-Covers the DEF-low notification settings (Task 14 of the fuel-type
-hardening plan): `notify_def_low` and `notify_def_low_threshold_percent`.
+Covers the DEF-low notification settings: `notify_def_low` and `notify_def_low_threshold_percent`.
 
-Also covers `default_unit_prefs`'s reseed derivation (task-3 review, Fix 1):
+Also covers `default_unit_prefs`'s reseed derivation:
 see `TestDefaultUnitPrefsReseed` below.
 
-And the six seeds batch 5 retired (Task 5): see `TestRetiredSeeds` below.
+And the six retired seeds: see `TestRetiredSeeds` below.
 """
 
 from collections.abc import AsyncIterator
@@ -53,22 +52,20 @@ class TestDefaultUnitPrefsReseed:
     """A `default_unit_prefs` row deleted through the generic, admin-only
     `DELETE /api/settings/{key}` endpoint (no per-key protection) must reseed
     from the instance's real gallon flavour, not the static US-imperial value
-    `DEFAULT_SETTINGS` carries for this key (task-3 review, Fix 1): migration
+    `DEFAULT_SETTINGS` carries for this key: migration
     093 is a one-shot, stamped migration and will never re-run to repair it.
 
     Monkeypatches `DEFAULT_SETTINGS` down to just this one key before calling
     the real `initialize_default_settings`, so the test exercises the actual
     seeding function without writing every other default setting into the
-    shared test database (no per-test rollback; see
-    reference_mygarage_test_isolation).
+    shared test database (no per-test rollback).
     """
 
     async def test_uk_instance_reseeds_uk_not_us(
         self, db_session, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Proven to catch a regression: reverting the seeding branch to the
-        static `config["value"]` makes this fail (captured in the task-3
-        report, Fix round 1)."""
+        static `config["value"]` makes this fail."""
         monkeypatch.setattr(
             settings_init,
             "DEFAULT_SETTINGS",
@@ -118,7 +115,7 @@ class TestDefaultUnitPrefsReseed:
 
 @pytest.mark.asyncio
 class TestDefaultSettingLogLine:
-    """Seeding a default logs the key and its value, except a secret's value (Task 2 review, M4).
+    """Seeding a default logs the key and its value, except a secret's value.
 
     Every secret default is "" today, so the test patches `DEFAULT_SETTINGS`
     down to one secret key with a non-empty default and one plain key, and
@@ -212,5 +209,5 @@ class TestRetiredSeeds:
 
 def test_a_new_install_has_no_shared_ntfy_topic() -> None:
     """Anyone who knows a topic can read it on public ntfy.sh, so a new
-    install starts blank rather than on a name every install shares (B2-4)."""
+    install starts blank rather than on a name every install shares."""
     assert DEFAULT_SETTINGS["ntfy_topic"]["value"] == ""

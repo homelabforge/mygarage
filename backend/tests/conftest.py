@@ -52,6 +52,7 @@ from app.models.service_visit import ServiceVisit
 from app.models.tax import TaxRecord
 from app.models.user import User
 from app.models.vehicle import Vehicle
+from app.models.vehicle_share import VehicleShare
 from app.models.warranty import WarrantyRecord
 from app.routes.analytics import limiter as analytics_limiter
 from app.routes.auth import limiter as auth_limiter
@@ -176,7 +177,7 @@ async def far_future_survivors(engine: AsyncEngine, horizon: date | None = None)
 
 
 async def finish_test_db(engine: AsyncEngine) -> None:
-    """Session end: fail on any far-future survivor (R5), dropping the tables either way.
+    """Session end: fail on any far-future survivor, dropping the tables either way.
 
     The drop sits in a finally, so a guard query that blows up still leaves a
     clean database behind.
@@ -205,7 +206,7 @@ async def init_test_db(test_engine):
     Dropped first: a run killed before its teardown leaves its tables and rows
     in the file, and the next run would start on them and trip over its own
     test data. At the end `finish_test_db` fails the run if any far-future row
-    survived its test's teardown (R5), then drops the tables either way.
+    survived its test's teardown, then drops the tables either way.
     """
     async with test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
@@ -219,7 +220,7 @@ def _no_session_refresh_debounce() -> Generator[None]:
     """Run a closed session's queued refresh as soon as its commit lands.
 
     With the real debounce every test that commits a reading inside a closed
-    window would park in the drain below for 2 to 30 s (B6-12, E-7). A test
+    window would park in the drain below for 2 to 30 s. A test
     that measures the debounce sets the real values itself.
     """
     from app.services import telemetry_service
@@ -571,7 +572,7 @@ async def test_vehicle(db_session: AsyncSession, test_user: dict[str, object]) -
             year=2018,
             make="Honda",
             model="Accord",
-            # Diesel so DEF-record routes (fuel-type gate, Task 5) accept it.
+            # Diesel so DEF-record routes (fuel-type gate) accept it.
             # Fuel-record tests don't validate fuel_type_used against this.
             fuel_type="diesel",
         )
@@ -682,7 +683,9 @@ async def non_admin_user(db_session: AsyncSession) -> AsyncGenerator[dict[str, o
     }
     # This user is one row for the whole run, so a vehicle a test leaves in its
     # garage (pending reminders and all) shows up in the next test's dashboard.
+    # So does one shared to it, hence the shares go too.
     await db_session.rollback()
+    await db_session.execute(delete(VehicleShare).where(VehicleShare.user_id == user_id))
     leftovers = (
         (await db_session.execute(select(Vehicle).where(Vehicle.user_id == user_id)))
         .scalars()

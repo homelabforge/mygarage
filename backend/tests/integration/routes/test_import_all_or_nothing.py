@@ -426,7 +426,7 @@ def lock_calls(monkeypatch) -> list[str]:
         await real(db, vin)
 
     # Each route module binds the lock for itself once the importer is a
-    # package (B3-9), so every module that binds it gets the patch.
+    # package, so every module that binds it gets the patch.
     for module in importer_modules():
         if getattr(module, "lock_vehicle_for_write", None) is real:
             monkeypatch.setattr(module, "lock_vehicle_for_write", recording)

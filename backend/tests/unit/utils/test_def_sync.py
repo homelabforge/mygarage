@@ -59,7 +59,7 @@ async def fuel_record_ids(db_session: AsyncSession, test_vehicle) -> list[int]:
     await db_session.commit()
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.def_records
 @pytest.mark.asyncio
 class TestDEFSync:
@@ -164,7 +164,7 @@ class TestDEFSync:
         assert result2.origin_fuel_record_id == fuel_record_ids[1]
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.def_records
 @pytest.mark.asyncio
 class TestDeleteDEFForFuelRecord:

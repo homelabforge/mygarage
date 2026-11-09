@@ -256,7 +256,7 @@ class TestCalculateHoursEconomy:
         assert cost_per_hr == Decimal("2.00")  # 40 / 20
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.fuel
 @pytest.mark.asyncio
 class TestCalculateAverageHoursEconomySkipsZeroLiters:
@@ -349,7 +349,7 @@ class TestCalculateAverageHoursEconomySkipsZeroLiters:
         assert avg_cost_per_hr == Decimal("1.00")
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.fuel
 @pytest.mark.asyncio
 class TestCalculateAverageHoursEconomyWeighting:

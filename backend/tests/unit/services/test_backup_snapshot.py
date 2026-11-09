@@ -80,7 +80,7 @@ def _extract_member(archive: Path, member: str, dest: Path) -> Path:
     return target
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_full_backup_db_member_is_self_contained(
     tmp_path: Path, db_session: AsyncSession
@@ -120,7 +120,7 @@ async def test_full_backup_db_member_is_self_contained(
         writer.close()
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_restore_removes_stale_wal_sidecars(tmp_path: Path, db_session: AsyncSession) -> None:
     """F2 restore hygiene: stale live -wal/-shm don't survive the restore's apply at the next start.
@@ -378,7 +378,7 @@ def _assert_each_change_is_durable_before_the_next(trace: Trace) -> None:
     assert not owed, f"{sorted(map(str, owed))} were never fsynced"
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 @pytest.mark.parametrize("name", ["garage.db", "my#garage.db", "mygarage.db"])
 async def test_restore_writes_the_configured_database_file(
@@ -414,7 +414,7 @@ async def test_restore_writes_the_configured_database_file(
         assert not (tmp_path / "mygarage.db").exists(), "the restore wrote a stray mygarage.db"
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_an_old_archives_wal_is_folded_into_the_staged_database(
     tmp_path: Path, db_session: AsyncSession
@@ -459,7 +459,7 @@ async def test_an_old_archives_wal_is_folded_into_the_staged_database(
     assert _read_rows(db_path) == [(1, "checkpointed"), (2, "wal-only")]
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_in_memory_sqlite_stays_on_the_sqlite_side(
     tmp_path: Path,
@@ -498,7 +498,7 @@ async def test_in_memory_sqlite_stays_on_the_sqlite_side(
     assert warnings == ["in-memory SQLite has no file to back up"]
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 @pytest.mark.parametrize("name", ["my#garage.db", "my?garage.db", "my%41garage.db"])
 async def test_full_backup_snapshots_a_path_with_uri_characters(
@@ -551,7 +551,7 @@ def test_pg_dump_names_the_database_the_engine_opens() -> None:
     assert service._parse_pg_url()["dbname"] == make_url(url).database == "myAdb"
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_a_full_restore_leaves_the_live_data_alone_until_the_restart(
     tmp_path: Path, db_session: AsyncSession
@@ -581,7 +581,7 @@ async def test_a_full_restore_leaves_the_live_data_alone_until_the_restart(
     assert str(manifest["prerestore_backup"]).startswith("mygarage-full-safety-prerestore-")
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_the_next_start_swaps_the_staged_restore_in(
     tmp_path: Path, db_session: AsyncSession
@@ -610,7 +610,7 @@ async def test_the_next_start_swaps_the_staged_restore_in(
     assert len(_prerestore_archives(service)) == 1, "a second start wrote another safety archive"
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_the_start_archives_the_data_it_replaces_first(
     tmp_path: Path, db_session: AsyncSession
@@ -646,7 +646,7 @@ async def test_the_start_archives_the_data_it_replaces_first(
     ]
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_a_safety_archive_cut_off_mid_write_is_written_again(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, db_session: AsyncSession
@@ -695,7 +695,7 @@ async def test_a_safety_archive_cut_off_mid_write_is_written_again(
         assert "photos/old.jpg" in tar.getnames()
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 @pytest.mark.parametrize("when", ["request", "start"])
 async def test_a_safety_archive_that_fails_to_write_leaves_no_partial(
@@ -732,7 +732,7 @@ async def test_a_safety_archive_that_fails_to_write_leaves_no_partial(
     assert list(service.backup_dir.glob("mygarage-full-safety-*")) == []
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 @pytest.mark.parametrize("case", ["cant_finish", "missing_archive", "applied"])
 async def test_names_read_from_the_staging_cant_forge_a_log_line(
@@ -786,7 +786,7 @@ async def test_names_read_from_the_staging_cant_forge_a_log_line(
     assert not [m for m in logged if "\n" in m or "\r" in m], logged
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 @pytest.mark.parametrize("left", ["everything", "nothing"])
 async def test_an_unfinished_staging_is_thrown_away_at_start(
@@ -821,7 +821,7 @@ async def test_an_unfinished_staging_is_thrown_away_at_start(
     assert warnings == ["Discarded an unfinished restore; the current data stays"]
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "problem",
@@ -879,7 +879,7 @@ async def test_a_staged_restore_that_doesnt_fit_waits_and_can_be_cancelled(
     assert _live_state(starter, live) == before
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 @pytest.mark.parametrize("killed_after", range(1, 14))
 async def test_a_start_killed_after_any_change_finishes_the_job(
@@ -945,7 +945,7 @@ async def test_a_start_killed_after_any_change_finishes_the_job(
     )
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 @pytest.mark.parametrize("killed_after", [5, 6], ids=["database_replaced", "photos_set_aside"])
 @pytest.mark.parametrize("problem", ["other_database", "unreadable_manifest"])
@@ -994,7 +994,7 @@ async def test_a_half_applied_restore_that_cant_finish_stops_the_start(
     assert _every_file(tmp_path) == before
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_every_change_is_on_disk_before_the_next_step_relies_on_it(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, db_session: AsyncSession
@@ -1055,7 +1055,7 @@ async def test_every_change_is_on_disk_before_the_next_step_relies_on_it(
     _assert_each_change_is_durable_before_the_next(trace)
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 @pytest.mark.parametrize("damage", ["not_a_database", "index_out_of_step"])
 async def test_a_damaged_backup_database_is_refused_and_nothing_is_staged(
@@ -1086,7 +1086,7 @@ async def test_a_damaged_backup_database_is_refused_and_nothing_is_staged(
     assert not Path(f"{db_path}.restore-pending").exists()
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("refusal", "keeps_the_first"),
@@ -1140,7 +1140,7 @@ async def test_a_refused_restore_keeps_or_drops_the_earlier_staging(
         assert pending is None
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_a_symlinked_database_restores_the_file_it_points_at(
     tmp_path: Path, db_session: AsyncSession
@@ -1174,7 +1174,7 @@ async def test_a_symlinked_database_restores_the_file_it_points_at(
     assert _read_rows(real) == [(99, "restored")]
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_in_memory_sqlite_refuses_a_full_restore(
     tmp_path: Path, db_session: AsyncSession
@@ -1200,7 +1200,7 @@ async def test_in_memory_sqlite_refuses_a_full_restore(
     assert not (service.data_dir / ".restore-pending").exists()
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 @pytest.mark.parametrize("member", ["photos/new.jpg", "mygarage.pgdump"])
 async def test_an_archive_without_a_sqlite_database_is_refused(
@@ -1228,7 +1228,7 @@ async def test_an_archive_without_a_sqlite_database_is_refused(
     assert not (tmp_path / "mygarage.pgdump").exists()
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_a_name_outside_the_backup_folder_is_not_restored(
     tmp_path: Path, db_session: AsyncSession
@@ -1247,7 +1247,7 @@ async def test_a_name_outside_the_backup_folder_is_not_restored(
     assert not (service.data_dir / ".restore-pending").exists()
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_a_second_restore_replaces_the_first(
     tmp_path: Path, db_session: AsyncSession
@@ -1279,7 +1279,7 @@ async def test_a_second_restore_replaces_the_first(
     assert _manifest(service)["source_backup"] == "mygarage-full-second.tar.gz"
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_staging_runs_off_the_event_loop(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, db_session: AsyncSession
@@ -1318,7 +1318,7 @@ async def test_staging_runs_off_the_event_loop(
     assert seen == [True], "the event loop was blocked while the restore staged"
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_two_restores_at_once_stage_one_after_the_other(
     tmp_path: Path,
@@ -1371,7 +1371,7 @@ async def test_two_restores_at_once_stage_one_after_the_other(
     assert sorted(p.name for p in staged_photos.iterdir()) == expected[1]
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_cancel_drops_the_staging_and_keeps_the_live_data(
     tmp_path: Path, db_session: AsyncSession
@@ -1399,7 +1399,7 @@ async def test_cancel_drops_the_staging_and_keeps_the_live_data(
         await service.cancel_pending_restore()
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 @pytest.mark.parametrize("killed_after", [1, 2], ids=["manifest_gone", "staged_database_gone"])
 async def test_a_cancel_cut_short_still_reads_as_no_restore(
@@ -1425,7 +1425,7 @@ async def test_a_cancel_cut_short_still_reads_as_no_restore(
     assert not (service.data_dir / ".restore-pending").exists()
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_a_media_folder_on_another_filesystem_is_refused_before_anything_changes(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, db_session: AsyncSession
@@ -1469,7 +1469,7 @@ async def test_a_media_folder_on_another_filesystem_is_refused_before_anything_c
     assert not list(service.backup_dir.glob("mygarage-full-safety-2*.tar.gz"))
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_a_swap_that_keeps_failing_stops_the_start_with_the_way_out(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, db_session: AsyncSession
@@ -1512,7 +1512,7 @@ async def test_a_swap_that_keeps_failing_stops_the_start_with_the_way_out(
     assert _read_rows(db_path) == [(99, "restored")]
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 @pytest.mark.parametrize("cause", ["disk_full", "unreadable_database", "bad_archive_name"])
 async def test_a_start_that_cant_write_its_safety_archive_stops_before_touching_anything(
@@ -1560,7 +1560,7 @@ async def test_a_start_that_cant_write_its_safety_archive_stops_before_touching_
     assert service.apply_pending_restore() == STAGED
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_a_missing_pre_restore_archive_stops_a_half_applied_restore(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, db_session: AsyncSession
@@ -1587,7 +1587,7 @@ async def test_a_missing_pre_restore_archive_stops_a_half_applied_restore(
     assert _prerestore_archives(service) == []
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 @pytest.mark.parametrize("killed_after", [3, 4])
 async def test_a_marker_deleted_by_hand_keeps_the_pre_restore_archive(
@@ -1617,7 +1617,7 @@ async def test_a_marker_deleted_by_hand_keeps_the_pre_restore_archive(
     assert _read_rows(db_path) == [(99, "restored")]
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 @pytest.mark.parametrize("killed_after", [6, 10])
 async def test_a_swap_begun_and_marker_deleted_by_hand_stops_the_start(
@@ -1645,7 +1645,7 @@ async def test_a_swap_begun_and_marker_deleted_by_hand_stops_the_start(
     assert _prerestore_archives(service)[0].name in str(refused.value)
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 @pytest.mark.parametrize("killed_after", [6, 10])
 @pytest.mark.parametrize("manifest", ["deleted", "unreadable"])
@@ -1690,7 +1690,7 @@ async def test_a_swap_begun_with_marker_and_manifest_gone_stops_the_start(
     assert "MYGARAGE_MAINTENANCE_MODE=1" in text
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_a_start_killed_in_the_cleanup_writes_no_new_archive(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, db_session: AsyncSession
@@ -1717,7 +1717,7 @@ async def test_a_start_killed_in_the_cleanup_writes_no_new_archive(
     assert _read_rows(db_path) == [(99, "restored")]
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_a_cleanup_that_fails_says_the_restore_is_in_place(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, db_session: AsyncSession
@@ -1744,7 +1744,7 @@ async def test_a_cleanup_that_fails_says_the_restore_is_in_place(
     assert not (service.data_dir / ".restore-pending").exists()
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_an_unreadable_live_database_is_refused_when_the_restore_is_asked_for(
     tmp_path: Path,
@@ -1766,7 +1766,7 @@ async def test_an_unreadable_live_database_is_refused_when_the_restore_is_asked_
     assert not (service.data_dir / ".restore-pending").exists()
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 @pytest.mark.parametrize("damage", ["truncated", "not_gzip"])
 async def test_a_backup_that_isnt_a_readable_archive_is_refused(
@@ -1829,7 +1829,7 @@ def _files_under(folder: Path) -> list[str]:
     )
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 @pytest.mark.parametrize("case", list(_MEDIA_LINKS_TO_NO_FILE))
 async def test_a_media_link_to_no_file_is_skipped_and_the_rest_restores(
@@ -1880,7 +1880,7 @@ _DATABASE_LINKS_TO_NO_FILE: dict[str, list[_Member]] = {
 }
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 @pytest.mark.parametrize("case", list(_DATABASE_LINKS_TO_NO_FILE))
 async def test_a_database_member_that_links_to_no_file_is_refused(
@@ -1907,7 +1907,7 @@ async def test_a_database_member_that_links_to_no_file_is_refused(
     assert not Path(f"{db_path}.restore-pending").exists()
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_the_apps_own_backup_of_linked_photos_restores(
     tmp_path: Path, caplog: pytest.LogCaptureFixture, db_session: AsyncSession

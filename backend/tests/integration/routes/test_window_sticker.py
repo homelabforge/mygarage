@@ -477,10 +477,10 @@ async def test_a_cut_is_logged_once_without_the_text(client, auth_headers, own_v
 
 
 # ---------------------------------------------------------------------------
-# A re-scan fills empty fields only, unless replacing (D1)
+# A re-scan fills empty fields only, unless replacing
 # ---------------------------------------------------------------------------
 
-# What the scan reads in the D1 tests.
+# What the scan reads in the re-scan tests.
 SCAN: dict[str, Any] = {
     "msrp_base": 30000,
     "exterior_color": "Red",
@@ -568,7 +568,7 @@ async def sticker_on_file(
 async def test_a_rescan_fills_only_the_empty_fields(
     client, auth_headers, own_vehicle, db_session, test_sessionmaker
 ):
-    """D1: a price typed by hand survives the scan; the empty fields fill."""
+    """A price typed by hand survives the scan; the empty fields fill."""
     vin = own_vehicle.vin
     own_vehicle.msrp_base = Decimal("25000")
     await db_session.commit()
@@ -756,7 +756,7 @@ async def test_a_replace_moves_the_record_to_the_new_file(
 async def test_replace_with_no_sticker_on_file_keeps_typed_values(
     client, auth_headers, own_vehicle, test_sessionmaker
 ):
-    """Fable F-6: with no sticker there's nothing to replace, so the values
+    """With no sticker there's nothing to replace, so the values
     typed through the review PATCH survive. Main ignored the field and passed
     too; this goes red if the `old_path` guard is dropped."""
     vin = own_vehicle.vin
@@ -1045,7 +1045,7 @@ async def test_stickers_off_still_shows_edits_and_deletes_the_sticker_on_file(
     client, auth_headers, own_vehicle, sticker_on_file, sticker_switches, test_sessionmaker
 ):
     """Regression guard (main passes: it gated nothing). The switch stops new
-    stickers only (Fable F-12): the one on file can still be read, downloaded,
+    stickers only: the one on file can still be read, downloaded,
     corrected in the review and deleted, and the parser list and OCR status
     still answer."""
     vin = own_vehicle.vin

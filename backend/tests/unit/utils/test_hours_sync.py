@@ -47,7 +47,7 @@ async def service_visit(
     await db_session.commit()
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 class TestSyncHoursFromRecord:
     """Test sync_hours_from_record — located by source identity."""
@@ -310,7 +310,7 @@ class TestSyncHoursFromRecord:
             )
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.asyncio
 class TestRemoveSyncedHours:
     """Test remove_synced_hours — explicit cleanup by source identity."""

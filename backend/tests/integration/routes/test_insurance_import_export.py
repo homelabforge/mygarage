@@ -274,7 +274,7 @@ async def test_the_json_backup_carries_insurance_with_named_fields_at_both_level
 async def test_an_import_never_joins_another_owners_policy(
     client, db_session, auth_headers, non_admin_user
 ):
-    # CB-R1-H4: the migration keeps owners apart; the importer did not. The
+    # The migration keeps owners apart; the importer did not. The
     # importing user here is an ADMIN, who can see and write every policy.
     other = "INSIMPEXP00000003"
     db_session.add(
@@ -314,7 +314,7 @@ async def test_an_import_never_joins_another_owners_policy(
 async def test_the_json_backup_keeps_the_date_a_vehicle_left_the_policy(
     client, db_session, auth_headers
 ):
-    # CB-R1-H5: a restore put a vehicle that LEFT the policy back on it for
+    # A restore put a vehicle that LEFT the policy back on it for
     # the whole term.
     policy = InsurancePolicy(
         provider="Progressive",
@@ -346,7 +346,7 @@ async def test_the_json_backup_keeps_the_date_a_vehicle_left_the_policy(
 
 
 async def test_the_importers_refuse_a_fraction_of_a_cent(client, db_session, auth_headers):
-    # CB-R1-H3: the API schema's whole-cents rule does not reach an importer,
+    # The API schema's whole-cents rule does not reach an importer,
     # which builds ORM rows directly. Two 0.005 rows summed to a 0.01 premium
     # and were then STORED as two 0.01 shares.
     result = await _import_csv(
@@ -609,7 +609,7 @@ async def test_an_import_refuses_a_fractional_count(
 
 
 # ---------------------------------------------------------------------------
-# Amounts past the column (Plan B, B4)
+# Amounts past the column
 # ---------------------------------------------------------------------------
 
 TOO_MUCH = str(MONEY_MAX + Decimal("0.01"))
@@ -635,9 +635,8 @@ async def _fresh_policies(sessionmaker) -> list[tuple[Decimal | None, set[str]]]
 
 async def test_an_import_past_the_column_says_why(client, auth_headers, test_sessionmaker):
     """The reason reaches the row error in BOTH insurance importers. The CSV
-    loop only caught its own row error ahead of a generic one (Codex R1-F5),
-    and the JSON loop turned every reason into "could not be imported" (Fable
-    F-B7)."""
+    loop only caught its own row error ahead of a generic one, and the JSON
+    loop turned every reason into "could not be imported"."""
     result = await _import_csv(
         client,
         auth_headers,
@@ -725,9 +724,9 @@ async def test_premiums_that_sum_past_the_column_fail_the_row_that_tips_it(
 async def test_a_blank_premium_frequency_imports_as_none(
     client: AsyncClient, db_session: AsyncSession, auth_headers, given: str, stored: str | None
 ):
-    """The CHECK refuses '', so a blank used to fail the whole entry (P2E2).
+    """The CHECK refuses '', so a blank used to fail the whole entry.
 
-    Trimmed the way the CSV path trims it, so a space is blank too (F-6).
+    Trimmed the way the CSV path trims it, so a space is blank too.
     """
     backup = {
         "export_version": "8",

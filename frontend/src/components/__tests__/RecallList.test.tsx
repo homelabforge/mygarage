@@ -197,7 +197,7 @@ describe('RecallList — the NHTSA and CarComplaints switches come from /setting
   })
 
   // Absent reads as on, its seeded value and what Settings > Integrations
-  // shows (B5-4); only an explicit off hides the link.
+  // shows; only an explicit off hides the link.
   it('with carcomplaints_enabled absent, the CarComplaints link shows', async () => {
     renderWithQueryClient(<RecallList {...PROPS} />)
 
