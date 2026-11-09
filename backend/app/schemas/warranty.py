@@ -4,7 +4,7 @@ from datetime import date as date_type
 from datetime import datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.schemas._nullability import reject_null
 
@@ -73,5 +73,4 @@ class WarrantyRecord(WarrantyRecordBase):
         default_factory=list, description="Line items done under this warranty, by visit date"
     )
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

@@ -18,7 +18,7 @@ Created: 2025-12-27
 import os
 from pathlib import Path
 
-from sqlalchemy import create_engine
+from sqlalchemy import Engine, create_engine
 
 
 def _get_fallback_engine():
@@ -30,10 +30,15 @@ def _get_fallback_engine():
     return create_engine(f"sqlite:///{data_dir / 'mygarage.db'}")
 
 
-def upgrade(engine=None):
+def upgrade(engine: Engine | None = None):
     """Add TravelTrailer to vehicle_type validation."""
     if engine is None:
+        # Run standalone: it builds its own engine, so it closes it too.
         engine = _get_fallback_engine()
+        try:
+            return upgrade(engine)
+        finally:
+            engine.dispose()
 
     with engine.begin():
         # Note: SQLite doesn't support modifying CHECK constraints directly

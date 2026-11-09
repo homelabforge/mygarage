@@ -48,6 +48,7 @@ dev = [
     "pytest-cov>=7.1.0",
     "pyyaml>=6.0.3",  # Test-only: tests/unit/test_pg_ci_path.py reads the CI workflow.
     "pyjwt>=2.13.0",  # Test-only: used by tests/integration/routes/test_auth.py to decode JWT exp/iat claims without verification. Production auth uses joserfc.
+    "httpx2>=2.16.0",  # Test-only: starlette.testclient wants it, and with plain httpx it warns on import (the lifespan tests use TestClient).
     "pyright>=1.1.411",
     "ruff>=0.16.0",
     "pandas-stubs>=3.0.5.260730",

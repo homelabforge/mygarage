@@ -3,7 +3,7 @@
 from datetime import date as date_type
 from datetime import datetime as datetime_type
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.schemas._nullability import reject_null
 
@@ -45,10 +45,7 @@ class NoteResponse(NoteBase):
     created_at: datetime_type
     updated_at: datetime_type | None = None
 
-    class Config:
-        """Pydantic config."""
-
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class NoteListResponse(BaseModel):

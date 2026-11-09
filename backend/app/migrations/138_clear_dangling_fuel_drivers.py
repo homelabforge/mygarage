@@ -55,7 +55,12 @@ def _clear_dangling_drivers(engine: Engine) -> None:
 def upgrade(engine: Engine | None = None) -> None:
     """Clear the dead driver ids. A failure is logged so the migrations after it still run."""
     if engine is None:
+        # Run standalone: it builds its own engine, so it closes it too.
         engine = _get_fallback_engine()
+        try:
+            return upgrade(engine)
+        finally:
+            engine.dispose()
     try:
         _clear_dangling_drivers(engine)
     except SQLAlchemyError as e:

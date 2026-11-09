@@ -36,7 +36,7 @@ from app.models.service_line_item import ServiceLineItem
 from app.models.service_visit import ServiceVisit
 from app.models.vehicle import Vehicle
 
-pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
+pytestmark = pytest.mark.integration
 
 #: The mile pre-upgrade rows were converted with (history, not a factor in use).
 OLD_MILE_KM = Decimal("1.60934")

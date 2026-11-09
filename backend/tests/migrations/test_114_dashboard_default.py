@@ -3,7 +3,9 @@
 import importlib.util
 from pathlib import Path
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import text
+
+from tests._engines import SyncEngine
 
 _MIG = (
     Path(__file__).resolve().parents[2]
@@ -20,8 +22,8 @@ def _load():
     return module
 
 
-def _seeded(tmp_path):
-    engine = create_engine(f"sqlite:///{tmp_path / 'm.db'}")
+def _seeded(sync_engine: SyncEngine, tmp_path):
+    engine = sync_engine(f"sqlite:///{tmp_path / 'm.db'}")
     with engine.begin() as conn:
         conn.execute(
             text(
@@ -60,18 +62,18 @@ def test_migration_is_fatal():
     assert _load().FATAL is True
 
 
-def test_every_parameter_is_back_on_the_dashboard(tmp_path):
-    engine = _seeded(tmp_path)
+def test_every_parameter_is_back_on_the_dashboard(tmp_path, sync_engine):
+    engine = _seeded(sync_engine, tmp_path)
 
     _load().upgrade(engine)
 
     assert all(show for show, _archive in _rows(engine).values())
 
 
-def test_archive_only_is_untouched(tmp_path):
+def test_archive_only_is_untouched(tmp_path, sync_engine):
     """The negative control. archive_only keeps diagnostics out of the chart
     picker, and resetting it too would surface every one of them there."""
-    engine = _seeded(tmp_path)
+    engine = _seeded(sync_engine, tmp_path)
 
     _load().upgrade(engine)
 
@@ -80,8 +82,8 @@ def test_archive_only_is_untouched(tmp_path):
     assert rows["0D-VEHICLESPEED"][1] is False
 
 
-def test_is_idempotent(tmp_path):
-    engine = _seeded(tmp_path)
+def test_is_idempotent(tmp_path, sync_engine):
+    engine = _seeded(sync_engine, tmp_path)
     migration = _load()
 
     migration.upgrade(engine)
@@ -91,7 +93,7 @@ def test_is_idempotent(tmp_path):
     assert _rows(engine) == first
 
 
-def test_a_missing_table_is_a_no_op(tmp_path):
-    engine = create_engine(f"sqlite:///{tmp_path / 'empty.db'}")
+def test_a_missing_table_is_a_no_op(tmp_path, sync_engine):
+    engine = sync_engine(f"sqlite:///{tmp_path / 'empty.db'}")
 
     _load().upgrade(engine)

@@ -39,7 +39,7 @@ import os
 import re
 from pathlib import Path
 
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import Engine, create_engine, inspect, text
 
 # Signal to init_db() that failures here must halt startup (see §7 Rollout).
 FATAL = True
@@ -101,10 +101,15 @@ def _get_fallback_engine():
 # ============================================================================
 
 
-def upgrade(engine=None) -> None:
+def upgrade(engine: Engine | None = None) -> None:
     """Convert all unit-bearing columns from imperial to SI metric."""
     if engine is None:
+        # Run standalone: it builds its own engine, so it closes it too.
         engine = _get_fallback_engine()
+        try:
+            return upgrade(engine)
+        finally:
+            engine.dispose()
 
     inspector = inspect(engine)
 

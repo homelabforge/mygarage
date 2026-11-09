@@ -100,7 +100,12 @@ def _add_line_item_columns(engine: Engine, conn: Connection, is_pg: bool) -> Non
 def upgrade(engine: Engine | None = None) -> None:
     """Add the line item recall/warranty columns and recalls.resolved_via."""
     if engine is None:
+        # Run standalone: it builds its own engine, so it closes it too.
         engine = _get_fallback_engine()
+        try:
+            return upgrade(engine)
+        finally:
+            engine.dispose()
     is_pg = engine.dialect.name == "postgresql"
     inspector = inspect(engine)
     has_recalls = inspector.has_table("recalls")

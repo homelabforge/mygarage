@@ -22,7 +22,7 @@ import os
 from datetime import UTC, datetime
 from pathlib import Path
 
-from sqlalchemy import Engine, create_engine, inspect, text
+from sqlalchemy import DateTime, Engine, bindparam, create_engine, inspect, text
 from sqlalchemy.exc import SQLAlchemyError
 
 logger = logging.getLogger(__name__)
@@ -90,7 +90,8 @@ def _index_active_dtcs(engine: Engine) -> None:
                 seen.add((vin, code))
 
         if duplicates:
-            # Naive UTC, like every timestamp column here.
+            # Naive UTC, like every timestamp column here. Bound as DateTime below
+            # so SQLite doesn't fall back on sqlite3's deprecated datetime adapter.
             now = datetime.now(UTC).replace(tzinfo=None)
             conn.execute(
                 text(
@@ -98,7 +99,7 @@ def _index_active_dtcs(engine: Engine) -> None:
                     " user_notes = CASE WHEN user_notes IS NULL OR user_notes = ''"
                     " THEN :note ELSE user_notes || :sep || :note END"
                     " WHERE id = :id"
-                ),
+                ).bindparams(bindparam("now", type_=DateTime())),
                 [
                     {"inactive": False, "now": now, "note": _CLOSED_NOTE, "sep": "\n\n", "id": i}
                     for i in duplicates
@@ -113,7 +114,12 @@ def _index_active_dtcs(engine: Engine) -> None:
 def upgrade(engine: Engine | None = None) -> None:
     """Widen the recall component, then index the active DTCs. Each half fails on its own."""
     if engine is None:
+        # Run standalone: it builds its own engine, so it closes it too.
         engine = _get_fallback_engine()
+        try:
+            return upgrade(engine)
+        finally:
+            engine.dispose()
     try:
         _widen_component(engine)
     except SQLAlchemyError as e:

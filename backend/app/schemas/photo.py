@@ -4,7 +4,7 @@ Photo schemas for Pydantic validation
 
 from datetime import datetime as datetime_type
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.schemas._nullability import reject_null
 
@@ -21,8 +21,7 @@ class PhotoResponse(BaseModel):
     caption: str | None = None
     uploaded_at: datetime_type
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class PhotoListResponse(BaseModel):

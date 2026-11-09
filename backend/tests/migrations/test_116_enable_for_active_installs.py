@@ -9,7 +9,7 @@ import importlib.util
 from datetime import datetime
 from pathlib import Path
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import DateTime, bindparam, text
 
 _MIG = (
     Path(__file__).resolve().parents[2]
@@ -61,7 +61,7 @@ def _engine(engine, settings: dict[str, str | None], devices: list[dict] | None 
                 text(
                     "INSERT INTO livelink_devices (device_id, kind, vin, enabled, last_seen) "
                     "VALUES (:id, :kind, :vin, :enabled, :seen)"
-                ),
+                ).bindparams(bindparam("seen", type_=DateTime())),
                 {"id": f"dev_{n}", **row},
             )
     return engine
@@ -197,5 +197,5 @@ def test_leaves_an_enabled_install_alone_and_is_idempotent(engine_for_migration)
         )
 
 
-def test_missing_tables_are_a_no_op(tmp_path):
-    _load().upgrade(create_engine(f"sqlite:///{tmp_path / 'empty.db'}"))
+def test_missing_tables_are_a_no_op(tmp_path, sync_engine):
+    _load().upgrade(sync_engine(f"sqlite:///{tmp_path / 'empty.db'}"))

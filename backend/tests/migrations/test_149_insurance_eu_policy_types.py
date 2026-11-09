@@ -14,7 +14,7 @@ import sqlite3
 from pathlib import Path
 
 import pytest
-from sqlalchemy import Engine, create_engine, inspect, text
+from sqlalchemy import Engine, inspect, text
 from sqlalchemy.exc import IntegrityError
 
 import app.migrations as _m
@@ -197,11 +197,11 @@ def test_149_is_fatal():
     assert _load().FATAL is True
 
 
-def test_149_sqlite_keeps_the_foreign_keys_whole(tmp_path: Path) -> None:
+def test_149_sqlite_keeps_the_foreign_keys_whole(tmp_path: Path, sync_engine) -> None:
     """After the rebuild the child tables' references resolve, and the
     column is declared with its type."""
     db_file = tmp_path / "m149.db"
-    engine = create_engine(f"sqlite:///{db_file}")
+    engine = sync_engine(f"sqlite:///{db_file}")
     _make_tables(engine)
     _load().upgrade(engine)
     conn = sqlite3.connect(str(db_file))

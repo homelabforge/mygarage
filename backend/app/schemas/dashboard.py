@@ -2,7 +2,7 @@ from datetime import date as date_type
 from datetime import datetime
 from decimal import Decimal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from app.schemas.vehicle import LenientIdentifierType, LenientUsageUnit, LenientVehicleType
 from app.utils.unit_resolution import LenientDistanceUnit
@@ -105,8 +105,7 @@ class VehicleStatistics(BaseModel):
     owner_relationship: str | None = None
     owner_relationship_custom: str | None = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class FleetNextDue(BaseModel):
@@ -119,8 +118,7 @@ class FleetNextDue(BaseModel):
     # The due vehicle's own odometer unit; null follows the viewer (#172).
     distance_unit: LenientDistanceUnit = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class FleetHealth(BaseModel):

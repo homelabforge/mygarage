@@ -3,7 +3,7 @@
 import importlib.util
 from pathlib import Path
 
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import inspect, text
 
 import app.migrations as _m
 from app.migrations import runner  # noqa: F401  (ensures package import path)
@@ -35,8 +35,8 @@ def _make_legacy_cache(engine):
         )
 
 
-def test_057_adds_track_clears_rows_and_unique_index():
-    engine = create_engine("sqlite://")
+def test_057_adds_track_clears_rows_and_unique_index(sync_engine):
+    engine = sync_engine("sqlite://")
     _make_legacy_cache(engine)
     mod = _load_057()
 
@@ -52,8 +52,8 @@ def test_057_adds_track_clears_rows_and_unique_index():
     assert count == 0  # stale singleton cleared
 
 
-def test_057_is_idempotent():
-    engine = create_engine("sqlite://")
+def test_057_is_idempotent(sync_engine):
+    engine = sync_engine("sqlite://")
     _make_legacy_cache(engine)
     mod = _load_057()
     mod.upgrade(engine)

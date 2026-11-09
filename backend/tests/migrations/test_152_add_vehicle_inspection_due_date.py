@@ -9,7 +9,7 @@ import sqlite3
 from datetime import date
 from pathlib import Path
 
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import inspect, text
 
 import app.migrations as _m
 
@@ -75,9 +75,9 @@ def test_152_is_fatal():
     assert _load().FATAL is True
 
 
-def test_152_sqlite_declares_a_nullable_date(tmp_path: Path) -> None:
+def test_152_sqlite_declares_a_nullable_date(tmp_path: Path, sync_engine) -> None:
     db_file = tmp_path / "m152.db"
-    engine = create_engine(f"sqlite:///{db_file}")
+    engine = sync_engine(f"sqlite:///{db_file}")
     _make_vehicles(engine)
     _load().upgrade(engine)
     conn = sqlite3.connect(str(db_file))

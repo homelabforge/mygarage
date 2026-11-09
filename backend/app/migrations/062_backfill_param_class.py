@@ -40,7 +40,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import Engine, create_engine, inspect, text
 
 # FROZEN snapshot of app.utils.autopid_normalizer._PARAM_CLASS_PATTERNS as of
 # 2026-07-02. Ordered, first match wins, matched against the canonical
@@ -105,10 +105,15 @@ def _get_fallback_engine():
     return create_engine(f"sqlite:///{data_dir / 'mygarage.db'}")
 
 
-def upgrade(engine=None) -> None:
+def upgrade(engine: Engine | None = None) -> None:
     """Backfill `param_class` (and guarded `category`) on livelink_parameters."""
     if engine is None:
+        # Run standalone: it builds its own engine, so it closes it too.
         engine = _get_fallback_engine()
+        try:
+            return upgrade(engine)
+        finally:
+            engine.dispose()
 
     print("Migration 062: backfill param_class for existing telemetry parameters...")
 

@@ -244,7 +244,12 @@ def _round_table(conn: Connection, table: str, scales: dict[str, int]) -> int:
 def upgrade(engine: Engine | None = None) -> None:
     """Round each listed table's Numeric columns to their scales, a table per transaction."""
     if engine is None:
+        # Run standalone: it builds its own engine, so it closes it too.
         engine = _get_fallback_engine()
+        try:
+            return upgrade(engine)
+        finally:
+            engine.dispose()
 
     if engine.dialect.name != "sqlite":
         logger.info(

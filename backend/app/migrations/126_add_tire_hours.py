@@ -40,7 +40,12 @@ def _get_fallback_engine() -> Engine:
 def upgrade(engine: Engine | None = None) -> None:
     """Add the hour columns to tire mount periods and readings where missing."""
     if engine is None:
+        # Run standalone: it builds its own engine, so it closes it too.
         engine = _get_fallback_engine()
+        try:
+            return upgrade(engine)
+        finally:
+            engine.dispose()
 
     inspector = inspect(engine)
     missing: list[tuple[str, str, str]] = []

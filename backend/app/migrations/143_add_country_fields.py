@@ -55,7 +55,12 @@ def _add_missing(engine: Engine, table: str, columns: tuple[tuple[str, str], ...
 def upgrade(engine: Engine | None = None) -> None:
     """Add the four country columns (see module docstring)."""
     if engine is None:
+        # Run standalone: it builds its own engine, so it closes it too.
         engine = _get_fallback_engine()
+        try:
+            return upgrade(engine)
+        finally:
+            engine.dispose()
 
     bool_true = "TRUE" if engine.dialect.name == "postgresql" else "1"
     _add_missing(

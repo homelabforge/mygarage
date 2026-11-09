@@ -49,7 +49,7 @@ from app.models.user import User
 from app.models.vehicle import Vehicle
 from tests._importer_source import importer_files
 
-pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
+pytestmark = pytest.mark.integration
 
 
 @asynccontextmanager

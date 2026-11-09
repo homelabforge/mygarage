@@ -19,7 +19,7 @@ import sqlite3
 from pathlib import Path
 
 import pytest
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import inspect, text
 
 _MIGRATION = (
     Path(__file__).parent.parent.parent / "app" / "migrations" / "097_tire_mount_periods.py"
@@ -214,7 +214,7 @@ def legacy_db(tmp_path: Path) -> Path:
 
 
 class TestTheMigrationPreservesData:
-    def test_readings_survive_the_tires_rebuild(self, legacy_db: Path):
+    def test_readings_survive_the_tires_rebuild(self, legacy_db: Path, sync_engine):
         """The cascade hazard, asserted on the outcome.
 
         `DROP TABLE tires` in step 3 will fire `ON DELETE CASCADE` on
@@ -222,7 +222,7 @@ class TestTheMigrationPreservesData:
         two readings out.
         """
         _seed_tire(legacy_db, tire_id=1, vin="VINAAA00000000001", position="FL", readings=2)
-        _load_migration().upgrade(create_engine(f"sqlite:///{legacy_db}"))
+        _load_migration().upgrade(sync_engine(f"sqlite:///{legacy_db}"))
 
         conn = sqlite3.connect(legacy_db)
         assert conn.execute("SELECT COUNT(*) FROM tire_readings").fetchone()[0] == 2
@@ -258,7 +258,7 @@ class TestTheMigrationPreservesData:
         )
         conn.close()
 
-    def test_reminders_survive_and_gain_their_columns(self, legacy_db: Path):
+    def test_reminders_survive_and_gain_their_columns(self, legacy_db: Path, sync_engine):
         conn = sqlite3.connect(legacy_db)
         conn.execute(
             "INSERT INTO vehicle_reminders (vin, title, reminder_type, status) "
@@ -267,19 +267,19 @@ class TestTheMigrationPreservesData:
         conn.commit()
         conn.close()
 
-        _load_migration().upgrade(create_engine(f"sqlite:///{legacy_db}"))
+        _load_migration().upgrade(sync_engine(f"sqlite:///{legacy_db}"))
 
         conn = sqlite3.connect(legacy_db)
         rows = conn.execute("SELECT title, tire_id, source FROM vehicle_reminders").fetchall()
         assert rows == [("Keep me", None, None)]
         conn.close()
 
-    def test_an_assumed_period_is_created_per_mounted_tire(self, legacy_db: Path):
+    def test_an_assumed_period_is_created_per_mounted_tire(self, legacy_db: Path, sync_engine):
         _seed_tire(
             legacy_db, tire_id=1, vin="VINAAA00000000001", position="FL", installed="2024-03-01"
         )
         _seed_tire(legacy_db, tire_id=2, vin="VINAAA00000000001", position="FR")
-        _load_migration().upgrade(create_engine(f"sqlite:///{legacy_db}"))
+        _load_migration().upgrade(sync_engine(f"sqlite:///{legacy_db}"))
 
         conn = sqlite3.connect(legacy_db)
         periods = conn.execute(
@@ -296,9 +296,11 @@ class TestTheMigrationPreservesData:
         assert all(p[4] is not None for p in periods)
         conn.close()
 
-    def test_existing_readings_are_attached_to_the_assumed_period(self, legacy_db: Path):
+    def test_existing_readings_are_attached_to_the_assumed_period(
+        self, legacy_db: Path, sync_engine
+    ):
         _seed_tire(legacy_db, tire_id=1, vin="VINAAA00000000001", position="FL", readings=3)
-        _load_migration().upgrade(create_engine(f"sqlite:///{legacy_db}"))
+        _load_migration().upgrade(sync_engine(f"sqlite:///{legacy_db}"))
 
         conn = sqlite3.connect(legacy_db)
         unlinked = conn.execute(
@@ -309,7 +311,9 @@ class TestTheMigrationPreservesData:
 
 
 class TestPreflight:
-    def test_p1_repairs_a_child_whose_vin_disagrees_with_its_tire(self, legacy_db: Path):
+    def test_p1_repairs_a_child_whose_vin_disagrees_with_its_tire(
+        self, legacy_db: Path, sync_engine
+    ):
         """The composite FK makes this row impossible, so it must be repaired
         BEFORE the FK is installed, not discovered by it."""
         _seed_tire(legacy_db, tire_id=1, vin="VINAAA00000000001", position="FL", readings=0)
@@ -321,7 +325,7 @@ class TestPreflight:
         conn.commit()
         conn.close()
 
-        _load_migration().upgrade(create_engine(f"sqlite:///{legacy_db}"))
+        _load_migration().upgrade(sync_engine(f"sqlite:///{legacy_db}"))
 
         conn = sqlite3.connect(legacy_db)
         # Repaired to the TIRE's vin, not deleted: the tire is the authority
@@ -329,7 +333,7 @@ class TestPreflight:
         assert conn.execute("SELECT vin FROM tire_readings").fetchall() == [("VINAAA00000000001",)]
         conn.close()
 
-    def test_p2_skips_a_violated_check_instead_of_crash_looping(self, legacy_db: Path):
+    def test_p2_skips_a_violated_check_instead_of_crash_looping(self, legacy_db: Path, sync_engine):
         """A FATAL migration that raises here does not fail once: the app
         crash-loops on every restart until someone with database access repairs
         the row by hand. A missing constraint is recoverable; that is not.
@@ -360,7 +364,7 @@ class TestPreflight:
         conn.close()
 
         # Must NOT raise.
-        _load_migration().upgrade(create_engine(f"sqlite:///{legacy_db}"))
+        _load_migration().upgrade(sync_engine(f"sqlite:///{legacy_db}"))
 
         conn = sqlite3.connect(legacy_db)
         sql = conn.execute(
@@ -379,10 +383,12 @@ class TestPreflight:
         )
         conn.close()
 
-    def test_all_three_checks_are_installed_when_the_data_is_clean(self, legacy_db: Path):
+    def test_all_three_checks_are_installed_when_the_data_is_clean(
+        self, legacy_db: Path, sync_engine
+    ):
         """The other direction. Without this, a P2 that skipped everything
         would pass the test above."""
-        _load_migration().upgrade(create_engine(f"sqlite:///{legacy_db}"))
+        _load_migration().upgrade(sync_engine(f"sqlite:///{legacy_db}"))
         conn = sqlite3.connect(legacy_db)
         sql = conn.execute(
             "SELECT sql FROM sqlite_master WHERE name = 'vehicle_reminders'"
@@ -393,10 +399,10 @@ class TestPreflight:
 
 
 class TestReEntrancy:
-    def test_running_twice_is_a_no_op(self, legacy_db: Path):
+    def test_running_twice_is_a_no_op(self, legacy_db: Path, sync_engine):
         _seed_tire(legacy_db, tire_id=1, vin="VINAAA00000000001", position="FL", readings=2)
         migration = _load_migration()
-        engine = create_engine(f"sqlite:///{legacy_db}")
+        engine = sync_engine(f"sqlite:///{legacy_db}")
 
         migration.upgrade(engine)
         migration.upgrade(engine)
@@ -407,7 +413,7 @@ class TestReEntrancy:
         assert conn.execute("SELECT COUNT(*) FROM tire_readings").fetchone()[0] == 2
         conn.close()
 
-    def test_a_fresh_create_all_database_is_left_alone(self, tmp_path: Path):
+    def test_a_fresh_create_all_database_is_left_alone(self, tmp_path: Path, sync_engine):
         """The discriminator is `vehicle_reminders.source`, the LAST thing 097
         writes -- not `tire_mount_periods`, which `create_all` makes on every
         upgrade before migrations run, and not `tires.installed_date`, which a
@@ -416,7 +422,7 @@ class TestReEntrancy:
         from app.database import Base
 
         path = tmp_path / "fresh.db"
-        engine = create_engine(f"sqlite:///{path}")
+        engine = sync_engine(f"sqlite:///{path}")
         Base.metadata.create_all(engine)
 
         _load_migration().upgrade(engine)
@@ -443,11 +449,13 @@ class TestSchemaParity:
         shape["vehicle_reminders"] = {c["name"] for c in insp.get_columns("vehicle_reminders")}
         return shape
 
-    def test_upgraded_columns_match_a_fresh_install(self, legacy_db: Path, tmp_path: Path):
+    def test_upgraded_columns_match_a_fresh_install(
+        self, legacy_db: Path, tmp_path: Path, sync_engine
+    ):
         from app.database import Base
 
         _seed_tire(legacy_db, tire_id=1, vin="VINAAA00000000001", position="FL")
-        upgraded = create_engine(f"sqlite:///{legacy_db}")
+        upgraded = sync_engine(f"sqlite:///{legacy_db}")
         _load_migration().upgrade(upgraded)
         # Also run migrations 100, 101, 103, 126, 128 and 129 to match the current model
         # (storage_location; the reminder lifecycle columns; snoozed_until; the tire hour
@@ -460,37 +468,39 @@ class TestSchemaParity:
         _load_migration_129().upgrade(upgraded)
 
         fresh_path = tmp_path / "fresh_parity.db"
-        fresh = create_engine(f"sqlite:///{fresh_path}")
+        fresh = sync_engine(f"sqlite:///{fresh_path}")
         Base.metadata.create_all(fresh)
 
         assert self._shape(upgraded) == self._shape(fresh)
 
-    def test_the_open_period_index_exists_on_both_paths(self, legacy_db: Path, tmp_path: Path):
+    def test_the_open_period_index_exists_on_both_paths(
+        self, legacy_db: Path, tmp_path: Path, sync_engine
+    ):
         """A tire cannot be mounted in two places at once, and that has to be
         true however the database was built."""
         from app.database import Base
 
-        upgraded = create_engine(f"sqlite:///{legacy_db}")
+        upgraded = sync_engine(f"sqlite:///{legacy_db}")
         _load_migration().upgrade(upgraded)
         fresh_path = tmp_path / "fresh_idx.db"
-        fresh = create_engine(f"sqlite:///{fresh_path}")
+        fresh = sync_engine(f"sqlite:///{fresh_path}")
         Base.metadata.create_all(fresh)
 
         for engine in (upgraded, fresh):
             names = {i["name"] for i in inspect(engine).get_indexes("tire_mount_periods")}
             assert "uq_tire_single_open_period" in names
 
-    def test_uq_tires_vin_position_survives_the_rebuild(self, legacy_db: Path):
+    def test_uq_tires_vin_position_survives_the_rebuild(self, legacy_db: Path, sync_engine):
         """It is the only thing stopping two mounted tires sharing a corner,
         and a SQLite rebuild keeps only what the new CREATE TABLE names."""
-        _load_migration().upgrade(create_engine(f"sqlite:///{legacy_db}"))
+        _load_migration().upgrade(sync_engine(f"sqlite:///{legacy_db}"))
         conn = sqlite3.connect(legacy_db)
         conn.execute("INSERT INTO tires (vin, position) VALUES ('VINAAA00000000001', 'FL')")
         with pytest.raises(sqlite3.IntegrityError):
             conn.execute("INSERT INTO tires (vin, position) VALUES ('VINAAA00000000001', 'FL')")
         conn.close()
 
-    def test_two_stored_tires_can_coexist(self, legacy_db: Path):
+    def test_two_stored_tires_can_coexist(self, legacy_db: Path, sync_engine):
         """The property that actually CHANGED. NULLs compare as distinct under
         UNIQUE, so a nullable `position` makes the same constraint mounted-only
         without a partial-index replacement.
@@ -499,7 +509,7 @@ class TestSchemaParity:
         its own it would also pass against a schema that dropped the constraint
         entirely.
         """
-        _load_migration().upgrade(create_engine(f"sqlite:///{legacy_db}"))
+        _load_migration().upgrade(sync_engine(f"sqlite:///{legacy_db}"))
         conn = sqlite3.connect(legacy_db)
         conn.execute("INSERT INTO tires (vin, position) VALUES ('VINAAA00000000001', NULL)")
         conn.execute("INSERT INTO tires (vin, position) VALUES ('VINAAA00000000001', NULL)")

@@ -4,7 +4,7 @@ from datetime import date as date_type
 from datetime import datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.schemas._money import OptionalMoney
 from app.schemas._nullability import reject_null
@@ -42,8 +42,7 @@ class SpotRentalBillingUpdate(BaseModel):
     # NOT NULL column: a null billing_date reached the database as a 500.
     _no_null = reject_null("billing_date")
 
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra="forbid")
 
 
 class SpotRentalBillingResponse(SpotRentalBillingBase):
@@ -63,8 +62,7 @@ class SpotRentalBillingResponse(SpotRentalBillingBase):
     spot_rental_id: int
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SpotRentalBillingListResponse(BaseModel):

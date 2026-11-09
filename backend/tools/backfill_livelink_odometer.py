@@ -34,7 +34,7 @@ import sys
 from collections import defaultdict
 from datetime import date
 
-from sqlalchemy import text
+from sqlalchemy import Engine, text
 
 sys.path.insert(0, ".")
 
@@ -87,7 +87,13 @@ def main() -> int:
     """Reconstruct and optionally write the missing odometer records."""
     args = _parse_args()
     engine = create_tool_engine(args.db)
+    try:
+        return _run(engine, args)
+    finally:
+        engine.dispose()
 
+
+def _run(engine: Engine, args: argparse.Namespace) -> int:
     with engine.begin() as conn:
         # Its device query needs these columns; without them it can't tell a
         # WiCAN from anything else, so it stops rather than guess.

@@ -43,7 +43,7 @@ from app.models.tire import Tire, TireMountPeriod, TireReading, TireSet
 from app.models.toll import TollTag, TollTransaction
 from app.models.vehicle_dtc import VehicleDTC
 
-pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
+pytestmark = pytest.mark.integration
 
 _VIN = "B3RTJSONCOVERAGE1"
 _OTHER_VIN = "B3RTJSONCOVERAGE2"

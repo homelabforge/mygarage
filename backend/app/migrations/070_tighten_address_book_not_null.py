@@ -39,7 +39,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import Engine, create_engine, inspect, text
 
 # The four historically under-constrained columns this migration tightens.
 _TARGET_COLUMNS = ("source", "usage_count", "created_at", "updated_at")
@@ -62,10 +62,15 @@ def _get_fallback_engine():
     return create_engine(f"sqlite:///{data_dir / 'mygarage.db'}")
 
 
-def upgrade(engine=None) -> None:
+def upgrade(engine: Engine | None = None) -> None:
     """Tighten the four under-constrained address_book columns to NOT NULL."""
     if engine is None:
+        # Run standalone: it builds its own engine, so it closes it too.
         engine = _get_fallback_engine()
+        try:
+            return upgrade(engine)
+        finally:
+            engine.dispose()
 
     inspector = inspect(engine)
 

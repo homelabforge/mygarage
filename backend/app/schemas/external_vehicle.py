@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, Field, ValidationInfo, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
 from app.schemas._nullability import reject_null
 from app.utils.vehicle_names import normalize_make, normalize_model
@@ -102,8 +102,7 @@ class ExternalVehicleResponse(BaseModel):
     created_at: datetime
     updated_at: datetime | None = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ExternalVehicleListResponse(BaseModel):

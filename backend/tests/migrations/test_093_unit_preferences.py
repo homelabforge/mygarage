@@ -11,10 +11,11 @@ import importlib.util
 import json
 from pathlib import Path
 
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import inspect, text
 
 from app.constants.units import UNIT_COLUMN_NAMES
 from app.services.settings_init import DEFAULT_SETTINGS
+from tests._engines import SyncEngine
 
 _MIGRATION = (
     Path(__file__).parent.parent.parent / "app" / "migrations" / "093_add_unit_preferences.py"
@@ -29,9 +30,11 @@ def _load_migration():
     return module
 
 
-def _make_db(tmp_path: Path, *, gallon_standard: str | None, users: list[dict]):
+def _make_db(
+    sync_engine: SyncEngine, tmp_path: Path, *, gallon_standard: str | None, users: list[dict]
+):
     """Build a pre-093 database: users and settings tables, no unit columns."""
-    engine = create_engine(f"sqlite:///{tmp_path / 'test.db'}")
+    engine = sync_engine(f"sqlite:///{tmp_path / 'test.db'}")
     with engine.begin() as conn:
         conn.execute(
             text(
@@ -112,7 +115,7 @@ def _setting_metadata(engine, key: str) -> dict:
 
 
 class TestColumnCreation:
-    def test_every_declared_unit_column_is_added(self, tmp_path: Path) -> None:
+    def test_every_declared_unit_column_is_added(self, tmp_path: Path, sync_engine) -> None:
         """Every name in UNIT_COLUMN_NAMES gets an ADD COLUMN.
 
         This catches a migration that stops adding columns (a broken loop, a
@@ -121,15 +124,15 @@ class TestColumnCreation:
         twelfth quantity is added here automatically and this test still passes,
         verified by reintroducing that defect. TestOrmModelParity is what makes
         that drift loud, because the ORM model is the hand-written side."""
-        engine = _make_db(tmp_path, gallon_standard="us", users=[])
+        engine = _make_db(sync_engine, tmp_path, gallon_standard="us", users=[])
         _load_migration().upgrade(engine)
 
         columns = {c["name"] for c in inspect(engine).get_columns("users")}
         assert set(UNIT_COLUMN_NAMES) <= columns
 
-    def test_all_new_columns_are_nullable(self, tmp_path: Path) -> None:
+    def test_all_new_columns_are_nullable(self, tmp_path: Path, sync_engine) -> None:
         """NULL means 'no override' (spec Phase 1), not 'derive from preset'."""
-        engine = _make_db(tmp_path, gallon_standard="us", users=[])
+        engine = _make_db(sync_engine, tmp_path, gallon_standard="us", users=[])
         _load_migration().upgrade(engine)
 
         columns = {c["name"]: c for c in inspect(engine).get_columns("users")}
@@ -169,10 +172,11 @@ class TestOrmModelParity:
 
 
 class TestUsDefault:
-    def test_us_instance_writes_secondary_gallon_only(self, tmp_path: Path) -> None:
+    def test_us_instance_writes_secondary_gallon_only(self, tmp_path: Path, sync_engine) -> None:
         """Every current user must resolve exactly as they do now. On a US
         instance that means secondary_gallon='us' and ten untouched NULLs."""
         engine = _make_db(
+            sync_engine,
             tmp_path,
             gallon_standard="us",
             users=[
@@ -195,11 +199,12 @@ class TestUsDefault:
             }
             assert set(overrides.values()) == {None}, f"{username} got unexpected overrides"
 
-    def test_absent_gallon_setting_is_treated_as_us(self, tmp_path: Path) -> None:
+    def test_absent_gallon_setting_is_treated_as_us(self, tmp_path: Path, sync_engine) -> None:
         """Migration 093 runs BEFORE default-settings init (app/main.py:144), so on
         a fresh database the imperial_gallon_standard row does not exist yet. Its
         absence must mean 'us', not a failure and not a NULL."""
         engine = _make_db(
+            sync_engine,
             tmp_path,
             gallon_standard=None,
             users=[{"username": "fresh", "unit_preference": "imperial"}],
@@ -211,10 +216,13 @@ class TestUsDefault:
 
 
 class TestUkMaterialisation:
-    def test_uk_instance_materialises_imperial_users_to_custom(self, tmp_path: Path) -> None:
+    def test_uk_instance_materialises_imperial_users_to_custom(
+        self, tmp_path: Path, sync_engine
+    ) -> None:
         """A UK instance's imperial users become fully-materialised custom users,
         so a later preset selection cannot silently revert them to US gallons."""
         engine = _make_db(
+            sync_engine,
             tmp_path,
             gallon_standard="uk",
             users=[{"username": "imp", "unit_preference": "imperial"}],
@@ -232,10 +240,13 @@ class TestUkMaterialisation:
         # Fully materialised: no NULL survives.
         assert all(row[name] is not None for name in UNIT_COLUMN_NAMES)
 
-    def test_uk_instance_leaves_metric_users_on_their_preset(self, tmp_path: Path) -> None:
+    def test_uk_instance_leaves_metric_users_on_their_preset(
+        self, tmp_path: Path, sync_engine
+    ) -> None:
         """Metric users are untouched apart from secondary_gallon, which is what
         preserves their show-both counterpart as UK gallons (D4b)."""
         engine = _make_db(
+            sync_engine,
             tmp_path,
             gallon_standard="uk",
             users=[{"username": "met", "unit_preference": "metric"}],
@@ -248,10 +259,10 @@ class TestUkMaterialisation:
         overrides = [row[n] for n in UNIT_COLUMN_NAMES if n != "secondary_gallon"]
         assert overrides == [None] * 10
 
-    def test_uk_instance_seeds_uk_default_unit_prefs(self, tmp_path: Path) -> None:
+    def test_uk_instance_seeds_uk_default_unit_prefs(self, tmp_path: Path, sync_engine) -> None:
         """Anonymous and auth_mode=none clients read this row instead of the
         retiring public imperial_gallon_standard setting (D5)."""
-        engine = _make_db(tmp_path, gallon_standard="uk", users=[])
+        engine = _make_db(sync_engine, tmp_path, gallon_standard="uk", users=[])
         _load_migration().upgrade(engine)
 
         prefs = json.loads(_setting(engine, "default_unit_prefs"))
@@ -262,8 +273,9 @@ class TestUkMaterialisation:
 
 
 class TestIdempotency:
-    def test_running_twice_changes_nothing(self, tmp_path: Path) -> None:
+    def test_running_twice_changes_nothing(self, tmp_path: Path, sync_engine) -> None:
         engine = _make_db(
+            sync_engine,
             tmp_path,
             gallon_standard="uk",
             users=[
@@ -281,7 +293,9 @@ class TestIdempotency:
         assert _users(engine) == after_first
         assert _setting(engine, "default_unit_prefs") == default_after_first
 
-    def test_does_not_restamp_a_volume_chosen_after_materialisation(self, tmp_path: Path) -> None:
+    def test_does_not_restamp_a_volume_chosen_after_materialisation(
+        self, tmp_path: Path, sync_engine
+    ) -> None:
         """Kills the ``unit_volume IS NULL`` half of the UK backfill's guard.
 
         The state that matters is ruling P1's accepted mid-branch wart: a UK user
@@ -296,6 +310,7 @@ class TestIdempotency:
         protected by the preset half instead and passes with this guard deleted.
         """
         engine = _make_db(
+            sync_engine,
             tmp_path,
             gallon_standard="uk",
             users=[{"username": "imp", "unit_preference": "imperial"}],
@@ -316,7 +331,9 @@ class TestIdempotency:
         assert row["unit_volume"] == "L", "the UK backfill stamped over a chosen volume"
         assert row["unit_preference"] == "imperial", "the row should be left alone entirely"
 
-    def test_does_not_restamp_a_secondary_gallon_the_user_changed(self, tmp_path: Path) -> None:
+    def test_does_not_restamp_a_secondary_gallon_the_user_changed(
+        self, tmp_path: Path, sync_engine
+    ) -> None:
         """Kills the ``WHERE secondary_gallon IS NULL`` half of the flavour backfill.
 
         A user on a UK instance who picks US gallons for their show-both
@@ -326,6 +343,7 @@ class TestIdempotency:
         writes every user, every preset (D4b).
         """
         engine = _make_db(
+            sync_engine,
             tmp_path,
             gallon_standard="uk",
             users=[{"username": "met", "unit_preference": "metric"}],
@@ -343,9 +361,11 @@ class TestIdempotency:
             "the flavour backfill stamped over a chosen secondary_gallon"
         )
 
-    def test_preserves_an_existing_default_unit_prefs_row(self, tmp_path: Path) -> None:
+    def test_preserves_an_existing_default_unit_prefs_row(
+        self, tmp_path: Path, sync_engine
+    ) -> None:
         """An admin who has already tuned the instance default keeps it."""
-        engine = _make_db(tmp_path, gallon_standard="uk", users=[])
+        engine = _make_db(sync_engine, tmp_path, gallon_standard="uk", users=[])
         with engine.begin() as conn:
             conn.execute(
                 text("INSERT INTO settings (key, value) VALUES ('default_unit_prefs', :v)"),
@@ -355,12 +375,14 @@ class TestIdempotency:
 
         assert _setting(engine, "default_unit_prefs") == '{"custom": "value"}'
 
-    def test_preserves_a_default_unit_prefs_row_whose_value_is_null(self, tmp_path: Path) -> None:
+    def test_preserves_a_default_unit_prefs_row_whose_value_is_null(
+        self, tmp_path: Path, sync_engine
+    ) -> None:
         """``settings.value`` is nullable, so "no row" and "row with a NULL value"
         are different states. Conflating them makes the seed attempt an INSERT
         against an existing primary key, which aborts the transaction; this
         migration is FATAL, so that failure stops the application booting."""
-        engine = _make_db(tmp_path, gallon_standard="uk", users=[])
+        engine = _make_db(sync_engine, tmp_path, gallon_standard="uk", users=[])
         with engine.begin() as conn:
             conn.execute(
                 text("INSERT INTO settings (key, value) VALUES ('default_unit_prefs', NULL)")
@@ -372,10 +394,11 @@ class TestIdempotency:
 
 
 class TestRestartAfterPartialApplication:
-    def test_resumes_when_some_columns_already_exist(self, tmp_path: Path) -> None:
+    def test_resumes_when_some_columns_already_exist(self, tmp_path: Path, sync_engine) -> None:
         """Simulates a crash between two ADD COLUMN statements: the migration must
         add the rest rather than failing on the ones already present."""
         engine = _make_db(
+            sync_engine,
             tmp_path,
             gallon_standard="uk",
             users=[{"username": "imp", "unit_preference": "imperial"}],
@@ -392,8 +415,8 @@ class TestRestartAfterPartialApplication:
 
 
 class TestMissingTables:
-    def test_skips_cleanly_when_users_table_is_absent(self, tmp_path: Path) -> None:
-        engine = create_engine(f"sqlite:///{tmp_path / 'empty.db'}")
+    def test_skips_cleanly_when_users_table_is_absent(self, tmp_path: Path, sync_engine) -> None:
+        engine = sync_engine(f"sqlite:///{tmp_path / 'empty.db'}")
         with engine.begin() as conn:
             conn.execute(text("CREATE TABLE placeholder (id INTEGER PRIMARY KEY)"))
 
@@ -406,7 +429,9 @@ class TestMissingTables:
 
 
 class TestSettingsMetadataParity:
-    def test_seeded_row_matches_the_default_settings_declaration(self, tmp_path: Path) -> None:
+    def test_seeded_row_matches_the_default_settings_declaration(
+        self, tmp_path: Path, sync_engine
+    ) -> None:
         """initialize_default_settings (app/services/settings_init.py) preserves
         an existing setting's *value* but rewrites its category and description
         whenever they differ from its DEFAULT_SETTINGS entry. This migration
@@ -421,7 +446,7 @@ class TestSettingsMetadataParity:
         settings_init.py), not one constant compared against itself. Change
         either literal and this test must fail.
         """
-        engine = _make_db(tmp_path, gallon_standard="us", users=[])
+        engine = _make_db(sync_engine, tmp_path, gallon_standard="us", users=[])
         _load_migration().upgrade(engine)
 
         seeded = _setting_metadata(engine, "default_unit_prefs")

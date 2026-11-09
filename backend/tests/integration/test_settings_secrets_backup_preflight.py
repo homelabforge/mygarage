@@ -60,7 +60,7 @@ from tests.integration._secret_helpers import (
     read_back,
 )
 
-pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
+pytestmark = pytest.mark.integration
 
 KEY_A = keyring_entry(b"preflight test key A")
 KEY_FOREIGN = keyring_entry(b"preflight test key from another instance")

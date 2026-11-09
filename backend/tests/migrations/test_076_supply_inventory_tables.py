@@ -1,7 +1,7 @@
 import importlib.util
 from pathlib import Path
 
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import inspect, text
 
 MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "app" / "migrations"
 
@@ -55,7 +55,7 @@ def test_076_idempotent(engine_for_migration):
     assert inspect(engine).has_table("supplies")
 
 
-def test_076_create_all_matches_migration(engine_for_migration):
+def test_076_create_all_matches_migration(engine_for_migration, sync_engine):
     """Prod runs Base.metadata.create_all BEFORE the migration runner, so the
     model-built schema is authoritative on a fresh boot — assert column parity
     and that is_active carries a server default (R1-F3 / recommended edit 6)."""
@@ -69,7 +69,7 @@ def test_076_create_all_matches_migration(engine_for_migration):
     _load("124_supply_volume_unit").upgrade(mig_engine)
     mig = inspect(mig_engine)
 
-    model_engine = create_engine("sqlite://")
+    model_engine = sync_engine("sqlite://")
     Base.metadata.create_all(model_engine)
     model = inspect(model_engine)
 

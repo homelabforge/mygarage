@@ -27,7 +27,7 @@ import os
 import re
 from pathlib import Path
 
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import Engine, create_engine, inspect, text
 
 FATAL = False
 
@@ -59,9 +59,14 @@ def _day(value) -> str | None:
     return str(value)[:10] if value is not None else None
 
 
-def upgrade(engine=None) -> None:
+def upgrade(engine: Engine | None = None) -> None:
     if engine is None:
+        # Run standalone: it builds its own engine, so it closes it too.
         engine = _get_fallback_engine()
+        try:
+            return upgrade(engine)
+        finally:
+            engine.dispose()
 
     # Best-effort repair, swallowed on ANY error: the runner stops the pending
     # chain on a raise and never stamps the failed migration, so a raise here

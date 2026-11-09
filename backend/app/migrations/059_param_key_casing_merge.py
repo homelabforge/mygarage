@@ -34,7 +34,7 @@ import os
 from collections import defaultdict
 from pathlib import Path
 
-from sqlalchemy import bindparam, create_engine, inspect, text
+from sqlalchemy import Engine, bindparam, create_engine, inspect, text
 
 # (table, key_col, the columns that define a duplicate "slot" besides key_col)
 _TARGETS = [
@@ -161,10 +161,15 @@ def _merge_daily_summary(engine) -> None:
     print(f"  ✓ Re-aggregated telemetry_daily_summary ({merged} group(s) merged)")
 
 
-def upgrade(engine=None) -> None:
+def upgrade(engine: Engine | None = None) -> None:
     """Canonicalize every param_key to UPPER(REPLACE(key,' ','_')), merging dups."""
     if engine is None:
+        # Run standalone: it builds its own engine, so it closes it too.
         engine = _get_fallback_engine()
+        try:
+            return upgrade(engine)
+        finally:
+            engine.dispose()
     inspector = inspect(engine)
     print("Migration 059: param_key casing-merge...")
 

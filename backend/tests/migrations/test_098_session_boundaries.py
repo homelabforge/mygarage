@@ -41,7 +41,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 import pytest
-from sqlalchemy import inspect, text
+from sqlalchemy import DateTime, bindparam, inspect, text
 
 import app.migrations as _m
 
@@ -144,7 +144,7 @@ def _add_session(
             "INSERT INTO drive_sessions "
             "(id, vin, device_id, started_at, ended_at, external_session_id) "
             "VALUES (:i, :v, :d, :s, :e, :x)"
-        ),
+        ).bindparams(bindparam("s", type_=DateTime()), bindparam("e", type_=DateTime())),
         {
             "i": session_id,
             "v": f"VIN{device_id:0>14}",
@@ -161,7 +161,7 @@ def _add_telemetry(conn, device_id: str, at: datetime, key: str = "SPEED", value
         text(
             "INSERT INTO vehicle_telemetry (vin, device_id, param_key, value, timestamp) "
             "VALUES (:v, :d, :k, :val, :t)"
-        ),
+        ).bindparams(bindparam("t", type_=DateTime())),
         {"v": f"VIN{device_id:0>14}", "d": device_id, "k": key, "val": value, "t": at},
     )
 

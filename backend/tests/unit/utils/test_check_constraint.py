@@ -9,10 +9,10 @@ row that must survive the rebuild.
 from __future__ import annotations
 
 import sqlite3
+from contextlib import closing
 from pathlib import Path
 
 import pytest
-from sqlalchemy import create_engine
 
 from app.utils.check_constraint import drop_check_constraint, strip_check
 
@@ -96,7 +96,7 @@ def _setup(db_file: Path, shape: str) -> None:
 
 
 @shapes
-def test_drops_the_check_and_keeps_rows_index_and_fk(tmp_path: Path, shape: str):
+def test_drops_the_check_and_keeps_rows_index_and_fk(tmp_path: Path, shape: str, sync_engine):
     db_file = tmp_path / "cc.db"
     _setup(db_file, shape)
     conn = _connect(db_file)
@@ -108,7 +108,7 @@ def test_drops_the_check_and_keeps_rows_index_and_fk(tmp_path: Path, shape: str)
     conn.rollback()
     conn.close()
 
-    engine = create_engine(f"sqlite:///{db_file}")
+    engine = sync_engine(f"sqlite:///{db_file}")
     assert drop_check_constraint(engine, "tax_records", "tax_type") is True
 
     conn = _connect(db_file)
@@ -143,10 +143,10 @@ def test_drops_the_check_and_keeps_rows_index_and_fk(tmp_path: Path, shape: str)
 
 
 @shapes
-def test_second_call_finds_nothing(tmp_path: Path, shape: str):
+def test_second_call_finds_nothing(tmp_path: Path, shape: str, sync_engine):
     db_file = tmp_path / "cc2.db"
     _setup(db_file, shape)
-    engine = create_engine(f"sqlite:///{db_file}")
+    engine = sync_engine(f"sqlite:///{db_file}")
     assert drop_check_constraint(engine, "tax_records", "tax_type") is True
     assert drop_check_constraint(engine, "tax_records", "tax_type") is False
     conn = _connect(db_file)
@@ -154,10 +154,10 @@ def test_second_call_finds_nothing(tmp_path: Path, shape: str):
     conn.close()
 
 
-def test_missing_table_and_other_column_are_no_ops(tmp_path: Path):
+def test_missing_table_and_other_column_are_no_ops(tmp_path: Path, sync_engine):
     db_file = tmp_path / "cc3.db"
     _setup(db_file, "named_constraint")
-    engine = create_engine(f"sqlite:///{db_file}")
+    engine = sync_engine(f"sqlite:///{db_file}")
     assert drop_check_constraint(engine, "no_such_table", "tax_type") is False
     # A CHECK on another column is not this call's to drop.
     assert drop_check_constraint(engine, "tax_records", "amount") is False
@@ -169,8 +169,8 @@ def test_missing_table_and_other_column_are_no_ops(tmp_path: Path):
     conn.close()
 
 
-def test_identifiers_are_checked():
-    engine = create_engine("sqlite://")
+def test_identifiers_are_checked(sync_engine):
+    engine = sync_engine("sqlite://")
     with pytest.raises(ValueError):
         drop_check_constraint(engine, "tax_records; DROP TABLE x", "tax_type")
 
@@ -179,8 +179,8 @@ def test_identifiers_are_checked():
 def test_strip_check_leaves_executable_ddl_with_every_column(shape: str):
     stripped = strip_check(_SHAPES[shape], "tax_type")
     assert "CHECK" not in stripped.upper()
-    conn = sqlite3.connect(":memory:")
-    conn.execute("CREATE TABLE vehicles (vin VARCHAR(17) PRIMARY KEY)")
-    conn.execute(stripped.strip().rstrip(";"))
-    cols = [r[1] for r in conn.execute('PRAGMA table_info("tax_records")')]
+    with closing(sqlite3.connect(":memory:")) as conn:
+        conn.execute("CREATE TABLE vehicles (vin VARCHAR(17) PRIMARY KEY)")
+        conn.execute(stripped.strip().rstrip(";"))
+        cols = [r[1] for r in conn.execute('PRAGMA table_info("tax_records")')]
     assert cols == ["id", "vin", "date", "tax_type", "amount", "notes"]

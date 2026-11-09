@@ -24,7 +24,7 @@ default). Idempotent — runs once, before any explicit pick can exist.
 import os
 from pathlib import Path
 
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import Engine, create_engine, inspect, text
 
 FATAL = False
 
@@ -38,10 +38,15 @@ def _get_fallback_engine():
     return create_engine(f"sqlite:///{data_dir / 'mygarage.db'}")
 
 
-def upgrade(engine=None):
+def upgrade(engine: Engine | None = None):
     """Null out defaulted accent_color and (PG) drop the column default."""
     if engine is None:
+        # Run standalone: it builds its own engine, so it closes it too.
         engine = _get_fallback_engine()
+        try:
+            return upgrade(engine)
+        finally:
+            engine.dispose()
 
     if not inspect(engine).has_table("users"):
         return

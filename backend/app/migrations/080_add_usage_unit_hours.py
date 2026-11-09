@@ -19,7 +19,7 @@ PostgreSQL, so no dialect-specific type rewrite is needed. Idempotent.
 import os
 from pathlib import Path
 
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import Engine, create_engine, inspect, text
 
 FATAL = True
 
@@ -33,10 +33,15 @@ def _get_fallback_engine():
     return create_engine(f"sqlite:///{data_dir / 'mygarage.db'}")
 
 
-def upgrade(engine=None):
+def upgrade(engine: Engine | None = None):
     """Add usage_unit (default 'distance') and current_hours (nullable) to vehicles."""
     if engine is None:
+        # Run standalone: it builds its own engine, so it closes it too.
         engine = _get_fallback_engine()
+        try:
+            return upgrade(engine)
+        finally:
+            engine.dispose()
 
     if not inspect(engine).has_table("vehicles"):
         return

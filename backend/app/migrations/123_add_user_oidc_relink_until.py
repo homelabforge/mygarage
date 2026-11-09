@@ -41,7 +41,12 @@ def _get_fallback_engine() -> Engine:
 def upgrade(engine: Engine | None = None) -> None:
     """Add users.oidc_relink_until (nullable, no backfill)."""
     if engine is None:
+        # Run standalone: it builds its own engine, so it closes it too.
         engine = _get_fallback_engine()
+        try:
+            return upgrade(engine)
+        finally:
+            engine.dispose()
 
     if not inspect(engine).has_table("users"):
         return

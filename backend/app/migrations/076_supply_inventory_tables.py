@@ -8,7 +8,7 @@ feature only, it does not brick app startup.
 import os
 from pathlib import Path
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import Engine, create_engine, text
 
 # Non-FATAL: purely additive new tables (see module docstring).
 
@@ -21,9 +21,14 @@ def _get_fallback_engine():
     return create_engine(f"sqlite:///{data_dir / 'mygarage.db'}")
 
 
-def upgrade(engine=None):
+def upgrade(engine: Engine | None = None):
     if engine is None:
+        # Run standalone: it builds its own engine, so it closes it too.
         engine = _get_fallback_engine()
+        try:
+            return upgrade(engine)
+        finally:
+            engine.dispose()
     is_pg = engine.dialect.name == "postgresql"
     pk = "SERIAL PRIMARY KEY" if is_pg else "INTEGER PRIMARY KEY AUTOINCREMENT"
     ts = "TIMESTAMP" if is_pg else "DATETIME"

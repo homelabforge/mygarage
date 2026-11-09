@@ -36,7 +36,7 @@ from __future__ import annotations
 import argparse
 import sys
 
-from sqlalchemy import text
+from sqlalchemy import Engine, text
 
 sys.path.insert(0, ".")
 
@@ -76,7 +76,13 @@ def main() -> int:
     """Convert miles-recorded session odometers to kilometres."""
     args = _parse_args()
     engine = create_tool_engine(args.db)
+    try:
+        return _run(engine, args)
+    finally:
+        engine.dispose()
 
+
+def _run(engine: Engine, args: argparse.Namespace) -> int:
     with engine.begin() as conn:
         devices = [
             (row.device_id, row.vin)

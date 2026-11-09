@@ -15,10 +15,10 @@ from __future__ import annotations
 import importlib.util
 import sqlite3
 import types
+from contextlib import closing
 from pathlib import Path
 
 import pytest
-from sqlalchemy import create_engine
 
 _TYPES = (
     "('Car','Truck','SUV','Motorcycle','RV','Trailer',"
@@ -138,7 +138,9 @@ def _setup_db(db_file: Path, ddl_shape: str = "inline") -> None:
 
 
 @_SHAPES
-def test_check_dropped_and_atv_insertable_preserving_data(tmp_path: Path, ddl_shape: str) -> None:
+def test_check_dropped_and_atv_insertable_preserving_data(
+    tmp_path: Path, ddl_shape: str, sync_engine
+) -> None:
     db_file = tmp_path / "m079.db"
     _setup_db(db_file, ddl_shape)
     m = _load_migration()
@@ -153,7 +155,7 @@ def test_check_dropped_and_atv_insertable_preserving_data(tmp_path: Path, ddl_sh
     conn.rollback()
     conn.close()
 
-    engine = create_engine(f"sqlite:///{db_file}")
+    engine = sync_engine(f"sqlite:///{db_file}")
     m.upgrade(engine)
 
     conn = _connect(db_file)
@@ -196,11 +198,11 @@ def test_check_dropped_and_atv_insertable_preserving_data(tmp_path: Path, ddl_sh
 
 
 @_SHAPES
-def test_idempotent_rerun_is_noop(tmp_path: Path, ddl_shape: str) -> None:
+def test_idempotent_rerun_is_noop(tmp_path: Path, ddl_shape: str, sync_engine) -> None:
     db_file = tmp_path / "m079_idem.db"
     _setup_db(db_file, ddl_shape)
     m = _load_migration()
-    engine = create_engine(f"sqlite:///{db_file}")
+    engine = sync_engine(f"sqlite:///{db_file}")
 
     m.upgrade(engine)
     m.upgrade(engine)  # second run must not raise
@@ -228,9 +230,8 @@ def test_strip_check_produces_valid_ddl_for_every_shape(ddl_shape: str) -> None:
     m = _load_migration()
     stripped = m._strip_check(_VEHICLES_DDL_SHAPES[ddl_shape])
     assert "CHECK" not in stripped.upper()
-    sqlite3.connect(":memory:").execute(
-        stripped.replace('"vehicles"', '"vehicles_new"').strip().rstrip(";")
-    )
+    with closing(sqlite3.connect(":memory:")) as conn:
+        conn.execute(stripped.replace('"vehicles"', '"vehicles_new"').strip().rstrip(";"))
 
 
 def test_strip_check_keeps_the_column_separator_comma() -> None:
@@ -243,7 +244,7 @@ def test_strip_check_keeps_the_column_separator_comma() -> None:
     """
     m = _load_migration()
     stripped = m._strip_check(_VEHICLES_DDL_SHAPES["inline"])
-    conn = sqlite3.connect(":memory:")
-    conn.execute(stripped.replace('"vehicles"', '"vehicles_new"').strip().rstrip(";"))
-    cols = [r[1] for r in conn.execute('PRAGMA table_info("vehicles_new")')]
+    with closing(sqlite3.connect(":memory:")) as conn:
+        conn.execute(stripped.replace('"vehicles"', '"vehicles_new"').strip().rstrip(";"))
+        cols = [r[1] for r in conn.execute('PRAGMA table_info("vehicles_new")')]
     assert cols == ["vin", "nickname", "vehicle_type", "year", "user_id", "created_at"]

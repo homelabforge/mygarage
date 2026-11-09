@@ -1,7 +1,7 @@
 import importlib.util
 from pathlib import Path
 
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import inspect, text
 
 import app.migrations as _m
 
@@ -21,8 +21,8 @@ def _legacy_devices_table(engine):
         )
 
 
-def test_058_adds_columns_and_table():
-    engine = create_engine("sqlite://")
+def test_058_adds_columns_and_table(sync_engine):
+    engine = sync_engine("sqlite://")
     _legacy_devices_table(engine)
     _load("058_sd_card_backfill").upgrade(engine)
     insp = inspect(engine)
@@ -33,16 +33,16 @@ def test_058_adds_columns_and_table():
     assert "uq_sd_log_ingest_device_file" in idx
 
 
-def test_058_idempotent():
-    engine = create_engine("sqlite://")
+def test_058_idempotent(sync_engine):
+    engine = sync_engine("sqlite://")
     _legacy_devices_table(engine)
     mod = _load("058_sd_card_backfill")
     mod.upgrade(engine)
     mod.upgrade(engine)  # no raise
 
 
-def test_058_ingest_state_autoincrements():
-    engine = create_engine("sqlite://")
+def test_058_ingest_state_autoincrements(sync_engine):
+    engine = sync_engine("sqlite://")
     _legacy_devices_table(engine)
     _load("058_sd_card_backfill").upgrade(engine)
     with engine.begin() as conn:

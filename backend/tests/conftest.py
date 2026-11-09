@@ -29,12 +29,13 @@ if "TEST_DATABASE_URL" in os.environ:
 
 from collections.abc import AsyncGenerator, Generator, Iterator
 from datetime import UTC, date, datetime, timedelta
+from typing import Any
 
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from slowapi import Limiter
-from sqlalchemy import delete, select
+from sqlalchemy import Engine, create_engine, delete, select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from sqlalchemy.pool import NullPool
 
@@ -66,6 +67,7 @@ from app.routes.registration_certificate import limiter as registration_certific
 from app.routes.webhooks import limiter as webhooks_limiter
 from app.services.widget_auth import widget_limiter
 from app.utils.pg_session import create_utc_async_engine
+from tests._engines import SyncEngine
 from tests._keep_rows import Keep
 from tests._shard import apply_shard
 from tests._users import TEST_PASSWORD_HASH
@@ -323,6 +325,26 @@ def local_clock_off_utc() -> Iterator[None]:
         time.tzset()
         yield
     time.tzset()
+
+
+@pytest.fixture
+def sync_engine() -> Iterator[SyncEngine]:
+    """`create_engine` for one test, and every engine it made is disposed after.
+
+    An engine left to the garbage collector closes its pooled sqlite3
+    connection from a finalizer, and that ResourceWarning lands on whatever
+    test happens to be running then.
+    """
+    made: list[Engine] = []
+
+    def make(url: str, **kwargs: Any) -> Engine:
+        engine = create_engine(url, **kwargs)
+        made.append(engine)
+        return engine
+
+    yield make
+    for engine in made:
+        engine.dispose()
 
 
 @pytest_asyncio.fixture

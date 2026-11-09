@@ -134,7 +134,7 @@ from app.models.service_visit import ServiceVisit
 from app.models.vehicle import Vehicle
 from app.models.vendor import Vendor
 
-pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
+pytestmark = pytest.mark.integration
 
 # One vendor name for the whole corpus, so teardown can remove exactly the
 # rows these fixtures create without touching another suite's vendors.

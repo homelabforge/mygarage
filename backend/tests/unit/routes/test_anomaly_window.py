@@ -146,6 +146,12 @@ def _spike_history() -> Any:
     )
 
 
+def _message(alert: AnomalyAlert) -> str:
+    """The field is deprecated, so reading it warns. Expected here, and it had better keep warning."""
+    with pytest.deprecated_call():
+        return alert.message
+
+
 @pytest.mark.unit
 @pytest.mark.analytics
 class TestAnomalyMessageCurrency:
@@ -153,12 +159,14 @@ class TestAnomalyMessageCurrency:
 
     def test_the_message_names_the_users_currency(self):
         (spike,) = build_anomalies_from_monthly_df(_spike_history(), "HUF")
-        assert "$" not in spike.message
-        assert "was 800.00 HUF," in spike.message
-        assert f"average of {spike.baseline:.2f} HUF." in spike.message
+        message = _message(spike)
+        assert "$" not in message
+        assert "was 800.00 HUF," in message
+        assert f"average of {spike.baseline:.2f} HUF." in message
 
     def test_without_a_currency_the_amounts_are_bare(self):
         (spike,) = build_anomalies_from_monthly_df(_spike_history())
-        assert "$" not in spike.message
-        assert "was 800.00," in spike.message
-        assert spike.message.endswith(f"average of {spike.baseline:.2f}.")
+        message = _message(spike)
+        assert "$" not in message
+        assert "was 800.00," in message
+        assert message.endswith(f"average of {spike.baseline:.2f}.")

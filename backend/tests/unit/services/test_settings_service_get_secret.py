@@ -17,8 +17,6 @@ from app.routes.settings import _stored_secret_mask  # pyright: ignore[reportPri
 from app.services.settings_service import SecretUnreadableError, SettingsService, reenter_message
 from app.utils.settings_crypto import DecryptResult, encrypt
 
-pytestmark = pytest.mark.asyncio
-
 KEY = "ntfy_token"
 
 

@@ -6,7 +6,7 @@ This migration implements soft-delete functionality for vehicles with archive me
 import os
 from pathlib import Path
 
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import Engine, create_engine, inspect, text
 
 
 def _get_fallback_engine():
@@ -18,10 +18,15 @@ def _get_fallback_engine():
     return create_engine(f"sqlite:///{data_dir / 'mygarage.db'}")
 
 
-def upgrade(engine=None):
+def upgrade(engine: Engine | None = None):
     """Add archive columns to vehicles table."""
     if engine is None:
+        # Run standalone: it builds its own engine, so it closes it too.
         engine = _get_fallback_engine()
+        try:
+            return upgrade(engine)
+        finally:
+            engine.dispose()
 
     is_postgres = engine.dialect.name == "postgresql"
     ts_type = "TIMESTAMP" if is_postgres else "DATETIME"

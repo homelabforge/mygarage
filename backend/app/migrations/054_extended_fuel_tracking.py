@@ -42,7 +42,7 @@ import logging
 import os
 from pathlib import Path
 
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import Engine, create_engine, inspect, text
 
 logger = logging.getLogger(__name__)
 
@@ -308,10 +308,15 @@ def _normalize_combined(raw: str) -> tuple[str | None, str | None]:
 # ---------------------------------------------------------------------------
 
 
-def upgrade(engine=None) -> None:
+def upgrade(engine: Engine | None = None) -> None:
     """Apply the additive schema + backfill enum values."""
     if engine is None:
+        # Run standalone: it builds its own engine, so it closes it too.
         engine = _get_fallback_engine()
+        try:
+            return upgrade(engine)
+        finally:
+            engine.dispose()
 
     is_postgres = engine.dialect.name == "postgresql"
     inspector = inspect(engine)
@@ -484,10 +489,15 @@ def upgrade(engine=None) -> None:
     print("✓ Extended fuel tracking migration completed")
 
 
-def downgrade(engine=None) -> None:
+def downgrade(engine: Engine | None = None) -> None:
     """Reverse the migration. Loses backfilled enum normalization."""
     if engine is None:
+        # Run standalone: it builds its own engine, so it closes it too.
         engine = _get_fallback_engine()
+        try:
+            return downgrade(engine)
+        finally:
+            engine.dispose()
 
     is_postgres = engine.dialect.name == "postgresql"
     print("Rolling back extended fuel tracking migration...")

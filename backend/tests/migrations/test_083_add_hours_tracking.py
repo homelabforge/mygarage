@@ -280,7 +280,7 @@ def test_083_missing_vehicles_table_skips(engine_for_migration):
     _load("083_add_hours_tracking").upgrade(engine)
 
 
-def test_083_tolerates_preexisting_orphans_in_other_tables(migration_db):
+def test_083_tolerates_preexisting_orphans_in_other_tables(migration_db, sync_engine):
     """A legacy DB with an orphaned row in an UNRELATED table must not abort
     the ``vehicle_reminders`` CHECK-widening rebuild (SQLite only).
 
@@ -294,10 +294,9 @@ def test_083_tolerates_preexisting_orphans_in_other_tables(migration_db):
     ``FATAL=True`` — abort app startup even though the reminder rebuild
     itself was clean.
     """
-    from sqlalchemy import create_engine
 
     db_file, db_url = migration_db
-    engine = create_engine(db_url)
+    engine = sync_engine(db_url)
     _make_deps(engine)
 
     # A second FK-constrained table, unrelated to vehicle_reminders, that

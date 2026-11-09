@@ -37,7 +37,12 @@ def _get_fallback_engine() -> Engine:
 def upgrade(engine: Engine | None = None) -> None:
     """Add fuel_records.octane_scale (nullable VARCHAR(3), no backfill)."""
     if engine is None:
+        # Run standalone: it builds its own engine, so it closes it too.
         engine = _get_fallback_engine()
+        try:
+            return upgrade(engine)
+        finally:
+            engine.dispose()
 
     if not inspect(engine).has_table("fuel_records"):
         return

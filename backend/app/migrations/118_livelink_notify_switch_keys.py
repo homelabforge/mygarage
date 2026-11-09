@@ -25,7 +25,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import Engine, create_engine, inspect, text
 
 FATAL = False
 
@@ -51,10 +51,15 @@ def _is_off(value: str | None) -> bool:
     return bool(value) and (value or "").lower() not in ("true", "1", "yes")
 
 
-def upgrade(engine=None) -> None:
+def upgrade(engine: Engine | None = None) -> None:
     """Copy each switched-off old key to its unset new key."""
     if engine is None:
+        # Run standalone: it builds its own engine, so it closes it too.
         engine = _get_fallback_engine()
+        try:
+            return upgrade(engine)
+        finally:
+            engine.dispose()
 
     if not inspect(engine).has_table("settings"):
         print("  → settings missing; skip")

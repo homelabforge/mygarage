@@ -31,7 +31,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import Engine, create_engine, inspect, text
 
 from app.utils.maintenance_types import classify
 
@@ -288,9 +288,14 @@ def _backfill_reminders(engine) -> tuple[int, int]:
 # ============================================================================
 
 
-def upgrade(engine=None) -> None:
+def upgrade(engine: Engine | None = None) -> None:
     if engine is None:
+        # Run standalone: it builds its own engine, so it closes it too.
         engine = _get_fallback_engine()
+        try:
+            return upgrade(engine)
+        finally:
+            engine.dispose()
     is_pg = engine.dialect.name == "postgresql"
     print("Migration 101: maintenance rules, service anchors and canonical types...")
 

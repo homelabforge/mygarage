@@ -16,7 +16,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import Engine, create_engine, inspect, text
 
 DEAD_COLUMNS = {
     "fuel_records": ("propane_gallons", "tank_size_lb"),
@@ -37,10 +37,15 @@ def _get_fallback_engine():
     return create_engine(f"sqlite:///{data_dir / 'mygarage.db'}")
 
 
-def upgrade(engine=None) -> None:
+def upgrade(engine: Engine | None = None) -> None:
     """Drop dead imperial columns that hold no non-NULL values."""
     if engine is None:
+        # Run standalone: it builds its own engine, so it closes it too.
         engine = _get_fallback_engine()
+        try:
+            return upgrade(engine)
+        finally:
+            engine.dispose()
     print("Migration 071: drop dead imperial columns (empty only)...")
     for table, columns in DEAD_COLUMNS.items():
         if not inspect(engine).has_table(table):

@@ -18,7 +18,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import Engine, create_engine, inspect, text
 
 _COLUMN_TYPE_SQLITE = "DATETIME"
 _COLUMN_TYPE_PG = "TIMESTAMP"
@@ -37,10 +37,15 @@ def _column_exists(inspector, table: str, column: str) -> bool:
     return column in {c["name"] for c in inspector.get_columns(table)}
 
 
-def upgrade(engine=None) -> None:
+def upgrade(engine: Engine | None = None) -> None:
     """Add the nullable `def_low_notified_at` dedup column."""
     if engine is None:
+        # Run standalone: it builds its own engine, so it closes it too.
         engine = _get_fallback_engine()
+        try:
+            return upgrade(engine)
+        finally:
+            engine.dispose()
 
     print("Migration 064: add vehicles.def_low_notified_at...")
 
