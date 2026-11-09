@@ -32,10 +32,11 @@ function serve(mode: string): void {
 }
 
 function Probe() {
-  const { isAuthenticated, isAdmin, authMode, refreshUser, loading } = useAuth()
+  const { isAuthenticated, isAdmin, authMode, refreshUser, loading, publicSettingsLoaded } = useAuth()
   return (
     <div>
       <span data-testid="state">{`${authMode}:${isAuthenticated}:${isAdmin}`}</span>
+      <span data-testid="loaded">{String(publicSettingsLoaded)}</span>
       <button disabled={loading} onClick={() => void refreshUser()}>refresh</button>
     </div>
   )
@@ -123,9 +124,8 @@ describe('AuthContext follows the sign-in mode', () => {
     })
     await waitFor(() => expect(settingsCalls).toBe(2))
     // Let the refresh land while boot is still out.
-    await act(async () => {
-      await Promise.resolve()
-    })
+    // Boot's read is still out, so only the refresh can have flipped this.
+    await waitFor(() => expect(screen.getByTestId('loaded')).toHaveTextContent('true'))
     expect(mockedApi.get.mock.calls.some(([u]) => u === '/auth/me')).toBe(false)
 
     await act(async () => {
