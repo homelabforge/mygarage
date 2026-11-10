@@ -36,7 +36,7 @@ import os
 import re
 from pathlib import Path
 
-from sqlalchemy import Engine, create_engine, inspect, text
+from sqlalchemy import Connection, Engine, Inspector, create_engine, inspect, text
 
 logger = logging.getLogger(__name__)
 
@@ -56,15 +56,15 @@ def _get_fallback_engine():
     return create_engine(f"sqlite:///{data_dir / 'mygarage.db'}")
 
 
-def _column_exists(inspector, table: str, column: str) -> bool:
+def _column_exists(inspector: Inspector, table: str, column: str) -> bool:
     return column in {c["name"] for c in inspector.get_columns(table)}
 
 
-def _index_exists(inspector, table: str, index_name: str) -> bool:
+def _index_exists(inspector: Inspector, table: str, index_name: str) -> bool:
     return index_name in {idx["name"] for idx in inspector.get_indexes(table)}
 
 
-def _pg_column_has_fk(conn, table: str, column: str) -> bool:
+def _pg_column_has_fk(conn: Connection, table: str, column: str) -> bool:
     """True if any FOREIGN KEY already covers ``table.column`` on PostgreSQL.
 
     Checks by column, not by our constraint name, so a FK that ``create_all``

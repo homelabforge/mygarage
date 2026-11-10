@@ -31,7 +31,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import Engine, create_engine, inspect, text
 
 from app.utils.insurance_coverages import coverage_row, parse_coverage_lines, place_leftovers
 
@@ -176,7 +176,7 @@ def _report(planned: list[dict[str, Any]]) -> None:
 # ============================================================================
 
 
-def _run_sqlite(engine) -> None:
+def _run_sqlite(engine: Engine) -> None:
     raw = engine.raw_connection()
     try:
         cur = raw.cursor()
@@ -262,7 +262,7 @@ def _run_sqlite(engine) -> None:
 # ============================================================================
 
 
-def _run_postgres(engine) -> None:
+def _run_postgres(engine: Engine) -> None:
     with engine.begin() as conn:
         rows = [dict(r._mapping) for r in conn.execute(text(_READ_LINKS)).fetchall()]
         planned = plan_conversion(rows)
@@ -309,7 +309,7 @@ def _preflight_backup_marker() -> None:
         )
 
 
-def upgrade(engine=None) -> None:
+def upgrade(engine: Engine | None = None) -> None:
     """Run the migration, or return cleanly if it has already been applied.
 
     RE-ENTRANCY keys on the column this migration REMOVES. Keying on

@@ -135,13 +135,13 @@ reportWildcardImportFromLibrary = "error"
 reportInconsistentConstructor = "error"
 reportOverlappingOverload = "error"
 reportInvalidStringEscapeSequence = "error"
+reportMissingParameterType = "error"
+reportUnusedImport = "error"  # ruff F401 too; pyright also sees TYPE_CHECKING blocks
+reportUnusedVariable = "error"  # ruff F841 too; pyright also sees tuple unpacking
 
 # === Warnings ===
 reportMissingModuleSource = "warning"
 reportUnnecessaryComparison = "warning"  # Defensive checks, kept on purpose
-reportMissingParameterType = "warning"
-reportUnusedImport = "warning"  # Ruff handles via F401
-reportUnusedVariable = "warning"  # Ruff handles via F841
 reportUnusedFunction = "warning"  # Helper functions, utilities
 reportUnusedClass = "warning"  # Base classes, mix-ins
 reportPrivateUsage = "warning"

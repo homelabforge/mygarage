@@ -35,7 +35,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from sqlalchemy import Engine, create_engine, inspect, text
+from sqlalchemy import Connection, Engine, create_engine, inspect, text
 
 FATAL = True
 
@@ -48,7 +48,7 @@ def _get_fallback_engine():
     return create_engine(f"sqlite:///{data_dir / 'mygarage.db'}")
 
 
-def _setting(conn, key: str) -> str | None:
+def _setting(conn: Connection, key: str) -> str | None:
     return conn.execute(
         text("SELECT value FROM settings WHERE key = :k"), {"k": key}
     ).scalar_one_or_none()

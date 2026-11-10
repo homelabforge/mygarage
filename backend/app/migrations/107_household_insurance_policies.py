@@ -54,7 +54,7 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import Engine, create_engine, inspect, text
 
 FATAL = True
 
@@ -345,7 +345,7 @@ def _report(policies: list[dict[str, Any]], log: list[str], source_rows: int) ->
 # ============================================================================
 
 
-def _run_sqlite(engine) -> None:
+def _run_sqlite(engine: Engine) -> None:
     raw = engine.raw_connection()
     try:
         cur = raw.cursor()
@@ -465,7 +465,7 @@ def _num(value: Any) -> Any:
 # ============================================================================
 
 
-def _run_postgres(engine) -> None:
+def _run_postgres(engine: Engine) -> None:
     with engine.begin() as conn:
         rows = [dict(r._mapping) for r in conn.execute(text(_LEGACY_SELECT)).fetchall()]
         owner_by_vin = {
@@ -572,7 +572,7 @@ def _preflight_backup_marker() -> None:
         )
 
 
-def upgrade(engine=None) -> None:
+def upgrade(engine: Engine | None = None) -> None:
     """Run the migration, or return cleanly if it has already been applied.
 
     RE-ENTRANCY. The whole thing is one transaction, so there are two

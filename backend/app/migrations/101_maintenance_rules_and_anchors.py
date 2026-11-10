@@ -126,12 +126,12 @@ def _get_fallback_engine():
     return create_engine(f"sqlite:///{data_dir / 'mygarage.db'}")
 
 
-def _column_names(engine, table: str) -> set[str]:
+def _column_names(engine: Engine, table: str) -> set[str]:
     return {c["name"] for c in inspect(engine).get_columns(table)}
 
 
-def _index_names(engine, table: str) -> set[str]:
-    return {ix["name"] for ix in inspect(engine).get_indexes(table) if ix.get("name")}
+def _index_names(engine: Engine, table: str) -> set[str]:
+    return {name for ix in inspect(engine).get_indexes(table) if (name := ix.get("name"))}
 
 
 # ============================================================================
@@ -139,7 +139,7 @@ def _index_names(engine, table: str) -> set[str]:
 # ============================================================================
 
 
-def _create_rules_table(engine, is_pg: bool) -> None:
+def _create_rules_table(engine: Engine, is_pg: bool) -> None:
     if inspect(engine).has_table(RULES_TABLE):
         print(f"  = {RULES_TABLE} already exists")
         return
@@ -153,7 +153,7 @@ def _create_rules_table(engine, is_pg: bool) -> None:
     print(f"  ✓ Created {RULES_TABLE}")
 
 
-def _add_line_item_type(engine) -> None:
+def _add_line_item_type(engine: Engine) -> None:
     if not inspect(engine).has_table("service_line_items"):
         print("  = service_line_items absent, skipping")
         return
@@ -175,7 +175,7 @@ def _add_line_item_type(engine) -> None:
             print("  ✓ Added ix_service_line_items_maintenance_type")
 
 
-def _add_reminder_columns(engine, is_pg: bool) -> None:
+def _add_reminder_columns(engine: Engine, is_pg: bool) -> None:
     if not inspect(engine).has_table("vehicle_reminders"):
         print("  = vehicle_reminders absent, skipping")
         return
@@ -202,7 +202,7 @@ def _add_reminder_columns(engine, is_pg: bool) -> None:
 # ============================================================================
 
 
-def _backfill_line_item_types(engine) -> int:
+def _backfill_line_item_types(engine: Engine) -> int:
     if "description" not in _column_names(engine, "service_line_items"):
         return 0
     with engine.begin() as conn:
@@ -222,7 +222,7 @@ def _backfill_line_item_types(engine) -> int:
     return len(updates)
 
 
-def _backfill_reminders(engine) -> tuple[int, int]:
+def _backfill_reminders(engine: Engine) -> tuple[int, int]:
     """Type and anchor every reminder that lacks them.
 
     A reminder linked to a line item takes that line item's type (as just

@@ -53,7 +53,7 @@ def _get_fallback_engine():
     return create_engine(f"sqlite:///{data_dir / 'mygarage.db'}")
 
 
-def _day(value) -> str | None:
+def _day(value: object) -> str | None:
     """A DATE column as ``YYYY-MM-DD``: psycopg2 returns date objects, textual
     SQLite returns ISO strings; both stringify to the same first ten chars."""
     return str(value)[:10] if value is not None else None
@@ -81,7 +81,7 @@ def upgrade(engine: Engine | None = None) -> None:
         )
 
 
-def _repair(engine) -> None:
+def _repair(engine: Engine) -> None:
     inspector = inspect(engine)
     if not inspector.has_table("odometer_records"):
         return

@@ -50,7 +50,7 @@ def _get_fallback_engine():
     return create_engine(f"sqlite:///{data_dir / 'mygarage.db'}")
 
 
-def _add_column(engine) -> None:
+def _add_column(engine: Engine) -> None:
     inspector = inspect(engine)
     if not inspector.has_table(_TABLE):
         print(f"  → {_TABLE} missing; skip (run the earlier migrations first)")
@@ -65,7 +65,7 @@ def _add_column(engine) -> None:
         print(f"✓ Added {_TABLE}.{_COLUMN}")
 
 
-def _backfill_preset_key(engine) -> None:
+def _backfill_preset_key(engine: Engine) -> None:
     if not inspect(engine).has_table(_TABLE):
         return
     with engine.begin() as conn:
@@ -81,7 +81,7 @@ def _backfill_preset_key(engine) -> None:
                 print(f"✓ Attributed {result.rowcount} device(s) to preset {key}")
 
 
-def _backfill_parameters(engine) -> None:
+def _backfill_parameters(engine: Engine) -> None:
     """Register a parameter for every mapped telemetry key that lacks one."""
     inspector = inspect(engine)
     if not (

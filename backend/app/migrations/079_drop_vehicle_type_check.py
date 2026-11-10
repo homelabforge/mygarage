@@ -36,6 +36,7 @@ from __future__ import annotations
 
 import os
 import re
+import sqlite3
 from pathlib import Path
 
 from sqlalchemy import Engine, create_engine, inspect, text
@@ -104,7 +105,7 @@ def upgrade(engine: Engine | None = None):
         _upgrade_sqlite(engine)
 
 
-def _upgrade_pg(engine):
+def _upgrade_pg(engine: Engine) -> None:
     with engine.begin() as conn:
         row = conn.execute(
             text(
@@ -119,7 +120,7 @@ def _upgrade_pg(engine):
             conn.execute(text(f'ALTER TABLE vehicles DROP CONSTRAINT "{row[0]}"'))
 
 
-def _upgrade_sqlite(engine):
+def _upgrade_sqlite(engine: Engine) -> None:
     with engine.connect() as conn:
         ddl = conn.exec_driver_sql(
             "SELECT sql FROM sqlite_master WHERE type='table' AND name='vehicles'"
@@ -146,6 +147,8 @@ def _upgrade_sqlite(engine):
     raw = engine.raw_connection()
     try:
         dbapi = raw.driver_connection  # underlying sqlite3.Connection
+        if not isinstance(dbapi, sqlite3.Connection):
+            raise TypeError(f"the SQLite rebuild needs sqlite3, got {type(dbapi).__name__}")
         prev_iso = dbapi.isolation_level
         dbapi.isolation_level = None  # autocommit — we drive the transaction explicitly
         cur = dbapi.cursor()
