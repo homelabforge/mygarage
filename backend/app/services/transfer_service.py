@@ -18,6 +18,7 @@ from app.models.vehicle_share import VehicleShare
 from app.models.vehicle_transfer import VehicleTransfer
 from app.schemas.family import (
     EligibleRecipient,
+    UserMinimal,
     VehicleTransferRequest,
     VehicleTransferResponse,
 )
@@ -159,10 +160,10 @@ class TransferService:
             return VehicleTransferResponse(
                 id=transfer.id,
                 vehicle_vin=transfer.vehicle_vin,
-                from_user=from_user,
-                to_user=to_user,
+                from_user=UserMinimal.model_validate(from_user) if from_user else None,
+                to_user=UserMinimal.model_validate(to_user),
                 transferred_at=transfer.transferred_at,
-                transferred_by=current_user,
+                transferred_by=UserMinimal.model_validate(current_user),
                 transfer_notes=transfer.transfer_notes,
                 data_included=json.loads(transfer.data_included)
                 if transfer.data_included
@@ -221,21 +222,21 @@ class TransferService:
                 to_result = await self.db.execute(
                     select(User).where(User.id == transfer.to_user_id)
                 )
-                to_user = to_result.scalar_one_or_none()
+                to_user = to_result.scalar_one()  # NOT NULL foreign key
 
                 by_result = await self.db.execute(
                     select(User).where(User.id == transfer.transferred_by)
                 )
-                by_user = by_result.scalar_one_or_none()
+                by_user = by_result.scalar_one()  # NOT NULL foreign key
 
                 responses.append(
                     VehicleTransferResponse(
                         id=transfer.id,
                         vehicle_vin=transfer.vehicle_vin,
-                        from_user=from_user,
-                        to_user=to_user,
+                        from_user=UserMinimal.model_validate(from_user) if from_user else None,
+                        to_user=UserMinimal.model_validate(to_user),
                         transferred_at=transfer.transferred_at,
-                        transferred_by=by_user,
+                        transferred_by=UserMinimal.model_validate(by_user),
                         transfer_notes=transfer.transfer_notes,
                         data_included=json.loads(transfer.data_included)
                         if transfer.data_included

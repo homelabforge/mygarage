@@ -180,12 +180,12 @@ async def calculate_vehicle_stats(
         make=vehicle.make,
         model=vehicle.model,
         nickname=vehicle.nickname,
-        identifier_type=vehicle.identifier_type,
+        identifier_type=vehicle.identifier_type,  # pyright: ignore[reportArgumentType]  # lenient vocab reads the stored str
         identifier=vehicle.identifier,
-        vehicle_type=vehicle.vehicle_type,
+        vehicle_type=vehicle.vehicle_type,  # pyright: ignore[reportArgumentType]  # lenient vocab reads the stored str
         main_photo_url=main_photo_url,
-        usage_unit=vehicle.usage_unit,
-        distance_unit=vehicle.distance_unit,
+        usage_unit=vehicle.usage_unit,  # pyright: ignore[reportArgumentType]  # lenient vocab reads the stored str
+        distance_unit=vehicle.distance_unit,  # pyright: ignore[reportArgumentType]  # lenient vocab reads the stored str
         current_hours=vehicle.current_hours,
         latest_hours=latest_hours,
         average_l_per_hr=average_l_per_hr,
@@ -272,7 +272,7 @@ async def _fleet_next_due(
             label=dated[1],
             due_date=dated[2],
             due_mileage_km=dated[3],  # passed through so the strip can show both
-            distance_unit=unit_by_vin.get(dated[0]),
+            distance_unit=unit_by_vin.get(dated[0]),  # pyright: ignore[reportArgumentType]  # lenient vocab reads the stored str
         )
 
     mileage_rows = (
@@ -317,7 +317,7 @@ async def _fleet_next_due(
         label=best[2],
         due_date=None,
         due_mileage_km=best[3],
-        distance_unit=unit_by_vin.get(best[1]),
+        distance_unit=unit_by_vin.get(best[1]),  # pyright: ignore[reportArgumentType]  # lenient vocab reads the stored str
     )
 
 

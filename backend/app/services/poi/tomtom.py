@@ -188,7 +188,9 @@ class TomTomProvider(BasePOIProvider):
                 )
                 raise
 
-    def normalize_result(self, raw_result: dict, category: POICategory = None) -> dict[str, Any]:
+    def normalize_result(
+        self, raw_result: dict, category: POICategory | None = None
+    ) -> dict[str, Any]:
         """Normalize TomTom result to common format."""
         poi = raw_result.get("poi", {})
         address = raw_result.get("address", {})

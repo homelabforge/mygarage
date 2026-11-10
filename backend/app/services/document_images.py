@@ -46,7 +46,10 @@ def has_text_layer(pdf_bytes: bytes, *, min_chars: int = MIN_TEXT_CHARS) -> bool
         total = 0
         with pymupdf.open(stream=pdf_bytes, filetype="pdf") as doc:
             for page in doc:
-                total += len(page.get_text().strip())
+                text = page.get_text()
+                # Plain get_text() is always a str; its stub says str | list | dict.
+                if isinstance(text, str):
+                    total += len(text.strip())
                 if total >= min_chars:
                     return True
         return False
@@ -75,7 +78,7 @@ def _pdf_pages(pdf_bytes: bytes, max_pages: int) -> list[Image.Image]:
 
     pages: list[Image.Image] = []
     with pymupdf.open(stream=pdf_bytes, filetype="pdf") as doc:
-        for index, page in enumerate(doc):
+        for index, page in enumerate(doc.pages()):
             if index >= max_pages:
                 break
             pix = page.get_pixmap(matrix=pymupdf.Matrix(_PDF_ZOOM, _PDF_ZOOM))

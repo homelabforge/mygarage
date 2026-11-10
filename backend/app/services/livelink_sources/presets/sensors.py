@@ -287,7 +287,8 @@ async def live_sensors(
     keys_by_device: dict[str, list[str]] = {}
     for device_id, key in rows.all():
         keys = keys_by_device.setdefault(device_id, [])
-        if key not in keys:
+        # The query skips null keys; the first test only narrows the type.
+        if key is not None and key not in keys:
             keys.append(key)
 
     def added(device: LiveLinkDevice) -> tuple[str, bool, int, str]:

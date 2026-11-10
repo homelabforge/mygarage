@@ -1207,7 +1207,7 @@ async def get_vehicle_analytics(
     return VehicleAnalytics(
         vin=vin,
         vehicle_name=vehicle_name,
-        vehicle_type=vehicle.vehicle_type,
+        vehicle_type=vehicle.vehicle_type,  # pyright: ignore[reportArgumentType]  # lenient vocab reads the stored str
         statistics=statistics,
         statistics_as_paid=statistics_as_paid,
         cost_analysis=cost_analysis,
@@ -1395,12 +1395,14 @@ async def get_garage_analytics(
                 else:
                     vehicle_maintenance += cost
 
-        vehicle_fuel = sum((r.cost for r in fuel_records), Decimal("0.00"))
+        # Already filtered; the repeat narrows `cost` for pyright.
+        vehicle_fuel = sum((r.cost for r in fuel_records if r.cost is not None), Decimal("0.00"))
 
         def_records = [r for r in vehicle.def_records if r.cost is not None]
         def_records.sort(key=lambda r: r.date)
 
-        vehicle_def = sum((r.cost for r in def_records), Decimal("0.00"))
+        # Already filtered; the repeat narrows `cost` for pyright.
+        vehicle_def = sum((r.cost for r in def_records if r.cost is not None), Decimal("0.00"))
 
         vehicle_total = (
             vehicle_maintenance

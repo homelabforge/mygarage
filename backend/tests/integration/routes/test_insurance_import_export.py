@@ -566,6 +566,42 @@ async def test_an_import_refuses_a_coverage_amount_it_cannot_store(
     assert await _policies(db_session) == []
 
 
+async def test_a_coverage_key_that_is_not_text_is_skipped_like_an_unknown_one(
+    client: AsyncClient, db_session: AsyncSession, auth_headers
+):
+    """An unknown key is skipped with a warning; a list there is just as unknown."""
+    backup = {
+        "export_version": "8",
+        "units": "metric",
+        "vehicle": {"vin": RAM},
+        "insurance_policies": [
+            {
+                "provider": "Progressive",
+                "policy_number": "P-LISTKEY",
+                "start_date": "2026-01-01",
+                "end_date": "2026-07-01",
+                "policy_type": "Liability",
+                "coverages": [
+                    {"coverage_key": ["collision"]},
+                    {"coverage_key": "bodily_injury", "limit_primary": 1000.0},
+                ],
+            }
+        ],
+    }
+    response = await client.post(
+        f"/api/import/vehicles/{RAM}/json",
+        files={
+            "file": ("backup.json", io.BytesIO(json.dumps(backup).encode()), "application/json")
+        },
+        headers=auth_headers,
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["insurance_policies"]["errors"] == 0, response.json()
+    (policy,) = await _policies(db_session)
+    (link,) = policy.vehicle_links
+    assert [c.coverage_key for c in link.coverages] == ["bodily_injury"]
+
+
 async def test_an_import_refuses_a_fractional_count(
     client: AsyncClient, db_session: AsyncSession, auth_headers
 ):

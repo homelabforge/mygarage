@@ -7,6 +7,7 @@ from decimal import Decimal
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic.config import JsonDict
 
 from app.constants.insurance import NO_CLAIMS_CLASS_PATTERN
 from app.schemas._money import OptionalMoney
@@ -106,7 +107,7 @@ class NamedFieldResponse(BaseModel):
 #: lacks renders no input, and saving the form then clears the stored amount.
 #: `frontend/src/constants/__tests__/insuranceCoverages.test.ts` compares
 #: against it.
-_COVERAGE_SLOTS_SCHEMA = {
+_COVERAGE_SLOTS_SCHEMA: JsonDict = {
     "x-coverage-slots": {
         key: {name: slot.kind for name, slot in coverage.slots()}
         for key, coverage in COVERAGE_BY_KEY.items()

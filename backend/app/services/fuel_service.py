@@ -65,10 +65,14 @@ async def resolve_station_names(
                 AddressBookEntry.id.in_(station_ids)
             )
         )
-        names = dict(result.all())  # type: ignore[arg-type]
+        names = {entry_id: name for entry_id, name in result.all()}
 
-    # names has int keys, so a null FK simply misses and falls back to freetext.
-    return {r.id: names.get(r.station_address_book_id) or r.station_name_freetext for r in records}
+    # A null FK has no name, so it falls back to freetext.
+    return {
+        r.id: (names.get(r.station_address_book_id) if r.station_address_book_id else None)
+        or r.station_name_freetext
+        for r in records
+    }
 
 
 async def build_fuel_response(
@@ -250,6 +254,8 @@ class EconomyPeriod:
     """
 
     record: FuelRecord
+    #: The closing fill-up's odometer (never None here, unlike the column).
+    odometer_km: Decimal
     liters: Decimal
     distance_km: Decimal
     l_per_100km: Decimal
@@ -306,6 +312,7 @@ def economy_periods(records_asc: list[FuelRecord]) -> list[EconomyPeriod]:
             results.append(
                 EconomyPeriod(
                     record=record,
+                    odometer_km=record.odometer_km,
                     liters=liters_since,
                     distance_km=record.odometer_km - prev_endpoint.odometer_km,
                     l_per_100km=value,

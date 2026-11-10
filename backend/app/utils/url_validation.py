@@ -81,7 +81,7 @@ def is_private_ip(ip_address: str) -> bool:
 
         # Additional checks for IPv4-mapped IPv6 addresses
         # Example: ::ffff:127.0.0.1
-        if hasattr(ip_obj, "ipv4_mapped") and ip_obj.ipv4_mapped:
+        if isinstance(ip_obj, ipaddress.IPv6Address) and ip_obj.ipv4_mapped:
             return is_private_ip(str(ip_obj.ipv4_mapped))
 
         return False

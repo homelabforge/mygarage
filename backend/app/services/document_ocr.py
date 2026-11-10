@@ -121,7 +121,7 @@ class DocumentOCRService:
         Returns:
             Dictionary with extraction results and debug info
         """
-        result = {
+        result: dict[str, Any] = {
             "success": False,
             "parser_name": None,
             "provider_detected": None,
@@ -250,7 +250,7 @@ class DocumentOCRService:
 
             text_content = []
             with pymupdf.open(file_path) as doc:
-                for _page_num, page in enumerate(doc):
+                for page in doc:
                     pix = page.get_pixmap(matrix=pymupdf.Matrix(2, 2))
                     img_data = pix.tobytes("png")
                     text = await self._ocr_image_bytes(img_data)
@@ -415,7 +415,7 @@ class DocumentOCRService:
 
             # The wrapper imports fine without the engine, so ask the binary.
             # cached=True reuses a good answer; a failed probe is not cached.
-            pytesseract.get_tesseract_version(cached=True)
+            pytesseract.get_tesseract_version(cached=True)  # pyright: ignore[reportCallIssue]  # the run_once wrapper takes cached
             status["tesseract_available"] = True
         except ImportError, OSError, subprocess.CalledProcessError:
             pass  # No pytesseract, or no working tesseract binary on PATH

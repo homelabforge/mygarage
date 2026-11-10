@@ -938,7 +938,7 @@ async def batch_update_settings(
     # halfway through the apply loop would leave the earlier keys mutated on a
     # session the request never commits, which is a partial batch reported as a
     # failure. Two passes keep the batch all-or-nothing.
-    resolved_writes: list[tuple[str, str, Setting | None]] = []
+    resolved_writes: list[tuple[str, str | None, Setting | None]] = []
     # Rows the placeholder keeps as stored: left untouched, still in the response.
     kept: dict[str, Setting] = {}
     for key, value in batch.settings.items():

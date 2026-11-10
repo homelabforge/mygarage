@@ -9,11 +9,11 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, BeforeValidator, Field, field_validator, model_validator
 
+from app.constants.supply_vocab import SupplyUnitType
 from app.schemas._money import OptionalMoney
 from app.schemas._nullability import reject_null
 from app.utils.lenient_vocab import LenientVocab, lenient_reader
 
-SupplyUnitType = Literal["volume", "count"]
 SupplyVolumeUnit = Literal["mL", "L", "fl_oz_us", "fl_oz_uk", "qt_us", "qt_uk", "gal_us", "gal_uk"]
 
 # Responses only: the column has no CHECK, so an odd stored token reads as null

@@ -27,6 +27,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
 
+from app.constants.wheel_layouts import Axle, BrakePosition
 from app.database import Base
 from app.models._types import ScaledNumeric
 
@@ -47,7 +48,7 @@ class BrakeAxle(Base):
     vin: Mapped[str] = mapped_column(
         String(17), ForeignKey("vehicles.vin", ondelete="CASCADE"), nullable=False
     )
-    axle: Mapped[str] = mapped_column(String(5), nullable=False)
+    axle: Mapped[Axle] = mapped_column(String(5), nullable=False)
     brake_type: Mapped[str] = mapped_column(String(4), nullable=False)
     # Pad (disc) or shoe lining (drum) thickness, in millimetres.
     min_thickness_mm: Mapped[Decimal] = mapped_column(ScaledNumeric(4, 2), nullable=False)
@@ -79,7 +80,7 @@ class BrakeJob(Base):
     vin: Mapped[str] = mapped_column(
         String(17), ForeignKey("vehicles.vin", ondelete="CASCADE"), nullable=False
     )
-    position: Mapped[str] = mapped_column(String(2), nullable=False)
+    position: Mapped[BrakePosition] = mapped_column(String(2), nullable=False)
     brake_type: Mapped[str] = mapped_column(String(4), nullable=False)
     performed_on: Mapped[dt.date] = mapped_column(Date, nullable=False)
     # Context for the wear estimate. Never published to the odometer history.
@@ -118,7 +119,7 @@ class BrakeMeasurement(Base):
     vin: Mapped[str] = mapped_column(
         String(17), ForeignKey("vehicles.vin", ondelete="CASCADE"), nullable=False
     )
-    position: Mapped[str] = mapped_column(String(2), nullable=False)
+    position: Mapped[BrakePosition] = mapped_column(String(2), nullable=False)
     recorded_at: Mapped[dt.date] = mapped_column(Date, nullable=False)
     odometer_km: Mapped[Decimal | None] = mapped_column(ScaledNumeric(10, 2))
     engine_hours: Mapped[Decimal | None] = mapped_column(ScaledNumeric(10, 1))
@@ -166,7 +167,7 @@ class BrakeReminderMark(Base):
     vin: Mapped[str] = mapped_column(
         String(17), ForeignKey("vehicles.vin", ondelete="CASCADE"), nullable=False
     )
-    position: Mapped[str] = mapped_column(String(2), nullable=False)
+    position: Mapped[BrakePosition] = mapped_column(String(2), nullable=False)
     #: The newest of the corner's pad checks the reminder covered.
     seen_through_id: Mapped[int] = mapped_column(Integer, nullable=False)
     #: Whether it covered the corner at replace now.

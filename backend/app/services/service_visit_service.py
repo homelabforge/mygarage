@@ -1152,7 +1152,7 @@ class ServiceVisitService:
             id=item.id,
             visit_id=item.visit_id,
             description=item.description,
-            category=item.category,
+            category=item.category,  # pyright: ignore[reportArgumentType]  # lenient vocab reads the stored str
             maintenance_type=item.maintenance_type,
             cost=item.cost,
             notes=item.notes,

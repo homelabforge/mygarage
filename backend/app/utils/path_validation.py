@@ -5,6 +5,7 @@
 import logging
 import re
 from pathlib import Path
+from typing import Literal, overload
 
 from fastapi import HTTPException, status
 
@@ -51,6 +52,14 @@ def sanitize_filename(filename: str) -> str:
     return filename
 
 
+@overload
+def validate_path_within_base(
+    file_path: Path, base_path: Path, raise_error: Literal[True] = True
+) -> Path: ...
+@overload
+def validate_path_within_base(
+    file_path: Path, base_path: Path, raise_error: bool
+) -> Path | None: ...
 def validate_path_within_base(
     file_path: Path, base_path: Path, raise_error: bool = True
 ) -> Path | None:

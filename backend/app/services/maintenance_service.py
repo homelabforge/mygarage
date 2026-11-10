@@ -23,7 +23,7 @@ from decimal import Decimal
 from typing import Any
 
 from fastapi import HTTPException
-from sqlalchemy import func, or_, select
+from sqlalchemy import ColumnElement, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.maintenance_rule import MaintenanceRule
@@ -362,7 +362,7 @@ async def typed_history(
     work that completed it) is left out: a service one rule owns is never
     another rule's anchor.
     """
-    other_rule = [Reminder.rule_id.isnot(None)]
+    other_rule: list[ColumnElement[bool]] = [Reminder.rule_id.isnot(None)]
     if for_rule_id is not None:
         other_rule.append(Reminder.rule_id != for_rule_id)
     # A reference only OWNS the line item while the two still agree on the
@@ -1418,13 +1418,14 @@ async def _plan_item(
     branch all depend on them, so overriding afterwards would preview one thing
     and do another.
     """
-    assert item.key is not None
+    key = item.key  # the override's copy keeps it
+    assert key is not None
     if override is not None:
         item = _overridden(item, override)
-    maintenance_type = resolve_type(item.maintenance_type, item.title) or item.key
+    maintenance_type = resolve_type(item.maintenance_type, item.title) or key
     intervals: HasIntervals = item
     plan = PackItemPlan(
-        key=item.key,
+        key=key,
         maintenance_type=maintenance_type,
         title=item.title,
         interval_km=item.interval_km,

@@ -70,13 +70,13 @@ def _reminder_urgency(status: DueStatus, event_date: date, today: date) -> Urgen
 
 @router.get("/calendar", response_model=CalendarResponse)
 async def get_calendar_events(
+    db: Annotated[AsyncSession, Depends(get_db)],
     start_date: date | None = Query(None, description="Start date filter (default: 1 month ago)"),
     end_date: date | None = Query(None, description="End date filter (default: 1 year ahead)"),
     vehicle_vins: str | None = Query(None, description="Comma-separated VINs to filter by"),
     event_types: str | None = Query(
         None, description="Comma-separated event types (maintenance,insurance,warranty,service)"
     ),
-    db: Annotated[AsyncSession, Depends(get_db)] = None,
     current_user: User | None = Depends(require_auth),
 ) -> CalendarResponse:
     """Get calendar events aggregated from maintenance schedule, insurance, and warranties."""
@@ -225,7 +225,7 @@ async def get_calendar_events(
                         days_until_due=days_until_due,
                         km_until_due=km_until_due,
                         hours_until_due=hours_until_due,
-                        vehicle_distance_unit=vehicle.distance_unit if vehicle else None,
+                        vehicle_distance_unit=vehicle.distance_unit if vehicle else None,  # pyright: ignore[reportArgumentType]  # lenient vocab reads the stored str
                         tread_depth_mm=reminder.tread_depth_mm,
                         tread_threshold_mm=reminder.tread_threshold_mm,
                     )
@@ -301,9 +301,11 @@ async def get_calendar_events(
         warranty_result = await db.execute(warranty_query)
         warranties = warranty_result.scalars().all()
 
-        for warranty in warranties:
+        # The query already skips a warranty with no end date.
+        dated = [(w, w.end_date) for w in warranties if w.end_date is not None]
+        for warranty, end_date in dated:
             vehicle = vehicles_dict.get(warranty.vin)
-            is_overdue = bool(warranty.end_date and warranty.end_date < today)
+            is_overdue = end_date < today
 
             events.append(
                 CalendarEvent(
@@ -312,11 +314,11 @@ async def get_calendar_events(
                     title=f"{warranty.warranty_type} Warranty Expiration",
                     description=f"{warranty.provider or 'N/A'}"
                     + (f" - {warranty.policy_number}" if warranty.policy_number else ""),
-                    date=warranty.end_date,
+                    date=end_date,
                     vehicle_vin=warranty.vin,
                     vehicle_nickname=vehicle.nickname if vehicle else None,
                     vehicle_color=None,
-                    urgency=calculate_urgency(warranty.end_date, is_overdue),
+                    urgency=calculate_urgency(end_date, is_overdue),
                     is_recurring=False,
                     is_completed=False,
                     is_estimated=False,
@@ -423,11 +425,11 @@ async def get_calendar_events(
 
 @router.get("/calendar/export")
 async def export_calendar_ical(
+    db: Annotated[AsyncSession, Depends(get_db)],
     start_date: date | None = Query(None, description="Start date filter"),
     end_date: date | None = Query(None, description="End date filter"),
     vehicle_vins: str | None = Query(None, description="Comma-separated VINs"),
     event_types: str | None = Query(None, description="Comma-separated event types"),
-    db: Annotated[AsyncSession, Depends(get_db)] = None,
     current_user: User | None = Depends(require_auth),
 ):
     """Export calendar events as iCal format."""

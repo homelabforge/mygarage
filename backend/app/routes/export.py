@@ -421,7 +421,11 @@ def _line_items_json(
         {
             **_json_columns(item, _LINE_ITEM_JSON_EXCLUDE),
             # A link outside the visit has no index here, so it drops.
-            "triggered_by_inspection": position.get(item.triggered_by_inspection_id),
+            "triggered_by_inspection": (
+                position.get(item.triggered_by_inspection_id)
+                if item.triggered_by_inspection_id is not None
+                else None
+            ),
             "recall": recall_index.get(item.recall_id) if item.recall_id is not None else None,
             "warranty": (
                 warranty_index.get(item.warranty_id) if item.warranty_id is not None else None
@@ -743,7 +747,9 @@ async def export_fuel_records_csv(
                 record.station_address_book_id or "",
                 station_names.get(record.id) or "",
                 record.driver_user_id or "",
-                driver_usernames.get(record.driver_user_id) or record.driver_name_freetext or "",
+                (driver_usernames.get(record.driver_user_id) if record.driver_user_id else None)
+                or record.driver_name_freetext
+                or "",
                 record.payment_method or "",
                 record.trip_type or "",
                 # Unit-bearing, and `is not None` rather than truthy: a
@@ -1577,7 +1583,9 @@ async def export_vehicle_json(
         "toll_transactions": [
             {
                 **_json_columns(t, _TOLL_TRANSACTION_JSON_EXCLUDE),
-                "toll_tag_index": tag_index.get(t.toll_tag_id),
+                "toll_tag_index": (
+                    tag_index.get(t.toll_tag_id) if t.toll_tag_id is not None else None
+                ),
             }
             for t in toll_transactions
         ],

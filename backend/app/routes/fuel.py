@@ -189,7 +189,8 @@ async def obc_suggestion(
         .limit(1)
     )
     session = result.scalar_one_or_none()
-    if session is None:
+    # The query only returns ended sessions; the second check just narrows the type.
+    if session is None or session.ended_at is None:
         raise HTTPException(
             status_code=404,
             detail="No matching drive session within the 24-hour window",

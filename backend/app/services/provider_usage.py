@@ -9,6 +9,11 @@ from app.services.settings_service import SettingsService
 logger = logging.getLogger(__name__)
 
 
+def _count(stored: str | None) -> int:
+    """A stored usage count; a blank one (None or "", as a restore can leave) is 0."""
+    return int(stored) if stored else 0
+
+
 async def increment_provider_usage(
     db: AsyncSession,
     provider_name: str,
@@ -26,7 +31,7 @@ async def increment_provider_usage(
     """
     # Get current usage
     usage_setting = await SettingsService.get(db, f"{provider_name}_api_usage")
-    current_usage = int(usage_setting.value) if usage_setting else 0
+    current_usage = _count(usage_setting.value if usage_setting else None)
     new_usage = current_usage + 1
 
     # Update usage
@@ -77,7 +82,7 @@ async def get_provider_usage(
         Dictionary with usage, limit, and percentage fields
     """
     usage_setting = await SettingsService.get(db, f"{provider_name}_api_usage")
-    usage = int(usage_setting.value) if usage_setting else 0
+    usage = _count(usage_setting.value if usage_setting else None)
 
     limits = {
         "tomtom": 2500,

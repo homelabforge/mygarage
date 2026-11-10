@@ -8,7 +8,7 @@ import uuid
 from datetime import datetime
 from io import BytesIO
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 from fastapi import HTTPException, UploadFile, status
 from PIL import Image, ImageOps, UnidentifiedImageError
@@ -66,13 +66,24 @@ class UploadResult:
         file_path: Path,
         file_size: int,
         content_type: str,
+        original_filename: str,
         thumbnail_path: Path | None = None,
     ):
         self.filename = filename
+        #: The name the upload came with (``filename`` is the stored one).
+        self.original_filename = original_filename
         self.file_path = file_path
         self.file_size = file_size
         self.content_type = content_type
         self.thumbnail_path = thumbnail_path
+
+
+class ValidatedUpload(NamedTuple):
+    """What `validate_upload` checked: the bytes, plus the name and type it vouched for."""
+
+    contents: bytes
+    filename: str
+    content_type: str
 
 
 class FileUploadService:
@@ -106,7 +117,7 @@ class FileUploadService:
             return f"{unique_id}{extension}"
 
     @staticmethod
-    async def validate_upload(file: UploadFile, config: FileUploadConfig) -> bytes:
+    async def validate_upload(file: UploadFile, config: FileUploadConfig) -> ValidatedUpload:
         """Validate uploaded file.
 
         Args:
@@ -114,13 +125,20 @@ class FileUploadService:
             config: Upload configuration
 
         Returns:
-            File contents as bytes
+            The contents, with the file's name and declared type
 
         Raises:
             HTTPException: If validation fails
         """
+        # FastAPI always fills in a name; a direct caller might not.
+        filename = file.filename
+        if not filename:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="The file has no name"
+            )
+
         # Validate file extension
-        file_ext = Path(file.filename).suffix.lower()
+        file_ext = Path(filename).suffix.lower()
         if file_ext not in config.allowed_extensions:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -128,7 +146,8 @@ class FileUploadService:
             )
 
         # Validate MIME type
-        if file.content_type not in config.allowed_mimes:
+        content_type = file.content_type
+        if content_type not in config.allowed_mimes:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Invalid file type. Allowed: {', '.join(config.allowed_mimes)}",
@@ -157,8 +176,8 @@ class FileUploadService:
         if config.verify_magic_bytes:
             is_valid, error_msg = validate_file_magic_bytes(
                 contents,
-                file.filename,
-                file.content_type,
+                filename,
+                content_type,
                 strict=config.strict_magic_bytes,
             )
             if not is_valid:
@@ -167,7 +186,7 @@ class FileUploadService:
                     detail=error_msg or "File content does not match its declared type",
                 )
 
-        return contents
+        return ValidatedUpload(contents, filename, content_type)
 
     @staticmethod
     def _write_file(path: Path, contents: bytes) -> None:
@@ -263,14 +282,16 @@ class FileUploadService:
         """
         try:
             # Validate the upload
-            contents = await FileUploadService.validate_upload(file, config)
+            contents, original_name, declared_type = await FileUploadService.validate_upload(
+                file, config
+            )
 
             # For photo uploads (which get thumbnailed via Pillow), decode the
             # image BEFORE writing so a disguised/corrupt image is rejected with
             # nothing persisted (G-4). HEIC is converted to JPEG when pillow-heif
             # is available so browsers always receive a portable format.
-            is_heic = (file.content_type or "").lower() in {"image/heic", "image/heif"} or Path(
-                file.filename or ""
+            is_heic = declared_type.lower() in {"image/heic", "image/heif"} or Path(
+                original_name
             ).suffix.lower() in {".heic", ".heif"}
             if is_heic and config.create_thumbnail:
                 if not _HEIF_AVAILABLE:
@@ -287,12 +308,7 @@ class FileUploadService:
             else:
                 file_filename_override = None
                 file_content_type_override = None
-                if (
-                    config.create_thumbnail
-                    and file.content_type
-                    and file.content_type.startswith("image/")
-                    and not is_heic
-                ):
+                if config.create_thumbnail and declared_type.startswith("image/") and not is_heic:
                     FileUploadService._verify_image_decodable(contents)
 
             # Determine destination directory
@@ -309,9 +325,9 @@ class FileUploadService:
                 else:
                     filename = sanitize_filename(file_filename_override)
             elif config.generate_unique_name:
-                filename = FileUploadService.generate_unique_filename(file.filename)
+                filename = FileUploadService.generate_unique_filename(original_name)
             else:
-                filename = sanitize_filename(file.filename)
+                filename = sanitize_filename(original_name)
 
             # Build file path
             file_path = destination_dir / filename
@@ -324,11 +340,11 @@ class FileUploadService:
 
             logger.info("Saved file: %s", validated_path)
 
-            content_type = file_content_type_override or file.content_type
+            content_type = file_content_type_override or declared_type
 
             # Create thumbnail if configured and it's an image
             thumbnail_path = None
-            if config.create_thumbnail and content_type and content_type.startswith("image/"):
+            if config.create_thumbnail and content_type.startswith("image/"):
                 thumbnail_dir = destination_dir / "thumbnails"
                 thumbnail_filename = f"{Path(filename).stem}_thumb.jpg"
                 thumbnail_path = thumbnail_dir / thumbnail_filename
@@ -350,6 +366,7 @@ class FileUploadService:
                 file_path=validated_path,
                 file_size=len(contents),
                 content_type=content_type,
+                original_filename=original_name,
                 thumbnail_path=thumbnail_path,
             )
 

@@ -95,7 +95,7 @@ def verify_file_content_type(file_content: bytes, declared_mime: str, max_read: 
 
 
 def validate_file_magic_bytes(
-    file_bytes: bytes, filename: str, declared_mime: str, strict: bool = False
+    file_bytes: bytes, filename: str | None, declared_mime: str, strict: bool = False
 ) -> tuple[bool, str | None]:
     """Complete file validation with magic byte check.
 
@@ -125,7 +125,7 @@ def validate_file_magic_bytes(
     return True, None
 
 
-async def validate_csv_upload(file: UploadFile, max_size: int = None) -> str:
+async def validate_csv_upload(file: UploadFile, max_size: int | None = None) -> str:
     """Validate CSV file upload.
 
     Args:
@@ -188,7 +188,7 @@ async def validate_csv_upload(file: UploadFile, max_size: int = None) -> str:
 
 
 async def validate_image_upload(
-    file: UploadFile, max_size: int = None, verify_magic: bool = True
+    file: UploadFile, max_size: int | None = None, verify_magic: bool = True
 ) -> bytes:
     """Validate image file upload.
 
@@ -253,7 +253,7 @@ async def validate_image_upload(
 
 
 async def validate_document_upload(
-    file: UploadFile, max_size: int = None, verify_magic: bool = True
+    file: UploadFile, max_size: int | None = None, verify_magic: bool = True
 ) -> bytes:
     """Validate document file upload.
 
@@ -317,7 +317,7 @@ async def validate_document_upload(
 
 
 async def validate_attachment_upload(
-    file: UploadFile, max_size: int = None, verify_magic: bool = True
+    file: UploadFile, max_size: int | None = None, verify_magic: bool = True
 ) -> bytes:
     """Validate attachment file upload.
 

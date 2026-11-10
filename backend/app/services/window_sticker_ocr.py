@@ -123,7 +123,7 @@ class WindowStickerOCRService:
         if not path.exists():
             raise FileNotFoundError(f"Window sticker file not found: {file_path}")
 
-        result = {
+        result: dict[str, Any] = {
             "success": False,
             "parser_name": None,
             "manufacturer_detected": None,
@@ -213,7 +213,7 @@ class WindowStickerOCRService:
 
             text_content = []
             with pymupdf.open(file_path) as doc:
-                for _page_num, page in enumerate(doc):
+                for page in doc:
                     # Render page to image
                     pix = page.get_pixmap(matrix=pymupdf.Matrix(2, 2))  # 2x scale for better OCR
                     img_data = pix.tobytes("png")
@@ -468,7 +468,7 @@ class WindowStickerOCRService:
 
             # The wrapper imports fine without the engine, so ask the binary.
             # cached=True reuses a good answer; a failed probe is not cached.
-            pytesseract.get_tesseract_version(cached=True)
+            pytesseract.get_tesseract_version(cached=True)  # pyright: ignore[reportCallIssue]  # the run_once wrapper takes cached
             status["tesseract_available"] = True
         except ImportError, OSError, subprocess.CalledProcessError:
             pass  # No pytesseract, or no working tesseract binary on PATH

@@ -1513,7 +1513,7 @@ async def test_a_replay_never_opens_a_pointed_session_even_if_it_reaches_the_pro
     nothing and drops the evidence it was handed, since it was a replay's. Red
     on 177e04d9 (it opened a pointed session)."""
     await _pin_session_settings(db_session, keep_rows)
-    _vin, device = await make_livelink_vehicle("t4prm9", "1")
+    vin, device = await make_livelink_vehicle("t4prm9", "1")
     service = SessionService(db_session)
     now = _now()
     device.movement_candidate_at = now - timedelta(seconds=30)
@@ -1521,7 +1521,7 @@ async def test_a_replay_never_opens_a_pointed_session_even_if_it_reaches_the_pro
     await db_session.flush()
 
     result = await service._promote_to_driving(  # noqa: SLF001 - the guard under test
-        device, extract_signals({"SPEED": 50.0}), now, GAP, live=False
+        device, vin, extract_signals({"SPEED": 50.0}), now, GAP, live=False
     )
 
     assert result is None

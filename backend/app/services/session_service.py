@@ -587,7 +587,9 @@ class SessionService:
         )
 
         if confirmed:
-            return await self._promote_to_driving(device, signals, sample_at, gap, live=live)
+            return await self._promote_to_driving(
+                device, device.vin, signals, sample_at, gap, live=live
+            )
 
         if session is not None:
             # `driving` -> `stopped`: connected, moved before, not moving now.
@@ -769,6 +771,7 @@ class SessionService:
     async def _promote_to_driving(
         self,
         device: LiveLinkDevice,
+        vin: str,
         signals: MovementSignals,
         sample_at: datetime,
         gap: int,
@@ -794,7 +797,7 @@ class SessionService:
                 # confirm against it (B6-12, E-9).
                 self.clear_movement_state(device)
                 return None
-            session = await self._open_session_for_movement(device, sample_at, gap)
+            session = await self._open_session_for_movement(device, vin, sample_at, gap)
         if session is None:
             return None
 
@@ -924,7 +927,7 @@ class SessionService:
         return latest
 
     async def _open_session_for_movement(
-        self, device: LiveLinkDevice, sample_at: datetime, gap: int
+        self, device: LiveLinkDevice, vin: str, sample_at: datetime, gap: int
     ) -> DriveSession | None:
         """Open a session whose window keeps the whole opening burst.
 
@@ -1030,13 +1033,13 @@ class SessionService:
                     return adopted
 
         session = DriveSession(
-            vin=device.vin,
+            vin=vin,
             device_id=device.device_id,
             started_at=started_at,
             movement_started_at=movement_started_at,
             movement_ended_at=movement_ended_at,
             start_odometer=await self._get_current_odometer(
-                device.vin, device.odometer_param_key, device.kind
+                vin, device.odometer_param_key, device.kind
             ),
             boundary_algorithm_version=BOUNDARY_ALGORITHM_MOVEMENT,
             effective_gap_minutes=gap,
@@ -1629,8 +1632,8 @@ class SessionService:
                     if await self._backdate_open_session(session, drive):
                         changed += 1
                     continue
-                session.started_at = min(self._naive_opt(session.started_at), drive.started_at)
-                session.ended_at = max(self._naive_opt(session.ended_at), drive.movement_ended_at)
+                session.started_at = min(self._naive(session.started_at), drive.started_at)
+                session.ended_at = max(self._naive(session.ended_at), drive.movement_ended_at)
                 session.movement_started_at = min(
                     self._naive_opt(session.movement_started_at) or drive.movement_started_at,
                     drive.movement_started_at,

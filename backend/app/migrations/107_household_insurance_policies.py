@@ -229,7 +229,8 @@ def _chain_history(policies: list[dict[str, Any]]) -> None:
             ]
             if not earlier:
                 continue
-            latest_end = max(_day(o["end_date"]) for o in earlier)
+            # `earlier` holds only dated rows; the walrus says so to pyright.
+            latest_end = max(d for o in earlier if (d := _day(o["end_date"])) is not None)
             nearest = [o for o in earlier if _day(o["end_date"]) == latest_end]
             if len(nearest) == 1:
                 chosen[policy["id"]] = nearest[0]["id"]
@@ -358,7 +359,7 @@ def _run_sqlite(engine) -> None:
         try:
             cur.execute("BEGIN")
 
-            rows = [
+            rows: list[dict[str, Any]] = [
                 dict(zip(_LEGACY_COLUMNS, r, strict=True))
                 for r in cur.execute(_LEGACY_SELECT).fetchall()
             ]

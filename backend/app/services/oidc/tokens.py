@@ -58,7 +58,7 @@ def mask_secret(secret: str, show_chars: int = 4) -> str:
     return f"{secret[:show_chars]}****...****{secret[-show_chars:]}"
 
 
-def display_mask_secret(secret: str) -> str:
+def display_mask_secret(secret: str | None) -> str:
     """Canonical mask for admin GET responses: '********' if set, '' otherwise."""
     return MASKED_SECRET_PLACEHOLDER if secret else ""
 
@@ -205,7 +205,7 @@ async def verify_id_token(
         # Create key set. A JWKS of the wrong shape ({} or a non-list "keys")
         # fails in here with a plain KeyError or TypeError.
         try:
-            key_set = KeySet.import_key_set(jwks)
+            key_set = KeySet.import_key_set(jwks)  # pyright: ignore[reportArgumentType]  # shape checked by the except below
         except (KeyError, TypeError) as e:
             logger.error("JWKS has the wrong shape: %s", type(e).__name__)
             return None  # Intentional fallback

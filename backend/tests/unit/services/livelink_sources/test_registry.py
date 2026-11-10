@@ -1,5 +1,7 @@
 """Registry behavior: lookup, kind validation, subscription fan-out."""
 
+from typing import Any
+
 import pytest
 
 from app.services.livelink_sources import registry
@@ -8,6 +10,9 @@ from app.services.livelink_sources.base import (
     Capability,
     IngestBatch,
 )
+
+#: The fake modules here never touch the session.
+_NO_DB: Any = None
 
 
 class _Alpha(BaseSourceModule):
@@ -54,14 +59,14 @@ def test_registering_a_duplicate_kind_is_an_error(reg):
 
 @pytest.mark.asyncio
 async def test_subscriptions_map_topics_to_their_owning_module(reg):
-    subs = await reg.mqtt_subscriptions(None)
+    subs = await reg.mqtt_subscriptions(_NO_DB)
     assert set(subs) == {"a/one", "a/two"}
     assert isinstance(subs["a/one"], _Alpha)
 
 
 @pytest.mark.asyncio
 async def test_http_only_modules_contribute_no_topics(reg):
-    subs = await reg.mqtt_subscriptions(None)
+    subs = await reg.mqtt_subscriptions(_NO_DB)
     assert not any(isinstance(m, _Beta) for m in subs.values())
 
 
@@ -81,7 +86,7 @@ async def test_a_module_claiming_anothers_topic_is_an_error():
     r.register(_Alpha())
     r.register(_Clash())
     with pytest.raises(ValueError, match="a/one"):
-        await r.mqtt_subscriptions(None)
+        await r.mqtt_subscriptions(_NO_DB)
 
 
 def test_the_default_registry_has_the_shipped_modules():
@@ -170,7 +175,7 @@ async def test_resolve_topic_prefers_an_exact_match_over_a_wildcard(reg):
     r = registry.SourceRegistry()
     r.register(_Alpha())  # exact: a/one, a/two
     r.register(_Wild())  # wildcard: a/#
-    subs = await r.mqtt_subscriptions(None)
+    subs = await r.mqtt_subscriptions(_NO_DB)
     assert isinstance(r.resolve_topic("a/one", subs), _Alpha)
     assert isinstance(r.resolve_topic("a/three", subs), _Wild)
     assert r.resolve_topic("z/nine", subs) is None

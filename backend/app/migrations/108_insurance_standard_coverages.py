@@ -192,7 +192,9 @@ def _run_sqlite(engine) -> None:
             cur.execute("BEGIN")
 
             columns = ("id", "policy_id", "coverage_limits", "notes", "next_sort_order")
-            rows = [dict(zip(columns, r, strict=True)) for r in cur.execute(_READ_LINKS).fetchall()]
+            rows: list[dict[str, Any]] = [
+                dict(zip(columns, r, strict=True)) for r in cur.execute(_READ_LINKS).fetchall()
+            ]
             planned = plan_conversion(rows)
 
             cur.execute(_coverages_ddl("INTEGER PRIMARY KEY AUTOINCREMENT"))
