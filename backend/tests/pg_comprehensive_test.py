@@ -491,7 +491,7 @@ class TestTimestampModels:
         link = OIDCPendingLink(
             token="test_pending_link_12345",
             username="test_oidc_target",
-            oidc_claims={"sub": "ext_user_1", "email": "ext@test.com"},
+            oidc_claims='{"sub": "ext_user_1", "email": "ext@test.com"}',
             provider_name="test_provider",
             expires_at=datetime(2026, 12, 31),
         )

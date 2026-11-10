@@ -395,7 +395,7 @@ class RecallService:
             )
             raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
-    async def check_all(self, vin: str, current_user: User) -> RecallCheckResponse:
+    async def check_all(self, vin: str, current_user: User | None) -> RecallCheckResponse:
         """Ask every source that covers the vehicle's country and store what
         is new (#211); a source that fails is a warning in the answer."""
         from app.services.auth import get_vehicle_or_403

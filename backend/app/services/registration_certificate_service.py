@@ -397,7 +397,7 @@ async def apply_to_vehicle(
     result: RegistrationParseResult,
     *,
     overwrite: bool,
-    current_user: User,
+    current_user: User | None,
 ) -> ApplyOutcome:
     """Write the patch onto the vehicle and keep X.1 as its inspection deadline.
 
