@@ -44,7 +44,7 @@ _COMPONENT_WIDTH = 200
 RESOLVED_BY_HAND = "manual"
 
 
-def _select_recalls() -> Select[tuple[Recall]]:
+def _select_recalls() -> Select[Recall]:
     """Recalls with the line item that fixed them, its visit and the shop.
 
     populate_existing so a copy the session already holds picks up a link
