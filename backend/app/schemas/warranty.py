@@ -16,22 +16,22 @@ class WarrantyLinkedItem(BaseModel):
     line_item_id: int
     date: date_type = Field(..., description="The visit's date")
     description: str = Field(..., description="Service description")
-    cost: Decimal | None = Field(None, description="Cost for this line item")
+    cost: Decimal | None = Field(default=None, description="Cost for this line item")
 
 
 class WarrantyRecordBase(BaseModel):
     """Base warranty record schema."""
 
     warranty_type: str = Field(..., description="Type of warranty coverage")
-    provider: str | None = Field(None, description="Warranty provider name")
+    provider: str | None = Field(default=None, description="Warranty provider name")
     start_date: date_type = Field(..., description="Warranty start date")
-    end_date: date_type | None = Field(None, description="Warranty end date")
+    end_date: date_type | None = Field(default=None, description="Warranty end date")
     mileage_limit_km: Decimal | None = Field(
-        None, description="Mileage limit in kilometers if applicable", ge=0, le=99999999.99
+        default=None, description="Mileage limit in kilometers if applicable", ge=0, le=99999999.99
     )
-    coverage_details: str | None = Field(None, description="Details of what is covered")
-    policy_number: str | None = Field(None, description="Warranty policy number")
-    notes: str | None = Field(None, description="Additional notes")
+    coverage_details: str | None = Field(default=None, description="Details of what is covered")
+    policy_number: str | None = Field(default=None, description="Warranty policy number")
+    notes: str | None = Field(default=None, description="Additional notes")
 
 
 class WarrantyRecordCreate(WarrantyRecordBase):
@@ -47,7 +47,7 @@ class WarrantyRecordUpdate(BaseModel):
     provider: str | None = None
     start_date: date_type | None = None
     end_date: date_type | None = None
-    mileage_limit_km: Decimal | None = Field(None, ge=0, le=99999999.99)
+    mileage_limit_km: Decimal | None = Field(default=None, ge=0, le=99999999.99)
     coverage_details: str | None = None
     policy_number: str | None = None
     notes: str | None = None
@@ -62,7 +62,7 @@ class WarrantyRecord(WarrantyRecordBase):
     # No input bounds, so a stored limit past today's rules still reads
     # instead of 500ing (test_response_contract).
     mileage_limit_km: Decimal | None = Field(
-        None, description="Mileage limit in kilometers if applicable"
+        default=None, description="Mileage limit in kilometers if applicable"
     )
     id: int
     vin: str

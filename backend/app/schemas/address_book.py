@@ -26,17 +26,17 @@ class AddressBookEntryBase(BaseModel):
     """Base address book entry schema."""
 
     business_name: str = Field(..., max_length=150)
-    name: str | None = Field(None, max_length=100)
+    name: str | None = Field(default=None, max_length=100)
     address: str | None = None
-    city: str | None = Field(None, max_length=100)
-    state: str | None = Field(None, max_length=50)
-    zip_code: str | None = Field(None, max_length=20)
-    phone: str | None = Field(None, max_length=20)
+    city: str | None = Field(default=None, max_length=100)
+    state: str | None = Field(default=None, max_length=50)
+    zip_code: str | None = Field(default=None, max_length=20)
+    phone: str | None = Field(default=None, max_length=20)
     # The column holds 100. EmailStr takes 254, so a longer one passed here and
     # then 500'd the insert on PostgreSQL.
-    email: EmailStr | None = Field(None, max_length=100)
-    website: str | None = Field(None, max_length=200)
-    category: str | None = Field(None, max_length=50)
+    email: EmailStr | None = Field(default=None, max_length=100)
+    website: str | None = Field(default=None, max_length=200)
+    category: str | None = Field(default=None, max_length=50)
     notes: str | None = None
 
     # Geolocation fields for shop discovery
@@ -45,7 +45,7 @@ class AddressBookEntryBase(BaseModel):
 
     # Shop discovery metadata
     source: str | None = Field(default="manual", max_length=20)
-    external_id: str | None = Field(None, max_length=100)
+    external_id: str | None = Field(default=None, max_length=100)
 
     # Ratings
     rating: Decimal | None = None
@@ -54,7 +54,7 @@ class AddressBookEntryBase(BaseModel):
     # POI categorization (e.g. 'gas_station' for gas-station entries created
     # from the fuel-record form). A gas station is either this or the category
     # "Gas Station", and neither syncs to vendors; see app.utils.gas_station.
-    poi_category: str | None = Field(None, max_length=50)
+    poi_category: str | None = Field(default=None, max_length=50)
     poi_metadata: str | None = None
 
     # An empty poi_category skipped the save route's check and then counted as
@@ -77,16 +77,18 @@ class AddressBookEntryCreate(AddressBookEntryBase):
 class AddressBookEntryUpdate(BaseModel):
     """Schema for updating an address book entry."""
 
-    business_name: str | None = Field(None, max_length=150)
-    name: str | None = Field(None, max_length=100)
+    business_name: str | None = Field(default=None, max_length=150)
+    name: str | None = Field(default=None, max_length=100)
     address: str | None = None
-    city: str | None = Field(None, max_length=100)
-    state: str | None = Field(None, max_length=50)
-    zip_code: str | None = Field(None, max_length=20)
-    phone: str | None = Field(None, max_length=20)
-    email: EmailStr | None = Field(None, max_length=100)  # the column's width, as on the base
-    website: str | None = Field(None, max_length=200)
-    category: str | None = Field(None, max_length=50)
+    city: str | None = Field(default=None, max_length=100)
+    state: str | None = Field(default=None, max_length=50)
+    zip_code: str | None = Field(default=None, max_length=20)
+    phone: str | None = Field(default=None, max_length=20)
+    email: EmailStr | None = Field(
+        default=None, max_length=100
+    )  # the column's width, as on the base
+    website: str | None = Field(default=None, max_length=200)
+    category: str | None = Field(default=None, max_length=50)
     notes: str | None = None
 
     # Geolocation fields for shop discovery
@@ -94,15 +96,15 @@ class AddressBookEntryUpdate(BaseModel):
     longitude: Decimal | None = None
 
     # Shop discovery metadata
-    source: str | None = Field(None, max_length=20)
-    external_id: str | None = Field(None, max_length=100)
+    source: str | None = Field(default=None, max_length=20)
+    external_id: str | None = Field(default=None, max_length=100)
 
     # Ratings
     rating: Decimal | None = None
     user_rating: int | None = None
 
     # POI categorization (see AddressBookEntryBase docstring)
-    poi_category: str | None = Field(None, max_length=50)
+    poi_category: str | None = Field(default=None, max_length=50)
     poi_metadata: str | None = None
 
     @field_validator("email", "website", mode="before")

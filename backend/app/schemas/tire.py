@@ -63,21 +63,21 @@ class TireBase(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    brand: str | None = Field(None, max_length=80)
-    model_name: str | None = Field(None, max_length=80)
-    size: str | None = Field(None, max_length=40)
-    dot_code: str | None = Field(None, max_length=20)
-    tread_depth_mm: Decimal | None = Field(None, ge=0, le=30)
-    pressure_kpa: Decimal | None = Field(None, ge=0, le=1000)
+    brand: str | None = Field(default=None, max_length=80)
+    model_name: str | None = Field(default=None, max_length=80)
+    size: str | None = Field(default=None, max_length=40)
+    dot_code: str | None = Field(default=None, max_length=20)
+    tread_depth_mm: Decimal | None = Field(default=None, ge=0, le=30)
+    pressure_kpa: Decimal | None = Field(default=None, ge=0, le=1000)
     min_tread_mm: Decimal | None = Field(
-        Decimal("2.0"),
+        default=Decimal("2.0"),
         ge=0,
         le=10,
         description="Wear-out threshold in mm; drives reminder hooks",
     )
     notes: str | None = None
     storage_location: str | None = Field(
-        None, max_length=120
+        default=None, max_length=120
     )  #: Where the tire is kept while it is off the vehicle. Free text (migration 100).
 
 
@@ -96,13 +96,13 @@ class TireUpdate(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    brand: str | None = Field(None, max_length=80)
-    model_name: str | None = Field(None, max_length=80)
-    size: str | None = Field(None, max_length=40)
-    dot_code: str | None = Field(None, max_length=20)
-    tread_depth_mm: Decimal | None = Field(None, ge=0, le=30)
-    pressure_kpa: Decimal | None = Field(None, ge=0, le=1000)
-    min_tread_mm: Decimal | None = Field(None, ge=0, le=10)
+    brand: str | None = Field(default=None, max_length=80)
+    model_name: str | None = Field(default=None, max_length=80)
+    size: str | None = Field(default=None, max_length=40)
+    dot_code: str | None = Field(default=None, max_length=20)
+    tread_depth_mm: Decimal | None = Field(default=None, ge=0, le=30)
+    pressure_kpa: Decimal | None = Field(default=None, ge=0, le=1000)
+    min_tread_mm: Decimal | None = Field(default=None, ge=0, le=10)
     notes: str | None = None
     #: The set this tire belongs to, or null for ungrouped. Writable HERE and
     #: nowhere else: `TireCreate` deliberately does not take one, because a set
@@ -112,7 +112,7 @@ class TireUpdate(BaseModel):
     #: a plain optional field would collapse into one.
     set_id: int | None = None
     storage_location: str | None = Field(
-        None, max_length=120
+        default=None, max_length=120
     )  #: Where the tire is kept while it is off the vehicle. Free text (migration 100).
 
 
@@ -123,7 +123,7 @@ class TireMountRequest(BaseModel):
 
     position: TirePosition
     mounted_on: date_type | None = None
-    mounted_odometer_km: Decimal | None = Field(None, ge=0)
+    mounted_odometer_km: Decimal | None = Field(default=None, ge=0)
     mounted_hours: HoursFigure | None = None
     notes: str | None = None
 
@@ -134,11 +134,11 @@ class TireDismountRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     dismounted_on: date_type | None = None
-    dismounted_odometer_km: Decimal | None = Field(None, ge=0)
+    dismounted_odometer_km: Decimal | None = Field(default=None, ge=0)
     dismounted_hours: HoursFigure | None = None
     notes: str | None = None
     storage_location: str | None = Field(
-        None, max_length=120
+        default=None, max_length=120
     )  #: Where the tire is kept while it is off the vehicle. Free text (migration 100).
 
 
@@ -154,7 +154,7 @@ class TireCreateAndMountRequest(TireCreate):
 
     position: TirePosition
     mounted_on: date_type | None = None
-    mounted_odometer_km: Decimal | None = Field(None, ge=0)
+    mounted_odometer_km: Decimal | None = Field(default=None, ge=0)
     mounted_hours: HoursFigure | None = None
 
 
@@ -178,7 +178,7 @@ class TireRotationRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     moves: list[TireRotationMove] = Field(..., min_length=1)
-    odometer_km: Decimal | None = Field(None, ge=0)
+    odometer_km: Decimal | None = Field(default=None, ge=0)
     engine_hours: HoursFigure | None = None
     rotated_on: date_type | None = None
     notes: str | None = None
@@ -215,10 +215,10 @@ class TireReadingCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     recorded_at: date_type
-    odometer_km: Decimal | None = Field(None, ge=0)
+    odometer_km: Decimal | None = Field(default=None, ge=0)
     engine_hours: HoursFigure | None = None
-    tread_depth_mm: Decimal | None = Field(None, ge=0, le=30)
-    pressure_kpa: Decimal | None = Field(None, ge=0, le=1000)
+    tread_depth_mm: Decimal | None = Field(default=None, ge=0, le=30)
+    pressure_kpa: Decimal | None = Field(default=None, ge=0, le=1000)
     notes: str | None = None
 
     @model_validator(mode="after")
@@ -249,10 +249,10 @@ class TireReadingUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     recorded_at: date_type | None = None
-    odometer_km: Decimal | None = Field(None, ge=0)
+    odometer_km: Decimal | None = Field(default=None, ge=0)
     engine_hours: HoursFigure | None = None
-    tread_depth_mm: Decimal | None = Field(None, ge=0, le=30)
-    pressure_kpa: Decimal | None = Field(None, ge=0, le=1000)
+    tread_depth_mm: Decimal | None = Field(default=None, ge=0, le=30)
+    pressure_kpa: Decimal | None = Field(default=None, ge=0, le=1000)
     notes: str | None = None
 
     # NOT NULL column: omitted keeps the stored date, null is a 422.
@@ -308,10 +308,10 @@ class MountPeriodUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     mounted_on: date_type | None = None
-    mounted_odometer_km: Decimal | None = Field(None, ge=0)
+    mounted_odometer_km: Decimal | None = Field(default=None, ge=0)
     mounted_hours: HoursFigure | None = None
     dismounted_on: date_type | None = None
-    dismounted_odometer_km: Decimal | None = Field(None, ge=0)
+    dismounted_odometer_km: Decimal | None = Field(default=None, ge=0)
     dismounted_hours: HoursFigure | None = None
     notes: str | None = None
 
@@ -329,10 +329,10 @@ class MountPeriodCreate(BaseModel):
 
     position: TirePosition
     mounted_on: date_type
-    mounted_odometer_km: Decimal | None = Field(None, ge=0)
+    mounted_odometer_km: Decimal | None = Field(default=None, ge=0)
     mounted_hours: HoursFigure | None = None
     dismounted_on: date_type
-    dismounted_odometer_km: Decimal | None = Field(None, ge=0)
+    dismounted_odometer_km: Decimal | None = Field(default=None, ge=0)
     dismounted_hours: HoursFigure | None = None
     notes: str | None = None
 
@@ -380,7 +380,7 @@ class TireResponse(TireBase):
     tread_depth_mm: Decimal | None = None
     pressure_kpa: Decimal | None = None
     min_tread_mm: Decimal | None = Field(
-        Decimal("2.0"), description="Wear-out threshold in mm; drives reminder hooks"
+        default=Decimal("2.0"), description="Wear-out threshold in mm; drives reminder hooks"
     )
     # Text without the input rules, so a stored string past today's limits
     # still reads instead of 500ing (test_response_contract).
@@ -469,7 +469,7 @@ class TireSetUpdate(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    name: str | None = Field(None, min_length=1, max_length=60)
+    name: str | None = Field(default=None, min_length=1, max_length=60)
     notes: str | None = None
 
     # NOT NULL column: omitted keeps the stored value, null is a 422.
@@ -514,7 +514,7 @@ class TireSetMountRequest(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    odometer_km: Decimal | None = Field(None, ge=0)
+    odometer_km: Decimal | None = Field(default=None, ge=0)
     engine_hours: HoursFigure | None = None
     mounted_on: date_type | None = None
     notes: str | None = None

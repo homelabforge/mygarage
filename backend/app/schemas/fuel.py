@@ -240,17 +240,17 @@ class FuelRecordBase(BaseModel):
 
     date: date_type = Field(..., description="Fill-up date")
     filled_at: datetime | None = Field(
-        None,
+        default=None,
         description=(
             "Optional fill-up timestamp (naive local). Required for OBC "
             "auto-suggest from a matching DriveSession."
         ),
     )
     odometer_km: Decimal | None = Field(
-        None, description="Odometer reading in kilometers", ge=0, le=99999999.99
+        default=None, description="Odometer reading in kilometers", ge=0, le=99999999.99
     )
     engine_hours: Annotated[Decimal | None, AfterValidator(to_stored_tenth)] = Field(
-        None,
+        default=None,
         description=(
             "Engine-hours reading at this fill-up (hour-metered vehicles). "
             "Dimensionless, no unit conversion. Auto-syncs to hours history."
@@ -259,59 +259,59 @@ class FuelRecordBase(BaseModel):
         le=9999999.9,
     )
     liters: Decimal | None = Field(
-        None, description="Fuel amount in liters", ge=0, le=9999.999, decimal_places=3
+        default=None, description="Fuel amount in liters", ge=0, le=9999.999, decimal_places=3
     )
     propane_liters: Decimal | None = Field(
-        None,
+        default=None,
         description="Propane amount in liters",
         ge=0,
         le=9999.999,
         decimal_places=3,
     )
     tank_size_kg: Decimal | None = Field(
-        None, description="Propane tank size in kilograms", ge=0, le=Decimal("9999.999")
+        default=None, description="Propane tank size in kilograms", ge=0, le=Decimal("9999.999")
     )
-    tank_quantity: int | None = Field(None, description="Number of propane tanks", ge=1)
+    tank_quantity: int | None = Field(default=None, description="Number of propane tanks", ge=1)
     kwh: Decimal | None = Field(
-        None,
+        default=None,
         description="Energy amount in kilowatt-hours",
         ge=0,
         le=99999.999,
         decimal_places=3,
     )
     soc_start_pct: Decimal | None = Field(
-        None, description="Battery SOC at session start (%)", ge=0, le=100
+        default=None, description="Battery SOC at session start (%)", ge=0, le=100
     )
     soc_end_pct: Decimal | None = Field(
-        None, description="Battery SOC at session end (%)", ge=0, le=100
+        default=None, description="Battery SOC at session end (%)", ge=0, le=100
     )
     charge_level: str | None = Field(
-        None, description="Charger level: L1 / L2 / DCFC", max_length=10
+        default=None, description="Charger level: L1 / L2 / DCFC", max_length=10
     )
     charge_location: str | None = Field(
-        None, description="Charge location: home / public", max_length=20
+        default=None, description="Charge location: home / public", max_length=20
     )
     battery_soh_pct: Decimal | None = Field(
-        None, description="Optional battery state-of-health (%)", ge=0, le=100
+        default=None, description="Optional battery state-of-health (%)", ge=0, le=100
     )
-    cost: OptionalMoney = Field(None, description="Total cost, net of any rebate")
+    cost: OptionalMoney = Field(default=None, description="Total cost, net of any rebate")
     rebate: OptionalMoney = Field(
-        None, description="Rebate/discount/points redeemed; already deducted from cost"
+        default=None, description="Rebate/discount/points redeemed; already deducted from cost"
     )
     price_per_unit: OptionalUnitPrice = Field(
-        None,
+        default=None,
         description=(
             "Price per unit; denominator depends on price_basis "
             "(per_volume=per liter, per_weight=per kg, per_kwh=per kWh, per_tank=per tank)"
         ),
     )
     price_basis: str | None = Field(
-        None,
+        default=None,
         description="Price denominator: per_volume / per_weight / per_tank / per_kwh",
         max_length=12,
     )
     fuel_type_used: str | None = Field(
-        None,
+        default=None,
         description=(
             "Actual fuel dispensed for this fill-up (canonical enum). Only "
             "surfaced in UI when the vehicle has a secondary fuel capability."
@@ -323,31 +323,33 @@ class FuelRecordBase(BaseModel):
     # wire _validate_octane/_validate_diesel_grade, like price_basis,
     # charge_level and charge_location above.
     octane: int | None = Field(
-        None, description="Octane rating for gasoline/E85 fill-ups (AKI or RON)"
+        default=None, description="Octane rating for gasoline/E85 fill-ups (AKI or RON)"
     )
     octane_scale: str | None = Field(
-        None,
+        default=None,
         description="The scale `octane` was read on: 'RON' or 'AKI'; null when unknown",
         max_length=3,
     )
     diesel_grade: str | None = Field(
-        None,
+        default=None,
         description="Diesel grade: 'onroad' (clear) or 'offroad' (dyed/farm)",
         max_length=10,
     )
     fuel_grade: str | None = Field(
-        None,
+        default=None,
         description="EN 16942 pump label of the fuel dispensed (E5, E10, E85, B7, B10, XTL, LPG, CNG…)",
         max_length=10,
     )
-    is_full_tank: bool = Field(True, description="Full tank fill-up")
-    missed_fillup: bool = Field(False, description="Skipped recording a fill-up")
-    is_hauling: bool = Field(False, description="Vehicle was towing/hauling during this fuel cycle")
-    notes: str | None = Field(None, description="Additional notes")
+    is_full_tank: bool = Field(default=True, description="Full tank fill-up")
+    missed_fillup: bool = Field(default=False, description="Skipped recording a fill-up")
+    is_hauling: bool = Field(
+        default=False, description="Vehicle was towing/hauling during this fuel cycle"
+    )
+    notes: str | None = Field(default=None, description="Additional notes")
 
     # Issue #69: extended fuel tracking
     station_address_book_id: int | None = Field(
-        None,
+        default=None,
         description=(
             "FK to a gas station address_book entry "
             "(poi_category 'gas_station' or category 'Gas Station')"
@@ -355,50 +357,50 @@ class FuelRecordBase(BaseModel):
         ge=1,
     )
     station_name_freetext: str | None = Field(
-        None,
+        default=None,
         description="Freetext station name (one-time visit, no address-book entry created)",
         max_length=150,
     )
     driver_user_id: int | None = Field(
-        None,
+        default=None,
         description="FK to users.id when driver is a known household user",
         ge=1,
     )
     driver_name_freetext: str | None = Field(
-        None,
+        default=None,
         description="Freetext driver name (non-account household member)",
         max_length=100,
     )
     payment_method: str | None = Field(
-        None,
+        default=None,
         description=f"Payment method, one of {PAYMENT_METHOD_VALUES}",
         max_length=20,
     )
     trip_type: str | None = Field(
-        None,
+        default=None,
         description=f"Trip type for this fuel cycle, one of {TRIP_TYPE_VALUES}",
         max_length=20,
     )
     outside_temp_c: Decimal | None = Field(
-        None,
+        default=None,
         description="Outside temperature in Celsius (canonical)",
         ge=Decimal("-60.0"),
         le=Decimal("70.0"),
     )
     obc_l_per_100km: Decimal | None = Field(
-        None,
+        default=None,
         description="OBC reported fuel consumption (L/100 km)",
         ge=0,
         le=Decimal("999.9999"),
     )
     obc_avg_speed_kmh: Decimal | None = Field(
-        None,
+        default=None,
         description="OBC reported average speed (km/h)",
         ge=0,
         le=9999.9,
     )
     obc_trip_duration_s: int | None = Field(
-        None,
+        default=None,
         description="OBC reported trip duration in seconds",
         ge=0,
     )
@@ -420,13 +422,13 @@ class FuelRecordCreate(FuelRecordBase):
 
     vin: str = Field(..., description="Vehicle VIN", min_length=17, max_length=17)
     def_fill_level: Decimal | None = Field(
-        None,
+        default=None,
         description="DEF tank level (0.00=empty, 1.00=full); auto-creates a DEF observation",
         ge=Decimal("0.00"),
         le=Decimal("1.00"),
     )
     one_time_visit: bool = Field(
-        False,
+        default=False,
         description=(
             "When True, station_name_freetext is stored as-is and no "
             "address_book entry is created. Ignored if station_address_book_id is set."
@@ -567,106 +569,106 @@ class FuelRecordCreate(FuelRecordBase):
 class FuelRecordUpdate(BaseModel):
     """Schema for updating an existing fuel record (metric canonical)."""
 
-    date: date_type | None = Field(None, description="Fill-up date")
-    filled_at: datetime | None = Field(None, description="Optional fill-up timestamp")
+    date: date_type | None = Field(default=None, description="Fill-up date")
+    filled_at: datetime | None = Field(default=None, description="Optional fill-up timestamp")
     odometer_km: Decimal | None = Field(
-        None, description="Odometer reading in kilometers", ge=0, le=99999999.99
+        default=None, description="Odometer reading in kilometers", ge=0, le=99999999.99
     )
     engine_hours: Annotated[Decimal | None, AfterValidator(to_stored_tenth)] = Field(
-        None,
+        default=None,
         description="Engine-hours reading at this fill-up (hour-metered vehicles)",
         ge=0,
         le=9999999.9,
     )
     liters: Decimal | None = Field(
-        None, description="Fuel amount in liters", ge=0, le=9999.999, decimal_places=3
+        default=None, description="Fuel amount in liters", ge=0, le=9999.999, decimal_places=3
     )
     propane_liters: Decimal | None = Field(
-        None,
+        default=None,
         description="Propane amount in liters",
         ge=0,
         le=9999.999,
         decimal_places=3,
     )
     tank_size_kg: Decimal | None = Field(
-        None, description="Propane tank size in kilograms", ge=0, le=Decimal("9999.999")
+        default=None, description="Propane tank size in kilograms", ge=0, le=Decimal("9999.999")
     )
-    tank_quantity: int | None = Field(None, description="Number of propane tanks", ge=1)
+    tank_quantity: int | None = Field(default=None, description="Number of propane tanks", ge=1)
     kwh: Decimal | None = Field(
-        None,
+        default=None,
         description="Energy amount in kilowatt-hours",
         ge=0,
         le=99999.999,
         decimal_places=3,
     )
-    soc_start_pct: Decimal | None = Field(None, ge=0, le=100)
-    soc_end_pct: Decimal | None = Field(None, ge=0, le=100)
-    charge_level: str | None = Field(None, max_length=10)
-    charge_location: str | None = Field(None, max_length=20)
-    battery_soh_pct: Decimal | None = Field(None, ge=0, le=100)
-    cost: OptionalMoney = Field(None, description="Total cost, net of any rebate")
+    soc_start_pct: Decimal | None = Field(default=None, ge=0, le=100)
+    soc_end_pct: Decimal | None = Field(default=None, ge=0, le=100)
+    charge_level: str | None = Field(default=None, max_length=10)
+    charge_location: str | None = Field(default=None, max_length=20)
+    battery_soh_pct: Decimal | None = Field(default=None, ge=0, le=100)
+    cost: OptionalMoney = Field(default=None, description="Total cost, net of any rebate")
     rebate: OptionalMoney = Field(
-        None, description="Rebate/discount/points redeemed; already deducted from cost"
+        default=None, description="Rebate/discount/points redeemed; already deducted from cost"
     )
     price_per_unit: OptionalUnitPrice = Field(
-        None, description="Price per unit (see price_basis for denominator)"
+        default=None, description="Price per unit (see price_basis for denominator)"
     )
-    price_basis: str | None = Field(None, max_length=12)
+    price_basis: str | None = Field(default=None, max_length=12)
     fuel_type_used: str | None = Field(
-        None,
+        default=None,
         description="Actual fuel dispensed (canonical enum)",
         max_length=20,
     )
     # #164: same shape as on FuelRecordBase; validators wired below.
     octane: int | None = Field(
-        None, description="Octane rating for gasoline/E85 fill-ups (AKI or RON)"
+        default=None, description="Octane rating for gasoline/E85 fill-ups (AKI or RON)"
     )
     octane_scale: str | None = Field(
-        None,
+        default=None,
         description="The scale `octane` was read on: 'RON' or 'AKI'; null when unknown",
         max_length=3,
     )
     diesel_grade: str | None = Field(
-        None,
+        default=None,
         description="Diesel grade: 'onroad' (clear) or 'offroad' (dyed/farm)",
         max_length=10,
     )
     fuel_grade: str | None = Field(
-        None,
+        default=None,
         description="EN 16942 pump label of the fuel dispensed (E5, E10, E85, B7, B10, XTL, LPG, CNG…)",
         max_length=10,
     )
-    is_full_tank: bool | None = Field(None, description="Full tank fill-up")
-    missed_fillup: bool | None = Field(None, description="Skipped recording a fill-up")
+    is_full_tank: bool | None = Field(default=None, description="Full tank fill-up")
+    missed_fillup: bool | None = Field(default=None, description="Skipped recording a fill-up")
     is_hauling: bool | None = Field(
-        None, description="Vehicle was towing/hauling during this fuel cycle"
+        default=None, description="Vehicle was towing/hauling during this fuel cycle"
     )
-    notes: str | None = Field(None, description="Additional notes")
+    notes: str | None = Field(default=None, description="Additional notes")
     def_fill_level: Decimal | None = Field(
-        None,
+        default=None,
         description="DEF tank level (0.00=empty, 1.00=full); auto-creates a DEF observation",
         ge=Decimal("0.00"),
         le=Decimal("1.00"),
     )
 
     # Issue #69: extended fuel tracking
-    station_address_book_id: int | None = Field(None, ge=1)
-    station_name_freetext: str | None = Field(None, max_length=150)
+    station_address_book_id: int | None = Field(default=None, ge=1)
+    station_name_freetext: str | None = Field(default=None, max_length=150)
     one_time_visit: bool | None = Field(
-        None,
+        default=None,
         description=(
             "Form-only flag, same meaning as on create: when True the typed "
             "station stays freetext instead of being promoted to the address book."
         ),
     )
-    driver_user_id: int | None = Field(None, ge=1)
-    driver_name_freetext: str | None = Field(None, max_length=100)
-    payment_method: str | None = Field(None, max_length=20)
-    trip_type: str | None = Field(None, max_length=20)
-    outside_temp_c: Decimal | None = Field(None, ge=Decimal("-60.0"), le=Decimal("70.0"))
-    obc_l_per_100km: Decimal | None = Field(None, ge=0, le=Decimal("999.9999"))
-    obc_avg_speed_kmh: Decimal | None = Field(None, ge=0, le=9999.9)
-    obc_trip_duration_s: int | None = Field(None, ge=0)
+    driver_user_id: int | None = Field(default=None, ge=1)
+    driver_name_freetext: str | None = Field(default=None, max_length=100)
+    payment_method: str | None = Field(default=None, max_length=20)
+    trip_type: str | None = Field(default=None, max_length=20)
+    outside_temp_c: Decimal | None = Field(default=None, ge=Decimal("-60.0"), le=Decimal("70.0"))
+    obc_l_per_100km: Decimal | None = Field(default=None, ge=0, le=Decimal("999.9999"))
+    obc_avg_speed_kmh: Decimal | None = Field(default=None, ge=0, le=9999.9)
+    obc_trip_duration_s: int | None = Field(default=None, ge=0)
 
     # NOT NULL columns: omitted keeps the stored value, null is a 422.
     _no_null = reject_null("date", "is_full_tank", "is_hauling", "missed_fillup")
@@ -755,105 +757,112 @@ class FuelRecordResponse(FuelRecordBase):
 
     # Numbers without the input bounds, so a stored value past today's rules
     # still reads instead of 500ing (test_response_contract).
-    odometer_km: Decimal | None = Field(None, description="Odometer reading in kilometers")
+    odometer_km: Decimal | None = Field(default=None, description="Odometer reading in kilometers")
     engine_hours: Decimal | None = Field(
-        None,
+        default=None,
         description=(
             "Engine-hours reading at this fill-up (hour-metered vehicles). "
             "Dimensionless, no unit conversion. Auto-syncs to hours history."
         ),
     )
-    liters: Decimal | None = Field(None, description="Fuel amount in liters")
-    propane_liters: Decimal | None = Field(None, description="Propane amount in liters")
-    tank_size_kg: Decimal | None = Field(None, description="Propane tank size in kilograms")
-    tank_quantity: int | None = Field(None, description="Number of propane tanks")
-    kwh: Decimal | None = Field(None, description="Energy amount in kilowatt-hours")
-    soc_start_pct: Decimal | None = Field(None, description="Battery SOC at session start (%)")
-    soc_end_pct: Decimal | None = Field(None, description="Battery SOC at session end (%)")
-    battery_soh_pct: Decimal | None = Field(
-        None, description="Optional battery state-of-health (%)"
+    liters: Decimal | None = Field(default=None, description="Fuel amount in liters")
+    propane_liters: Decimal | None = Field(default=None, description="Propane amount in liters")
+    tank_size_kg: Decimal | None = Field(default=None, description="Propane tank size in kilograms")
+    tank_quantity: int | None = Field(default=None, description="Number of propane tanks")
+    kwh: Decimal | None = Field(default=None, description="Energy amount in kilowatt-hours")
+    soc_start_pct: Decimal | None = Field(
+        default=None, description="Battery SOC at session start (%)"
     )
-    cost: Decimal | None = Field(None, description="Total cost, net of any rebate")
+    soc_end_pct: Decimal | None = Field(default=None, description="Battery SOC at session end (%)")
+    battery_soh_pct: Decimal | None = Field(
+        default=None, description="Optional battery state-of-health (%)"
+    )
+    cost: Decimal | None = Field(default=None, description="Total cost, net of any rebate")
     rebate: Decimal | None = Field(
-        None, description="Rebate/discount/points redeemed; already deducted from cost"
+        default=None, description="Rebate/discount/points redeemed; already deducted from cost"
     )
     price_per_unit: Decimal | None = Field(
-        None,
+        default=None,
         description=(
             "Price per unit; denominator depends on price_basis "
             "(per_volume=per liter, per_weight=per kg, per_kwh=per kWh, per_tank=per tank)"
         ),
     )
     station_address_book_id: int | None = Field(
-        None,
+        default=None,
         description=(
             "FK to a gas station address_book entry "
             "(poi_category 'gas_station' or category 'Gas Station')"
         ),
     )
     driver_user_id: int | None = Field(
-        None, description="FK to users.id when driver is a known household user"
+        default=None, description="FK to users.id when driver is a known household user"
     )
     outside_temp_c: Decimal | None = Field(
-        None, description="Outside temperature in Celsius (canonical)"
+        default=None, description="Outside temperature in Celsius (canonical)"
     )
     obc_l_per_100km: Decimal | None = Field(
-        None, description="OBC reported fuel consumption (L/100 km)"
+        default=None, description="OBC reported fuel consumption (L/100 km)"
     )
-    obc_avg_speed_kmh: Decimal | None = Field(None, description="OBC reported average speed (km/h)")
+    obc_avg_speed_kmh: Decimal | None = Field(
+        default=None, description="OBC reported average speed (km/h)"
+    )
     obc_trip_duration_s: int | None = Field(
-        None, description="OBC reported trip duration in seconds"
+        default=None, description="OBC reported trip duration in seconds"
     )
     # Text without the input rules, so a stored string past today's limits
     # still reads instead of 500ing (test_response_contract).
-    charge_level: str | None = Field(None, description="Charger level: L1 / L2 / DCFC")
-    charge_location: str | None = Field(None, description="Charge location: home / public")
+    charge_level: str | None = Field(default=None, description="Charger level: L1 / L2 / DCFC")
+    charge_location: str | None = Field(default=None, description="Charge location: home / public")
     price_basis: str | None = Field(
-        None, description="Price denominator: per_volume / per_weight / per_tank / per_kwh"
+        default=None, description="Price denominator: per_volume / per_weight / per_tank / per_kwh"
     )
     fuel_type_used: str | None = Field(
-        None,
+        default=None,
         description=(
             "Actual fuel dispensed for this fill-up (canonical enum). Only "
             "surfaced in UI when the vehicle has a secondary fuel capability."
         ),
     )
     octane_scale: str | None = Field(
-        None, description="The scale `octane` was read on: 'RON' or 'AKI'; null when unknown"
+        default=None,
+        description="The scale `octane` was read on: 'RON' or 'AKI'; null when unknown",
     )
     diesel_grade: str | None = Field(
-        None, description="Diesel grade: 'onroad' (clear) or 'offroad' (dyed/farm)"
+        default=None, description="Diesel grade: 'onroad' (clear) or 'offroad' (dyed/farm)"
     )
     fuel_grade: str | None = Field(
-        None,
+        default=None,
         description="EN 16942 pump label of the fuel dispensed (E5, E10, E85, B7, B10, XTL, LPG, CNG…)",
     )
     station_name_freetext: str | None = Field(
-        None,
+        default=None,
         description="Freetext station name (one-time visit, no address-book entry created)",
     )
     driver_name_freetext: str | None = Field(
-        None, description="Freetext driver name (non-account household member)"
+        default=None, description="Freetext driver name (non-account household member)"
     )
     payment_method: str | None = Field(
-        None, description=f"Payment method, one of {PAYMENT_METHOD_VALUES}"
+        default=None, description=f"Payment method, one of {PAYMENT_METHOD_VALUES}"
     )
     trip_type: str | None = Field(
-        None, description=f"Trip type for this fuel cycle, one of {TRIP_TYPE_VALUES}"
+        default=None, description=f"Trip type for this fuel cycle, one of {TRIP_TYPE_VALUES}"
     )
     id: int
     vin: str
     created_at: datetime
-    l_per_100km: Decimal | None = Field(None, description="Calculated fuel economy (L/100 km)")
+    l_per_100km: Decimal | None = Field(
+        default=None, description="Calculated fuel economy (L/100 km)"
+    )
     l_per_hr: Decimal | None = Field(
-        None,
+        default=None,
         description=(
             "Calculated fuel rate (L/hr) over the full-tank interval's engine-hours "
             "delta; null for pure-distance vehicles or un-anchorable records"
         ),
     )
     station_name: str | None = Field(
-        None,
+        default=None,
         description=(
             "Resolved station name for display: the linked address-book entry's "
             "business_name, else station_name_freetext. Read-only; write via "
@@ -892,13 +901,14 @@ class FuelRecordListResponse(BaseModel):
     records: list[FuelRecordResponse]
     total: int
     average_l_per_100km: Decimal | None = Field(
-        None, description="Average fuel consumption (L/100 km) across all records"
+        default=None, description="Average fuel consumption (L/100 km) across all records"
     )
     average_l_per_hr: Decimal | None = Field(
-        None, description="Average fuel rate (L/hr) across all records; null for pure-distance"
+        default=None,
+        description="Average fuel rate (L/hr) across all records; null for pure-distance",
     )
     average_cost_per_hr: Decimal | None = Field(
-        None,
+        default=None,
         description="Average fuel cost per engine-hour across all records; null for pure-distance",
     )
 
@@ -932,10 +942,18 @@ class ObcSuggestionResponse(BaseModel):
 
     session_id: int = Field(..., description="DriveSession.id used for the suggestion")
     ended_at: datetime = Field(..., description="When the matched DriveSession ended")
-    distance_km: Decimal | None = Field(None, description="Distance covered during the session")
-    obc_l_per_100km: Decimal | None = Field(None, description="Suggested consumption (L/100 km)")
-    obc_avg_speed_kmh: Decimal | None = Field(None, description="Suggested average speed (km/h)")
-    obc_trip_duration_s: int | None = Field(None, description="Suggested trip duration (seconds)")
+    distance_km: Decimal | None = Field(
+        default=None, description="Distance covered during the session"
+    )
+    obc_l_per_100km: Decimal | None = Field(
+        default=None, description="Suggested consumption (L/100 km)"
+    )
+    obc_avg_speed_kmh: Decimal | None = Field(
+        default=None, description="Suggested average speed (km/h)"
+    )
+    obc_trip_duration_s: int | None = Field(
+        default=None, description="Suggested trip duration (seconds)"
+    )
 
 
 class FuelReceiptDraft(BaseModel):

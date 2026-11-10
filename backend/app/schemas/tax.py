@@ -61,9 +61,9 @@ class TaxRecordBase(BaseModel):
     """Base tax record schema."""
 
     date: date_type = Field(..., description="Date the fee was paid")
-    tax_type: TaxType | None = Field(None, description=_TAX_TYPE_DESCRIPTION)
+    tax_type: TaxType | None = Field(default=None, description=_TAX_TYPE_DESCRIPTION)
     amount: Money = Field(..., description="Amount paid")
-    renewal_date: date_type | None = Field(None, description="Next renewal date")
+    renewal_date: date_type | None = Field(default=None, description="Next renewal date")
     notes: str | None = None
 
 
@@ -109,7 +109,7 @@ class TaxRecordResponse(TaxRecordBase):
     """Schema for tax record response."""
 
     # The same field as the base's, read leniently (the twin keeps the description).
-    tax_type: LenientTaxType = Field(None, description=_TAX_TYPE_DESCRIPTION)
+    tax_type: LenientTaxType = Field(default=None, description=_TAX_TYPE_DESCRIPTION)
     # Money without the input bounds, so a stored amount past today's rules
     # still reads instead of 500ing (test_response_contract).
     amount: Decimal = Field(..., description="Amount paid")

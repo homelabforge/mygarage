@@ -50,7 +50,7 @@ class VehicleTransferRequest(BaseModel):
 
     to_user_id: int = Field(..., description="User ID of the new owner")
     transfer_notes: str | None = Field(
-        None,
+        default=None,
         max_length=1000,
         description="Optional notes about the transfer",
     )
@@ -210,7 +210,7 @@ class FamilyMemberUpdateRequest(BaseModel):
         description="Whether to show this user on the family dashboard",
     )
     family_dashboard_order: int | None = Field(
-        None,
+        default=None,
         ge=0,
         description="Display order on family dashboard",
     )

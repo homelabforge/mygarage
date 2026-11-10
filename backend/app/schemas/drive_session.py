@@ -13,8 +13,8 @@ class DriveSessionBase(BaseModel):
     """Base drive session schema."""
 
     started_at: datetime = Field(..., description="Session start time")
-    ended_at: datetime | None = Field(None, description="Session end time")
-    duration_seconds: int | None = Field(None, description="Session duration in seconds")
+    ended_at: datetime | None = Field(default=None, description="Session end time")
+    duration_seconds: int | None = Field(default=None, description="Session duration in seconds")
 
 
 class DriveSessionResponse(DriveSessionBase):
@@ -29,38 +29,38 @@ class DriveSessionResponse(DriveSessionBase):
     #: parked vehicle checking in became one. Exposed so a row shown under
     #: "include earlier drives" can say what it is rather than just look wrong.
     boundary_algorithm_version: int = Field(
-        0, description="0 = recorded on device contact (pre-v3.3.0), 1 = on movement"
+        default=0, description="0 = recorded on device contact (pre-v3.3.0), 1 = on movement"
     )
 
     # Odometer data
-    start_odometer: float | None = Field(None, description="Odometer at start (km)")
-    end_odometer: float | None = Field(None, description="Odometer at end (km)")
-    distance_km: float | None = Field(None, description="Distance traveled (km)")
+    start_odometer: float | None = Field(default=None, description="Odometer at start (km)")
+    end_odometer: float | None = Field(default=None, description="Odometer at end (km)")
+    distance_km: float | None = Field(default=None, description="Distance traveled (km)")
 
     # Speed aggregates
-    avg_speed: float | None = Field(None, description="Average speed (km/h)")
-    max_speed: float | None = Field(None, description="Maximum speed (km/h)")
+    avg_speed: float | None = Field(default=None, description="Average speed (km/h)")
+    max_speed: float | None = Field(default=None, description="Maximum speed (km/h)")
 
     # RPM aggregates
-    avg_rpm: float | None = Field(None, description="Average RPM")
-    max_rpm: float | None = Field(None, description="Maximum RPM")
+    avg_rpm: float | None = Field(default=None, description="Average RPM")
+    max_rpm: float | None = Field(default=None, description="Maximum RPM")
 
     # Temperature aggregates
-    avg_coolant_temp: float | None = Field(None, description="Average coolant temp (°C)")
-    max_coolant_temp: float | None = Field(None, description="Maximum coolant temp (°C)")
+    avg_coolant_temp: float | None = Field(default=None, description="Average coolant temp (°C)")
+    max_coolant_temp: float | None = Field(default=None, description="Maximum coolant temp (°C)")
 
     # Throttle aggregates
-    avg_throttle: float | None = Field(None, description="Average throttle (%)")
-    max_throttle: float | None = Field(None, description="Maximum throttle (%)")
+    avg_throttle: float | None = Field(default=None, description="Average throttle (%)")
+    max_throttle: float | None = Field(default=None, description="Maximum throttle (%)")
 
     # Fuel metrics
-    avg_fuel_level: float | None = Field(None, description="Average fuel level (%)")
-    fuel_used_estimate: float | None = Field(None, description="Estimated fuel used (L)")
+    avg_fuel_level: float | None = Field(default=None, description="Average fuel level (%)")
+    fuel_used_estimate: float | None = Field(default=None, description="Estimated fuel used (L)")
 
     # Driving insights
-    idle_seconds: int | None = Field(None, description="Time spent near-stopped (s)")
-    harsh_accel_count: int | None = Field(None, description="Harsh acceleration events")
-    harsh_brake_count: int | None = Field(None, description="Harsh braking events")
+    idle_seconds: int | None = Field(default=None, description="Time spent near-stopped (s)")
+    harsh_accel_count: int | None = Field(default=None, description="Harsh acceleration events")
+    harsh_brake_count: int | None = Field(default=None, description="Harsh braking events")
 
     # Metadata
     created_at: datetime
@@ -87,7 +87,7 @@ class DriveSessionDetailResponse(DriveSessionResponse):
     parameters_recorded: list[str] = Field(
         default_factory=list, description="Parameter keys recorded"
     )
-    data_points_count: int = Field(0, description="Total telemetry points in session")
+    data_points_count: int = Field(default=0, description="Total telemetry points in session")
 
     # DTC events during session
     dtcs_appeared: list[str] = Field(
@@ -106,11 +106,17 @@ class DriveSessionDetailResponse(DriveSessionResponse):
 class SessionQueryParams(BaseModel):
     """Schema for session query parameters."""
 
-    start: datetime | None = Field(None, description="Filter sessions starting after this time")
-    end: datetime | None = Field(None, description="Filter sessions ending before this time")
-    min_duration_seconds: int | None = Field(None, description="Minimum session duration", ge=0)
-    limit: int = Field(50, description="Maximum sessions to return", ge=1, le=500)
-    offset: int = Field(0, description="Pagination offset", ge=0)
+    start: datetime | None = Field(
+        default=None, description="Filter sessions starting after this time"
+    )
+    end: datetime | None = Field(
+        default=None, description="Filter sessions ending before this time"
+    )
+    min_duration_seconds: int | None = Field(
+        default=None, description="Minimum session duration", ge=0
+    )
+    limit: int = Field(default=50, description="Maximum sessions to return", ge=1, le=500)
+    offset: int = Field(default=0, description="Pagination offset", ge=0)
 
 
 # =============================================================================
@@ -121,8 +127,12 @@ class SessionQueryParams(BaseModel):
 class SessionTelemetryRequest(BaseModel):
     """Schema for requesting telemetry data for a session."""
 
-    param_keys: list[str] | None = Field(None, description="Parameters to include (None = all)")
-    downsample_seconds: int | None = Field(None, description="Optional downsampling interval", ge=1)
+    param_keys: list[str] | None = Field(
+        default=None, description="Parameters to include (None = all)"
+    )
+    downsample_seconds: int | None = Field(
+        default=None, description="Optional downsampling interval", ge=1
+    )
 
 
 class SessionTelemetryDataPoint(BaseModel):

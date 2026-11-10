@@ -201,7 +201,7 @@ class OIDCAdminConfigResponse(OIDCAdminConfig):
     """
 
     client_secret_unreadable: bool = Field(
-        False,
+        default=False,
         description=(
             "True when a client secret is stored but can't be decrypted with the "
             "current settings key. `client_secret` still shows the placeholder; "

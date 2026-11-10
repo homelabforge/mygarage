@@ -22,7 +22,7 @@ class HoursRecordBase(BaseModel):
     engine_hours: Annotated[Decimal, AfterValidator(to_stored_tenth)] = Field(
         ..., description="Engine hours reading", ge=0, le=999999999.9
     )
-    notes: str | None = Field(None, description="Additional notes")
+    notes: str | None = Field(default=None, description="Additional notes")
 
 
 class HoursRecordCreate(HoursRecordBase):
@@ -47,11 +47,11 @@ class HoursRecordCreate(HoursRecordBase):
 class HoursRecordUpdate(BaseModel):
     """Schema for updating an existing hours record."""
 
-    date: date_type | None = Field(None, description="Reading date")
+    date: date_type | None = Field(default=None, description="Reading date")
     engine_hours: Annotated[Decimal | None, AfterValidator(to_stored_tenth)] = Field(
-        None, description="Engine hours reading", ge=0, le=999999999.9
+        default=None, description="Engine hours reading", ge=0, le=999999999.9
     )
-    notes: str | None = Field(None, description="Additional notes")
+    notes: str | None = Field(default=None, description="Additional notes")
 
     # NOT NULL columns: omitted keeps the stored value, null is a 422.
     _no_null = reject_null("date", "engine_hours")
@@ -100,7 +100,7 @@ class HoursRecordListResponse(BaseModel):
     records: list[HoursRecordResponse]
     total: int
     latest_engine_hours: Decimal | None = Field(
-        None, description="Canonical latest engine-hours reading (highest on record)"
+        default=None, description="Canonical latest engine-hours reading (highest on record)"
     )
 
     model_config = {

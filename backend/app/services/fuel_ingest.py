@@ -36,8 +36,8 @@ class WebhookVehicleRef(BaseModel):
     `vehicle` (a nickname, serial, HIN or asset tag, up to 100 characters), for
     equipment without a VIN (#226). One of the two is required."""
 
-    vin: str | None = Field(None, max_length=17)
-    vehicle: str | None = Field(None, max_length=100)
+    vin: str | None = Field(default=None, max_length=17)
+    vehicle: str | None = Field(default=None, max_length=100)
 
     @model_validator(mode="after")
     def _one_reference(self) -> Self:
@@ -63,23 +63,23 @@ class WebhookFuelPayload(WebhookVehicleRef):
     """
 
     date: date_type | None = None
-    odometer_km: Decimal | None = Field(None, ge=0, le=99999999.99)
-    liters: Decimal | None = Field(None, ge=0, le=9999.999)
-    kwh: Decimal | None = Field(None, ge=0, le=99999.999)
+    odometer_km: Decimal | None = Field(default=None, ge=0, le=99999999.99)
+    liters: Decimal | None = Field(default=None, ge=0, le=9999.999)
+    kwh: Decimal | None = Field(default=None, ge=0, le=99999.999)
     cost: OptionalMoney = None
     price_per_unit: OptionalUnitPrice = None
-    price_basis: str | None = Field(None, max_length=12)
+    price_basis: str | None = Field(default=None, max_length=12)
     is_full_tank: bool = True
     notes: str | None = None
-    soc_start_pct: Decimal | None = Field(None, ge=0, le=100)
-    soc_end_pct: Decimal | None = Field(None, ge=0, le=100)
-    charge_level: str | None = Field(None, max_length=10)
-    charge_location: str | None = Field(None, max_length=20)
-    battery_soh_pct: Decimal | None = Field(None, ge=0, le=100)
-    fuel_type_used: str | None = Field(None, max_length=20)
+    soc_start_pct: Decimal | None = Field(default=None, ge=0, le=100)
+    soc_end_pct: Decimal | None = Field(default=None, ge=0, le=100)
+    charge_level: str | None = Field(default=None, max_length=10)
+    charge_location: str | None = Field(default=None, max_length=20)
+    battery_soh_pct: Decimal | None = Field(default=None, ge=0, le=100)
+    fuel_type_used: str | None = Field(default=None, max_length=20)
     # #164 — same validators as the fuel input schemas.
     octane: int | None = None
-    diesel_grade: str | None = Field(None, max_length=10)
+    diesel_grade: str | None = Field(default=None, max_length=10)
 
     @field_validator("octane")
     @classmethod
@@ -92,7 +92,7 @@ class WebhookFuelPayload(WebhookVehicleRef):
         return _validate_diesel_grade(v)
 
     # #211 — EN 16942 pump label, same validator as the fuel input schemas.
-    fuel_grade: str | None = Field(None, max_length=10)
+    fuel_grade: str | None = Field(default=None, max_length=10)
 
     @field_validator("fuel_grade")
     @classmethod

@@ -14,12 +14,12 @@ class SpotRentalBillingBase(BaseModel):
     """Base schema for billing entry."""
 
     billing_date: date_type = Field(..., description="Date of this billing entry")
-    monthly_rate: OptionalMoney = Field(None, description="Monthly rate for this period")
-    electric: OptionalMoney = Field(None, description="Electric charge")
-    water: OptionalMoney = Field(None, description="Water charge")
-    waste: OptionalMoney = Field(None, description="Waste charge")
-    total: OptionalMoney = Field(None, description="Total for this billing entry")
-    notes: str | None = Field(None, max_length=1000, description="Billing notes")
+    monthly_rate: OptionalMoney = Field(default=None, description="Monthly rate for this period")
+    electric: OptionalMoney = Field(default=None, description="Electric charge")
+    water: OptionalMoney = Field(default=None, description="Water charge")
+    waste: OptionalMoney = Field(default=None, description="Waste charge")
+    total: OptionalMoney = Field(default=None, description="Total for this billing entry")
+    notes: str | None = Field(default=None, max_length=1000, description="Billing notes")
 
 
 class SpotRentalBillingCreate(SpotRentalBillingBase):
@@ -37,7 +37,7 @@ class SpotRentalBillingUpdate(BaseModel):
     water: OptionalMoney = None
     waste: OptionalMoney = None
     total: OptionalMoney = None
-    notes: str | None = Field(None, max_length=1000)
+    notes: str | None = Field(default=None, max_length=1000)
 
     # NOT NULL column: a null billing_date reached the database as a 500.
     _no_null = reject_null("billing_date")
@@ -50,14 +50,14 @@ class SpotRentalBillingResponse(SpotRentalBillingBase):
 
     # Money without the input bounds, so a stored amount past today's rules
     # still reads instead of 500ing (test_response_contract).
-    monthly_rate: Decimal | None = Field(None, description="Monthly rate for this period")
-    electric: Decimal | None = Field(None, description="Electric charge")
-    water: Decimal | None = Field(None, description="Water charge")
-    waste: Decimal | None = Field(None, description="Waste charge")
-    total: Decimal | None = Field(None, description="Total for this billing entry")
+    monthly_rate: Decimal | None = Field(default=None, description="Monthly rate for this period")
+    electric: Decimal | None = Field(default=None, description="Electric charge")
+    water: Decimal | None = Field(default=None, description="Water charge")
+    waste: Decimal | None = Field(default=None, description="Waste charge")
+    total: Decimal | None = Field(default=None, description="Total for this billing entry")
     # Text without the input rules, so a stored string past today's limits
     # still reads instead of 500ing (test_response_contract).
-    notes: str | None = Field(None, description="Billing notes")
+    notes: str | None = Field(default=None, description="Billing notes")
     id: int
     spot_rental_id: int
     created_at: datetime

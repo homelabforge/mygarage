@@ -45,15 +45,17 @@ class LiveLinkDeviceBase(BaseModel):
     """Base device schema."""
 
     device_id: str = Field(..., description="WiCAN device ID (12-char hex)")
-    label: str | None = Field(None, description="User-friendly device name")
+    label: str | None = Field(default=None, description="User-friendly device name")
 
 
 class LiveLinkDeviceCreate(LiveLinkDeviceBase):
     """Schema for auto-discovering a new device."""
 
-    hw_version: str | None = Field(None, description="Hardware version (e.g., WiCAN-OBD-PRO)")
-    fw_version: str | None = Field(None, description="Firmware version (e.g., 4.45)")
-    git_version: str | None = Field(None, description="Git version tag (e.g., v4.45p)")
+    hw_version: str | None = Field(
+        default=None, description="Hardware version (e.g., WiCAN-OBD-PRO)"
+    )
+    fw_version: str | None = Field(default=None, description="Firmware version (e.g., 4.45)")
+    git_version: str | None = Field(default=None, description="Git version tag (e.g., v4.45p)")
 
 
 def _label_or_none(value: object) -> object:
@@ -94,11 +96,11 @@ class LiveLinkDeviceManualCreate(BaseModel):
     device_id: str = Field(..., max_length=20, pattern=DEVICE_ID_PATTERN)
     kind: str = Field(..., max_length=20)
     label: str | None = Field(
-        None,
+        default=None,
         max_length=100,
         description="User-friendly device name, stored stripped. Blank is no name.",
     )
-    vin: str | None = Field(None, min_length=17, max_length=17)
+    vin: str | None = Field(default=None, min_length=17, max_length=17)
 
     @field_validator("label", mode="before")
     @classmethod
@@ -122,7 +124,7 @@ class LiveLinkDeviceUpdate(BaseModel):
     """Schema for updating a device."""
 
     label: str | None = Field(
-        None,
+        default=None,
         max_length=100,
         description=(
             "User-friendly device name, stored stripped. Null or blank clears it; "
@@ -130,7 +132,7 @@ class LiveLinkDeviceUpdate(BaseModel):
         ),
     )
     vin: str | None = Field(
-        None,
+        default=None,
         max_length=17,
         description=(
             "VIN to link the device to, any case. An empty string UNLINKS it; "
@@ -138,16 +140,16 @@ class LiveLinkDeviceUpdate(BaseModel):
             "odometer_param_key below."
         ),
     )
-    enabled: bool | None = Field(None, description="Enable/disable device")
+    enabled: bool | None = Field(default=None, description="Enable/disable device")
     odometer_unit: Literal["km", "mi", "auto"] | None = Field(
-        None,
+        default=None,
         description=(
             "Units this device reports its odometer in. 'auto' clears the "
             "override and infers from the param key shape. None leaves it unchanged."
         ),
     )
     odometer_param_key: str | None = Field(
-        None,
+        default=None,
         max_length=100,
         description=(
             "Which reported parameter carries this device's odometer. Omitted "
@@ -186,31 +188,38 @@ class LiveLinkDeviceResponse(LiveLinkDeviceBase):
     """Schema for device response."""
 
     id: int
-    vin: str | None = Field(None, description="Linked vehicle VIN")
+    vin: str | None = Field(default=None, description="Linked vehicle VIN")
     hw_version: str | None
     fw_version: str | None
     git_version: str | None
-    sta_ip: str | None = Field(None, description="Device IP on local network")
-    rssi: int | None = Field(None, description="WiFi signal strength (dBm)")
-    battery_voltage: float | None = Field(None, description="Vehicle battery voltage (V)")
+    sta_ip: str | None = Field(default=None, description="Device IP on local network")
+    rssi: int | None = Field(default=None, description="WiFi signal strength (dBm)")
+    battery_voltage: float | None = Field(default=None, description="Vehicle battery voltage (V)")
     ecu_status: LenientECUStatus = Field(
-        "unknown", description="ECU status: online/offline/unknown"
+        default="unknown", description="ECU status: online/offline/unknown"
     )
     device_status: LenientDeviceStatus = Field(
-        "unknown", description="Device status: online/offline/unknown"
+        default="unknown", description="Device status: online/offline/unknown"
     )
-    has_device_token: bool = Field(False, description="Whether device has per-device token")
-    device_address: str | None = Field(None, description="Admin-set IP/host for SD-card log pulls")
-    sd_backfill_enabled: bool = Field(False, description="Whether SD-card backfill is enabled")
+    has_device_token: bool = Field(default=False, description="Whether device has per-device token")
+    device_address: str | None = Field(
+        default=None, description="Admin-set IP/host for SD-card log pulls"
+    )
+    sd_backfill_enabled: bool = Field(
+        default=False, description="Whether SD-card backfill is enabled"
+    )
     odometer_unit: str | None = Field(
-        None, description="Declared odometer units ('km'/'mi'); None means inferred from the key"
+        default=None,
+        description="Declared odometer units ('km'/'mi'); None means inferred from the key",
     )
-    kind: str = Field("wican", description="Source module that owns this device (see GET /sources)")
+    kind: str = Field(
+        default="wican", description="Source module that owns this device (see GET /sources)"
+    )
     odometer_param_key: str | None = Field(
-        None, description="Which reported parameter carries this device's odometer"
+        default=None, description="Which reported parameter carries this device's odometer"
     )
     preset_key: str | None = Field(
-        None,
+        default=None,
         description=(
             "The preset that created this device, if any. A preset device's tab "
             "is named by its preset, and its mappings are the preset's, not hand-made."
@@ -224,7 +233,7 @@ class LiveLinkDeviceResponse(LiveLinkDeviceBase):
     #: is instead of showing an empty session list with no explanation. A silent
     #: zero is the failure the whole boundary rework exists to remove.
     last_movement_at: datetime | None = Field(
-        None, description="When this device last reported a recognised movement signal"
+        default=None, description="When this device last reported a recognised movement signal"
     )
     #: Computed per response, not stored; see
     #: `LiveLinkService.movement_unreadable_device_ids` for the rule and why it
@@ -232,12 +241,12 @@ class LiveLinkDeviceResponse(LiveLinkDeviceBase):
     #: schema must answer it: the False default would otherwise report "reads
     #: fine" about a device nobody asked about.
     movement_unreadable: bool = Field(
-        False, description="Device reports telemetry but nothing recognisable as movement"
+        default=False, description="Device reports telemetry but nothing recognisable as movement"
     )
     #: Computed per response like `movement_unreadable`, and for the same
     #: reason every handler returning this schema must answer it.
     online: bool = Field(
-        False,
+        default=False,
         description=(
             "Whether the device is reporting now, by the integrations card's "
             "rule: a device whose device_status is 'online' counts as online "
@@ -259,7 +268,7 @@ class LiveLinkDeviceListResponse(BaseModel):
     devices: list[LiveLinkDeviceResponse]
     total: int
     online_count: int = Field(
-        0, description="Number of devices currently online, by each device's `online`"
+        default=0, description="Number of devices currently online, by each device's `online`"
     )
 
 
@@ -275,7 +284,7 @@ class TokenGenerateResponse(BaseModel):
     """
 
     token: str = Field(..., description="Generated API token (shown only once)")
-    expires_at: datetime | None = Field(None, description="Token expiration (None = never)")
+    expires_at: datetime | None = Field(default=None, description="Token expiration (None = never)")
 
 
 class TokenInfoResponse(BaseModel):
@@ -295,9 +304,11 @@ class LiveLinkParameterBase(BaseModel):
     """Base parameter schema."""
 
     param_key: str = Field(..., description="Parameter key (e.g., ENGINE_RPM)")
-    display_name: str | None = Field(None, description="User-friendly display name")
-    unit: str | None = Field(None, description="Unit of measurement")
-    param_class: str | None = Field(None, description="Parameter class (temperature, speed, etc.)")
+    display_name: str | None = Field(default=None, description="User-friendly display name")
+    unit: str | None = Field(default=None, description="Unit of measurement")
+    param_class: str | None = Field(
+        default=None, description="Parameter class (temperature, speed, etc.)"
+    )
 
 
 class LiveLinkParameterCreate(LiveLinkParameterBase):
@@ -306,10 +317,10 @@ class LiveLinkParameterCreate(LiveLinkParameterBase):
     # Held to the columns here and not on the base, which the response shares:
     # a long name already stored on SQLite shouldn't turn a read into a 500.
     display_name: str | None = Field(
-        None, max_length=DISPLAY_NAME_MAX_LENGTH, description="User-friendly display name"
+        default=None, max_length=DISPLAY_NAME_MAX_LENGTH, description="User-friendly display name"
     )
     category: str | None = Field(
-        None, max_length=CATEGORY_MAX_LENGTH, description="Category for grouping"
+        default=None, max_length=CATEGORY_MAX_LENGTH, description="Category for grouping"
     )
 
 
@@ -319,19 +330,19 @@ class LiveLinkParameterUpdate(BaseModel):
     # The column widths. PostgreSQL refuses a longer value at commit, a 500;
     # SQLite would store it whole.
     display_name: str | None = Field(
-        None, max_length=DISPLAY_NAME_MAX_LENGTH, description="User-friendly display name"
+        default=None, max_length=DISPLAY_NAME_MAX_LENGTH, description="User-friendly display name"
     )
     category: str | None = Field(
-        None, max_length=CATEGORY_MAX_LENGTH, description="Category for grouping"
+        default=None, max_length=CATEGORY_MAX_LENGTH, description="Category for grouping"
     )
     icon: str | None = Field(
-        None, max_length=ICON_MAX_LENGTH, description="Icon identifier for frontend"
+        default=None, max_length=ICON_MAX_LENGTH, description="Icon identifier for frontend"
     )
     # The three alert lines: an explicit null switches a line off, an omitted
     # field leaves it as it is. Not NaN or infinity: NaN is a line no value
     # ever crosses. Lines are compared in the stored unit, so they're in it too.
     warning_min: float | None = Field(
-        None,
+        default=None,
         description=(
             "Alert if value drops below, in the reading's canonical metric unit "
             "(°C, km/h, kPa, km); a raw-unit reading in its own unit"
@@ -339,7 +350,7 @@ class LiveLinkParameterUpdate(BaseModel):
         allow_inf_nan=False,
     )
     critical_min: float | None = Field(
-        None,
+        default=None,
         description=(
             "Urgent alert if value drops below; must sit under warning_min. In the "
             "reading's canonical metric unit (°C, km/h, kPa, km); a raw-unit "
@@ -348,18 +359,18 @@ class LiveLinkParameterUpdate(BaseModel):
         allow_inf_nan=False,
     )
     warning_max: float | None = Field(
-        None,
+        default=None,
         description=(
             "Alert if value exceeds, in the reading's canonical metric unit "
             "(°C, km/h, kPa, km); a raw-unit reading in its own unit"
         ),
         allow_inf_nan=False,
     )
-    display_order: int | None = Field(None, description="Gauge display order", ge=0)
-    show_on_dashboard: bool | None = Field(None, description="Show in live gauges")
-    archive_only: bool | None = Field(None, description="Hide from default views")
+    display_order: int | None = Field(default=None, description="Gauge display order", ge=0)
+    show_on_dashboard: bool | None = Field(default=None, description="Show in live gauges")
+    archive_only: bool | None = Field(default=None, description="Hide from default views")
     storage_interval_seconds: int | None = Field(
-        None, description="Minimum seconds between stored values", ge=0
+        default=None, description="Minimum seconds between stored values", ge=0
     )
 
     # NOT NULL columns: omitted keeps the stored value, null is a 422.
@@ -402,28 +413,33 @@ class LiveLinkParameterListResponse(BaseModel):
 class LiveLinkSettingsResponse(BaseModel):
     """Schema for LiveLink settings response."""
 
-    enabled: bool = Field(False, description="LiveLink master enable/disable")
-    has_global_token: bool = Field(False, description="Whether global token is configured")
+    enabled: bool = Field(default=False, description="LiveLink master enable/disable")
+    has_global_token: bool = Field(default=False, description="Whether global token is configured")
     ingestion_url: str = Field(..., description="URL for WiCAN HTTPS POST")
-    telemetry_retention_days: int = Field(90, description="Days to retain raw telemetry")
-    session_timeout_minutes: int = Field(5, description="Minutes before session timeout")
-    device_offline_timeout_minutes: int = Field(15, description="Minutes before device offline")
-    daily_aggregation_enabled: bool = Field(True, description="Enable daily rollup")
-    firmware_check_enabled: bool = Field(True, description="Auto-check for firmware updates")
-    alert_cooldown_minutes: int = Field(30, description="Cooldown between alerts")
+    telemetry_retention_days: int = Field(default=90, description="Days to retain raw telemetry")
+    session_timeout_minutes: int = Field(default=5, description="Minutes before session timeout")
+    device_offline_timeout_minutes: int = Field(
+        default=15, description="Minutes before device offline"
+    )
+    daily_aggregation_enabled: bool = Field(default=True, description="Enable daily rollup")
+    firmware_check_enabled: bool = Field(
+        default=True, description="Auto-check for firmware updates"
+    )
+    alert_cooldown_minutes: int = Field(default=30, description="Cooldown between alerts")
 
     # Session grace period
     session_grace_period_seconds: int = Field(
-        60, description="Seconds to wait before ending session after ECU offline (0 = disabled)"
+        default=60,
+        description="Seconds to wait before ending session after ECU offline (0 = disabled)",
     )
 
     # Session boundaries. `session_timeout_minutes` above is a CONNECTION-LOSS
     # detector; this is the separate question of whether a stop ended the drive.
     session_gap_minutes: int = Field(
-        15, description="Minutes stationary before a stop counts as a separate drive"
+        default=15, description="Minutes stationary before a stop counts as a separate drive"
     )
     session_boundary_mode: str = Field(
-        "movement",
+        default="movement",
         description=(
             "'movement' decides sessions from speed/odometer/RPM; 'contact' restores "
             "the pre-v3.3.0 rule of opening one whenever the device is reachable"
@@ -431,10 +447,10 @@ class LiveLinkSettingsResponse(BaseModel):
     )
 
     # Notification toggles
-    notify_device_offline: bool = Field(True, description="Notify when device goes offline")
-    notify_threshold_alerts: bool = Field(True, description="Notify on threshold breaches")
-    notify_firmware_update: bool = Field(True, description="Notify on firmware updates")
-    notify_new_device: bool = Field(True, description="Notify on new device discovery")
+    notify_device_offline: bool = Field(default=True, description="Notify when device goes offline")
+    notify_threshold_alerts: bool = Field(default=True, description="Notify on threshold breaches")
+    notify_firmware_update: bool = Field(default=True, description="Notify on firmware updates")
+    notify_new_device: bool = Field(default=True, description="Notify on new device discovery")
 
 
 class LiveLinkSettingsUpdate(BaseModel):
@@ -442,17 +458,17 @@ class LiveLinkSettingsUpdate(BaseModel):
 
     enabled: bool | None = None
     telemetry_retention_days: int | None = Field(
-        None, ge=TELEMETRY_RETENTION_MIN_DAYS, le=TELEMETRY_RETENTION_MAX_DAYS
+        default=None, ge=TELEMETRY_RETENTION_MIN_DAYS, le=TELEMETRY_RETENTION_MAX_DAYS
     )
-    session_timeout_minutes: int | None = Field(None, ge=1, le=60)
-    device_offline_timeout_minutes: int | None = Field(None, ge=5, le=60)
+    session_timeout_minutes: int | None = Field(default=None, ge=1, le=60)
+    device_offline_timeout_minutes: int | None = Field(default=None, ge=5, le=60)
     daily_aggregation_enabled: bool | None = None
     firmware_check_enabled: bool | None = None
-    alert_cooldown_minutes: int | None = Field(None, ge=5, le=120)
-    session_grace_period_seconds: int | None = Field(None, ge=0, le=300)
+    alert_cooldown_minutes: int | None = Field(default=None, ge=5, le=120)
+    session_grace_period_seconds: int | None = Field(default=None, ge=0, le=300)
     # Lower bound of 1, not 0: a zero gap closes a session on the first
     # stationary sample, so every traffic light becomes a separate trip.
-    session_gap_minutes: int | None = Field(None, ge=1, le=240)
+    session_gap_minutes: int | None = Field(default=None, ge=1, le=240)
     session_boundary_mode: Literal["movement", "contact"] | None = None
     notify_device_offline: bool | None = None
     notify_threshold_alerts: bool | None = None
@@ -463,12 +479,12 @@ class LiveLinkSettingsUpdate(BaseModel):
 class FirmwareInfoResponse(BaseModel):
     """Schema for firmware information response."""
 
-    latest_version: str | None = Field(None, description="Latest available version")
-    latest_tag: str | None = Field(None, description="Git tag (e.g., v4.50p)")
-    release_url: str | None = Field(None, description="GitHub release URL")
-    release_notes: str | None = Field(None, description="Release notes summary")
-    checked_at: datetime | None = Field(None, description="When firmware was last checked")
-    firmware_track: str | None = Field(None, description="Firmware track: 'obd' or 'pro'")
+    latest_version: str | None = Field(default=None, description="Latest available version")
+    latest_tag: str | None = Field(default=None, description="Git tag (e.g., v4.50p)")
+    release_url: str | None = Field(default=None, description="GitHub release URL")
+    release_notes: str | None = Field(default=None, description="Release notes summary")
+    checked_at: datetime | None = Field(default=None, description="When firmware was last checked")
+    firmware_track: str | None = Field(default=None, description="Firmware track: 'obd' or 'pro'")
 
 
 class DeviceFirmwareStatus(BaseModel):
@@ -497,7 +513,7 @@ class IntegrationTab(BaseModel):
         )
     )
     label: str = Field(description="Proper noun. Never translated.")
-    kind: str | None = Field(None, description="Source-module kind; None for the broker")
+    kind: str | None = Field(default=None, description="Source-module kind; None for the broker")
     status: str = Field(description="'ok' | 'attention' | 'off'")
     reason: str = Field(
         description=(
@@ -506,7 +522,9 @@ class IntegrationTab(BaseModel):
             "'attention' with zero online."
         )
     )
-    description: str | None = Field(None, description="Literal text, sent only for preset tabs")
+    description: str | None = Field(
+        default=None, description="Literal text, sent only for preset tabs"
+    )
     device_count: int = 0
     online_count: int = 0
     linked_count: int = 0
@@ -525,9 +543,9 @@ class DeviceReading(BaseModel):
     param_key: str
     display_name: str | None = None
     unit: str | None = None
-    value: float | None = Field(None, description="None when never reported")
+    value: float | None = Field(default=None, description="None when never reported")
     timestamp: datetime | None = Field(
-        None,
+        default=None,
         description=(
             "When that value was stored. Subject to storage_interval_seconds, "
             "so it is not the wall-clock moment the sensor published."
@@ -535,16 +553,18 @@ class DeviceReading(BaseModel):
     )
     show_on_dashboard: bool = True
     format: Literal["value", "boolean", "count", "of_max"] = Field(
-        "value",
+        default="value",
         description=(
             "How to show the value: through the unit adapter, as Yes/No, as a "
             "whole number, or as 'n of max_value'. A preset sensor's readings "
             "say; anything else is a plain value."
         ),
     )
-    max_value: int | None = Field(None, description="The top of the scale for an 'of_max' reading")
-    warning_min: float | None = Field(None, description="The low alert line, if set")
-    critical_min: float | None = Field(None, description="The critical alert line, if set")
+    max_value: int | None = Field(
+        default=None, description="The top of the scale for an 'of_max' reading"
+    )
+    warning_min: float | None = Field(default=None, description="The low alert line, if set")
+    critical_min: float | None = Field(default=None, description="The critical alert line, if set")
     alert_lines: list[Literal["low", "critical"]] = Field(
         default_factory=list,
         description=(
@@ -559,9 +579,9 @@ class DeviceReadingsResponse(BaseModel):
     """Every parameter one device is mapped to, with current values."""
 
     device_id: str
-    vin: str | None = Field(None, description="None when the device is unlinked")
+    vin: str | None = Field(default=None, description="None when the device is unlinked")
     online: bool = Field(
-        False,
+        default=False,
         description=(
             "Whether the device is reporting now, by the integrations card's "
             "rule: a device whose device_status is 'online' counts as online "
@@ -591,44 +611,44 @@ class FirmwareSkipRequest(BaseModel):
 class MQTTSettingsResponse(BaseModel):
     """Schema for MQTT settings response."""
 
-    enabled: bool = Field(False, description="MQTT subscription enabled")
-    broker_host: str = Field("", description="MQTT broker hostname/IP")
-    broker_port: int = Field(1883, description="MQTT broker port")
-    username: str = Field("", description="MQTT username (empty = anonymous)")
-    has_password: bool = Field(False, description="Whether password is configured")
+    enabled: bool = Field(default=False, description="MQTT subscription enabled")
+    broker_host: str = Field(default="", description="MQTT broker hostname/IP")
+    broker_port: int = Field(default=1883, description="MQTT broker port")
+    username: str = Field(default="", description="MQTT username (empty = anonymous)")
+    has_password: bool = Field(default=False, description="Whether password is configured")
     password_unreadable: bool = Field(
-        False,
+        default=False,
         description=(
             "True when a password is stored but can't be decrypted with the current "
             "settings key; re-enter it. has_password stays true."
         ),
     )
-    topic_prefix: str = Field("wican", description="Topic prefix for subscriptions")
-    use_tls: bool = Field(False, description="Use TLS/SSL connection")
+    topic_prefix: str = Field(default="wican", description="Topic prefix for subscriptions")
+    use_tls: bool = Field(default=False, description="Use TLS/SSL connection")
 
 
 class MQTTSettingsUpdate(BaseModel):
     """Schema for updating MQTT settings."""
 
-    enabled: bool | None = Field(None, description="Enable MQTT subscription")
-    broker_host: str | None = Field(None, description="MQTT broker hostname/IP")
-    broker_port: int | None = Field(None, ge=1, le=65535, description="MQTT broker port")
-    username: str | None = Field(None, description="MQTT username (empty = anonymous)")
-    password: str | None = Field(None, description="MQTT password")
-    topic_prefix: str | None = Field(None, description="Topic prefix (default: wican)")
-    use_tls: bool | None = Field(None, description="Use TLS/SSL connection")
+    enabled: bool | None = Field(default=None, description="Enable MQTT subscription")
+    broker_host: str | None = Field(default=None, description="MQTT broker hostname/IP")
+    broker_port: int | None = Field(default=None, ge=1, le=65535, description="MQTT broker port")
+    username: str | None = Field(default=None, description="MQTT username (empty = anonymous)")
+    password: str | None = Field(default=None, description="MQTT password")
+    topic_prefix: str | None = Field(default=None, description="Topic prefix (default: wican)")
+    use_tls: bool | None = Field(default=None, description="Use TLS/SSL connection")
 
 
 class MQTTStatusResponse(BaseModel):
     """Schema for MQTT subscriber status response."""
 
-    running: bool = Field(False, description="Whether subscriber task is running")
+    running: bool = Field(default=False, description="Whether subscriber task is running")
     connection_status: str = Field(
-        "disconnected",
+        default="disconnected",
         description="Connection state: disconnected/connecting/connected/error/disabled",
     )
-    last_message_at: str | None = Field(None, description="ISO timestamp of last message")
-    messages_processed: int = Field(0, description="Total messages processed since start")
+    last_message_at: str | None = Field(default=None, description="ISO timestamp of last message")
+    messages_processed: int = Field(default=0, description="Total messages processed since start")
 
 
 class MQTTTestResult(BaseModel):
@@ -636,7 +656,7 @@ class MQTTTestResult(BaseModel):
 
     success: bool = Field(..., description="Whether connection test succeeded")
     message: str = Field(..., description="Result message")
-    broker: str | None = Field(None, description="Broker address tested")
+    broker: str | None = Field(default=None, description="Broker address tested")
 
 
 # =============================================================================
@@ -669,9 +689,11 @@ class SdConfigUpdate(BaseModel):
     """Schema for updating SD-card pull config on a device."""
 
     device_address: str | None = Field(
-        None, description="Private/LAN IP or hostname for SD log pulls"
+        default=None, description="Private/LAN IP or hostname for SD log pulls"
     )
-    sd_backfill_enabled: bool = Field(False, description="Enable automatic SD-card backfill")
+    sd_backfill_enabled: bool = Field(
+        default=False, description="Enable automatic SD-card backfill"
+    )
 
 
 class SdConfigResponse(BaseModel):

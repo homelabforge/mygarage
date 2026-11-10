@@ -48,11 +48,11 @@ def validate_maintenance_type(value: str | None) -> str | None:
 class RecurrenceSpec(BaseModel):
     """The intervals of a rule. At least one; km and hours never together."""
 
-    interval_km: Decimal | None = Field(None, gt=0, le=99999999.99)
-    interval_months: int | None = Field(None, gt=0, le=600)
-    interval_days: int | None = Field(None, gt=0, le=36500)
+    interval_km: Decimal | None = Field(default=None, gt=0, le=99999999.99)
+    interval_months: int | None = Field(default=None, gt=0, le=600)
+    interval_days: int | None = Field(default=None, gt=0, le=36500)
     interval_hours: Annotated[Decimal | None, AfterValidator(to_stored_positive_tenth)] = Field(
-        None, gt=0, le=999999999.9
+        default=None, gt=0, le=999999999.9
     )
 
     @model_validator(mode="after")
@@ -88,9 +88,9 @@ class AnchorSpec(BaseModel):
     """A hand-entered anchor: when and at what reading the work was last done."""
 
     date: date_type | None = None
-    odometer_km: Decimal | None = Field(None, ge=0, le=99999999.99)
+    odometer_km: Decimal | None = Field(default=None, ge=0, le=99999999.99)
     hours: Annotated[Decimal | None, AfterValidator(to_stored_tenth)] = Field(
-        None, ge=0, le=9999999.9
+        default=None, ge=0, le=9999999.9
     )
 
 
@@ -136,8 +136,8 @@ class MaintenanceRuleCreate(RecurrenceSpec):
     """The explicit path: creates a rule even when one of the type exists."""
 
     title: str = Field(..., min_length=1, max_length=200)
-    maintenance_type: str | None = Field(None, max_length=50)
-    notes: str | None = Field(None, max_length=2000)
+    maintenance_type: str | None = Field(default=None, max_length=50)
+    notes: str | None = Field(default=None, max_length=2000)
 
     _validate_type = field_validator("maintenance_type")(validate_maintenance_type)
 
@@ -145,9 +145,9 @@ class MaintenanceRuleCreate(RecurrenceSpec):
 class MaintenanceRuleUpdate(BaseModel):
     """Patch a rule. Omitted fields keep their values."""
 
-    title: str | None = Field(None, min_length=1, max_length=200)
-    maintenance_type: str | None = Field(None, max_length=50)
-    notes: str | None = Field(None, max_length=2000)
+    title: str | None = Field(default=None, min_length=1, max_length=200)
+    maintenance_type: str | None = Field(default=None, max_length=50)
+    notes: str | None = Field(default=None, max_length=2000)
     recurrence: RecurrenceSpec | None = None
     is_active: bool | None = None
 
@@ -169,15 +169,15 @@ class ReminderCompleteRequest(BaseModel):
     """
 
     completed_date: date_type
-    odometer_km: Decimal | None = Field(None, ge=0, le=99999999.99)
+    odometer_km: Decimal | None = Field(default=None, ge=0, le=99999999.99)
     engine_hours: Annotated[Decimal | None, AfterValidator(to_stored_tenth)] = Field(
-        None, ge=0, le=9999999.9
+        default=None, ge=0, le=9999999.9
     )
     mode: CompletionMode = "create_visit"
     service_visit_id: int | None = None
     vendor_id: int | None = None
     cost: OptionalMoney = None
-    notes: str | None = Field(None, max_length=5000)
+    notes: str | None = Field(default=None, max_length=5000)
 
     @model_validator(mode="after")
     def validate_mode(self) -> ReminderCompleteRequest:

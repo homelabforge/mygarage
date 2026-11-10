@@ -1060,24 +1060,24 @@ type _BoundedCount = Annotated[int, Field(ge=1)]
 
 
 class _Nested(BaseModel):
-    cost: Decimal | None = Field(None, ge=0)
+    cost: Decimal | None = Field(default=None, ge=0)
 
 
 class _Probe(BaseModel):
-    amount: Decimal | None = Field(None, le=100)
+    amount: Decimal | None = Field(default=None, le=100)
     cost: Annotated[Decimal, Field(ge=0)] | None = None
     premium: OptionalMoney = None
     deductible: _BoundedAlias | None = None
-    price: float = Field(0, gt=0)
-    rate: Decimal | None = Field(None, decimal_places=2)
-    fee: Decimal | None = Field(None, max_digits=12)
-    charge: Decimal | None = Field(None, multiple_of=Decimal("0.01"))
+    price: float = Field(default=0, gt=0)
+    rate: Decimal | None = Field(default=None, decimal_places=2)
+    fee: Decimal | None = Field(default=None, max_digits=12)
+    charge: Decimal | None = Field(default=None, multiple_of=Decimal("0.01"))
     # A number with no bound stays out. A measurement and a count aren't money,
     # but their bounds 500 a read all the same.
     total_cost: Decimal | None = None
-    odometer_km: Decimal | None = Field(None, ge=0)
-    total: int = Field(0, ge=0)
-    count: int | None = Field(None, ge=0)
+    odometer_km: Decimal | None = Field(default=None, ge=0)
+    total: int = Field(default=0, ge=0)
+    count: int | None = Field(default=None, ge=0)
     aliased: _BoundedCount | None = None
     items: list[_Nested] = []
 
@@ -1108,7 +1108,7 @@ def test_the_detector_sees_every_form():
 class _TextProbe(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     color: Annotated[str, Field(max_length=30)] | None = None
-    code: str | None = Field(None, pattern=r"^[A-Z]+$")
+    code: str | None = Field(default=None, pattern=r"^[A-Z]+$")
     email: EmailStr
     backup_email: EmailStr | None = None
     # No rule, so they stay out.
@@ -1137,25 +1137,25 @@ def test_the_text_detector_sees_every_form():
 
 
 class _TwinBase(BaseModel):
-    same: Decimal | None = Field(None, ge=0, description="Kept")
-    money: OptionalMoney = Field(None, description="Paid")
+    same: Decimal | None = Field(default=None, ge=0, description="Kept")
+    money: OptionalMoney = Field(default=None, description="Paid")
     counted: _BoundedCount | None = None
-    described: Decimal | None = Field(None, ge=0, description="Original")
-    defaulted: Decimal | None = Field(None, ge=0)
+    described: Decimal | None = Field(default=None, ge=0, description="Original")
+    defaulted: Decimal | None = Field(default=None, ge=0)
     required: Decimal = Field(..., ge=0)
-    typed: Decimal | None = Field(None, ge=0)
-    registered: int | None = Field(None, ge=0, description="Bounded")
-    settled: int | None = Field(None, ge=0)
+    typed: Decimal | None = Field(default=None, ge=0)
+    registered: int | None = Field(default=None, ge=0, description="Bounded")
+    settled: int | None = Field(default=None, ge=0)
 
 
 class _TwinProbe(_TwinBase):
     # Bounds dropped and nothing else, through a plain field, the shared money
     # alias and a PEP 695 alias.
-    same: Decimal | None = Field(None, description="Kept")
-    money: Decimal | None = Field(None, description="Paid")
+    same: Decimal | None = Field(default=None, description="Kept")
+    money: Decimal | None = Field(default=None, description="Paid")
     counted: int | None = None
     # One drift each.
-    described: Decimal | None = Field(None, description="Changed")
+    described: Decimal | None = Field(default=None, description="Changed")
     defaulted: Decimal | None = Decimal(0)
     required: Decimal = Decimal(0)
     typed: float | None = None

@@ -175,23 +175,27 @@ class WindowStickerDataUpdate(BaseModel):
     msrp_options: OptionalMoney = None
     msrp_total: OptionalMoney = None
     destination_charge: OptionalMoney = None
-    fuel_economy_city_l_per_100km: Decimal | None = Field(None, ge=0, le=_FUEL_ECONOMY_MAX)
-    fuel_economy_highway_l_per_100km: Decimal | None = Field(None, ge=0, le=_FUEL_ECONOMY_MAX)
-    fuel_economy_combined_l_per_100km: Decimal | None = Field(None, ge=0, le=_FUEL_ECONOMY_MAX)
+    fuel_economy_city_l_per_100km: Decimal | None = Field(default=None, ge=0, le=_FUEL_ECONOMY_MAX)
+    fuel_economy_highway_l_per_100km: Decimal | None = Field(
+        default=None, ge=0, le=_FUEL_ECONOMY_MAX
+    )
+    fuel_economy_combined_l_per_100km: Decimal | None = Field(
+        default=None, ge=0, le=_FUEL_ECONOMY_MAX
+    )
     standard_equipment: dict[str, Any] | None = None
     optional_equipment: dict[str, Any] | None = None
-    assembly_location: str | None = Field(None, max_length=100)
-    exterior_color: str | None = Field(None, max_length=100)
-    interior_color: str | None = Field(None, max_length=100)
-    sticker_engine_description: str | None = Field(None, max_length=150)
-    sticker_transmission_description: str | None = Field(None, max_length=150)
-    sticker_drivetrain: str | None = Field(None, max_length=50)
-    wheel_specs: str | None = Field(None, max_length=100)
-    tire_specs: str | None = Field(None, max_length=100)
-    warranty_powertrain: str | None = Field(None, max_length=100)
-    warranty_basic: str | None = Field(None, max_length=100)
-    environmental_rating_ghg: str | None = Field(None, max_length=10)
-    environmental_rating_smog: str | None = Field(None, max_length=10)
+    assembly_location: str | None = Field(default=None, max_length=100)
+    exterior_color: str | None = Field(default=None, max_length=100)
+    interior_color: str | None = Field(default=None, max_length=100)
+    sticker_engine_description: str | None = Field(default=None, max_length=150)
+    sticker_transmission_description: str | None = Field(default=None, max_length=150)
+    sticker_drivetrain: str | None = Field(default=None, max_length=50)
+    wheel_specs: str | None = Field(default=None, max_length=100)
+    tire_specs: str | None = Field(default=None, max_length=100)
+    warranty_powertrain: str | None = Field(default=None, max_length=100)
+    warranty_basic: str | None = Field(default=None, max_length=100)
+    environmental_rating_ghg: str | None = Field(default=None, max_length=10)
+    environmental_rating_smog: str | None = Field(default=None, max_length=10)
 
 
 class WindowStickerResponse(BaseModel):

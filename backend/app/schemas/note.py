@@ -12,7 +12,7 @@ class NoteBase(BaseModel):
     """Base note schema."""
 
     date: date_type
-    title: str | None = Field(None, max_length=100)
+    title: str | None = Field(default=None, max_length=100)
     content: str = Field(..., min_length=1)
 
 
@@ -26,8 +26,8 @@ class NoteUpdate(BaseModel):
     """Schema for updating a note."""
 
     date: date_type | None = None
-    title: str | None = Field(None, max_length=100)
-    content: str | None = Field(None, min_length=1)
+    title: str | None = Field(default=None, max_length=100)
+    content: str | None = Field(default=None, min_length=1)
 
     # NOT NULL columns: omitted keeps the stored value, null is a 422.
     _no_null = reject_null("date", "content")

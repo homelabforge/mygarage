@@ -13,17 +13,17 @@ from app.schemas.spot_rental_billing import SpotRentalBillingResponse
 class SpotRentalBase(BaseModel):
     """Base spot rental schema."""
 
-    location_name: str | None = Field(None, max_length=100)
+    location_name: str | None = Field(default=None, max_length=100)
     location_address: str | None = None
     check_in_date: date
     check_out_date: date | None = None
-    nightly_rate: OptionalMoney = Field(None, decimal_places=2)
-    weekly_rate: OptionalMoney = Field(None, decimal_places=2)
-    monthly_rate: OptionalMoney = Field(None, decimal_places=2)
-    electric: OptionalMoney = Field(None, decimal_places=2)
-    water: OptionalMoney = Field(None, decimal_places=2)
-    waste: OptionalMoney = Field(None, decimal_places=2)
-    total_cost: OptionalMoney = Field(None, decimal_places=2)
+    nightly_rate: OptionalMoney = Field(default=None, decimal_places=2)
+    weekly_rate: OptionalMoney = Field(default=None, decimal_places=2)
+    monthly_rate: OptionalMoney = Field(default=None, decimal_places=2)
+    electric: OptionalMoney = Field(default=None, decimal_places=2)
+    water: OptionalMoney = Field(default=None, decimal_places=2)
+    waste: OptionalMoney = Field(default=None, decimal_places=2)
+    total_cost: OptionalMoney = Field(default=None, decimal_places=2)
     amenities: str | None = None
     notes: str | None = None
 
@@ -37,17 +37,17 @@ class SpotRentalCreate(SpotRentalBase):
 class SpotRentalUpdate(BaseModel):
     """Schema for updating a spot rental."""
 
-    location_name: str | None = Field(None, max_length=100)
+    location_name: str | None = Field(default=None, max_length=100)
     location_address: str | None = None
     check_in_date: date | None = None
     check_out_date: date | None = None
-    nightly_rate: OptionalMoney = Field(None, decimal_places=2)
-    weekly_rate: OptionalMoney = Field(None, decimal_places=2)
-    monthly_rate: OptionalMoney = Field(None, decimal_places=2)
-    electric: OptionalMoney = Field(None, decimal_places=2)
-    water: OptionalMoney = Field(None, decimal_places=2)
-    waste: OptionalMoney = Field(None, decimal_places=2)
-    total_cost: OptionalMoney = Field(None, decimal_places=2)
+    nightly_rate: OptionalMoney = Field(default=None, decimal_places=2)
+    weekly_rate: OptionalMoney = Field(default=None, decimal_places=2)
+    monthly_rate: OptionalMoney = Field(default=None, decimal_places=2)
+    electric: OptionalMoney = Field(default=None, decimal_places=2)
+    water: OptionalMoney = Field(default=None, decimal_places=2)
+    waste: OptionalMoney = Field(default=None, decimal_places=2)
+    total_cost: OptionalMoney = Field(default=None, decimal_places=2)
     amenities: str | None = None
     notes: str | None = None
 

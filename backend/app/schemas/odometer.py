@@ -19,7 +19,7 @@ class OdometerRecordBase(BaseModel):
     odometer_km: Decimal = Field(
         ..., description="Odometer reading in kilometers", ge=0, le=99999999.99
     )
-    notes: str | None = Field(None, description="Additional notes")
+    notes: str | None = Field(default=None, description="Additional notes")
 
 
 class OdometerRecordCreate(OdometerRecordBase):
@@ -44,11 +44,11 @@ class OdometerRecordCreate(OdometerRecordBase):
 class OdometerRecordUpdate(BaseModel):
     """Schema for updating an existing odometer record."""
 
-    date: date_type | None = Field(None, description="Reading date")
+    date: date_type | None = Field(default=None, description="Reading date")
     odometer_km: Decimal | None = Field(
-        None, description="Odometer reading in kilometers", ge=0, le=99999999.99
+        default=None, description="Odometer reading in kilometers", ge=0, le=99999999.99
     )
-    notes: str | None = Field(None, description="Additional notes")
+    notes: str | None = Field(default=None, description="Additional notes")
 
     # NOT NULL columns: omitted keeps the stored value, null is a 422.
     _no_null = reject_null("date", "odometer_km")
@@ -91,7 +91,7 @@ class OdometerRecordListResponse(BaseModel):
     records: list[OdometerRecordResponse]
     total: int
     latest_odometer_km: Decimal | None = Field(
-        None, description="Most recent odometer reading in kilometers"
+        default=None, description="Most recent odometer reading in kilometers"
     )
 
     model_config = {

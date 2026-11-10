@@ -20,8 +20,8 @@ class WiCANConfigEntry(BaseModel):
         {"class": "temperature", "unit": "°C"}
     """
 
-    param_class: str | None = Field(None, alias="class", description="Parameter class")
-    unit: str | None = Field(None, description="Unit of measurement")
+    param_class: str | None = Field(default=None, alias="class", description="Parameter class")
+    unit: str | None = Field(default=None, description="Unit of measurement")
 
     model_config = {"populate_by_name": True}
 
@@ -43,13 +43,13 @@ class WiCANStatus(BaseModel):
     """
 
     device_id: str = Field(..., description="Device ID (12-char hex from MAC)")
-    fw_version: str | None = Field(None, description="Firmware version")
-    git_version: str | None = Field(None, description="Git version tag")
-    hw_version: str | None = Field(None, description="Hardware version")
-    ecu_status: ECUStatusType = Field("unknown", description="ECU status: online/offline")
-    sta_ip: str | None = Field(None, description="Device IP on local network")
-    battery_voltage: float | None = Field(None, description="Vehicle battery voltage")
-    rssi: int | None = Field(None, description="WiFi signal strength")
+    fw_version: str | None = Field(default=None, description="Firmware version")
+    git_version: str | None = Field(default=None, description="Git version tag")
+    hw_version: str | None = Field(default=None, description="Hardware version")
+    ecu_status: ECUStatusType = Field(default="unknown", description="ECU status: online/offline")
+    sta_ip: str | None = Field(default=None, description="Device IP on local network")
+    battery_voltage: float | None = Field(default=None, description="Vehicle battery voltage")
+    rssi: int | None = Field(default=None, description="WiFi signal strength")
 
     @field_validator("device_id")
     @classmethod
@@ -117,12 +117,12 @@ class WiCANPayload(BaseModel):
         default_factory=dict, description="Parameter metadata"
     )
     status: WiCANStatus | None = Field(
-        None, description="Device status (optional; sent with config once per cold boot)"
+        default=None, description="Device status (optional; sent with config once per cold boot)"
     )
 
     # Optional timestamp for future replay/buffer support
     timestamp: datetime | None = Field(
-        None,
+        default=None,
         description="Optional device timestamp for replay support; naive values are read as UTC",
     )
 
@@ -153,6 +153,6 @@ class WiCANPayload(BaseModel):
 class IngestError(BaseModel):
     """Schema for ingestion error response."""
 
-    success: bool = Field(False)
+    success: bool = Field(default=False)
     error: str = Field(..., description="Error message")
     error_code: str = Field(..., description="Error code for client handling")

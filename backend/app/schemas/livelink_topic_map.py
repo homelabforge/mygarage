@@ -32,10 +32,10 @@ class TopicMapBase(BaseModel):
     device_id: str = Field(..., max_length=20)
     topic: str = Field(..., max_length=255)
     role: TopicMapRole = "telemetry"
-    param_key: str | None = Field(None, max_length=100)
-    value_path: str | None = Field(None, max_length=100)
-    unit: str | None = Field(None, max_length=20)
-    param_class: str | None = Field(None, max_length=50)
+    param_key: str | None = Field(default=None, max_length=100)
+    value_path: str | None = Field(default=None, max_length=100)
+    unit: str | None = Field(default=None, max_length=20)
+    param_class: str | None = Field(default=None, max_length=50)
     scale: Decimal = Decimal(1)
     value_offset: Decimal = Decimal(0)
     enabled: bool = True
@@ -118,7 +118,7 @@ class TopicDiscoveryRequest(BaseModel):
     """Body for a discovery run."""
 
     prefix: str = Field(..., max_length=255)
-    seconds: int = Field(15, ge=1, le=60)
+    seconds: int = Field(default=15, ge=1, le=60)
 
 
 class PresetReadingInfo(BaseModel):
@@ -155,7 +155,7 @@ class PresetApplyRequest(BaseModel):
     """
 
     label: str = Field(..., min_length=1, max_length=60)
-    vin: str | None = Field(None, min_length=17, max_length=17)
+    vin: str | None = Field(default=None, min_length=17, max_length=17)
     topics: dict[str, str] = Field(
         ...,
         description=(

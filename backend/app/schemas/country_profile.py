@@ -278,7 +278,7 @@ class CountryProfile(_Strict):
     extends: str | None = None
     #: Proper names keyed by topic (``inspection``, ``registration_certificate``…).
     names: dict[str, str] = Field(default_factory=dict)
-    currency: str | None = Field(None, min_length=3, max_length=3)
+    currency: str | None = Field(default=None, min_length=3, max_length=3)
     inspection: InspectionRules | None = None
     fuel: FuelRules = Field(default_factory=FuelRules)
     taxes: TaxRules = Field(default_factory=TaxRules)

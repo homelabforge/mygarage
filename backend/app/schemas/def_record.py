@@ -18,22 +18,22 @@ class DEFRecordBase(BaseModel):
 
     date: date_type = Field(..., description="Purchase/fill date")
     odometer_km: Decimal | None = Field(
-        None, description="Odometer reading in kilometers", ge=0, le=99999999.99
+        default=None, description="Odometer reading in kilometers", ge=0, le=99999999.99
     )
     liters: Decimal | None = Field(
-        None, description="DEF volume added in liters", ge=0, le=9999.999, decimal_places=3
+        default=None, description="DEF volume added in liters", ge=0, le=9999.999, decimal_places=3
     )
-    cost: OptionalMoney = Field(None, description="Total cost")
-    price_per_unit: OptionalUnitPrice = Field(None, description="Cost per liter")
+    cost: OptionalMoney = Field(default=None, description="Total cost")
+    price_per_unit: OptionalUnitPrice = Field(default=None, description="Cost per liter")
     fill_level: Decimal | None = Field(
-        None,
+        default=None,
         description="Tank level after adding DEF (0.00=empty, 1.00=full)",
         ge=Decimal("0.00"),
         le=Decimal("1.00"),
     )
-    source: str | None = Field(None, description="Where purchased", max_length=100)
-    brand: str | None = Field(None, description="DEF brand name", max_length=100)
-    notes: str | None = Field(None, description="Additional notes")
+    source: str | None = Field(default=None, description="Where purchased", max_length=100)
+    brand: str | None = Field(default=None, description="DEF brand name", max_length=100)
+    notes: str | None = Field(default=None, description="Additional notes")
 
 
 class DEFRecordCreate(DEFRecordBase):
@@ -63,24 +63,24 @@ class DEFRecordCreate(DEFRecordBase):
 class DEFRecordUpdate(BaseModel):
     """Schema for updating an existing DEF record."""
 
-    date: date_type | None = Field(None, description="Purchase/fill date")
+    date: date_type | None = Field(default=None, description="Purchase/fill date")
     odometer_km: Decimal | None = Field(
-        None, description="Odometer reading in kilometers", ge=0, le=99999999.99
+        default=None, description="Odometer reading in kilometers", ge=0, le=99999999.99
     )
     liters: Decimal | None = Field(
-        None, description="DEF volume added in liters", ge=0, le=9999.999, decimal_places=3
+        default=None, description="DEF volume added in liters", ge=0, le=9999.999, decimal_places=3
     )
-    cost: OptionalMoney = Field(None, description="Total cost")
-    price_per_unit: OptionalUnitPrice = Field(None, description="Cost per liter")
+    cost: OptionalMoney = Field(default=None, description="Total cost")
+    price_per_unit: OptionalUnitPrice = Field(default=None, description="Cost per liter")
     fill_level: Decimal | None = Field(
-        None,
+        default=None,
         description="Tank level after adding DEF (0.00=empty, 1.00=full)",
         ge=Decimal("0.00"),
         le=Decimal("1.00"),
     )
-    source: str | None = Field(None, description="Where purchased", max_length=100)
-    brand: str | None = Field(None, description="DEF brand name", max_length=100)
-    notes: str | None = Field(None, description="Additional notes")
+    source: str | None = Field(default=None, description="Where purchased", max_length=100)
+    brand: str | None = Field(default=None, description="DEF brand name", max_length=100)
+    notes: str | None = Field(default=None, description="Additional notes")
 
     # NOT NULL column: omitted keeps the stored value, null is a 422.
     _no_null = reject_null("date")
@@ -93,17 +93,17 @@ class DEFRecordResponse(DEFRecordBase):
 
     # Numbers without the input bounds, so a stored value past today's rules
     # still reads instead of 500ing (test_response_contract).
-    odometer_km: Decimal | None = Field(None, description="Odometer reading in kilometers")
-    liters: Decimal | None = Field(None, description="DEF volume added in liters")
-    cost: Decimal | None = Field(None, description="Total cost")
-    price_per_unit: Decimal | None = Field(None, description="Cost per liter")
+    odometer_km: Decimal | None = Field(default=None, description="Odometer reading in kilometers")
+    liters: Decimal | None = Field(default=None, description="DEF volume added in liters")
+    cost: Decimal | None = Field(default=None, description="Total cost")
+    price_per_unit: Decimal | None = Field(default=None, description="Cost per liter")
     fill_level: Decimal | None = Field(
-        None, description="Tank level after adding DEF (0.00=empty, 1.00=full)"
+        default=None, description="Tank level after adding DEF (0.00=empty, 1.00=full)"
     )
     # Text without the input rules, so a stored string past today's limits
     # still reads instead of 500ing (test_response_contract).
-    source: str | None = Field(None, description="Where purchased")
-    brand: str | None = Field(None, description="DEF brand name")
+    source: str | None = Field(default=None, description="Where purchased")
+    brand: str | None = Field(default=None, description="DEF brand name")
     id: int
     vin: str
     created_at: datetime

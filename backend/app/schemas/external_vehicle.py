@@ -27,13 +27,13 @@ def _normalize_optional_vin(v: Any) -> str | None:
 
 class ExternalVehicleCreate(BaseModel):
     nickname: str = Field(..., min_length=1, max_length=100)
-    vin: str | None = Field(None, min_length=17, max_length=17)
-    year: int | None = Field(None, ge=1900, le=2100)
-    make: str | None = Field(None, max_length=50)
-    model: str | None = Field(None, max_length=50)
-    vehicle_type: str | None = Field(None, max_length=30)
-    contact_name: str | None = Field(None, max_length=100)
-    contact_phone: str | None = Field(None, max_length=40)
+    vin: str | None = Field(default=None, min_length=17, max_length=17)
+    year: int | None = Field(default=None, ge=1900, le=2100)
+    make: str | None = Field(default=None, max_length=50)
+    model: str | None = Field(default=None, max_length=50)
+    vehicle_type: str | None = Field(default=None, max_length=30)
+    contact_name: str | None = Field(default=None, max_length=100)
+    contact_phone: str | None = Field(default=None, max_length=40)
     notes: str | None = None
 
     @field_validator("vin", mode="before")
@@ -56,14 +56,14 @@ class ExternalVehicleCreate(BaseModel):
 
 
 class ExternalVehicleUpdate(BaseModel):
-    nickname: str | None = Field(None, min_length=1, max_length=100)
-    vin: str | None = Field(None, min_length=17, max_length=17)
-    year: int | None = Field(None, ge=1900, le=2100)
-    make: str | None = Field(None, max_length=50)
-    model: str | None = Field(None, max_length=50)
-    vehicle_type: str | None = Field(None, max_length=30)
-    contact_name: str | None = Field(None, max_length=100)
-    contact_phone: str | None = Field(None, max_length=40)
+    nickname: str | None = Field(default=None, min_length=1, max_length=100)
+    vin: str | None = Field(default=None, min_length=17, max_length=17)
+    year: int | None = Field(default=None, ge=1900, le=2100)
+    make: str | None = Field(default=None, max_length=50)
+    model: str | None = Field(default=None, max_length=50)
+    vehicle_type: str | None = Field(default=None, max_length=30)
+    contact_name: str | None = Field(default=None, max_length=100)
+    contact_phone: str | None = Field(default=None, max_length=40)
     notes: str | None = None
 
     # Explicit null must 422 (NOT NULL column); omitted is a no-op.

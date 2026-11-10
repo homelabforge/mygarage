@@ -11,11 +11,11 @@ class VendorBase(BaseModel):
     """Base vendor schema with common fields."""
 
     name: str = Field(..., description="Vendor/shop name", min_length=1, max_length=100)
-    address: str | None = Field(None, description="Street address", max_length=500)
-    city: str | None = Field(None, description="City", max_length=100)
-    state: str | None = Field(None, description="State/province", max_length=50)
-    zip_code: str | None = Field(None, description="ZIP/postal code", max_length=20)
-    phone: str | None = Field(None, description="Phone number", max_length=20)
+    address: str | None = Field(default=None, description="Street address", max_length=500)
+    city: str | None = Field(default=None, description="City", max_length=100)
+    state: str | None = Field(default=None, description="State/province", max_length=50)
+    zip_code: str | None = Field(default=None, description="ZIP/postal code", max_length=20)
+    phone: str | None = Field(default=None, description="Phone number", max_length=20)
 
 
 class VendorCreate(VendorBase):
@@ -40,12 +40,14 @@ class VendorCreate(VendorBase):
 class VendorUpdate(BaseModel):
     """Schema for updating an existing vendor."""
 
-    name: str | None = Field(None, description="Vendor/shop name", min_length=1, max_length=100)
-    address: str | None = Field(None, description="Street address", max_length=500)
-    city: str | None = Field(None, description="City", max_length=100)
-    state: str | None = Field(None, description="State/province", max_length=50)
-    zip_code: str | None = Field(None, description="ZIP/postal code", max_length=20)
-    phone: str | None = Field(None, description="Phone number", max_length=20)
+    name: str | None = Field(
+        default=None, description="Vendor/shop name", min_length=1, max_length=100
+    )
+    address: str | None = Field(default=None, description="Street address", max_length=500)
+    city: str | None = Field(default=None, description="City", max_length=100)
+    state: str | None = Field(default=None, description="State/province", max_length=50)
+    zip_code: str | None = Field(default=None, description="ZIP/postal code", max_length=20)
+    phone: str | None = Field(default=None, description="Phone number", max_length=20)
 
     # NOT NULL column: omitted keeps the stored value, null is a 422.
     _no_null = reject_null("name")
@@ -67,15 +69,15 @@ class VendorResponse(VendorBase):
     # Text without the input rules, so a stored string past today's limits
     # still reads instead of 500ing (test_response_contract).
     name: str = Field(..., description="Vendor/shop name")
-    address: str | None = Field(None, description="Street address")
-    city: str | None = Field(None, description="City")
-    state: str | None = Field(None, description="State/province")
-    zip_code: str | None = Field(None, description="ZIP/postal code")
-    phone: str | None = Field(None, description="Phone number")
+    address: str | None = Field(default=None, description="Street address")
+    city: str | None = Field(default=None, description="City")
+    state: str | None = Field(default=None, description="State/province")
+    zip_code: str | None = Field(default=None, description="ZIP/postal code")
+    phone: str | None = Field(default=None, description="Phone number")
     id: int
     created_at: datetime
     updated_at: datetime | None = None
-    full_address: str | None = Field(None, description="Formatted full address")
+    full_address: str | None = Field(default=None, description="Formatted full address")
 
     model_config = {
         "from_attributes": True,
