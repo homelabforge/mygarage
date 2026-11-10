@@ -12,6 +12,7 @@ from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
 
+from app.constants.service_vocab import ServiceCategory, is_service_category
 from app.models.service_line_item import ServiceLineItem
 from app.models.service_visit import ServiceVisit
 from app.models.supply import SupplyUsage
@@ -514,7 +515,7 @@ class ServiceVisitService:
 
                 # Pass 1: Update existing, create new — build temp_id map
                 temp_id_map: dict[int, int] = {}
-                effective_cats: list[str] = []
+                effective_cats: list[ServiceCategory] = []
                 new_items: list[tuple[ServiceLineItemUpdate, ServiceLineItem]] = []
                 # Every link the request sends, set in pass 2.
                 links: list[tuple[ServiceLineItem, int | None]] = []
@@ -548,7 +549,8 @@ class ServiceVisitService:
                         # field out must not delete the item's usages. [] clears.
                         if "supplies_used" in sent:
                             await self._sync_line_item_supplies(row, item_data.supplies_used, vin)
-                        if row.category:
+                        # Skip one the visit's CHECK would refuse.
+                        if is_service_category(row.category):
                             effective_cats.append(row.category)
                         # reminder ignored for existing items
                     else:
@@ -576,7 +578,7 @@ class ServiceVisitService:
                         new_items.append((item_data, line_item))
                         links.append((line_item, item_data.triggered_by_inspection_id))
                         wanted.append((line_item, *_new_item_links(item_data)))
-                        if line_item.category:
+                        if is_service_category(line_item.category):
                             effective_cats.append(line_item.category)
 
                 # Every item exists now, so links can move between them.

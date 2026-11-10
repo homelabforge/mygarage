@@ -10,6 +10,10 @@ from typing import Any
 
 import pytest
 from httpx import AsyncClient, Response
+from sqlalchemy import update
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.service_line_item import ServiceLineItem
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
@@ -789,6 +793,49 @@ async def test_service_category_follows_effective_categories(
     )
     assert r.status_code == 200, r.text
     assert r.json()["service_category"] == "Detailing"
+
+
+async def test_an_unknown_stored_item_category_is_not_copied_to_the_visit(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    test_vehicle: dict[str, object],
+    db_session: AsyncSession,
+) -> None:
+    """Items have no CHECK on category but the visit does, so a kept item still
+    holding an old value (a restored backup) must be skipped, not copied onto
+    the visit, where the CHECK refuses it."""
+    vin = str(test_vehicle["vin"])
+    r = await client.post(
+        f"/api/vehicles/{vin}/service-visits",
+        json={
+            "date": "2026-03-05",
+            "line_items": [
+                {"description": "Bumper repair", "category": "Collision"},
+                {"description": "Oil change", "category": "Maintenance"},
+            ],
+        },
+        headers=auth_headers,
+    )
+    assert r.status_code == 201, r.text
+    body = r.json()
+    first, second = (li["id"] for li in body["line_items"])
+    await db_session.execute(
+        update(ServiceLineItem).where(ServiceLineItem.id == first).values(category="Bodywork")
+    )
+    await db_session.commit()
+
+    r = await client.put(
+        f"/api/vehicles/{vin}/service-visits/{body['id']}",
+        json={
+            "line_items": [
+                {"id": first, "description": "Bumper repair"},
+                {"id": second, "description": "Oil change"},
+            ]
+        },
+        headers=auth_headers,
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["service_category"] == "Maintenance"
 
 
 async def _add_item(
