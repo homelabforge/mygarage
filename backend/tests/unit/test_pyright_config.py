@@ -81,18 +81,22 @@ def comment_problems(source: str) -> list[str]:
             bracket = ignore.group(1)
             if not bracket.startswith("["):
                 problems.append(f"line {line}: a pyright ignore needs a [rule]")
-                continue
-            for rule in (r.strip() for r in bracket[1:-1].split(",")):
-                if not rule or not _known(rule):
-                    problems.append(f"line {line}: {rule!r} isn't a pyright rule")
-            if not _REASON.match(comment[ignore.end() :]):
-                problems.append(f"line {line}: a pyright ignore needs a `# reason` after it")
-            continue
+            else:
+                for rule in (r.strip() for r in bracket[1:-1].split(",")):
+                    if not rule or not _known(rule):
+                        problems.append(f"line {line}: {rule!r} isn't a pyright rule")
+                if not _REASON.match(comment[ignore.end() :]):
+                    problems.append(f"line {line}: a pyright ignore needs a `# reason` after it")
+        # Every other pyright: part of the comment is a file-level setting,
+        # even one sharing the comment with an ignore.
         for segment in comment.split("#"):
             text = segment.strip()
             if not text.startswith("pyright:"):
                 continue
-            for setting in (s.strip() for s in text.removeprefix("pyright:").split(",")):
+            body = text.removeprefix("pyright:").strip()
+            if re.match(r"ignore(\[|\s|$)", body):
+                continue
+            for setting in (s.strip() for s in body.split(",") if s.strip()):
                 name, _, value = (part.strip() for part in setting.partition("="))
                 if name in MODE_WORDS:
                     problems.append(f"line {line}: a file-level mode ({name}) isn't allowed")
@@ -132,6 +136,20 @@ class TestTypoGuard:
     def test_nothing_is_excluded_with_an_ignore_list(self) -> None:
         assert "ignore" not in _config()
 
+    def test_exclude_only_skips_caches_and_venvs(self) -> None:
+        # exclude beats include, so one more entry would uncheck a tree.
+        assert set(_config()["exclude"]) <= {
+            "**/__pycache__",
+            "**/.pytest_cache",
+            "**/.venv",
+            "**/venv",
+        }
+
+    def test_pyproject_is_the_config_pyright_reads(self) -> None:
+        # A pyrightconfig.json wins over pyproject.toml outright, and these
+        # guards would keep reading the toml.
+        assert not (BACKEND / "pyrightconfig.json").exists()
+
 
 class TestPolicyGuard:
     def test_the_checked_tree_follows_the_policy(self) -> None:
@@ -161,6 +179,20 @@ class TestPolicyGuard:
             ("x = 1  # noqa: F401  # type: ignore[attr-defined]\n", "inert"),
             ("# pyright: reportUnnecessaryTypeIgnoreComment=false\n", "can't set"),
             ("# pyright: reportPrivateUsage=false, reportReturnType=false\n", "reportReturnType"),
+            # an ignore in the same comment doesn't hide the file-level part
+            (
+                "# pyright: reportArgumentType=false, # pyright: ignore[reportGeneralTypeIssues]  # why\n",
+                "can't set reportArgumentType=false",
+            ),
+            (
+                "# pyright: basic, # pyright: ignore[reportGeneralTypeIssues]  # why\n",
+                "mode (basic)",
+            ),
+            (
+                "x = 1  # pyright: ignore[reportArgumentType]  # why  # pyright: basic\n",
+                "mode (basic)",
+            ),
+            ("x = 1  # pyright: ignore  # pyright: reportArgumentType=false\n", "can't set"),
         ],
     )
     def test_a_violation_is_named(self, source: str, expected: str) -> None:

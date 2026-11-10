@@ -190,6 +190,6 @@ reportMatchNotExhaustive = "none"
 reportUnnecessaryCast = "none"
 reportInvalidTypeVarUse = "warning"
 reportUnsupportedDunderAll = "warning"
-# kept from strict on purpose: these catch a test that can't fail (a bare
-# `x == y` with no assert, `assert (x, "msg")`) and dead branches in helpers
+# kept from strict on purpose: flags a comparison that can never be true or
+# false (`if some_int == "1":`), so a dead branch in a test or helper shows up
 reportUnnecessaryComparison = "error"
