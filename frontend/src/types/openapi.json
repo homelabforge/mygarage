@@ -28581,7 +28581,7 @@
           },
           "resolved_units": {
             "$ref": "#/components/schemas/UnitSet",
-            "description": "The unit set that actually applies: preset base with overrides on top.\n\nDerived rather than stored so it cannot drift from the raw columns above.\n`resolve_units` is pure and synchronous for exactly this reason; if it\never needs the database, this field has to move to the route.\n\nThis call is the only place a `UserResponse` is checked against the\n`UnitPreferenceSource` Protocol. That check only runs because of this\nfile's `reportArgumentType=error` pragma: the project-wide setting is\n\"none\" (FastAPI `Depends()` noise), which would silently accept a\nbroken Protocol conformance here too. Do not remove the pragma without\nanother way to catch that.",
+            "description": "The unit set that actually applies: preset base with overrides on top.\n\nDerived rather than stored so it cannot drift from the raw columns above.\n`resolve_units` is pure and synchronous for exactly this reason; if it\never needs the database, this field has to move to the route.\n\nThis call is the only place a `UserResponse` is checked against the\n`UnitPreferenceShape` Protocol. That check only runs because of this\nfile's `reportArgumentType=error` pragma: the project-wide setting is\n\"none\" (FastAPI `Depends()` noise), which would silently accept a\nbroken Protocol conformance here too. Do not remove the pragma without\nanother way to catch that.",
             "readOnly": true
           },
           "secondary_gallon": {
