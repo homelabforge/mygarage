@@ -1,16 +1,18 @@
 """DataFrame conversion utilities for analytics service."""
 
+from collections.abc import Sequence
+
 import pandas as pd
 
 from app.models import DEFRecord, FinancingRecord, FuelRecord, ServiceVisit, SpotRentalBilling
 
 
 def visits_to_dataframe(
-    service_visits: list[ServiceVisit],
-    fuel_records: list[FuelRecord],
-    def_records: list[DEFRecord] | None = None,
-    spot_rental_billings: list[SpotRentalBilling] | None = None,
-    financing_records: list[FinancingRecord] | None = None,
+    service_visits: Sequence[ServiceVisit],
+    fuel_records: Sequence[FuelRecord],
+    def_records: Sequence[DEFRecord] | None = None,
+    spot_rental_billings: Sequence[SpotRentalBilling] | None = None,
+    financing_records: Sequence[FinancingRecord] | None = None,
 ) -> pd.DataFrame:
     """
     Convert ServiceVisit records to a unified pandas DataFrame.

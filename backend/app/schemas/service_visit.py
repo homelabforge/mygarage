@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date as date_type
 from datetime import datetime
 from decimal import Decimal
-from typing import Annotated, Literal
+from typing import Annotated
 
 from pydantic import (
     AfterValidator,
@@ -16,6 +16,7 @@ from pydantic import (
     model_validator,
 )
 
+from app.constants.service_vocab import InspectionResult, InspectionSeverity, ServiceCategory
 from app.schemas._figures import to_stored_tenth
 from app.schemas._money import OptionalMoney
 from app.schemas._nullability import reject_null
@@ -24,17 +25,11 @@ from app.schemas.reminder import ReminderCreate  # noqa: F401 (used in type anno
 from app.schemas.supply import SupplyUsageInput, SupplyUsageResponse
 from app.utils.lenient_vocab import LenientVocab, lenient_reader
 
-# Service category type (same as existing)
-ServiceCategory = Literal["Maintenance", "Inspection", "Collision", "Upgrades", "Detailing"]
 # A line item's category has no CHECK (the visit's does), so its response reads
 # an unknown one as null instead of 500ing the visit.
 LenientServiceCategory = Annotated[
     ServiceCategory | None, BeforeValidator(lenient_reader(ServiceCategory)), LenientVocab(None)
 ]
-
-# Inspection result types
-InspectionResult = Literal["passed", "failed", "needs_attention"]
-InspectionSeverity = Literal["green", "yellow", "red"]
 
 #: The visit's free-text paperwork refs.
 _REF_FIELDS = ("insurance_claim_number", "invoice_number", "po_number", "work_order_number")

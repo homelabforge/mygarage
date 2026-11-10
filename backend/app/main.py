@@ -293,8 +293,9 @@ app = FastAPI(
 limiter = Limiter(key_func=get_remote_address, default_limits=[settings.rate_limit_default])
 app.state.limiter = limiter
 from app.routes.oidc import rate_limit_exceeded_handler
+from app.utils.error_handlers import register_exception_handler
 
-app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)  # type: ignore[arg-type]
+register_exception_handler(app, RateLimitExceeded, rate_limit_exceeded_handler)
 
 # Add security middleware.
 #

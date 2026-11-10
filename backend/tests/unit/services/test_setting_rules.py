@@ -152,7 +152,7 @@ def test_every_writable_key_fits_the_key_column() -> None:
 )
 def test_every_seeded_default_passes(key: str) -> None:
     """Control: a rule that refused a seed would 422 a fresh instance's first save."""
-    check_setting_value(key, DEFAULT_SETTINGS[key]["value"])
+    check_setting_value(key, DEFAULT_SETTINGS[key].get("value"))
 
 
 @pytest.mark.unit
