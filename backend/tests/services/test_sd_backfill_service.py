@@ -46,9 +46,11 @@ def _fixture_db(rows: list[tuple[str, int, float]]) -> bytes:
         ids: dict[str, int] = {}
         for name, ts, val in rows:
             if name not in ids:
-                ids[name] = c.execute(
+                row_id = c.execute(
                     "INSERT INTO param_info (Name,Type) VALUES (?, 'NUMERIC')", (name,)
                 ).lastrowid
+                assert row_id is not None
+                ids[name] = row_id
             c.execute("INSERT INTO param_data VALUES (?,?,?)", (ts, ids[name], val))
         c.commit()
         c.close()

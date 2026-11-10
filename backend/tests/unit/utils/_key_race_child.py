@@ -16,7 +16,9 @@ from collections.abc import Callable
 from multiprocessing.queues import Queue
 from multiprocessing.synchronize import Barrier
 from pathlib import Path
-from typing import cast
+
+#: (pid, key or kid or "error", source or traceback, warnings) from one child.
+type RaceResult = tuple[int, object, object, list[str]]
 
 
 class _Collect(logging.Handler):
@@ -37,7 +39,7 @@ def _listen() -> _Collect:
     return handler
 
 
-def settings_key_child(data_dir: str, start: Barrier, results: Queue[tuple[object, ...]]) -> None:
+def settings_key_child(data_dir: str, start: Barrier, results: Queue[RaceResult]) -> None:
     """Load the settings keyring from a data dir that has no key file yet.
 
     Puts ``(pid, current kid, keyring source, warnings)`` on ``results``, or
@@ -56,7 +58,7 @@ def settings_key_child(data_dir: str, start: Barrier, results: Queue[tuple[objec
 
         start.wait(timeout=60)
         kid = settings_crypto.current_kid()
-        keyring = settings_crypto._keyring  # pyright: ignore[reportPrivateUsage]
+        keyring = settings_crypto._keyring
         source = keyring.source if keyring is not None else None
         results.put((os.getpid(), kid, source, handler.messages))
     except BaseException:
@@ -64,7 +66,7 @@ def settings_key_child(data_dir: str, start: Barrier, results: Queue[tuple[objec
         sys.exit(1)
 
 
-def jwt_key_child(key_file: str, start: Barrier, results: Queue[tuple[object, ...]]) -> None:
+def jwt_key_child(key_file: str, start: Barrier, results: Queue[RaceResult]) -> None:
     """Get the JWT key from a path that has no file yet.
 
     Puts ``(pid, key, KEY_SOURCE, warnings)`` on ``results``, or
@@ -84,7 +86,7 @@ def jwt_key_child(key_file: str, start: Barrier, results: Queue[tuple[object, ..
         sys.exit(1)
 
 
-def run_race(target: Callable[..., None], arg: str, processes: int) -> list[tuple[object, ...]]:
+def run_race(target: Callable[..., None], arg: str, processes: int) -> list[RaceResult]:
     """Start ``processes`` children on ``target`` at once and collect what each one put.
 
     Spawned explicitly, so a child never inherits this process's state, whatever
@@ -93,7 +95,7 @@ def run_race(target: Callable[..., None], arg: str, processes: int) -> list[tupl
     """
     ctx = multiprocessing.get_context("spawn")
     start = ctx.Barrier(processes)
-    results: Queue[tuple[object, ...]] = ctx.Queue()
+    results: Queue[RaceResult] = ctx.Queue()
     children = [ctx.Process(target=target, args=(arg, start, results)) for _ in range(processes)]
     for child in children:
         child.start()
@@ -107,6 +109,6 @@ def run_race(target: Callable[..., None], arg: str, processes: int) -> list[tupl
                 child.join(timeout=5)
 
 
-def race_warnings(results: list[tuple[object, ...]]) -> list[str]:
+def race_warnings(results: list[RaceResult]) -> list[str]:
     """Every WARNING message the racers logged, in one list."""
-    return [m for r in results for m in cast(list[str], r[3])]
+    return [m for r in results for m in r[3]]

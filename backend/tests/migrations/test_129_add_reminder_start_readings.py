@@ -4,25 +4,19 @@ The tables carry only the columns 129 reads, so each test decides exactly which
 readings were on file when the reminder was made.
 """
 
-import importlib.util
 import logging
-from pathlib import Path
 
 import pytest
 from sqlalchemy import Numeric, inspect, text
 
-import app.migrations as _m
+from tests.migrations._loader import load_migration
 
 _NAME = "129_add_reminder_start_readings"
 _VIN = "1FT0000000000129X"
 
 
 def _load():
-    path = Path(_m.__file__).parent / f"{_NAME}.py"
-    spec = importlib.util.spec_from_file_location(_NAME, path)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
+    return load_migration(_NAME)
 
 
 def _make_tables(engine, *, zone: str = "UTC", readings: bool = True) -> None:

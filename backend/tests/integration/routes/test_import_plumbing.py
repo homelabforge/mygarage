@@ -660,7 +660,7 @@ def _asyncpg_too_long() -> DBAPIError:
         "value too long for type character varying(200)\nDETAIL: forged"
     )
     try:
-        AsyncAdapt_asyncpg_connection._handle_exception_no_connection(dbapi, raw)  # pyright: ignore[reportPrivateUsage]
+        AsyncAdapt_asyncpg_connection._handle_exception_no_connection(dbapi, raw)
     except dbapi.Error as translated:
         error = DBAPIError.instance("INSERT ...", {}, translated, dbapi.Error)
         assert type(error) is DBAPIError

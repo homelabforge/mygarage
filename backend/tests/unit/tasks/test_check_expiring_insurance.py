@@ -174,8 +174,21 @@ async def warranty_sent(db_session: AsyncSession, sent, monkeypatch: pytest.Monk
     base = scheduled.NotificationDispatcher
 
     class _WithWarranty(base):
-        async def notify_warranty_expiring(self, **kwargs):
-            calls.append(kwargs)
+        async def notify_warranty_expiring(
+            self,
+            vehicle_name: str,
+            warranty_name: str,
+            days_until_expiry: int,
+            url: str | None = None,
+        ) -> dict[str, bool]:
+            calls.append(
+                {
+                    "vehicle_name": vehicle_name,
+                    "warranty_name": warranty_name,
+                    "days_until_expiry": days_until_expiry,
+                    "url": url,
+                }
+            )
             return {"discord": True}
 
     monkeypatch.setattr(scheduled, "NotificationDispatcher", _WithWarranty)

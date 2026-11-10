@@ -43,6 +43,8 @@ def test_every_scaled_column_has_a_precision_and_scale():
     unscaled = sorted(
         qualified
         for qualified, kind in scaled.items()
-        if kind.impl.precision is None or kind.impl.scale is None
+        if not isinstance(impl := kind.impl_instance, Numeric)
+        or impl.precision is None
+        or impl.scale is None
     )
     assert unscaled == []

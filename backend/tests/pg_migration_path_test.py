@@ -29,6 +29,7 @@ from sqlalchemy.pool import NullPool
 from app.database import Base
 from app.migrations.runner import MigrationRunner
 from app.utils.pg_session import create_utc_async_engine, create_utc_engine
+from tests.migrations._loader import load_migration
 
 PG_ASYNC_URL = os.getenv("TEST_DATABASE_URL", "")
 PG_SYNC_URL = PG_ASYNC_URL.replace("postgresql+asyncpg", "postgresql+psycopg2")
@@ -129,6 +130,7 @@ class TestFreshInstallPath:
             count = result.scalar()
 
         print(f"  -> {count} migrations recorded in schema_migrations")
+        assert count is not None
         assert count > 0, "No migrations were recorded"
         sync_engine.dispose()
 
@@ -299,12 +301,9 @@ class TestMigrationRunnerOnPG:
         all_migrations = runner._discover_migrations()
         mig_038 = next((n, p) for n, p in all_migrations if "038" in n)
 
-        import importlib.util
         import inspect as python_inspect
 
-        spec = importlib.util.spec_from_file_location(mig_038[0], mig_038[1])
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
+        module = load_migration(mig_038[0])
 
         sig = python_inspect.signature(module.upgrade)
         assert "engine" in sig.parameters, "Migration 038 should accept engine= parameter"
@@ -356,15 +355,7 @@ class TestMigrationRunnerOnPG:
 
 def _load_093():
     """Import migration 093 as a module, the way the migration tests do."""
-    import importlib.util
-
-    spec = importlib.util.spec_from_file_location(
-        "m093", MIGRATIONS_DIR / "093_add_unit_preferences.py"
-    )
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+    return load_migration("093_add_unit_preferences", "m093")
 
 
 def _make_pre_093_pg_db(*, gallon_standard: str | None, users: list[dict]):
@@ -538,7 +529,9 @@ class TestUnitPreferenceColumns:
             # Written for every user regardless of preset (D4b).
             assert {row["secondary_gallon"] for row in rows.values()} == {"uk"}
 
-            prefs = json.loads(_pg_setting(engine, "default_unit_prefs"))
+            raw_prefs = _pg_setting(engine, "default_unit_prefs")
+            assert raw_prefs is not None
+            prefs = json.loads(raw_prefs)
             assert prefs["volume"] == "gal_uk"
             assert prefs["secondary_gallon"] == "uk"
             assert len(prefs) == 11
@@ -691,7 +684,7 @@ class TestMoneyColumnsWidened:
             assert _money_column_types(runner.engine) == MONEY_COLUMNS
 
             # Rerun 122 on the widened install: it leaves the (13,4) prices alone.
-            _load_migration(MIGRATION_122).upgrade(engine=runner.engine)
+            load_migration(MIGRATION_122).upgrade(engine=runner.engine)
             assert _money_column_types(runner.engine) == MONEY_COLUMNS
         finally:
             runner.engine.dispose()
@@ -703,17 +696,6 @@ class TestMoneyColumnsWidened:
 # tests/migrations/test_135_widen_numeric_columns.py runs the ALTERs on bare
 # tables. Here it's the whole install, through the runner.
 # ===========================================================================
-
-
-def _load_migration(name: str):
-    """Import a migration as a module, the way the runner does."""
-    import importlib.util
-
-    spec = importlib.util.spec_from_file_location(name, MIGRATIONS_DIR / f"{name}.py")
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
 
 
 def _widened_types(engine: Engine) -> dict[str, tuple[int | None, int | None]]:

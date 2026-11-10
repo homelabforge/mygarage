@@ -21,6 +21,7 @@ from app.models import (
 from app.models.user import User
 from app.routes.import_data._common import (
     ImportResult,
+    ImportResultDict,
     _in_vocabulary,
     _RowError,
     _unexpected_reason,
@@ -245,7 +246,7 @@ async def _persist_parsed_fuel(
     parsed: list[dict],
     skip_duplicates: bool,
     db: AsyncSession,
-):
+) -> ImportResultDict:
     import_result = ImportResult()
     # Odometer sync matches on (vin, date) and overwrites, so syncing every row
     # would let CSV order decide the stored value and reassign the cascade FK.

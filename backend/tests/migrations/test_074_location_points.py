@@ -9,20 +9,9 @@ FOREIGN KEY targets must already exist on PostgreSQL at CREATE TABLE time
 ``PRAGMA foreign_keys=ON``).
 """
 
-import importlib.util
-from pathlib import Path
-
 from sqlalchemy import inspect, text
 
-import app.migrations as _m
-
-
-def _load(name):
-    path = Path(_m.__file__).parent / f"{name}.py"
-    spec = importlib.util.spec_from_file_location(name, path)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
+from tests.migrations._loader import load_migration
 
 
 def _make_deps(engine):
@@ -37,7 +26,7 @@ def _make_deps(engine):
 def test_074_creates_table(engine_for_migration):
     _dialect, engine, _url = engine_for_migration
     _make_deps(engine)
-    _load("074_location_points").upgrade(engine)
+    load_migration("074_location_points").upgrade(engine)
     insp = inspect(engine)
     assert insp.has_table("location_points")
     cols = {c["name"] for c in insp.get_columns("location_points")}
@@ -62,7 +51,7 @@ def test_074_creates_table(engine_for_migration):
 def test_074_idempotent(engine_for_migration):
     _dialect, engine, _url = engine_for_migration
     _make_deps(engine)
-    mod = _load("074_location_points")
+    mod = load_migration("074_location_points")
     mod.upgrade(engine)
     mod.upgrade(engine)
     assert inspect(engine).has_table("location_points")

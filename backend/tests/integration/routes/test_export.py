@@ -336,6 +336,7 @@ class TestHoursCSVExport:
         # `unit_system` accompanies `units_version` on every export: the first
         # is the schema version, the second says which units the values are in.
         # Hours are dimensionless, so this export is always "metric".
+        assert reader.fieldnames is not None
         assert set(reader.fieldnames) == {
             "units_version",
             "unit_system",

@@ -28,6 +28,7 @@ def test_storage_policy_matches_todays_wican_behavior():
 @pytest.mark.asyncio
 async def test_parses_a_status_message_into_a_status_transition():
     batch = await M.parse(MqttEnvelope("wican/fc012ccc47bd/can/status", b'{"status": "online"}'))
+    assert batch is not None
     assert batch.device_key == "fc012ccc47bd"
     assert batch.session == StatusTransition(ecu_status="online")
     assert batch.ecu_status == "online"
@@ -36,12 +37,14 @@ async def test_parses_a_status_message_into_a_status_transition():
 @pytest.mark.asyncio
 async def test_an_unknown_status_is_not_coerced_to_offline():
     batch = await M.parse(MqttEnvelope("wican/abc/can/status", b'{"status": "weird"}'))
+    assert batch is not None
     assert batch.ecu_status == "unknown"
 
 
 @pytest.mark.asyncio
 async def test_parses_telemetry_into_readings_with_an_inferred_session():
     batch = await M.parse(MqttEnvelope("wican/abc/can/rx", b'{"odometer": 90170.0}'))
+    assert batch is not None
     assert batch.session == InferSession()
     assert batch.ecu_status == "online"
     assert [r.param_key for r in batch.readings] == ["ODOMETER"]  # canonicalised in-module
@@ -51,6 +54,7 @@ async def test_parses_telemetry_into_readings_with_an_inferred_session():
 @pytest.mark.asyncio
 async def test_parses_battery_onto_the_device_and_as_telemetry():
     batch = await M.parse(MqttEnvelope("wican/abc/battery", b'{"battery_voltage": 14.5}'))
+    assert batch is not None
     assert batch.battery_voltage == 14.5
     assert [r.param_key for r in batch.readings] == ["BATTERY_VOLTAGE"]
     assert batch.readings[0].unit == "V"
@@ -61,8 +65,11 @@ async def test_parses_battery_onto_the_device_and_as_telemetry():
 async def test_per_message_flags_match_todays_handlers():
     """Each flag encodes one verified difference between the three handlers."""
     status = await M.parse(MqttEnvelope("wican/abc/can/status", b'{"status": "online"}'))
+    assert status is not None
     battery = await M.parse(MqttEnvelope("wican/abc/battery", b'{"battery_voltage": 14.5}'))
+    assert battery is not None
     rx = await M.parse(MqttEnvelope("wican/abc/can/rx", b'{"odometer": 1.0}'))
+    assert rx is not None
 
     assert status.requires_link is False
     assert battery.requires_link is False
@@ -78,6 +85,7 @@ async def test_per_message_flags_match_todays_handlers():
 @pytest.mark.asyncio
 async def test_device_ids_are_normalized():
     batch = await M.parse(MqttEnvelope("wican/FC:01:2C-CC:47:BD/can/rx", b'{"x": 1}'))
+    assert batch is not None
     assert batch.device_key == "fc012ccc47bd"
 
 
@@ -127,6 +135,7 @@ async def test_a_can_rx_frame_with_no_numeric_value_is_not_a_batch():
 @pytest.mark.asyncio
 async def test_a_can_rx_nan_is_not_a_reading():
     batch = await M.parse(MqttEnvelope("wican/abc/can/rx", b'{"SPEED": NaN, "ENGINE_RPM": 800}'))
+    assert batch is not None
     assert [r.param_key for r in batch.readings] == ["ENGINE_RPM"]
 
 
@@ -150,6 +159,7 @@ async def test_a_can_rx_dtc_string_lands_in_dtcs_next_to_the_readings():
             "wican/abc/can/rx", b'{"DIAGNOSTIC_TROUBLE_CODES": "P0301, p0420", "ENGINE_RPM": 800}'
         )
     )
+    assert batch is not None
     assert batch.dtcs == ["P0301", "P0420"]
     assert [r.param_key for r in batch.readings] == ["ENGINE_RPM"]
     assert batch.ecu_status == "online"
@@ -239,6 +249,7 @@ async def test_an_https_status_payload_is_a_status_transition_with_its_metadata(
             }
         )
     )
+    assert batch is not None
 
     assert batch.device_key == "aabbccddeeff"
     assert batch.session == StatusTransition(ecu_status="online")
@@ -267,6 +278,7 @@ async def test_an_https_status_payload_is_a_status_transition_with_its_metadata(
 async def test_a_status_payload_with_the_default_empty_config_is_not_a_profile():
     """Fable F4-1: `config` defaults to `{}`; `status` alone replaces nothing."""
     batch = await M.parse(_https({"autopid_data": {}, "status": {"device_id": "aabbccddeeff"}}))
+    assert batch is not None
     assert batch.wire_profile is False
     assert batch.declared_wire_units == {}
 
@@ -286,6 +298,7 @@ async def test_a_non_finite_status_battery_is_left_unsaid(bad: str):
     )
     payload = WiCANPayload.model_validate(json.loads(raw))
     batch = await M.parse(WicanHttpsEnvelope(device_id="aabbccddeeff", payload=payload))
+    assert batch is not None
     assert batch.battery_voltage is None
 
 
@@ -294,6 +307,7 @@ async def test_a_telemetry_only_payload_infers_the_session_like_can_rx():
     batch = await M.parse(
         _https({"autopid_data": {"SPEED": 50, "X": "junk"}, "config": {"SPEED": {"unit": "mph"}}})
     )
+    assert batch is not None
 
     assert batch.device_key == "aabbccddeeff"
     assert batch.session == InferSession()
@@ -316,6 +330,7 @@ async def test_a_telemetry_only_payload_infers_the_session_like_can_rx():
 async def test_a_telemetry_only_payload_with_nothing_in_it_says_nothing_about_the_ecu():
     """A-7's rule for HTTPS: no value is no proof the ECU is on."""
     batch = await M.parse(_https({"autopid_data": {"DIAGNOSTIC_TROUBLE_CODES": "P0420"}}))
+    assert batch is not None
 
     assert batch.dtcs == ["P0420"]
     assert batch.readings == []
@@ -334,8 +349,8 @@ def test_config_entries_that_wont_fit_the_columns_are_dropped():
         {
             "K" * 101: WiCANConfigEntry(unit="V"),
             "LONG_UNIT": WiCANConfigEntry(unit="u" * 21),
-            "LONG_CLASS": WiCANConfigEntry(param_class="c" * 51),
-            "K" * 100: WiCANConfigEntry(unit="u" * 20, param_class="c" * 50),
+            "LONG_CLASS": WiCANConfigEntry.model_validate({"class": "c" * 51}),
+            "K" * 100: WiCANConfigEntry.model_validate({"unit": "u" * 20, "class": "c" * 50}),
         }
     )
     assert list(out) == ["K" * 100]
@@ -351,8 +366,8 @@ def test_config_drops_frame_metadata_the_dtc_key_and_empty_entries():
         {
             "ts": WiCANConfigEntry(unit="ms"),
             "TIMESTAMP": WiCANConfigEntry(unit="s"),
-            "DIAGNOSTIC_TROUBLE_CODES": WiCANConfigEntry(param_class="dtc"),
-            "BLANK": WiCANConfigEntry(unit="  ", param_class=""),
+            "DIAGNOSTIC_TROUBLE_CODES": WiCANConfigEntry.model_validate({"class": "dtc"}),
+            "BLANK": WiCANConfigEntry.model_validate({"unit": "  ", "class": ""}),
             " coolant temp ": WiCANConfigEntry(unit="°C"),
         }
     )

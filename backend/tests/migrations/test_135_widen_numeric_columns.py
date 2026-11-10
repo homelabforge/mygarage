@@ -144,11 +144,12 @@ def test_the_list_is_the_r7_columns_at_their_model_types() -> None:
     }
     assert listed == R7_TYPES
 
-    models: dict[str, tuple[int, int]] = {}
+    models: dict[str, tuple[int | None, int | None]] = {}
     for qualified in R7_TYPES:
         table, column = qualified.split(".", 1)
         kind = Base.metadata.tables[table].c[column].type
         impl = getattr(kind, "impl", kind)
+        assert isinstance(impl, Numeric), qualified
         models[qualified] = (impl.precision, impl.scale)
     assert models == R7_TYPES
     # Every old type fits its new one, so widening never rounds or overflows.

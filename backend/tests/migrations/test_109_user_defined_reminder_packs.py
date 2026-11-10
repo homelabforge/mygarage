@@ -6,25 +6,17 @@ tables may already exist, may not, or may exist as only one of the two after an
 interrupted run. All four states are exercised here, on both dialects.
 """
 
-import importlib.util
-from pathlib import Path
-
 import pytest
 from sqlalchemy import inspect, text
 
-import app.migrations as _m
+from tests.migrations._loader import load_migration
 
 PACKS = "reminder_packs"
 ITEMS = "reminder_pack_items"
 
 
 def _load():
-    name = "109_user_defined_reminder_packs"
-    path = Path(_m.__file__).parent / f"{name}.py"
-    spec = importlib.util.spec_from_file_location(name, path)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
+    return load_migration("109_user_defined_reminder_packs")
 
 
 def _make_users(engine) -> None:

@@ -33,36 +33,36 @@ def _create_kwargs(**overrides: object) -> dict[str, object]:
 
 class TestVehicleCreateFuelTypeNormalization:
     def test_normalizes_capitalized_diesel(self):
-        v = VehicleCreate(**_create_kwargs(fuel_type="Diesel"))
+        v = VehicleCreate.model_validate({**_create_kwargs(fuel_type="Diesel")})
         assert v.fuel_type == "diesel"
 
     def test_normalizes_uppercase_with_trailing_whitespace(self):
-        v = VehicleCreate(**_create_kwargs(fuel_type="GASOLINE "))
+        v = VehicleCreate.model_validate({**_create_kwargs(fuel_type="GASOLINE ")})
         assert v.fuel_type == "gasoline"
 
     def test_normalizes_phev_alias(self):
-        v = VehicleCreate(**_create_kwargs(fuel_type="PHEV"))
+        v = VehicleCreate.model_validate({**_create_kwargs(fuel_type="PHEV")})
         assert v.fuel_type == "plugin_hybrid"
 
     def test_normalizes_octane_grade(self):
-        v = VehicleCreate(**_create_kwargs(fuel_type="87"))
+        v = VehicleCreate.model_validate({**_create_kwargs(fuel_type="87")})
         assert v.fuel_type == "gasoline"
 
     def test_empty_string_becomes_none(self):
-        v = VehicleCreate(**_create_kwargs(fuel_type=""))
+        v = VehicleCreate.model_validate({**_create_kwargs(fuel_type="")})
         assert v.fuel_type is None
 
     def test_whitespace_only_becomes_none(self):
-        v = VehicleCreate(**_create_kwargs(fuel_type="   "))
+        v = VehicleCreate.model_validate({**_create_kwargs(fuel_type="   ")})
         assert v.fuel_type is None
 
     def test_none_stays_none(self):
-        v = VehicleCreate(**_create_kwargs(fuel_type=None))
+        v = VehicleCreate.model_validate({**_create_kwargs(fuel_type=None)})
         assert v.fuel_type is None
 
     def test_unrecognized_value_raises_422(self):
         with pytest.raises(ValidationError) as excinfo:
-            VehicleCreate(**_create_kwargs(fuel_type="warp-core"))
+            VehicleCreate.model_validate({**_create_kwargs(fuel_type="warp-core")})
         message = str(excinfo.value)
         assert "warp-core" in message
         # Canonical values must be listed to guide the caller.
@@ -70,12 +70,12 @@ class TestVehicleCreateFuelTypeNormalization:
         assert "diesel" in message
 
     def test_secondary_fuel_type_is_also_normalized(self):
-        v = VehicleCreate(**_create_kwargs(fuel_type_secondary="Electric"))
+        v = VehicleCreate.model_validate({**_create_kwargs(fuel_type_secondary="Electric")})
         assert v.fuel_type_secondary == "electric"
 
     def test_secondary_fuel_type_unrecognized_raises_422(self):
         with pytest.raises(ValidationError):
-            VehicleCreate(**_create_kwargs(fuel_type_secondary="unobtanium"))
+            VehicleCreate.model_validate({**_create_kwargs(fuel_type_secondary="unobtanium")})
 
 
 class TestVehicleUpdateFuelTypeNormalization:

@@ -15,22 +15,11 @@ create_all baseline would already be in the post-state and every assertion here
 would be true before the migration ran.
 """
 
-import importlib.util
-from pathlib import Path
-
 import pytest
 from sqlalchemy import inspect, text
 from sqlalchemy.exc import IntegrityError
 
-import app.migrations as _m
-
-
-def _load(name):
-    path = Path(_m.__file__).parent / f"{name}.py"
-    spec = importlib.util.spec_from_file_location(name, path)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
+from tests.migrations._loader import load_migration
 
 
 def _make_pre_094_schema(engine) -> None:
@@ -52,7 +41,7 @@ def _make_pre_094_schema(engine) -> None:
                 """
             )
         )
-    _load("085_add_tire_tracking").upgrade(engine)
+    load_migration("085_add_tire_tracking").upgrade(engine)
 
 
 def _tread_column(engine) -> dict:
@@ -129,7 +118,7 @@ def test_094_makes_tread_depth_nullable(engine_for_migration):
                 )
             )
 
-    _load("094_nullable_reading_tread").upgrade(engine)
+    load_migration("094_nullable_reading_tread").upgrade(engine)
 
     assert _tread_column(engine)["nullable"] is True
     with engine.begin() as conn:
@@ -159,7 +148,7 @@ def test_094_preserves_existing_rows(engine_for_migration):
     _make_pre_094_schema(engine)
     _seed_row(engine, reading_id=7, tread="7.50")
 
-    _load("094_nullable_reading_tread").upgrade(engine)
+    load_migration("094_nullable_reading_tread").upgrade(engine)
 
     with engine.connect() as conn:
         row = conn.execute(
@@ -201,7 +190,7 @@ def test_094_preserves_indexes_and_cascade_foreign_keys(engine_for_migration):
     _make_pre_094_schema(engine)
     _seed_row(engine, reading_id=1, tread="7.50")
 
-    _load("094_nullable_reading_tread").upgrade(engine)
+    load_migration("094_nullable_reading_tread").upgrade(engine)
 
     with engine.connect() as conn:
         if dialect == "sqlite":
@@ -247,7 +236,7 @@ def test_094_is_idempotent(engine_for_migration):
     _make_pre_094_schema(engine)
     _seed_row(engine, reading_id=3, tread="5.25")
 
-    mod = _load("094_nullable_reading_tread")
+    mod = load_migration("094_nullable_reading_tread")
     mod.upgrade(engine)
     mod.upgrade(engine)
 
@@ -263,6 +252,6 @@ def test_094_skips_cleanly_when_tire_readings_absent(engine_for_migration):
     """Early return when 085 has not run yet."""
     _dialect, engine, _url = engine_for_migration
 
-    _load("094_nullable_reading_tread").upgrade(engine)
+    load_migration("094_nullable_reading_tread").upgrade(engine)
 
     assert not inspect(engine).has_table("tire_readings")

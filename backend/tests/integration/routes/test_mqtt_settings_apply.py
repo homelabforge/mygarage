@@ -43,22 +43,22 @@ async def running() -> AsyncGenerator[asyncio.Task[None]]:
     Its task just sleeps, so `stop()` cancelling it is the only way it ends.
     """
     task: asyncio.Task[None] = asyncio.create_task(asyncio.sleep(3600))
-    mqtt_subscriber._running = True  # pyright: ignore[reportPrivateUsage]
-    mqtt_subscriber._task = task  # pyright: ignore[reportPrivateUsage]
+    mqtt_subscriber._running = True
+    mqtt_subscriber._task = task
     yield task
     task.cancel()
-    mqtt_subscriber._running = False  # pyright: ignore[reportPrivateUsage]
-    mqtt_subscriber._task = None  # pyright: ignore[reportPrivateUsage]
+    mqtt_subscriber._running = False
+    mqtt_subscriber._task = None
 
 
 @pytest_asyncio.fixture
 async def idle() -> AsyncGenerator[None]:
     """The singleton stopped, and put back stopped."""
-    mqtt_subscriber._running = False  # pyright: ignore[reportPrivateUsage]
-    mqtt_subscriber._task = None  # pyright: ignore[reportPrivateUsage]
+    mqtt_subscriber._running = False
+    mqtt_subscriber._task = None
     yield
-    mqtt_subscriber._running = False  # pyright: ignore[reportPrivateUsage]
-    mqtt_subscriber._task = None  # pyright: ignore[reportPrivateUsage]
+    mqtt_subscriber._running = False
+    mqtt_subscriber._task = None
 
 
 @pytest.fixture

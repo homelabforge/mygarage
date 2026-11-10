@@ -31,8 +31,8 @@ PYPROJECT = BACKEND / "pyproject.toml"
 STYLE_RULES = frozenset({"reportPrivateUsage", "reportUnusedFunction", "reportUnusedClass"})
 MODE_WORDS = frozenset({"basic", "standard", "strict"})
 
-# pyright's own pattern for an ignore comment (tokenizer.ts), so `#pyright:ignore`
-# and `# noqa  # pyright: ignore[...]` count too.
+# pyright's own pattern for an ignore comment (tokenizer.ts), so the no-space
+# form and one that follows a noqa count too.
 _IGNORE = re.compile(r"(?:^|#)\s*pyright:\s*ignore(\[[\s\w\-,]*\]|\s|$)")
 _TYPE_IGNORE = re.compile(r"type:\s*ignore")
 _REASON = re.compile(r"^\s+#\s*\S")
@@ -102,11 +102,8 @@ def comment_problems(source: str) -> list[str]:
 
 
 def _checked_files() -> list[Path]:
-    # tests/ joins once its own suppressions follow the policy.
     files: list[Path] = []
     for entry in _config()["include"]:
-        if entry == "tests":
-            continue
         path = BACKEND / entry
         files.extend(sorted(path.rglob("*.py")) if path.is_dir() else [path])
     return files
@@ -140,6 +137,7 @@ class TestPolicyGuard:
     def test_the_checked_tree_follows_the_policy(self) -> None:
         files = _checked_files()
         assert any(f.parts[-2:] == ("app", "main.py") for f in files)
+        assert any(f.parts[-2:] == ("tests", "conftest.py") for f in files)
         problems = [
             f"{f.relative_to(BACKEND)} {p}"
             for f in files

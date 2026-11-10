@@ -9,7 +9,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from datetime import UTC, datetime
 from datetime import date as date_type
 from decimal import Decimal, InvalidOperation
-from typing import Any, get_args
+from typing import Any, TypedDict, get_args
 
 from fastapi import APIRouter
 from pydantic import BaseModel
@@ -297,6 +297,17 @@ def _json_bool(row: Mapping[str, Any], key: str, *, default: bool) -> bool:
     raise _RowError(f"{key} must be true or false")
 
 
+class ImportResultDict(TypedDict):
+    """What an import route answers with."""
+
+    success_count: int
+    error_count: int
+    skipped_count: int
+    errors: list[str]
+    warnings: list[str]
+    total_processed: int
+
+
 class ImportResult:
     """Result of an import operation."""
 
@@ -321,7 +332,7 @@ class ImportResult:
     def add_skip(self) -> None:
         self.skipped_count += 1
 
-    def to_dict(self) -> dict[str, int | list[str]]:
+    def to_dict(self) -> ImportResultDict:
         return {
             "success_count": self.success_count,
             "error_count": self.error_count,

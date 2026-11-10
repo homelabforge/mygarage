@@ -6,23 +6,12 @@ beside the moved one, both rows stranded, an orphaned group, a vin-mismatched
 source, and tire rows that must never be touched.
 """
 
-import importlib.util
-from pathlib import Path
-
 from sqlalchemy import text
 
-import app.migrations as _m
+from tests.migrations._loader import load_migration
 
 VIN = "MIG106VIN00000001"
 OTHER_VIN = "MIG106VIN00000002"
-
-
-def _load(name):
-    path = Path(_m.__file__).parent / f"{name}.py"
-    spec = importlib.util.spec_from_file_location(name, path)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
 
 
 def _make_tables(engine):
@@ -105,7 +94,7 @@ def test_106_repairs_every_corruption_shape(engine_for_migration):
         # A healthy singleton stays.
         _odo(conn, 11, VIN, "2026-04-01", 100, "[AUTO-SYNC from fuel #12]")
 
-    _load("106_repair_odometer_sync_duplicates").upgrade(engine)
+    load_migration("106_repair_odometer_sync_duplicates").upgrade(engine)
 
     rows = _rows(engine)
     assert set(rows) == {2, 4, 6, 8, 9, 10, 11}, rows
@@ -126,7 +115,7 @@ def test_106_is_idempotent_and_quiet_on_clean_data(engine_for_migration):
         _odo(conn, 1, VIN, "2026-08-06", 166111, "[AUTO-SYNC from fuel #25]")
         _odo(conn, 2, VIN, "2026-08-03", 166111, "[AUTO-SYNC from fuel #25]")
 
-    mod = _load("106_repair_odometer_sync_duplicates")
+    mod = load_migration("106_repair_odometer_sync_duplicates")
     mod.upgrade(engine)
     first = _rows(engine)
     mod.upgrade(engine)
@@ -135,7 +124,7 @@ def test_106_is_idempotent_and_quiet_on_clean_data(engine_for_migration):
 
 def test_106_survives_a_missing_table(engine_for_migration):
     _dialect, engine, _url = engine_for_migration
-    _load("106_repair_odometer_sync_duplicates").upgrade(engine)
+    load_migration("106_repair_odometer_sync_duplicates").upgrade(engine)
 
 
 def test_106_merges_the_legacy_service_marker_alias(engine_for_migration):
@@ -155,7 +144,7 @@ def test_106_merges_the_legacy_service_marker_alias(engine_for_migration):
         _odo(conn, 1, VIN, "2026-08-06", 700, "[AUTO-SYNC from service #41]")
         _odo(conn, 2, VIN, "2026-08-03", 700, "[AUTO-SYNC from service_visit #41]")
 
-    _load("106_repair_odometer_sync_duplicates").upgrade(engine)
+    load_migration("106_repair_odometer_sync_duplicates").upgrade(engine)
 
     rows = _rows(engine)
     assert set(rows) == {2}, rows
@@ -175,7 +164,7 @@ def test_106_normalizes_a_legacy_only_group_it_repairs(engine_for_migration):
         _odo(conn, 1, VIN, "2026-08-10", 800, "[AUTO-SYNC from service #42]")
         _odo(conn, 2, VIN, "2026-08-15", 800, "[AUTO-SYNC from service #42]")
 
-    _load("106_repair_odometer_sync_duplicates").upgrade(engine)
+    load_migration("106_repair_odometer_sync_duplicates").upgrade(engine)
 
     rows = _rows(engine)
     assert set(rows) == {2}, rows
@@ -197,4 +186,4 @@ def test_106_swallows_an_operational_error(engine_for_migration):
             )
         )
 
-    _load("106_repair_odometer_sync_duplicates").upgrade(engine)  # must not raise
+    load_migration("106_repair_odometer_sync_duplicates").upgrade(engine)  # must not raise

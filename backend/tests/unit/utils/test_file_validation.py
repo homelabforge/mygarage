@@ -7,8 +7,8 @@ Tests magic byte verification, MIME type validation, and file size checks.
 from io import BytesIO
 
 import pytest
-from fastapi import HTTPException
-from starlette.datastructures import Headers, UploadFile
+from fastapi import HTTPException, UploadFile
+from starlette.datastructures import Headers
 
 from app.utils.file_validation import (
     MAGIC_AVAILABLE,

@@ -16,7 +16,7 @@ from typing import Any
 
 import pytest
 from sqlalchemy import Connection, Engine, create_engine, event, text
-from sqlalchemy.pool import NullPool
+from sqlalchemy.pool import NullPool, QueuePool
 
 import app.migrations.runner as runner_module
 from app.migrations.runner import MigrationRunner, run_migrations
@@ -40,6 +40,13 @@ def upgrade(engine):
     with engine.begin() as conn:
         conn.execute(text("CREATE TABLE zone_probe (name VARCHAR(10) PRIMARY KEY, stamped TIMESTAMP NOT NULL)"))
 """
+
+
+def _checked_in(engine: Engine) -> int:
+    """Idle connections in the engine's pool (QueuePool, the default for file SQLite and PG)."""
+    pool = engine.pool
+    assert isinstance(pool, QueuePool)
+    return pool.checkedin()
 
 
 def _stamp_now(name: str) -> str:
@@ -158,7 +165,7 @@ def test_pg_the_pin_is_a_new_engine_and_the_unpinned_one_is_disposed(
         assert event.contains(runner.engine, "connect", _set_session_utc)
         assert not event.contains(unpinned, "connect", _set_session_utc)
         # dispose() empties the pool; the bootstrap's connection would still be in it otherwise.
-        assert unpinned.pool.checkedin() == 0
+        assert _checked_in(unpinned) == 0
         assert runner.engine.hide_parameters is True
     finally:
         runner.engine.dispose()
@@ -318,7 +325,7 @@ def test_sqlite_run_migrations_disposes_its_engine(
     seen = _runners(monkeypatch)
     run_migrations(f"sqlite:///{tmp_path / 'mygarage.db'}", _migrations(tmp_path, {"001": _NOOP}))
     [runner] = seen
-    assert runner.engine.pool.checkedin() == 0
+    assert _checked_in(runner.engine) == 0
 
 
 def test_sqlite_run_migrations_disposes_its_engine_when_one_fails(
@@ -331,7 +338,7 @@ def test_sqlite_run_migrations_disposes_its_engine_when_one_fails(
             f"sqlite:///{tmp_path / 'mygarage.db'}", _migrations(tmp_path, {"001_fail": _FAIL})
         )
     [runner] = seen
-    assert runner.engine.pool.checkedin() == 0
+    assert _checked_in(runner.engine) == 0
 
 
 def test_pg_run_migrations_disposes_the_pinned_engine_it_ended_on(
@@ -341,7 +348,7 @@ def test_pg_run_migrations_disposes_the_pinned_engine_it_ended_on(
     run_migrations(_pg_url(), _migrations(tmp_path, {repair_stem: _NOOP, "003_after": _NOOP}))
     [runner] = seen
     assert runner.pinned
-    assert runner.engine.pool.checkedin() == 0
+    assert _checked_in(runner.engine) == 0
 
 
 # --- R5b: on PG, nothing fails quietly before the repair -------------------------

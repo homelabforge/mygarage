@@ -15,7 +15,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import delete, event, select, text
+from sqlalchemy import Table, delete, event, select, text
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -108,13 +108,15 @@ async def file_db(tmp_path: Path, *, timeout: float = 30) -> tuple[AsyncEngine, 
     configure_sqlite_engine(engine)
 
     @event.listens_for(engine.sync_engine, "connect")
-    def _secure_delete_off(dbapi_connection: Any, _record: Any) -> None:  # pyright: ignore[reportUnusedFunction]
+    def _secure_delete_off(dbapi_connection: Any, _record: Any) -> None:
         cursor = dbapi_connection.cursor()
         cursor.execute("PRAGMA secure_delete=OFF")
         cursor.close()
 
+    settings_table = Setting.__table__
+    assert isinstance(settings_table, Table)
     async with engine.begin() as conn:
-        await conn.run_sync(Setting.__table__.create)  # pyright: ignore[reportUnknownMemberType, reportUnknownArgumentType]
+        await conn.run_sync(settings_table.create)
     async with engine.connect() as conn:
         # The secret first, so later rows sit between it and the free space and
         # its freed cell isn't simply reused by the longer ciphertext.

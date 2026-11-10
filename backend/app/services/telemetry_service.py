@@ -280,7 +280,7 @@ class TelemetryService:
         display_name: str | None = None,
         unit: str | None = None,
         param_class: str | None = None,
-    ) -> LiveLinkParameter | None:
+    ) -> LiveLinkParameter:
         """Get or create a parameter definition.
 
         Wrapper for auto_register_parameter for route compatibility.

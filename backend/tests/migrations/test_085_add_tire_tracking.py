@@ -5,22 +5,11 @@ Parameterized over SQLite *and* PostgreSQL via the ``engine_for_migration``
 fixture (PG runs skip when ``TEST_DATABASE_URL`` is unset).
 """
 
-import importlib.util
-from pathlib import Path
-
 import pytest
 from sqlalchemy import inspect, text
 from sqlalchemy.exc import IntegrityError
 
-import app.migrations as _m
-
-
-def _load(name):
-    path = Path(_m.__file__).parent / f"{name}.py"
-    spec = importlib.util.spec_from_file_location(name, path)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
+from tests.migrations._loader import load_migration
 
 
 def _make_vehicles_table(engine):
@@ -43,7 +32,7 @@ def test_085_creates_tires_and_tire_readings_tables(engine_for_migration):
     _dialect, engine, _url = engine_for_migration
     _make_vehicles_table(engine)
 
-    _load("085_add_tire_tracking").upgrade(engine)
+    load_migration("085_add_tire_tracking").upgrade(engine)
 
     inspector = inspect(engine)
     assert inspector.has_table("tires")
@@ -64,7 +53,7 @@ def test_085_creates_indexes(engine_for_migration):
     dialect, engine, _url = engine_for_migration
     _make_vehicles_table(engine)
 
-    _load("085_add_tire_tracking").upgrade(engine)
+    load_migration("085_add_tire_tracking").upgrade(engine)
 
     # Use raw SQL to check indexes - inspector may cache stale state
     with engine.connect() as conn:
@@ -91,7 +80,7 @@ def test_085_is_idempotent(engine_for_migration):
     _dialect, engine, _url = engine_for_migration
     _make_vehicles_table(engine)
 
-    mod = _load("085_add_tire_tracking")
+    mod = load_migration("085_add_tire_tracking")
     mod.upgrade(engine)
     mod.upgrade(engine)
 
@@ -104,7 +93,7 @@ def test_085_skips_cleanly_when_vehicles_absent(engine_for_migration):
     """Early return when vehicles table doesn't exist."""
     _dialect, engine, _url = engine_for_migration
 
-    _load("085_add_tire_tracking").upgrade(engine)
+    load_migration("085_add_tire_tracking").upgrade(engine)
 
     inspector = inspect(engine)
     assert not inspector.has_table("tires")
@@ -116,7 +105,7 @@ def test_085_unique_constraint_on_vin_position(engine_for_migration):
     _dialect, engine, _url = engine_for_migration
     _make_vehicles_table(engine)
 
-    _load("085_add_tire_tracking").upgrade(engine)
+    load_migration("085_add_tire_tracking").upgrade(engine)
 
     with engine.begin() as conn:
         conn.execute(text("INSERT INTO vehicles (vin) VALUES ('VIN00000000000001')"))

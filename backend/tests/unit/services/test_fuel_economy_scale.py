@@ -63,6 +63,6 @@ async def test_the_analytics_trend_points_keep_four_places() -> None:
         async def execute(self, _stmt: object) -> SimpleNamespace:
             return SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: FILLS))
 
-    trend = await get_fuel_economy_trend(_Db(), FILLS[0].vin)
+    trend = await get_fuel_economy_trend(_Db(), FILLS[0].vin)  # pyright: ignore[reportArgumentType]  # duck-typed fake
     assert [p.l_per_100km for p in trend.data_points] == [Decimal("6.9808"), Decimal("7.0000")]
     assert trend.best_l_per_100km == Decimal("6.9808")

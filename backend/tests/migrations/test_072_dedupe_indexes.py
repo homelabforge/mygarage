@@ -33,7 +33,7 @@ import importlib.util
 from pathlib import Path
 
 import pytest
-from sqlalchemy import inspect, text
+from sqlalchemy import Table, inspect, text
 
 import app.migrations as _m
 
@@ -219,7 +219,9 @@ def test_model_produces_partial_oidc_index(engine_for_migration):
 
     from app.models.user import User
 
-    User.__table__.create(engine)
+    table = User.__table__
+    assert isinstance(table, Table)
+    table.create(engine)
 
     subj_sql = _sqlite_index_sql(engine, "idx_users_oidc_subject").upper()
     assert "IS NOT NULL" in subj_sql

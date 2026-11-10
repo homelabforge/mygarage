@@ -18,6 +18,7 @@ import pytest
 from pydantic import BaseModel, ValidationError
 from sqlalchemy import Column, inspect
 
+from app.models._types import ScaledNumeric
 from app.models.fuel import FuelRecord
 from app.models.hours import HoursRecord
 from app.models.maintenance_rule import MaintenanceRule
@@ -45,6 +46,12 @@ DAY = date(2026, 5, 5)
 
 def _column(model: type[Any], name: str) -> Column[Any]:
     return inspect(model).columns[name]
+
+
+def _scale(column: Column[Any]) -> int:
+    """The places an hours column keeps (they're all ScaledNumeric)."""
+    assert isinstance(column.type, ScaledNumeric), column.type
+    return column.type.scale
 
 
 class Case(NamedTuple):
@@ -186,13 +193,13 @@ def test_engine_hours_read_as_the_stored_tenth(case: Case, given: object, reads:
     hours = case.read(given)
     assert hours == reads
     # The exponent too: 812.40 == 812.4 already, so equality alone can't see it.
-    assert hours.as_tuple().exponent == -case.column.type.scale
+    assert hours.as_tuple().exponent == -_scale(case.column)
 
 
 @pytest.mark.parametrize("case", CASES, ids=IDS)
 def test_the_column_keeps_a_tenth(case: Case) -> None:
     # Rounding to 0.1 is only right while the column keeps exactly one place.
-    assert case.column.type.scale == 1
+    assert _scale(case.column) == 1
 
 
 @pytest.mark.parametrize("case", CASES, ids=IDS)

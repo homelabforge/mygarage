@@ -182,6 +182,7 @@ class TestParse:
         assert body["warnings"] == []
         assert body["model"] is None
         read.assert_awaited_once()
+        assert read.await_args is not None
         assert read.await_args.kwargs["kind"] == "registration_certificate"
 
     async def test_photo_read_by_the_model(self, client: AsyncClient, auth_headers):

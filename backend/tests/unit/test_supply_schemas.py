@@ -4,7 +4,7 @@ from decimal import Decimal
 
 import pytest
 from pydantic import BaseModel, ValidationError
-from sqlalchemy import Column, Numeric
+from sqlalchemy import Column, Numeric, TypeDecorator
 
 from app.models.supply import SupplyPurchase, SupplyUsage
 from app.schemas.supply import (
@@ -22,7 +22,7 @@ def test_supply_create_requires_valid_unit_type():
     ok = SupplyCreate(name="Mobil 1 5W-30", unit_type="volume")
     assert ok.unit_type == "volume"
     with pytest.raises(ValidationError):
-        SupplyCreate(name="x", unit_type="gallons")
+        SupplyCreate.model_validate({"name": "x", "unit_type": "gallons"})
 
 
 def test_supply_update_has_no_unit_type_field():
@@ -45,6 +45,7 @@ def test_adjustment_quantity_positive():
 def _column_max(column: Column) -> Decimal:
     """The largest value a Numeric(p, s) column holds."""
     # ScaledNumeric wraps the Numeric the database sees.
+    assert isinstance(column.type, TypeDecorator), column.type
     numeric = column.type.impl
     assert isinstance(numeric, Numeric) and numeric.precision and numeric.scale is not None
     return Decimal(10) ** (numeric.precision - numeric.scale) - Decimal(10) ** -numeric.scale
@@ -91,7 +92,7 @@ def test_supply_create_accepts_a_volume_unit():
 
 def test_supply_create_rejects_an_unknown_token():
     with pytest.raises(ValidationError):
-        SupplyCreate(name="x", unit_type="volume", volume_unit="pt_us")
+        SupplyCreate.model_validate({"name": "x", "unit_type": "volume", "volume_unit": "pt_us"})
 
 
 def test_count_supply_with_a_volume_unit_is_a_422():
@@ -106,28 +107,32 @@ def test_supply_update_distinguishes_clear_from_omit():
 
 
 def test_supply_response_reads_an_unknown_stored_token_as_null():
-    r = SupplyResponse(
-        id=1,
-        name="Oil",
-        unit_type="volume",
-        is_active=True,
-        on_hand=Decimal("1.000"),
-        is_negative=False,
-        created_at=datetime(2026, 1, 1),
-        volume_unit="pt_us",
+    r = SupplyResponse.model_validate(
+        {
+            "id": 1,
+            "name": "Oil",
+            "unit_type": "volume",
+            "is_active": True,
+            "on_hand": Decimal("1.000"),
+            "is_negative": False,
+            "created_at": datetime(2026, 1, 1),
+            "volume_unit": "pt_us",
+        }
     )
     assert r.volume_unit is None
 
 
 def test_supply_usage_response_reads_leniently_too():
-    r = SupplyUsageResponse(
-        id=1,
-        supply_id=1,
-        supply_name="Oil",
-        unit_type="volume",
-        quantity=Decimal("0.250"),
-        created_at=datetime(2026, 1, 1),
-        volume_unit="bogus",
+    r = SupplyUsageResponse.model_validate(
+        {
+            "id": 1,
+            "supply_id": 1,
+            "supply_name": "Oil",
+            "unit_type": "volume",
+            "quantity": Decimal("0.250"),
+            "created_at": datetime(2026, 1, 1),
+            "volume_unit": "bogus",
+        }
     )
     assert r.volume_unit is None
 

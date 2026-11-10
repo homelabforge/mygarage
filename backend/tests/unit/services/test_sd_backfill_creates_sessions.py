@@ -293,7 +293,9 @@ class TestItDoesNotOverlapExistingSessions:
         sessions = await _sessions(db_session, device.device_id)
         assert len(sessions) == 1, f"expected the session to be extended, got {len(sessions)}"
         assert sessions[0].id == live_part.id
-        assert sessions[0].ended_at >= T0 + timedelta(minutes=6)
+        ended_at = sessions[0].ended_at
+        assert ended_at is not None
+        assert ended_at >= T0 + timedelta(minutes=6)
         assert sessions[0].distance_km == pytest.approx(11.0)
 
     async def test_a_torque_session_is_never_extended(
@@ -348,6 +350,7 @@ class TestItDoesNotOverlapExistingSessions:
         sessions = await _sessions(db_session, device.device_id)
         assert len(sessions) == 3
         for earlier, later in zip(sessions, sessions[1:], strict=False):
+            assert earlier.ended_at is not None
             assert earlier.ended_at <= later.started_at, (
                 f"session {earlier.id} ends {earlier.ended_at}, "
                 f"session {later.id} starts {later.started_at}"

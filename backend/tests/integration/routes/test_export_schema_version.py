@@ -114,6 +114,7 @@ class TestDimensionlessCSVPairsVersionCellOnly:
 
         reader = csv.DictReader(io.StringIO(response.text))
         rows = list(reader)
+        assert reader.fieldnames is not None
         assert set(reader.fieldnames) == {
             "units_version",
             "unit_system",
@@ -155,6 +156,7 @@ class TestDimensionlessCSVPairsVersionCellOnly:
 
         reader = csv.DictReader(io.StringIO(response.text))
         rows = list(reader)
+        assert reader.fieldnames is not None
         assert set(reader.fieldnames) == {
             "units_version",
             "unit_system",
@@ -196,6 +198,7 @@ class TestDimensionlessCSVPairsVersionCellOnly:
 
         reader = csv.DictReader(io.StringIO(response.text))
         rows = list(reader)
+        assert reader.fieldnames is not None
         assert set(reader.fieldnames) == {
             "units_version",
             "unit_system",

@@ -22,7 +22,7 @@ class TestToCanonicalDecimal:
 
     def test_liters_passthrough_preserves_decimal(self) -> None:
         # User types 37.854 → must round-trip exactly (issue #67's repro case)
-        result = UnitConverter.to_canonical_decimal("37.854", "L")
+        result = UnitConverter.to_canonical_decimal(Decimal("37.854"), "L")
         assert result == Decimal("37.854")
 
     def test_gallons_to_liters(self) -> None:
@@ -83,7 +83,7 @@ class TestToCanonicalDecimal:
     )
     def test_metric_already_passthrough(self, value: str, unit: str) -> None:
         # Metric inputs must NOT be modified — preserve user precision exactly.
-        result = UnitConverter.to_canonical_decimal(value, unit)
+        result = UnitConverter.to_canonical_decimal(Decimal(value), unit)
         assert result == Decimal(value)
 
 

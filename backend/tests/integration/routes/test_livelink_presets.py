@@ -155,8 +155,10 @@ def test_the_level_and_battery_offer_alert_lines():
     lines = {r.suffix: (r.low, r.critical) for r in MOPEKA.readings if r.alert_lines}
 
     assert lines == {"LEVEL_PCT": (25.0, 10.0), "SENSOR_BATT_PCT": (20.0, None)}
-    assert MOPEKA.reading("LEVEL_PCT").alert_lines == ("low", "critical")
-    assert MOPEKA.reading("SENSOR_BATT_PCT").alert_lines == ("low",)
+    level, batt = MOPEKA.reading("LEVEL_PCT"), MOPEKA.reading("SENSOR_BATT_PCT")
+    assert level is not None and batt is not None
+    assert level.alert_lines == ("low", "critical")
+    assert batt.alert_lines == ("low",)
 
 
 def test_only_percent_readings_offer_alert_lines():

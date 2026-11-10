@@ -85,8 +85,9 @@ def test_profile_id_resolution():
     assert svc.profile_id_for_country(" fr ") == "FR"
     # A member state without its own file reads the EU baseline.
     assert svc.profile_id_for_country("AT") == "EU"
-    assert svc.profile_for_country("AT") is not None
-    assert svc.profile_for_country("AT").country == "EU"
+    at = svc.profile_for_country("AT")
+    assert at is not None
+    assert at.country == "EU"
     # Outside the EU, no profile.
     assert svc.profile_id_for_country("US") is None
     assert svc.profile_for_country("US") is None

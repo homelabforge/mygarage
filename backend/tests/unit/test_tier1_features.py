@@ -7,6 +7,7 @@ import pytest
 from fastapi import HTTPException
 from pydantic import ValidationError
 
+from app.models.tire import TireReading
 from app.schemas.fuel import FuelRecordCreate
 from app.services.import_adapters.fuel_csv import (
     detect_format,
@@ -19,13 +20,13 @@ from app.services.tire_results import WearStatus
 from app.services.tire_service import project_wear
 
 
-class _Reading:
-    def __init__(self, recorded_at, odometer_km, tread_depth_mm):
-        # Unsaved, like a reading that hasn't been flushed yet. The sort ties on id.
-        self.id = None
-        self.recorded_at = recorded_at
-        self.odometer_km = odometer_km
-        self.tread_depth_mm = tread_depth_mm
+def _reading(
+    recorded_at: date, odometer_km: Decimal | None, tread_depth_mm: Decimal
+) -> TireReading:
+    # Unsaved, like a reading that hasn't been flushed yet: id is None. The sort ties on id.
+    return TireReading(
+        recorded_at=recorded_at, odometer_km=odometer_km, tread_depth_mm=tread_depth_mm
+    )
 
 
 def _tire_with(readings, min_tread, *, bounded=True, mounted_on: date = date(2025, 1, 1)):
@@ -38,7 +39,7 @@ def _tire_with(readings, min_tread, *, bounded=True, mounted_on: date = date(202
     """
     from app.models.tire import Tire, TireMountPeriod
 
-    # `readings` are plain stand-ins, not ORM instances, so they go through
+    # `readings` are unsaved and not attached to the tire, so they go through
     # project_wear's explicit parameter rather than the relationship.
     tire = Tire(vin="V" * 17, position="FL", min_tread_mm=min_tread)
     tire.mount_periods = [
@@ -110,8 +111,8 @@ def test_detect_format_drivvo():
 
 def test_project_wear():
     readings = [
-        _Reading(date(2026, 6, 1), Decimal("12000"), Decimal("4.0")),
-        _Reading(date(2026, 1, 1), Decimal("10000"), Decimal("6.0")),
+        _reading(date(2026, 6, 1), Decimal("12000"), Decimal("4.0")),
+        _reading(date(2026, 1, 1), Decimal("10000"), Decimal("6.0")),
     ]
     result = project_wear(_tire_with(readings, Decimal("2.0")), Decimal("12000"), readings)
     assert result.status is WearStatus.PROJECTED
@@ -122,8 +123,8 @@ def test_project_wear():
 def test_project_wear_dates_an_in_range_projection():
     # 1 mm per 1,000 km at 10 km/day with 3 mm left: 300 days after the newer reading.
     readings = [
-        _Reading(date(2026, 4, 11), Decimal("11000"), Decimal("5.0")),
-        _Reading(date(2026, 1, 1), Decimal("10000"), Decimal("6.0")),
+        _reading(date(2026, 4, 11), Decimal("11000"), Decimal("5.0")),
+        _reading(date(2026, 1, 1), Decimal("10000"), Decimal("6.0")),
     ]
     result = project_wear(_tire_with(readings, Decimal("2.0")), Decimal("11000"), readings)
     assert result.status is WearStatus.PROJECTED
@@ -135,8 +136,8 @@ def test_project_wear_past_the_calendar_has_no_date():
     """0.01 mm in nine years with 10 mm left is 3,287,000 days out, past
     9999-12-31. The km figure still stands; only the date is unavailable."""
     readings = [
-        _Reading(date(2026, 6, 1), Decimal("100000"), Decimal("12.00")),
-        _Reading(date(2017, 6, 1), Decimal("10000"), Decimal("12.01")),
+        _reading(date(2026, 6, 1), Decimal("100000"), Decimal("12.00")),
+        _reading(date(2017, 6, 1), Decimal("10000"), Decimal("12.01")),
     ]
     tire = _tire_with(readings, Decimal("2.0"), mounted_on=date(2017, 1, 1))
     result = project_wear(tire, Decimal("100000"), readings)
@@ -146,7 +147,7 @@ def test_project_wear_past_the_calendar_has_no_date():
 
 
 def test_project_wear_needs_two_readings():
-    readings = [_Reading(date(2026, 1, 1), Decimal("10000"), Decimal("6.0"))]
+    readings = [_reading(date(2026, 1, 1), Decimal("10000"), Decimal("6.0"))]
     result = project_wear(_tire_with(readings, Decimal("2.0")), Decimal("12000"), readings)
     assert result.status is WearStatus.INSUFFICIENT_READINGS
     assert result.km_remaining is None
@@ -154,8 +155,8 @@ def test_project_wear_needs_two_readings():
 
 def test_project_wear_already_below_threshold():
     readings = [
-        _Reading(date(2026, 6, 1), Decimal("12000"), Decimal("1.5")),
-        _Reading(date(2026, 1, 1), Decimal("10000"), Decimal("6.0")),
+        _reading(date(2026, 6, 1), Decimal("12000"), Decimal("1.5")),
+        _reading(date(2026, 1, 1), Decimal("10000"), Decimal("6.0")),
     ]
     result = project_wear(_tire_with(readings, Decimal("2.0")), Decimal("12000"), readings)
     assert result.status is WearStatus.AT_OR_BELOW_MINIMUM
@@ -172,8 +173,8 @@ def test_project_wear_is_suppressed_without_a_bounded_mount_history():
     rather than published with an "estimate" badge.
     """
     readings = [
-        _Reading(date(2026, 6, 1), Decimal("12000"), Decimal("4.0")),
-        _Reading(date(2026, 1, 1), Decimal("10000"), Decimal("6.0")),
+        _reading(date(2026, 6, 1), Decimal("12000"), Decimal("4.0")),
+        _reading(date(2026, 1, 1), Decimal("10000"), Decimal("6.0")),
     ]
     result = project_wear(
         _tire_with(readings, Decimal("2.0"), bounded=False),
@@ -192,8 +193,8 @@ def test_a_worn_tire_says_replace_now_even_with_no_mount_history():
     the same tire.
     """
     readings = [
-        _Reading(date(2026, 6, 1), Decimal("12000"), Decimal("1.5")),
-        _Reading(date(2026, 1, 1), Decimal("10000"), Decimal("6.0")),
+        _reading(date(2026, 6, 1), Decimal("12000"), Decimal("1.5")),
+        _reading(date(2026, 1, 1), Decimal("10000"), Decimal("6.0")),
     ]
     tire = _tire_with(readings, Decimal("2.0"), bounded=False)
     tire.tread_depth_mm = Decimal("1.5")
@@ -207,26 +208,26 @@ def test_a_worn_tire_says_replace_now_even_with_no_mount_history():
     "readings",
     [
         pytest.param(
-            [_Reading(date(2026, 6, 1), Decimal("12000"), Decimal("1.5"))], id="one_reading"
+            [_reading(date(2026, 6, 1), Decimal("12000"), Decimal("1.5"))], id="one_reading"
         ),
         pytest.param(
             [
-                _Reading(date(2026, 6, 1), None, Decimal("1.5")),
-                _Reading(date(2026, 1, 1), None, Decimal("6.0")),
+                _reading(date(2026, 6, 1), None, Decimal("1.5")),
+                _reading(date(2026, 1, 1), None, Decimal("6.0")),
             ],
             id="no_reading_odometers",
         ),
         pytest.param(
             [
-                _Reading(date(2026, 6, 1), Decimal("12000"), Decimal("1.5")),
-                _Reading(date(2026, 1, 1), Decimal("10000"), Decimal("1.5")),
+                _reading(date(2026, 6, 1), Decimal("12000"), Decimal("1.5")),
+                _reading(date(2026, 1, 1), Decimal("10000"), Decimal("1.5")),
             ],
             id="flat_tread",
         ),
         pytest.param(
             [
-                _Reading(date(2026, 6, 1), Decimal("12000"), Decimal("1.5")),
-                _Reading(date(2026, 1, 1), Decimal("10000"), Decimal("1.4")),
+                _reading(date(2026, 6, 1), Decimal("12000"), Decimal("1.5")),
+                _reading(date(2026, 1, 1), Decimal("10000"), Decimal("1.4")),
             ],
             id="rising_tread",
         ),
@@ -266,8 +267,8 @@ def test_a_cleared_tread_scalar_still_replaces_now_from_the_reading():
     `km_remaining` instead of AT_OR_BELOW_MINIMUM.
     """
     readings = [
-        _Reading(date(2026, 7, 1), Decimal("15000"), Decimal("1.0")),
-        _Reading(date(2026, 2, 1), Decimal("11000"), Decimal("5.0")),
+        _reading(date(2026, 7, 1), Decimal("15000"), Decimal("1.0")),
+        _reading(date(2026, 2, 1), Decimal("11000"), Decimal("5.0")),
     ]
     tire = _tire_with(readings, Decimal("2.0"))
     tire.tread_depth_mm = None
@@ -288,8 +289,8 @@ def test_a_scalar_below_minimum_with_a_healthy_newest_reading_has_no_date():
     of a stale calendar date.
     """
     readings = [
-        _Reading(date(2026, 1, 1), Decimal("10000"), Decimal("6.0")),
-        _Reading(date(2025, 6, 1), Decimal("5000"), Decimal("7.0")),
+        _reading(date(2026, 1, 1), Decimal("10000"), Decimal("6.0")),
+        _reading(date(2025, 6, 1), Decimal("5000"), Decimal("7.0")),
     ]
     tire = _tire_with(readings, Decimal("2.0"))
     tire.tread_depth_mm = Decimal("1.5")
@@ -340,8 +341,8 @@ def test_project_wear_excludes_distance_driven_on_the_other_set():
     odometer span is 12,000 km and yields 12,000.
     """
     readings = [
-        _Reading(date(2026, 8, 1), Decimal("22000"), Decimal("4.0")),
-        _Reading(date(2026, 3, 1), Decimal("10000"), Decimal("6.0")),
+        _reading(date(2026, 8, 1), Decimal("22000"), Decimal("4.0")),
+        _reading(date(2026, 3, 1), Decimal("10000"), Decimal("6.0")),
     ]
     result = project_wear(_seasonal_tire(Decimal("2.0")), Decimal("26000"), readings)
     assert result.status is WearStatus.PROJECTED
@@ -356,13 +357,12 @@ def _migrated_then_remounted_tire():
     this exact migrated-then-remounted shape, and the blocking-list test
     additionally needs the readings attached to `tire.readings` (not just
     passed to `project_wear`), because `_to_response` reads that relationship
-    directly rather than taking an override. `TireReading` instances (not the
-    lightweight `_Reading` stand-in) are required here: `_to_response`
-    serialises `tire.readings` through `TireReadingResponse.model_validate`,
-    which needs `id`/`tire_id`/`vin`/`created_at` that `_Reading` does not
-    carry.
+    directly rather than taking an override. Fully filled `TireReading`s (not
+    the bare `_reading` ones) are required here: `_to_response` serialises
+    `tire.readings` through `TireReadingResponse.model_validate`, which needs
+    `id`/`tire_id`/`vin`/`created_at` that `_reading` leaves unset.
     """
-    from app.models.tire import Tire, TireMountPeriod, TireReading
+    from app.models.tire import Tire, TireMountPeriod
 
     tire = Tire(
         id=1,
@@ -718,7 +718,7 @@ class TestChargeFieldValidation:
         """The webhook contract is deliberately looser than FuelRecordCreate."""
         from app.services.fuel_ingest import WebhookFuelPayload
 
-        payload = WebhookFuelPayload(vin="1HGCM82633A004352", kwh=45)
+        payload = WebhookFuelPayload(vin="1HGCM82633A004352", kwh=Decimal("45"))
         assert payload.odometer_km is None
 
 

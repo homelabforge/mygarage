@@ -1,25 +1,13 @@
 """Migration 114: reset show_on_dashboard to TRUE, and touch nothing else."""
 
-import importlib.util
-from pathlib import Path
-
 from sqlalchemy import text
 
 from tests._engines import SyncEngine
-
-_MIG = (
-    Path(__file__).resolve().parents[2]
-    / "app"
-    / "migrations"
-    / "114_livelink_parameter_dashboard_default.py"
-)
+from tests.migrations._loader import load_migration
 
 
 def _load():
-    spec = importlib.util.spec_from_file_location("mig114", _MIG)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+    return load_migration("114_livelink_parameter_dashboard_default", "mig114")
 
 
 def _seeded(sync_engine: SyncEngine, tmp_path):

@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import settings as settings_model
 from app.models.settings import Setting
-from app.routes.settings import _stored_secret_mask  # pyright: ignore[reportPrivateUsage]
+from app.routes.settings import _stored_secret_mask
 from app.services.settings_service import SecretUnreadableError, SettingsService, reenter_message
 from app.utils.settings_crypto import DecryptResult, encrypt
 

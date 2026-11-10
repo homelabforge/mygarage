@@ -20,6 +20,7 @@ from __future__ import annotations
 from datetime import date, timedelta
 from decimal import Decimal
 from pathlib import Path
+from typing import Any
 
 import pytest
 from sqlalchemy import func, select, text
@@ -165,7 +166,7 @@ async def test_sqlite_connections_enforce_foreign_keys(db_session: AsyncSession)
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_delete_vehicle_removes_all_child_rows(
-    db_session: AsyncSession, test_user: dict[str, object]
+    db_session: AsyncSession, test_user: dict[str, Any]
 ) -> None:
     """F1: delete_vehicle must leave zero child rows on the live engine.
 
@@ -199,7 +200,7 @@ async def test_delete_vehicle_removes_all_child_rows(
 @pytest.mark.asyncio
 @pytest.mark.filterwarnings("error::sqlalchemy.exc.SAWarning")
 async def test_delete_vehicle_with_synced_rows_warns_nothing(
-    db_session: AsyncSession, test_user: dict[str, object]
+    db_session: AsyncSession, test_user: dict[str, Any]
 ) -> None:
     """Rows synced from a fuel record or a service visit go with it by FK cascade.
 
@@ -250,7 +251,7 @@ async def test_delete_vehicle_with_synced_rows_warns_nothing(
 @pytest.mark.asyncio
 async def test_delete_vehicle_removes_vin_keyed_files(
     db_session: AsyncSession,
-    test_user: dict[str, object],
+    test_user: dict[str, Any],
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -323,7 +324,7 @@ async def test_delete_vehicle_removes_vin_keyed_files(
 @pytest.mark.asyncio
 async def test_delete_vehicle_survives_file_cleanup_failure(
     db_session: AsyncSession,
-    test_user: dict[str, object],
+    test_user: dict[str, Any],
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

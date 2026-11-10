@@ -147,7 +147,7 @@ def test_codes_are_unique_well_formed_and_sorted(entries: list[dict[str, object]
     assert len(set(codes)) == len(codes)
     bad = [c for c in codes if not (isinstance(c, str) and _CODE_RE.match(c))]
     assert bad == []
-    assert codes == sorted(codes)
+    assert codes == sorted(codes, key=str)  # all str by now, the key just says so
 
 
 def test_only_sae_ranges(entries: list[dict[str, object]]) -> None:

@@ -112,10 +112,12 @@ async def test_unflagged_pro_beta_does_not_pollute_obd_track(db_session, monkeyp
 
     obd = await svc.get_cached_firmware_info("obd")
     pro = await svc.get_cached_firmware_info("pro")
+    assert obd is not None and pro is not None
     assert obd["latest_version"] == "4.21"  # NOT 4.22
     assert pro["latest_version"] == "4.50"
     pro = await svc.get_cached_firmware_info("pro")
     obd = await svc.get_cached_firmware_info("obd")
+    assert obd is not None and pro is not None
     assert pro["latest_version"] == "4.50"
     assert obd["latest_version"] == "4.21"
 

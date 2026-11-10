@@ -25,7 +25,9 @@ async def test_matrix_escapes_html_in_formatted_body():
             url="javascript:alert(1)",
         )
         assert ok is True
-        payload = put.await_args.kwargs["json"]
+        call = put.await_args
+        assert call is not None
+        payload = call.kwargs["json"]
         html = payload["formatted_body"]
         assert "<script>" not in html
         assert "<img" not in html
@@ -51,7 +53,9 @@ async def test_matrix_link_only_allows_http_urls():
     with patch.object(service.client, "put", new=AsyncMock(return_value=mock_response)) as put:
         ok = await service.send("Title", "Body", url='https://example.com/x?q="><script>')
         assert ok is True
-        html = put.await_args.kwargs["json"]["formatted_body"]
+        call = put.await_args
+        assert call is not None
+        html = call.kwargs["json"]["formatted_body"]
         assert "<script>" not in html
         assert "&quot;" in html
         assert "&lt;script&gt;" in html

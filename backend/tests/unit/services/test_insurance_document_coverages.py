@@ -84,8 +84,10 @@ def test_a_vehicle_with_a_section_gets_its_own_coverages():
 def test_a_section_keeps_its_deductible_and_premium_columns():
     data = ProgressiveInsuranceParser().parse_document(PAGE)
     comprehensive = _by_key(data.vehicle_coverages[RAM])["comprehensive"]
-    assert Decimal(comprehensive["deductible"]) == Decimal("1000")
-    assert Decimal(comprehensive["premium"]) == Decimal("146.00")
+    deductible, premium = comprehensive["deductible"], comprehensive["premium"]
+    assert deductible is not None and premium is not None
+    assert Decimal(deductible) == Decimal("1000")
+    assert Decimal(premium) == Decimal("146.00")
 
 
 def test_a_page_with_no_vin_sections_still_reads_document_coverages():

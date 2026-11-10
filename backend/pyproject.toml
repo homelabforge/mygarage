@@ -193,17 +193,3 @@ reportUnsupportedDunderAll = "warning"
 # kept from strict on purpose: these catch a test that can't fail (a bare
 # `x == y` with no assert, `assert (x, "msg")`) and dead branches in helpers
 reportUnnecessaryComparison = "error"
-# TEMPORARY until the test rows are fixed: today's values
-reportArgumentType = "none"
-reportAttributeAccessIssue = "none"
-reportCallIssue = "none"
-reportGeneralTypeIssues = "warning"
-reportOptionalMemberAccess = "warning"
-reportOptionalOperand = "warning"
-reportOptionalSubscript = "warning"
-reportPossiblyUnboundVariable = "warning"
-reportReturnType = "warning"
-reportIndexIssue = "warning"
-reportIncompatibleMethodOverride = "warning"
-reportIncompatibleVariableOverride = "warning"
-reportUnnecessaryTypeIgnoreComment = "none"

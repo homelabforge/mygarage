@@ -14,98 +14,41 @@ it rather than describing it.
 
 from __future__ import annotations
 
-import importlib.util
 import sqlite3
 from pathlib import Path
 
 import pytest
 from sqlalchemy import inspect, text
 
-_MIGRATION = (
-    Path(__file__).parent.parent.parent / "app" / "migrations" / "097_tire_mount_periods.py"
-)
+from tests.migrations._loader import load_migration
 
 
 def _load_migration():
-    spec = importlib.util.spec_from_file_location("m097", _MIGRATION)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+    return load_migration("097_tire_mount_periods", "m097")
 
 
 def _load_migration_100():
-    migration_100_path = (
-        Path(__file__).parent.parent.parent
-        / "app"
-        / "migrations"
-        / "100_add_tire_storage_location.py"
-    )
-    spec = importlib.util.spec_from_file_location("m100", migration_100_path)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+    return load_migration("100_add_tire_storage_location", "m100")
 
 
 def _load_migration_101():
-    migration_101_path = (
-        Path(__file__).parent.parent.parent
-        / "app"
-        / "migrations"
-        / "101_maintenance_rules_and_anchors.py"
-    )
-    spec = importlib.util.spec_from_file_location("m101", migration_101_path)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+    return load_migration("101_maintenance_rules_and_anchors", "m101")
 
 
 def _load_migration_103():
-    migration_103_path = (
-        Path(__file__).parent.parent.parent
-        / "app"
-        / "migrations"
-        / "103_add_reminder_snoozed_until.py"
-    )
-    spec = importlib.util.spec_from_file_location("m103", migration_103_path)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+    return load_migration("103_add_reminder_snoozed_until", "m103")
 
 
 def _load_migration_126():
-    migration_126_path = (
-        Path(__file__).parent.parent.parent / "app" / "migrations" / "126_add_tire_hours.py"
-    )
-    spec = importlib.util.spec_from_file_location("m126", migration_126_path)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+    return load_migration("126_add_tire_hours", "m126")
 
 
 def _load_migration_128():
-    migration_128_path = (
-        Path(__file__).parent.parent.parent
-        / "app"
-        / "migrations"
-        / "128_drop_reminder_projected_distance.py"
-    )
-    spec = importlib.util.spec_from_file_location("m128", migration_128_path)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+    return load_migration("128_drop_reminder_projected_distance", "m128")
 
 
 def _load_migration_129():
-    migration_129_path = (
-        Path(__file__).parent.parent.parent
-        / "app"
-        / "migrations"
-        / "129_add_reminder_start_readings.py"
-    )
-    spec = importlib.util.spec_from_file_location("m129", migration_129_path)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+    return load_migration("129_add_reminder_start_readings", "m129")
 
 
 def _legacy_schema(path: Path) -> None:

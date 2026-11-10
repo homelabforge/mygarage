@@ -72,7 +72,7 @@ def _pdf_text(pdf_bytes: bytes) -> str:
     rendered content rather than on the layout.
     """
     with pymupdf.open(stream=pdf_bytes, filetype="pdf") as doc:
-        return " ".join("".join(page.get_text() for page in doc).split())
+        return " ".join("".join(page.get_text() for page in doc).split())  # pyright: ignore[reportArgumentType, reportCallIssue]  # get_text() with no option returns str
 
 
 def _headers_for(user: User) -> dict[str, str]:

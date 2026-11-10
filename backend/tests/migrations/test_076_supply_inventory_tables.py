@@ -1,16 +1,6 @@
-import importlib.util
-from pathlib import Path
-
 from sqlalchemy import inspect, text
 
-MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "app" / "migrations"
-
-
-def _load(name: str):
-    spec = importlib.util.spec_from_file_location(name, MIGRATIONS_DIR / f"{name}.py")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+from tests.migrations._loader import load_migration
 
 
 def _make_deps(engine):
@@ -33,7 +23,7 @@ def _make_deps(engine):
 def test_076_creates_inventory_tables(engine_for_migration):
     _dialect, engine, _url = engine_for_migration
     _make_deps(engine)
-    _load("076_supply_inventory_tables").upgrade(engine)
+    load_migration("076_supply_inventory_tables").upgrade(engine)
     insp = inspect(engine)
     assert insp.has_table("supplies")
     assert insp.has_table("supply_purchases")
@@ -49,7 +39,7 @@ def test_076_creates_inventory_tables(engine_for_migration):
 def test_076_idempotent(engine_for_migration):
     _dialect, engine, _url = engine_for_migration
     _make_deps(engine)
-    mod = _load("076_supply_inventory_tables")
+    mod = load_migration("076_supply_inventory_tables")
     mod.upgrade(engine)
     mod.upgrade(engine)  # must not raise
     assert inspect(engine).has_table("supplies")
@@ -64,9 +54,9 @@ def test_076_create_all_matches_migration(engine_for_migration, sync_engine):
 
     _dialect, mig_engine, _url = engine_for_migration
     _make_deps(mig_engine)
-    _load("076_supply_inventory_tables").upgrade(mig_engine)
+    load_migration("076_supply_inventory_tables").upgrade(mig_engine)
     # 124 adds supplies.volume_unit on top of 076, and the model carries it.
-    _load("124_supply_volume_unit").upgrade(mig_engine)
+    load_migration("124_supply_volume_unit").upgrade(mig_engine)
     mig = inspect(mig_engine)
 
     model_engine = sync_engine("sqlite://")

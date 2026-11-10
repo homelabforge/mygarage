@@ -120,7 +120,7 @@ async def test_the_body_drops_input_only_for_a_secret_named_field(
     with caplog.at_level(logging.DEBUG):
         response = await handle_validation_error(_request(), exc)
 
-    body = response.body.decode()
+    body = bytes(response.body).decode()
     assert (rejected in body) is echoed
     assert (quoted in body) is echoed
     assert rejected not in caplog.text
@@ -152,7 +152,7 @@ async def test_the_body_drops_a_container_input_for_any_field(
     with caplog.at_level(logging.DEBUG):
         response = await handle_validation_error(_request(), exc)
 
-    body = response.body.decode()
+    body = bytes(response.body).decode()
     assert "3f9a" not in body
     assert "Field required" in body
     assert "3f9a" not in caplog.text
@@ -203,7 +203,7 @@ def _probe_app() -> FastAPI:
     register_exception_handler(probe, RequestValidationError, handle_validation_error)
 
     @probe.post("/probe")
-    async def _post(body: _Probe) -> dict[str, str]:  # pyright: ignore[reportUnusedFunction]
+    async def _post(body: _Probe) -> dict[str, str]:
         return {"ok": body.nickname}
 
     return probe
@@ -245,15 +245,15 @@ def _password_app() -> FastAPI:
     register_exception_handler(probe, RequestValidationError, handle_validation_error)
 
     @probe.post("/create")
-    async def _create(body: UserCreate) -> dict[str, str]:  # pyright: ignore[reportUnusedFunction]
+    async def _create(body: UserCreate) -> dict[str, str]:
         return {"ok": body.username}
 
     @probe.post("/change")
-    async def _change(body: UserPasswordUpdate) -> dict[str, str]:  # pyright: ignore[reportUnusedFunction]
+    async def _change(body: UserPasswordUpdate) -> dict[str, str]:
         return {"ok": "changed"}
 
     @probe.post("/reset")
-    async def _reset(body: AdminPasswordReset) -> dict[str, str]:  # pyright: ignore[reportUnusedFunction]
+    async def _reset(body: AdminPasswordReset) -> dict[str, str]:
         return {"ok": "reset"}
 
     return probe

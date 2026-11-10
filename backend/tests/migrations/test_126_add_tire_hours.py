@@ -5,23 +5,17 @@ skip would 500 every tire read. Runs on SQLite and PostgreSQL through
 `engine_for_migration`.
 """
 
-import importlib.util
 from decimal import Decimal
-from pathlib import Path
 
 from sqlalchemy import Numeric, inspect, text
 
-import app.migrations as _m
+from tests.migrations._loader import load_migration
 
 _NAME = "126_add_tire_hours"
 
 
 def _load():
-    path = Path(_m.__file__).parent / f"{_NAME}.py"
-    spec = importlib.util.spec_from_file_location(_NAME, path)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
+    return load_migration(_NAME)
 
 
 def _make_tables(engine):

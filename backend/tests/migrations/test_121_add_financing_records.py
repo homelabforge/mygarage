@@ -1,21 +1,10 @@
 """Tests for migration 121 (financing_records)."""
 
-import importlib.util
-from pathlib import Path
-
 import pytest
 from sqlalchemy import inspect, text
 from sqlalchemy.exc import IntegrityError
 
-import app.migrations as _m
-
-
-def _load(name):
-    path = Path(_m.__file__).parent / f"{name}.py"
-    spec = importlib.util.spec_from_file_location(name, path)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
+from tests.migrations._loader import load_migration
 
 
 def _make_deps(engine):
@@ -31,7 +20,7 @@ def _make_deps(engine):
 def test_121_creates_table(engine_for_migration):
     _dialect, engine, _url = engine_for_migration
     _make_deps(engine)
-    _load("121_add_financing_records").upgrade(engine)
+    load_migration("121_add_financing_records").upgrade(engine)
 
     insp = inspect(engine)
     assert insp.has_table("financing_records")
@@ -60,7 +49,7 @@ def test_121_creates_table(engine_for_migration):
 def test_121_category_check_accepts_valid_values(engine_for_migration):
     _dialect, engine, _url = engine_for_migration
     _make_deps(engine)
-    _load("121_add_financing_records").upgrade(engine)
+    load_migration("121_add_financing_records").upgrade(engine)
 
     with engine.begin() as conn:
         for category in ("lease_payment", "loan_payment", "upfront_fee"):
@@ -80,7 +69,7 @@ def test_121_category_check_accepts_valid_values(engine_for_migration):
 def test_121_category_check_rejects_invalid_value(engine_for_migration):
     _dialect, engine, _url = engine_for_migration
     _make_deps(engine)
-    _load("121_add_financing_records").upgrade(engine)
+    load_migration("121_add_financing_records").upgrade(engine)
 
     with pytest.raises(IntegrityError):
         with engine.begin() as conn:
@@ -96,7 +85,7 @@ def test_121_category_check_rejects_invalid_value(engine_for_migration):
 def test_121_idempotent(engine_for_migration):
     _dialect, engine, _url = engine_for_migration
     _make_deps(engine)
-    mod = _load("121_add_financing_records")
+    mod = load_migration("121_add_financing_records")
     mod.upgrade(engine)
     mod.upgrade(engine)
     assert inspect(engine).has_table("financing_records")
@@ -105,7 +94,7 @@ def test_121_idempotent(engine_for_migration):
 def test_121_missing_vehicles_table_skips(engine_for_migration):
     """Skips, without raising, when the vehicles table is absent."""
     _dialect, engine, _url = engine_for_migration
-    _load("121_add_financing_records").upgrade(engine)
+    load_migration("121_add_financing_records").upgrade(engine)
     assert not inspect(engine).has_table("financing_records")
 
 
@@ -116,7 +105,9 @@ def test_121_model_create_all_matches_migration_shape(engine_for_migration):
     _dialect, engine, _url = engine_for_migration
     _make_deps(engine)
 
-    FinancingRecord.metadata.create_all(engine, tables=[FinancingRecord.__table__])
+    FinancingRecord.metadata.create_all(
+        engine, tables=[FinancingRecord.metadata.tables[FinancingRecord.__tablename__]]
+    )
 
     insp = inspect(engine)
     assert insp.has_table("financing_records")

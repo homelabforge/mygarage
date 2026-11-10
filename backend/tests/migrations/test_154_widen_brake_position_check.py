@@ -10,7 +10,7 @@ import importlib.util
 from pathlib import Path
 
 import pytest
-from sqlalchemy import Engine, event, inspect, text
+from sqlalchemy import Engine, Table, event, inspect, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.schema import CreateIndex, CreateTable
 
@@ -57,12 +57,14 @@ def _build_old_create_all(engine: Engine) -> None:
 
     with engine.begin() as conn:
         for model in (BrakeAxle, BrakeJob, BrakeMeasurement, BrakeReminderMark):
-            ddl = str(CreateTable(model.__table__).compile(dialect=engine.dialect))
+            table = model.__table__
+            assert isinstance(table, Table)
+            ddl = str(CreateTable(table).compile(dialect=engine.dialect))
             if model is not BrakeAxle:
                 assert _NEW_LIST in ddl, model.__tablename__
                 ddl = ddl.replace(_NEW_LIST, _OLD_LIST)
             conn.exec_driver_sql(ddl)
-            for index in model.__table__.indexes:
+            for index in table.indexes:
                 conn.execute(CreateIndex(index))
 
 

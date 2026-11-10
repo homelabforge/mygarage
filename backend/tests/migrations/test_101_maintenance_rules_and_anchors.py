@@ -12,31 +12,20 @@ is deleted, no status changes, and running twice changes nothing.
 
 from __future__ import annotations
 
-import importlib.util
 from datetime import date
 from decimal import Decimal
-from pathlib import Path
 
 import pytest
 from sqlalchemy import inspect, text
 from sqlalchemy.exc import IntegrityError
 
-import app.migrations as _m
+from tests.migrations._loader import load_migration
 
 pytestmark = pytest.mark.migrations
 
 
-def _load(name: str):
-    path = Path(_m.__file__).parent / f"{name}.py"
-    spec = importlib.util.spec_from_file_location(name, path)
-    mod = importlib.util.module_from_spec(spec)
-    assert spec.loader is not None
-    spec.loader.exec_module(mod)
-    return mod
-
-
 def _migration():
-    return _load("101_maintenance_rules_and_anchors")
+    return load_migration("101_maintenance_rules_and_anchors")
 
 
 def _pre_101_schema(engine, dialect: str) -> None:

@@ -321,7 +321,7 @@ class TestTheSettingsReachTheAdminApi:
         from app.schemas.livelink import LiveLinkSettingsUpdate
 
         with pytest.raises(pydantic.ValidationError):
-            LiveLinkSettingsUpdate(session_boundary_mode="whatever")
+            LiveLinkSettingsUpdate.model_validate({"session_boundary_mode": "whatever"})
 
     async def test_the_route_persists_the_gap(self, db_session: AsyncSession):
         """Exercises the update branch itself, which is a hand-written if-chain

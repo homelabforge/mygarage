@@ -15,6 +15,7 @@ import uuid
 from datetime import date
 from decimal import Decimal
 from io import BytesIO
+from typing import Any
 
 import pytest
 import pytest_asyncio
@@ -99,13 +100,13 @@ async def _seed_def_record(db_session: AsyncSession, vin: str) -> DEFRecord:
 
 
 @pytest_asyncio.fixture
-async def gasoline_vehicle(db_session: AsyncSession, test_user: dict[str, object]) -> Vehicle:
+async def gasoline_vehicle(db_session: AsyncSession, test_user: dict[str, Any]) -> Vehicle:
     return await _make_vehicle(db_session, test_user["id"], fuel_type="gasoline")
 
 
 @pytest_asyncio.fixture
 async def diesel_vehicle_with_capacity(
-    db_session: AsyncSession, test_user: dict[str, object]
+    db_session: AsyncSession, test_user: dict[str, Any]
 ) -> Vehicle:
     """Diesel vehicle with an existing DEF tank capacity set (Task 6 gate cases)."""
     return await _make_vehicle(
@@ -207,7 +208,7 @@ class TestDEFFuelTypeGate:
         client: AsyncClient,
         auth_headers,
         db_session: AsyncSession,
-        test_user: dict[str, object],
+        test_user: dict[str, Any],
     ):
         vehicle = await _make_vehicle(db_session, test_user["id"], fuel_type="diesel")
 
@@ -224,7 +225,7 @@ class TestDEFFuelTypeGate:
         client: AsyncClient,
         auth_headers,
         db_session: AsyncSession,
-        test_user: dict[str, object],
+        test_user: dict[str, Any],
     ):
         vehicle = await _make_vehicle(
             db_session,
@@ -331,7 +332,7 @@ class TestVehicleDEFCapacityGate:
         client: AsyncClient,
         auth_headers,
         db_session: AsyncSession,
-        test_user: dict[str, object],
+        test_user: dict[str, Any],
     ):
         vehicle = await _make_vehicle(db_session, test_user["id"], fuel_type="diesel")
 
@@ -389,7 +390,7 @@ class TestFuelRecordDEFFillLevelGate:
         client: AsyncClient,
         auth_headers,
         db_session: AsyncSession,
-        test_user: dict[str, object],
+        test_user: dict[str, Any],
     ):
         vehicle = await _make_vehicle(db_session, test_user["id"], fuel_type="diesel")
 
@@ -502,7 +503,7 @@ class TestFuelRecordDEFFillLevelGate:
         client: AsyncClient,
         auth_headers,
         db_session: AsyncSession,
-        test_user: dict[str, object],
+        test_user: dict[str, Any],
     ):
         vehicle = await _make_vehicle(db_session, test_user["id"], fuel_type="diesel")
 
@@ -578,7 +579,7 @@ class TestDEFCsvImportGate:
         client: AsyncClient,
         auth_headers,
         db_session: AsyncSession,
-        test_user: dict[str, object],
+        test_user: dict[str, Any],
     ):
         vehicle = await _make_vehicle(db_session, test_user["id"], fuel_type="diesel")
 

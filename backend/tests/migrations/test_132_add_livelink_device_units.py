@@ -1,24 +1,17 @@
 """Tests for migration 132 (livelink_device_units, R12)."""
 
-import importlib.util
-from pathlib import Path
-
 import pytest
 from sqlalchemy import inspect, text
 from sqlalchemy.exc import IntegrityError
 
-import app.migrations as _m
+from tests.migrations._loader import load_migration
 
 _NAME = "132_add_livelink_device_units"
 _DEVICE = "aabbccddeeff"
 
 
 def _load():
-    path = Path(_m.__file__).parent / f"{_NAME}.py"
-    spec = importlib.util.spec_from_file_location(_NAME, path)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
+    return load_migration(_NAME)
 
 
 def _make_deps(engine):

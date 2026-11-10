@@ -315,6 +315,7 @@ async def test_an_older_replayed_sample_leaves_movement_ended_at_where_it_was(
     t0 = datetime(2026, 9, 3, 8, 0, 0)
 
     service = SessionService(db_session)
+    session = None
     for i, at in enumerate((t0, t0 + timedelta(seconds=10), t0 + timedelta(seconds=20))):
         session = await service.observe_telemetry(
             device, {"SPEED": 50.0, "ODOMETER": 1000.0 + 0.1 * i}, at, live=True

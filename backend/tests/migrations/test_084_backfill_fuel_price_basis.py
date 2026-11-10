@@ -4,20 +4,9 @@ Parameterized over SQLite *and* PostgreSQL via the ``engine_for_migration``
 fixture (PG runs skip when ``TEST_DATABASE_URL`` is unset).
 """
 
-import importlib.util
-from pathlib import Path
-
 from sqlalchemy import text
 
-import app.migrations as _m
-
-
-def _load(name):
-    path = Path(_m.__file__).parent / f"{name}.py"
-    spec = importlib.util.spec_from_file_location(name, path)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
+from tests.migrations._loader import load_migration
 
 
 def _make_table(engine):
@@ -70,7 +59,7 @@ def test_084_backfills_only_priced_rows_without_a_basis(engine_for_migration):
             """)
         )
 
-    _load("084_backfill_fuel_price_basis").upgrade(engine)
+    load_migration("084_backfill_fuel_price_basis").upgrade(engine)
 
     assert _rows(engine) == {
         1: "per_volume",
@@ -93,7 +82,7 @@ def test_084_is_idempotent(engine_for_migration):
             """)
         )
 
-    mod = _load("084_backfill_fuel_price_basis")
+    mod = load_migration("084_backfill_fuel_price_basis")
     mod.upgrade(engine)
     first = _rows(engine)
     mod.upgrade(engine)
@@ -105,4 +94,4 @@ def test_084_skips_cleanly_when_the_table_is_absent(engine_for_migration):
     """The runner log-and-continues on non-FATAL failure, so this must not
     raise on a database that has no fuel_records at all."""
     _dialect, engine, _url = engine_for_migration
-    _load("084_backfill_fuel_price_basis").upgrade(engine)
+    load_migration("084_backfill_fuel_price_basis").upgrade(engine)

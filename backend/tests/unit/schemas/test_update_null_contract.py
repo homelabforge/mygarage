@@ -307,6 +307,7 @@ def _discover() -> tuple[dict[type[BaseModel], list[str]], set[str], list[str]]:
         route = ctx.original_route
         if not isinstance(route, APIRoute):
             continue
+        assert route.methods is not None
         methods = route.methods & {"PUT", "PATCH"}
         if not methods:
             continue

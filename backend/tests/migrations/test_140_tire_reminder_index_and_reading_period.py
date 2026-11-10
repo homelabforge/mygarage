@@ -25,6 +25,7 @@ from app.models.tire import Tire, TireMountPeriod, TireReading
 from app.models.vehicle import Vehicle
 from tests._engines import SyncEngine
 from tests._logged import CaplogOnly, problems
+from tests.migrations._loader import load_migration
 
 pytestmark = pytest.mark.migrations
 
@@ -35,11 +36,7 @@ _VIN = "B9MIG140000000001"
 
 def _load(name: str = _NAME):
     """Load a migration module by file, as the runner does."""
-    path = Path(_m.__file__).parent / f"{name}.py"
-    spec = importlib.util.spec_from_file_location(name, path)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
+    return load_migration(name)
 
 
 def _metadata() -> MetaData:
@@ -112,7 +109,7 @@ def _statuses(engine: Engine) -> dict[int, str]:
         return dict(conn.execute(text("SELECT id, status FROM vehicle_reminders")).all())
 
 
-def _indexes(engine: Engine) -> set[str]:
+def _indexes(engine: Engine) -> set[str | None]:
     return {ix["name"] for ix in inspect(engine).get_indexes("vehicle_reminders")}
 
 

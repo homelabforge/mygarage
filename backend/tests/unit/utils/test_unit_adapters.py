@@ -104,12 +104,14 @@ class TestReciprocal:
         """A zero-guarded LINEAR implementation passes every other check."""
         a = ADAPTERS[token].to_canonical(Decimal("30"))
         b = ADAPTERS[token].to_canonical(Decimal("60"))
+        assert a is not None and b is not None
         assert b == pytest.approx(a / 2, rel=Decimal("1e-9"))
 
     @pytest.mark.parametrize("token", RECIPROCAL)
     def test_display_is_also_reciprocal(self, token: str) -> None:
         a = ADAPTERS[token].to_display(Decimal("30"))
         b = ADAPTERS[token].to_display(Decimal("60"))
+        assert a is not None and b is not None
         assert b == pytest.approx(a / 2, rel=Decimal("1e-9"))
 
     @pytest.mark.parametrize(

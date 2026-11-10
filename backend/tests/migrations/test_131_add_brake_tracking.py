@@ -1,24 +1,13 @@
 """Tests for migration 131 (brake_axles, brake_jobs, brake_measurements, brake_reminder_marks)."""
 
-import importlib.util
-from pathlib import Path
-
 import pytest
 from sqlalchemy import inspect, text
 from sqlalchemy.exc import IntegrityError
 
-import app.migrations as _m
+from tests.migrations._loader import load_migration
 
 _VIN = "1FT0000000000000X"
 _TABLES = ("brake_axles", "brake_jobs", "brake_measurements", "brake_reminder_marks")
-
-
-def _load(name):
-    path = Path(_m.__file__).parent / f"{name}.py"
-    spec = importlib.util.spec_from_file_location(name, path)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
 
 
 def _make_deps(engine):
@@ -28,13 +17,13 @@ def _make_deps(engine):
 
 
 def _upgrade(engine):
-    _load("131_add_brake_tracking").upgrade(engine)
+    load_migration("131_add_brake_tracking").upgrade(engine)
 
 
 def test_131_is_not_fatal():
     # create_all builds these tables before the runner, so a failed 131 leaves
     # nothing missing and must not stop startup.
-    assert _load("131_add_brake_tracking").FATAL is False
+    assert load_migration("131_add_brake_tracking").FATAL is False
 
 
 def test_131_creates_tables(engine_for_migration):
@@ -206,7 +195,7 @@ def test_131_friction_replaced_defaults_false(engine_for_migration):
 def test_131_idempotent(engine_for_migration):
     _dialect, engine, _url = engine_for_migration
     _make_deps(engine)
-    mod = _load("131_add_brake_tracking")
+    mod = load_migration("131_add_brake_tracking")
     mod.upgrade(engine)
     mod.upgrade(engine)
     insp = inspect(engine)
@@ -272,7 +261,9 @@ def test_131_model_create_all_matches_migration_shape(engine_for_migration):
     _dialect, engine, _url = engine_for_migration
     _make_deps(engine)
     models = (BrakeAxle, BrakeJob, BrakeMeasurement, BrakeReminderMark)
-    BrakeAxle.metadata.create_all(engine, tables=[m.__table__ for m in models])
+    BrakeAxle.metadata.create_all(
+        engine, tables=[m.metadata.tables[m.__tablename__] for m in models]
+    )
 
     by_orm = {table: _shape(engine, table) for table in _TABLES}
 

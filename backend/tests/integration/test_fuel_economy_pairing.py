@@ -23,6 +23,7 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 from decimal import Decimal
+from typing import Any
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -117,7 +118,7 @@ def test_missed_fillup_record_yields_no_economy() -> None:
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_average_does_not_bridge_missed_fillup(
-    db_session: AsyncSession, test_user: dict[str, object]
+    db_session: AsyncSession, test_user: dict[str, Any]
 ) -> None:
     """F9 core: vehicle-wide average must re-anchor at the missed record."""
     vin = "PAIRAVG0000000001"
@@ -135,7 +136,7 @@ async def test_average_does_not_bridge_missed_fillup(
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_widget_consumption_skips_missed_fillup_pair(
-    db_session: AsyncSession, test_user: dict[str, object]
+    db_session: AsyncSession, test_user: dict[str, Any]
 ) -> None:
     """Widget parity: no pair may be computed FOR a missed-flagged record.
 
@@ -275,7 +276,7 @@ def test_an_impossible_tank_stays_out_of_the_average() -> None:
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_vehicle_average_weights_by_distance_and_drops_towing(
-    db_session: AsyncSession, test_user: dict[str, object]
+    db_session: AsyncSession, test_user: dict[str, Any]
 ) -> None:
     """The Fuel tab's average: towing tanks out, then total fuel over total
     distance. 10 L over 100 km and 20 L over 400 km -> 6.00; the towing tank
@@ -341,7 +342,7 @@ def test_calculate_l_per_100km_uses_interval_liters() -> None:
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_average_includes_partial_fillups(
-    db_session: AsyncSession, test_user: dict[str, object]
+    db_session: AsyncSession, test_user: dict[str, Any]
 ) -> None:
     """#113 end-to-end (reporter's Example 2): full -> partial -> full."""
     vin = "PARTIALAVG0000001"
@@ -398,7 +399,7 @@ async def test_average_includes_partial_fillups(
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_widget_consumption_includes_partial_fillups(
-    db_session: AsyncSession, test_user: dict[str, object]
+    db_session: AsyncSession, test_user: dict[str, Any]
 ) -> None:
     """#113 parity: the homepage widget consumption must also count partials."""
     vin = "PARTIALWDG0000001"
@@ -459,7 +460,7 @@ async def test_widget_consumption_includes_partial_fillups(
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_widget_window_follows_the_odometer_not_the_date(
-    db_session: AsyncSession, test_user: dict[str, object]
+    db_session: AsyncSession, test_user: dict[str, Any]
 ) -> None:
     """The widget's last-10 window is on the same axis the tanks are scored on.
     The newest tank by odometer, dated a year early, must still be in it: its
@@ -499,7 +500,7 @@ async def test_widget_window_follows_the_odometer_not_the_date(
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_widget_recent_skips_an_impossible_tank(
-    db_session: AsyncSession, test_user: dict[str, object]
+    db_session: AsyncSession, test_user: dict[str, Any]
 ) -> None:
     """A mistyped odometer sorts last. The widget's recent figure is the last
     three tanks that could be real, as on the card: (20 + 10 + 20) L over

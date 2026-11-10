@@ -10,8 +10,15 @@ from decimal import Decimal
 from app.services.window_sticker_parsers.base import WindowStickerData
 
 
-def _warnings(**prices: Decimal) -> list[str]:
-    return WindowStickerData(**prices).get_validation_warnings()
+def _warnings(
+    *,
+    msrp_base: Decimal | None = None,
+    msrp_options: Decimal | None = None,
+    msrp_total: Decimal | None = None,
+) -> list[str]:
+    return WindowStickerData(
+        msrp_base=msrp_base, msrp_options=msrp_options, msrp_total=msrp_total
+    ).get_validation_warnings()
 
 
 def test_a_price_mismatch_names_its_difference_bare():

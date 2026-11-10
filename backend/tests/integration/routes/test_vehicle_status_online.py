@@ -320,6 +320,7 @@ async def test_a_switched_off_wican_does_not_describe_the_vehicle(
 
     assert body["device_id"] == new.device_id
     assert (body["ecu_status"], body["rssi"]) == ("offline", -45)
+    assert new.last_seen is not None
     assert body["last_seen"].startswith(new.last_seen.isoformat()[:19])
     assert body["online"] is False
 

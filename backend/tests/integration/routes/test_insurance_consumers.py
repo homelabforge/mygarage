@@ -12,7 +12,7 @@ from decimal import Decimal
 
 import pytest
 import pytest_asyncio
-from sqlalchemy import Delete, delete, select
+from sqlalchemy import CursorResult, Delete, delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.insurance import InsurancePolicy, InsurancePolicyVehicle
@@ -86,6 +86,7 @@ async def bystander_policy(
     gone = await db_session.execute(delete(InsurancePolicy).where(InsurancePolicy.id == policy_id))
     await db_session.commit()
     # garage_headers tears down first, so this also catches its teardown wiping it.
+    assert isinstance(gone, CursorResult)
     assert gone.rowcount == 1, "garage_headers deleted a policy that isn't on its vehicles"
 
 

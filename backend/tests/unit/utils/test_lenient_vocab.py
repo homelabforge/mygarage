@@ -28,7 +28,7 @@ def _nothing_warned_yet(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(lenient_vocab, "_warned", set())
 
 
-def _vessel() -> type[BaseModel]:
+def _vessel():  # inferred, so the test sees the fields
     """A response with a nullable lenient field, declared after the row's id.
 
     Built per test rather than at import, so a reader that isn't there yet
@@ -45,7 +45,7 @@ def _vessel() -> type[BaseModel]:
     return Vessel
 
 
-def _device() -> type[BaseModel]:
+def _device():  # inferred, so the test sees the fields
     """A response whose status stays required: a bad value reads as "unknown"."""
 
     class Device(BaseModel):

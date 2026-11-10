@@ -874,11 +874,15 @@ def _reads_leniently(info: FieldInfo) -> bool:
     marker = next((item for item in metadata if isinstance(item, LenientVocab)), None)
     if marker is None:
         return False
-    annotation = Annotated[info.annotation, *info.metadata] if info.metadata else info.annotation
+    # Built at runtime, so there's no static type to give it.
+    annotation: Any = (
+        Annotated[info.annotation, *info.metadata] if info.metadata else info.annotation
+    )
+    # A model, not a TypeAdapter: the lenient validators read `info.data`.
     read_back = create_model("_ReadBack", value=(annotation, ...))
     try:
         return all(
-            read_back.model_validate({"value": value}).value == marker.fallback
+            getattr(read_back.model_validate({"value": value}), "value") == marker.fallback
             for value in (_OUT_OF_VOCABULARY, None)
         )
     except ValidationError:
@@ -1066,7 +1070,7 @@ class _Probe(BaseModel):
     price: float = Field(default=0, gt=0)
     rate: Decimal | None = Field(default=None, decimal_places=2)
     fee: Decimal | None = Field(default=None, max_digits=12)
-    charge: Decimal | None = Field(default=None, multiple_of=Decimal("0.01"))
+    charge: Decimal | None = Field(default=None, multiple_of=0.01)
     # A number with no bound stays out. A measurement and a count aren't money,
     # but their bounds 500 a read all the same.
     total_cost: Decimal | None = None
@@ -1153,7 +1157,7 @@ class _TwinProbe(_TwinBase):
     described: Decimal | None = Field(default=None, description="Changed")
     defaulted: Decimal | None = Decimal(0)
     required: Decimal = Decimal(0)
-    typed: float | None = None
+    typed: float | None = None  # pyright: ignore[reportIncompatibleVariableOverride]  # deliberately invalid: the drift under test
     # Registered: one still differs, one matches now and so is stale.
     registered: int | None = None
     settled: int | None = None

@@ -4,13 +4,11 @@ Parameterized over SQLite *and* PostgreSQL via ``engine_for_migration``. The
 merge plan itself is pure, so its edge cases are also tested without a database.
 """
 
-import importlib.util
 from decimal import Decimal
-from pathlib import Path
 
 from sqlalchemy import inspect, text
 
-import app.migrations as _m
+from tests.migrations._loader import load_migration
 
 D = Decimal
 RAM = "MIG107VIN00000001"
@@ -19,12 +17,7 @@ OTHERS = "MIG107VIN00000003"
 
 
 def _load():
-    name = "107_household_insurance_policies"
-    path = Path(_m.__file__).parent / f"{name}.py"
-    spec = importlib.util.spec_from_file_location(name, path)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
+    return load_migration("107_household_insurance_policies")
 
 
 def _make_legacy(engine, dialect):

@@ -11,6 +11,7 @@ from __future__ import annotations
 import re
 
 import pytest
+from sqlalchemy import String
 
 from app.models.settings import Setting
 from app.services.setting_rules import (
@@ -139,7 +140,9 @@ def test_system_typed_and_retired_keys_are_not_writable(key: str) -> None:
 @pytest.mark.unit
 def test_every_writable_key_fits_the_key_column() -> None:
     """Control. `Setting.key` is String(50): a longer key is a PostgreSQL 500."""
-    width = Setting.__table__.c.key.type.length
+    key_type = Setting.__table__.c.key.type
+    assert isinstance(key_type, String)
+    width = key_type.length
     assert width is not None
     assert all(len(key) <= width for key in GENERIC_WRITABLE_KEYS)
 

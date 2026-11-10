@@ -7,21 +7,9 @@ re-aggregation against PostgreSQL — they are skipped (not failed) when
 ``TEST_DATABASE_URL`` is unset, i.e. in the SQLite-only flow.
 """
 
-import importlib.util
-from pathlib import Path
-
 from sqlalchemy import text
 
-import app.migrations as _m
-
-
-def _load(name):
-    path = Path(_m.__file__).parent / f"{name}.py"
-    spec = importlib.util.spec_from_file_location(name, path)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
-
+from tests.migrations._loader import load_migration
 
 # --- vehicle_telemetry (3-table drop+rekey) ---------------------------------
 
@@ -64,7 +52,7 @@ def _make_telemetry(engine):
 def test_059_merges_casing_duplicates(engine_for_migration):
     _dialect, engine, _url = engine_for_migration
     _make_telemetry(engine)
-    _load("059_param_key_casing_merge").upgrade(engine)
+    load_migration("059_param_key_casing_merge").upgrade(engine)
     with engine.begin() as conn:
         keys = sorted(
             r[0] for r in conn.execute(text("SELECT DISTINCT param_key FROM vehicle_telemetry"))
@@ -84,7 +72,7 @@ def test_059_merges_casing_duplicates(engine_for_migration):
 def test_059_idempotent(engine_for_migration):
     _dialect, engine, _url = engine_for_migration
     _make_telemetry(engine)
-    mod = _load("059_param_key_casing_merge")
+    mod = load_migration("059_param_key_casing_merge")
     mod.upgrade(engine)
     mod.upgrade(engine)  # no raise, no further change
     # Same end-state as a single run.
@@ -133,7 +121,7 @@ def test_059_telemetry_multi_variant_no_canonical(engine_for_migration):
     _dialect, engine, _url = engine_for_migration
     _make_telemetry_multi_variant(engine)
     # Must COMPLETE — the old code raised an IntegrityError here.
-    _load("059_param_key_casing_merge").upgrade(engine)
+    load_migration("059_param_key_casing_merge").upgrade(engine)
     with engine.begin() as conn:
         rows = conn.execute(
             text(
@@ -192,7 +180,7 @@ def _fueltype_row(engine):
 def test_059_daily_summary_reaggregates(engine_for_migration):
     _dialect, engine, _url = engine_for_migration
     _make_daily_summary(engine)
-    _load("059_param_key_casing_merge").upgrade(engine)
+    load_migration("059_param_key_casing_merge").upgrade(engine)
 
     # Exactly ONE merged row for the casing-collision pair, with re-aggregated stats.
     rows = _fueltype_row(engine)
@@ -218,7 +206,7 @@ def test_059_daily_summary_reaggregates(engine_for_migration):
 def test_059_daily_summary_idempotent(engine_for_migration):
     _dialect, engine, _url = engine_for_migration
     _make_daily_summary(engine)
-    mod = _load("059_param_key_casing_merge")
+    mod = load_migration("059_param_key_casing_merge")
     mod.upgrade(engine)
     mod.upgrade(engine)  # second run must be a no-op (NOT re-merge)
 
@@ -253,7 +241,7 @@ def test_059_livelink_parameters_no_slot_branch(engine_for_migration):
     """Exercise the empty-slot DELETE path (distinct SQL from the self-join)."""
     _dialect, engine, _url = engine_for_migration
     _make_livelink_parameters(engine)
-    _load("059_param_key_casing_merge").upgrade(engine)
+    load_migration("059_param_key_casing_merge").upgrade(engine)
     with engine.begin() as conn:
         keys = sorted(r[0] for r in conn.execute(text("SELECT param_key FROM livelink_parameters")))
     # casing twin collapsed to one canonical row; mixed-only rekeyed; canonical kept
@@ -278,7 +266,7 @@ def test_059_livelink_multi_variant_no_canonical(engine_for_migration):
     _dialect, engine, _url = engine_for_migration
     _make_livelink_parameters_unique(engine, ("51-FuelType", "51-fueltype"))
     # Old no-slot DELETE dropped neither (no canonical present) → rekey collided.
-    _load("059_param_key_casing_merge").upgrade(engine)
+    load_migration("059_param_key_casing_merge").upgrade(engine)
     with engine.begin() as conn:
         keys = [r[0] for r in conn.execute(text("SELECT param_key FROM livelink_parameters"))]
     assert keys == ["51-FUELTYPE"]
@@ -301,7 +289,7 @@ def test_059_livelink_three_way_canonical_survives(engine_for_migration):
             text("SELECT id FROM livelink_parameters WHERE param_key='51-FUELTYPE'")
         ).scalar()
 
-    mod = _load("059_param_key_casing_merge")
+    mod = load_migration("059_param_key_casing_merge")
     mod.upgrade(engine)
     with engine.begin() as conn:
         rows = conn.execute(text("SELECT id, param_key FROM livelink_parameters")).fetchall()
@@ -346,7 +334,7 @@ def test_059_latest_multi_variant_no_canonical(engine_for_migration):
     """Regression: vin-slotted table, two non-canonical casings, no canonical → one survivor."""
     _dialect, engine, _url = engine_for_migration
     _make_latest_multi_variant(engine)
-    _load("059_param_key_casing_merge").upgrade(engine)
+    load_migration("059_param_key_casing_merge").upgrade(engine)
     with engine.begin() as conn:
         rows = conn.execute(
             text("SELECT param_key FROM vehicle_telemetry_latest WHERE vin='v'")
@@ -364,6 +352,6 @@ def test_059_canon_matches_live_normalizer():
     """
     from app.utils.autopid_normalizer import canonical_param_key
 
-    mod = _load("059_param_key_casing_merge")
+    mod = load_migration("059_param_key_casing_merge")
     for key in ("51-FuelType", "A6-Odometer", "ENGINE RPM", "0C-EngineRPM", "ODOMETER", "a b c"):
         assert mod._canon_py(key) == canonical_param_key(key)

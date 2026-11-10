@@ -131,10 +131,23 @@ async def test_sessionmaker(test_engine):
     )
 
 
+# Spelled out so the guard query can name `.id` and `.vin` on every one.
+type _GuardedModel = type[
+    DEFRecord
+    | FinancingRecord
+    | FuelRecord
+    | HoursRecord
+    | OdometerRecord
+    | Reminder
+    | ServiceVisit
+    | TaxRecord
+    | WarrantyRecord
+]
+
 #: Dated records the leak guard checks, each with the column that dates it. A
 #: row on any of these a year out lands in every later test's "latest reading",
 #: trend window, active warranty or due count.
-FAR_FUTURE_GUARDED: tuple[tuple[type[Base], str], ...] = (
+FAR_FUTURE_GUARDED: tuple[tuple[_GuardedModel, str], ...] = (
     (DEFRecord, "date"),
     (FinancingRecord, "date"),
     (FuelRecord, "date"),

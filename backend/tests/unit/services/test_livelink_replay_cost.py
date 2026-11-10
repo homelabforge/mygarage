@@ -102,8 +102,8 @@ async def _pin_movement_mode(db: AsyncSession, keep_rows) -> None:
     await db.commit()
 
 
-def _frame(i: int) -> dict[str, float]:
-    data = {
+def _frame(i: int) -> dict[str, float | int | str | None]:
+    data: dict[str, float | int | str | None] = {
         "SPEED": 40.0 + (i % 30),
         "ENGINE_RPM": 1800.0,
         "ODOMETER": 1000.0 + 0.05 * i,
