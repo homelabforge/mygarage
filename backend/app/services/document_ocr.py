@@ -333,7 +333,7 @@ class DocumentOCRService:
         """Extract text using PaddleOCR."""
         try:
             if self._paddleocr is None:
-                from paddleocr import PaddleOCR
+                from paddleocr import PaddleOCR  # pyright: ignore[reportMissingImports]  # optional dep
 
                 self._paddleocr = PaddleOCR(use_angle_cls=True, lang="en", show_log=False)
 
@@ -365,7 +365,7 @@ class DocumentOCRService:
             from PIL import Image
 
             if self._paddleocr is None:
-                from paddleocr import PaddleOCR
+                from paddleocr import PaddleOCR  # pyright: ignore[reportMissingImports]  # optional dep
 
                 self._paddleocr = PaddleOCR(use_angle_cls=True, lang="en", show_log=False)
 
@@ -404,7 +404,7 @@ class DocumentOCRService:
         }
 
         try:
-            import pymupdf  # noqa: F401  # type: ignore[reportUnusedImport]
+            import pymupdf  # noqa: F401  # pyright: ignore[reportUnusedImport]  # availability probe
 
             status["pymupdf_available"] = True
         except ImportError:
@@ -422,7 +422,7 @@ class DocumentOCRService:
 
         if PADDLEOCR_ENABLED:
             try:
-                from paddleocr import PaddleOCR  # noqa: F401  # type: ignore[reportUnusedImport]
+                from paddleocr import PaddleOCR  # noqa: F401  # pyright: ignore[reportMissingImports, reportUnusedImport]  # optional dep, availability probe
 
                 status["paddleocr_available"] = True
             except ImportError:

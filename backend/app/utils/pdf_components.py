@@ -122,7 +122,7 @@ def draw_branded_header(
     canvas.restoreState()
 
 
-def draw_branded_footer(canvas: Any, doc: Any) -> None:  # pyright: ignore[reportUnusedParameter]
+def draw_branded_footer(canvas: Any, doc: Any) -> None:
     """Draw the branded footer on every page."""
     canvas.saveState()
     body, body_bold, mono, _ = register_fonts()

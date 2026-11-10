@@ -1,7 +1,5 @@
 """Service visit business logic service layer."""
 
-# pyright: reportReturnType=false
-
 import logging
 from collections.abc import Mapping, Sequence
 from decimal import ROUND_HALF_UP, Decimal
@@ -1148,7 +1146,7 @@ class ServiceVisitService:
         supply_service = supply_service or SupplyService(self.db)
         recall = item.recall
         warranty = item.warranty
-        return ServiceLineItemResponse(  # type: ignore[arg-type]
+        return ServiceLineItemResponse(
             id=item.id,
             visit_id=item.visit_id,
             description=item.description,
@@ -1198,7 +1196,7 @@ class ServiceVisitService:
             self._line_item_to_response(item, supply_service) for item in visit.line_items
         ]
 
-        return ServiceVisitResponse(  # type: ignore[arg-type]
+        return ServiceVisitResponse(
             id=visit.id,
             vin=visit.vin,
             vendor_id=visit.vendor_id,

@@ -12,9 +12,10 @@ needs the real file.
 import os
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 import pytest
-from sqlalchemy import Engine, create_engine, event, text
+from sqlalchemy import Connection, Engine, create_engine, event, text
 from sqlalchemy.pool import NullPool
 
 import app.migrations.runner as runner_module
@@ -263,8 +264,8 @@ def test_a_conn_migration_whose_stamp_fails_leaves_no_data(
     d = _migrations(tmp_path, {"001_probe": _ATOMIC_PROBE, "002_atomic": _ATOMIC})
     insert_stamps = MigrationRunner._insert_stamps
 
-    def _stamp_then_fail(self: MigrationRunner, conn: object, names: list[str]) -> None:
-        insert_stamps(self, conn, names)  # type: ignore[arg-type]
+    def _stamp_then_fail(self: MigrationRunner, conn: Connection, names: list[str]) -> None:
+        insert_stamps(self, conn, names)
         if "002_atomic" in names:
             raise RuntimeError("stamp failed")
 
@@ -302,8 +303,8 @@ def _runners(monkeypatch: pytest.MonkeyPatch) -> list[MigrationRunner]:
     seen: list[MigrationRunner] = []
     init = MigrationRunner.__init__
 
-    def _capture(self: MigrationRunner, *args: object, **kwargs: object) -> None:
-        init(self, *args, **kwargs)  # type: ignore[arg-type]
+    def _capture(self: MigrationRunner, *args: Any, **kwargs: Any) -> None:
+        init(self, *args, **kwargs)
         seen.append(self)
 
     monkeypatch.setattr(MigrationRunner, "__init__", _capture)

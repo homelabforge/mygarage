@@ -22,6 +22,7 @@ Idempotent: a table without the CHECK is left alone.
 from __future__ import annotations
 
 import re
+import sqlite3
 
 from sqlalchemy import Engine, inspect, text
 
@@ -110,6 +111,8 @@ def _drop_sqlite(engine: Engine, table: str, column: str) -> bool:
     raw = engine.raw_connection()
     try:
         dbapi = raw.driver_connection  # the sqlite3.Connection underneath
+        if not isinstance(dbapi, sqlite3.Connection):
+            raise TypeError(f"the SQLite rebuild needs sqlite3, got {type(dbapi).__name__}")
         prev_iso = dbapi.isolation_level
         dbapi.isolation_level = None  # autocommit: the transaction is driven below
         cur = dbapi.cursor()

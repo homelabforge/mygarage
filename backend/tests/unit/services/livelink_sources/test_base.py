@@ -26,7 +26,7 @@ class _Fake(BaseSourceModule):
 
 def test_abstract_module_cannot_be_instantiated():
     with pytest.raises(TypeError):
-        BaseSourceModule()  # type: ignore[abstract]
+        BaseSourceModule()  # pyright: ignore[reportAbstractUsage]  # deliberately abstract
 
 
 @pytest.mark.asyncio

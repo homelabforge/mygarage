@@ -1,7 +1,5 @@
 """File upload validation utilities."""
 
-# pyright: reportOptionalMemberAccess=false, reportPossiblyUnboundVariable=false
-
 import csv
 import io
 import logging
@@ -13,13 +11,12 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 # Import python-magic for content-type verification
-MAGIC_AVAILABLE = False
 try:
     import magic
-
-    MAGIC_AVAILABLE = True
 except ImportError:
+    magic = None
     logger.warning("python-magic not available, magic byte verification disabled")
+MAGIC_AVAILABLE = magic is not None
 
 # Magic byte signatures for common file types
 MAGIC_BYTES = {
@@ -75,7 +72,7 @@ def verify_file_content_type(file_content: bytes, declared_mime: str, max_read: 
         return False
 
     # Fallback: use python-magic if available
-    if MAGIC_AVAILABLE:
+    if magic is not None:
         try:
             detected_mime = magic.from_buffer(file_content, mime=True)
             # Be lenient with text files (text/plain vs text/csv)

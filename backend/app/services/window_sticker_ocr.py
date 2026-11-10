@@ -1,7 +1,5 @@
 """Window Sticker OCR and data extraction service."""
 
-# pyright: reportOptionalMemberAccess=false
-
 import asyncio
 import logging
 import os
@@ -290,7 +288,7 @@ class WindowStickerOCRService:
         """Extract text using PaddleOCR."""
         try:
             if self._paddleocr is None:
-                from paddleocr import PaddleOCR
+                from paddleocr import PaddleOCR  # pyright: ignore[reportMissingImports]  # optional dep
 
                 self._paddleocr = PaddleOCR(use_angle_cls=True, lang="en", show_log=False)
 
@@ -323,7 +321,7 @@ class WindowStickerOCRService:
             from PIL import Image
 
             if self._paddleocr is None:
-                from paddleocr import PaddleOCR
+                from paddleocr import PaddleOCR  # pyright: ignore[reportMissingImports]  # optional dep
 
                 self._paddleocr = PaddleOCR(use_angle_cls=True, lang="en", show_log=False)
 
@@ -457,7 +455,7 @@ class WindowStickerOCRService:
         }
 
         try:
-            import pymupdf  # noqa: F401  # type: ignore[reportUnusedImport]
+            import pymupdf  # noqa: F401  # pyright: ignore[reportUnusedImport]  # availability probe
 
             status["pymupdf_available"] = True
         except ImportError:
@@ -475,7 +473,7 @@ class WindowStickerOCRService:
 
         if PADDLEOCR_ENABLED:
             try:
-                from paddleocr import PaddleOCR  # noqa: F401  # type: ignore[reportUnusedImport]
+                from paddleocr import PaddleOCR  # noqa: F401  # pyright: ignore[reportMissingImports, reportUnusedImport]  # optional dep, availability probe
 
                 status["paddleocr_available"] = True
             except ImportError:

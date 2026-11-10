@@ -1,7 +1,5 @@
 """Vehicle transfer service for ownership transfers between users."""
 
-# pyright: reportOptionalOperand=false, reportReturnType=false
-
 from __future__ import annotations
 
 import json

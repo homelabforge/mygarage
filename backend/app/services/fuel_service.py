@@ -5,8 +5,6 @@ L/100 km (lower is better). Imperial display is done client-side via the
 frontend UnitFormatter.
 """
 
-# pyright: reportReturnType=false, reportOptionalOperand=false
-
 import logging
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
@@ -785,7 +783,7 @@ class FuelRecordService:
             count_result = await self.db.execute(
                 select(func.count()).select_from(FuelRecord).where(FuelRecord.vin == vin)
             )
-            total = count_result.scalar()
+            total = count_result.scalar_one()
 
             avg_value = await calculate_average_l_per_100km(
                 self.db, vin, exclude_hauling=not include_hauling

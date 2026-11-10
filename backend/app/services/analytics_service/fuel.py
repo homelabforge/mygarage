@@ -1,4 +1,3 @@
-# pyright: reportOptionalOperand=false
 """Fuel economy and propane cost calculations.
 
 Metric-canonical since v3: source columns are `odometer_km` and `liters`,

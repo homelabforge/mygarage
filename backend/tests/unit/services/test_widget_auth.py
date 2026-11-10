@@ -283,7 +283,7 @@ class TestWidgetKeyFunc:
             "client": (remote_addr, 0),
         }
         # Rebuild Headers so get_remote_address sees the normalized form.
-        req = Request(scope)  # type: ignore[arg-type]
+        req = Request(scope)
         assert isinstance(req.headers, Headers)
         return req
 
@@ -324,7 +324,7 @@ class TestWidgetLimiter:
     """Limiter configuration sanity — actual 429 enforcement is integration-tested."""
 
     def test_limiter_uses_widget_key_func(self):
-        assert widget_limiter._key_func is widget_key_func  # type: ignore[attr-defined]
+        assert widget_limiter._key_func is widget_key_func
 
     def test_rate_limit_constant(self):
         assert WIDGET_RATE_LIMIT == "60/minute"

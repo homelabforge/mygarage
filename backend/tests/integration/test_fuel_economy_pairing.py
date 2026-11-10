@@ -121,7 +121,7 @@ async def test_average_does_not_bridge_missed_fillup(
 ) -> None:
     """F9 core: vehicle-wide average must re-anchor at the missed record."""
     vin = "PAIRAVG0000000001"
-    await _seed(db_session, int(test_user["id"]), vin, missed_liters=None)  # type: ignore[arg-type]
+    await _seed(db_session, int(test_user["id"]), vin, missed_liters=None)
 
     avg = await calculate_average_l_per_100km(db_session, vin)
 
@@ -143,7 +143,7 @@ async def test_widget_consumption_skips_missed_fillup_pair(
     pair poisons the averages unmistakably.
     """
     vin = "PAIRWDG0000000001"
-    await _seed(db_session, int(test_user["id"]), vin, missed_liters=Decimal("999.000"))  # type: ignore[arg-type]
+    await _seed(db_session, int(test_user["id"]), vin, missed_liters=Decimal("999.000"))
 
     service = WidgetAggregationService(db_session)
     recent, average = await service._consumption_l100km(vin)
@@ -284,7 +284,7 @@ async def test_vehicle_average_weights_by_distance_and_drops_towing(
     db_session.add(
         Vehicle(
             vin=vin,
-            user_id=int(test_user["id"]),  # type: ignore[arg-type]
+            user_id=int(test_user["id"]),
             nickname="Weighted",
             vehicle_type="Car",
             year=2024,
@@ -348,7 +348,7 @@ async def test_average_includes_partial_fillups(
     db_session.add(
         Vehicle(
             vin=vin,
-            user_id=int(test_user["id"]),  # type: ignore[arg-type]
+            user_id=int(test_user["id"]),
             nickname="Partial Avg",
             vehicle_type="Car",
             year=2024,
@@ -405,7 +405,7 @@ async def test_widget_consumption_includes_partial_fillups(
     db_session.add(
         Vehicle(
             vin=vin,
-            user_id=int(test_user["id"]),  # type: ignore[arg-type]
+            user_id=int(test_user["id"]),
             nickname="Partial Widget",
             vehicle_type="Car",
             year=2024,
@@ -468,7 +468,7 @@ async def test_widget_window_follows_the_odometer_not_the_date(
     db_session.add(
         Vehicle(
             vin=vin,
-            user_id=int(test_user["id"]),  # type: ignore[arg-type]
+            user_id=int(test_user["id"]),
             nickname="Axis",
             vehicle_type="Car",
             year=2024,
@@ -508,7 +508,7 @@ async def test_widget_recent_skips_an_impossible_tank(
     db_session.add(
         Vehicle(
             vin=vin,
-            user_id=int(test_user["id"]),  # type: ignore[arg-type]
+            user_id=int(test_user["id"]),
             nickname="Typo",
             vehicle_type="Car",
             year=2024,

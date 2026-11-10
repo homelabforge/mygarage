@@ -20,7 +20,7 @@ def _extract_text(pdf_bytes: bytes, normalize: bool = False) -> str:
     doc = pymupdf.open(stream=pdf_bytes, filetype="pdf")
     text = ""
     for page in doc:
-        text += page.get_text()  # type: ignore[operator]
+        text += page.get_text()  # pyright: ignore[reportOperatorIssue]  # get_text() with no option returns str
     doc.close()
     if normalize:
         text = " ".join(text.split())

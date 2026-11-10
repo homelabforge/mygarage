@@ -39,7 +39,7 @@ def _coerce_citations(raw: Any) -> list[AssistantCitation]:
     if not isinstance(raw, list):
         return []
     # Straight from the Literal, so a new source can't be refused here by a stale copy.
-    allowed = frozenset(get_args(CitationSource))
+    allowed: frozenset[CitationSource] = frozenset(get_args(CitationSource))
     out: list[AssistantCitation] = []
     for item in raw:
         if not isinstance(item, dict):
@@ -51,7 +51,7 @@ def _coerce_citations(raw: Any) -> list[AssistantCitation]:
         detail = item.get("detail")
         out.append(
             AssistantCitation(
-                source=source,  # type: ignore[arg-type]
+                source=source,
                 label=label.strip()[:120],
                 detail=(str(detail)[:300] if detail is not None else None),
             )

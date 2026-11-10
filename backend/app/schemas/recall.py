@@ -43,10 +43,6 @@ class RecallBase(BaseModel):
     external_url: str | None = Field(
         default=None, description="Link to the recall notice online", max_length=500
     )
-    component: str = Field(
-        ..., description="Component affected by recall", min_length=1, max_length=200
-    )
-    summary: str = Field(..., description="Summary of the recall issue", min_length=1)
     consequence: str | None = Field(default=None, description="Potential consequences")
     remedy: str | None = Field(default=None, description="Remedy for the recall")
     date_announced: dt.date | None = Field(default=None, description="Date recall was announced")
@@ -58,6 +54,11 @@ class RecallCreate(RecallBase):
 
     vin: str = Field(..., description="Vehicle VIN", min_length=17, max_length=17)
     is_resolved: bool = Field(default=False, description="Whether recall has been resolved")
+    # Required here, optional on the response (a sync can leave them empty).
+    component: str = Field(
+        ..., description="Component affected by recall", min_length=1, max_length=200
+    )
+    summary: str = Field(..., description="Summary of the recall issue", min_length=1)
 
 
 class RecallUpdate(BaseModel):

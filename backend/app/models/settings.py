@@ -98,7 +98,7 @@ class Setting(Base):
             self.value = value
 
     @hybrid_property
-    def value(self) -> str | None:  # pyright: ignore[reportRedeclaration]
+    def value(self) -> str | None:
         """The plaintext value.
 
         A secret key's ciphertext is decrypted, and a legacy plaintext one is

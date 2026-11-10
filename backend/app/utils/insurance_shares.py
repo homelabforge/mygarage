@@ -92,18 +92,21 @@ def rescale_shares(
         return {key: None for key, _ in shares}
 
     result: dict[Hashable, Decimal | None] = {}
+    explicit: dict[Hashable, Decimal] = {}
     explicit_keys: list[Hashable] = []
     for key, share in shares:
         if share is None:
             result[key] = None
             continue
-        result[key] = (share * new_total / old_total).quantize(CENT, rounding=ROUND_DOWN)
+        result[key] = explicit[key] = (share * new_total / old_total).quantize(
+            CENT, rounding=ROUND_DOWN
+        )
         explicit_keys.append(key)
 
     if explicit_keys and len(explicit_keys) == len(shares):
-        scaled = sum((result[key] for key in explicit_keys), Decimal("0"))  # type: ignore[misc]
+        scaled = sum((explicit[key] for key in explicit_keys), Decimal("0"))
         leftover_cents = int((new_total - scaled) / CENT)
         for index, key in enumerate(explicit_keys):
             if index < leftover_cents:
-                result[key] = result[key] + CENT  # type: ignore[operator]
+                result[key] = explicit[key] = explicit[key] + CENT
     return result

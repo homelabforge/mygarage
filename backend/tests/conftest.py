@@ -550,7 +550,7 @@ async def client(db_session, test_data_dir: Path) -> AsyncGenerator[AsyncClient]
 
 
 @pytest_asyncio.fixture
-async def test_user(db_session: AsyncSession) -> dict[str, object]:
+async def test_user(db_session: AsyncSession) -> dict[str, Any]:
     """Create or get a test user. Returns dict for easy test access.
 
     Always resets the user to active state to ensure test isolation.

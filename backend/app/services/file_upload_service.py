@@ -1,7 +1,5 @@
 """Unified file upload service for all upload endpoints."""
 
-# pyright: reportOptionalMemberAccess=false
-
 import asyncio
 import logging
 import uuid
@@ -19,16 +17,22 @@ from app.utils.path_validation import sanitize_filename, validate_path_within_ba
 
 logger = logging.getLogger(__name__)
 
-try:
-    # Imported from the defining submodule, not the package root: pillow-heif
-    # 1.7.0 ships py.typed but no `__all__`, so a re-export from the root reads
-    # as a private import to a type checker even though it works at runtime.
-    from pillow_heif.as_plugin import register_heif_opener
 
-    register_heif_opener()
-    _HEIF_AVAILABLE = True
-except ImportError:
-    _HEIF_AVAILABLE = False
+def _register_heif() -> bool:
+    """Teach Pillow to open HEIC/HEIF, when pillow-heif is installed."""
+    try:
+        # Imported from the defining submodule, not the package root: pillow-heif
+        # 1.7.0 ships py.typed but no `__all__`, so a re-export from the root reads
+        # as a private import to a type checker even though it works at runtime.
+        from pillow_heif.as_plugin import register_heif_opener
+
+        register_heif_opener()
+    except ImportError:
+        return False
+    return True
+
+
+_HEIF_AVAILABLE = _register_heif()
 
 
 class FileUploadConfig:

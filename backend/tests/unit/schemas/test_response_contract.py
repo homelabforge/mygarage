@@ -259,12 +259,7 @@ def test_no_response_constrains_text():
 #: Twins that differ from the field they shadow on purpose: (model, field) -> why.
 DELIBERATE_TWINS: dict[tuple[str, str], str] = {
     ("AddressBookEntryResponse", "email"): "a plain str: EmailStr refuses a local-domain address",
-    ("RecallResponse", "component"): "nullable column: a sync or import can store none",
-    ("RecallResponse", "summary"): "nullable column: a sync or import can store none",
-    ("TopicMapResponse", "role"): "lenient read; the input stays strict",
     ("UserResponse", "email"): "a plain str: EmailStr refuses an SSO email at a local domain",
-    ("VehicleResponse", "usage_unit"): "lenient read; the input stays strict",
-    ("VehicleResponse", "vehicle_type"): "lenient read; the input stays strict",
 }
 
 
@@ -341,7 +336,7 @@ def test_a_twin_matches_the_field_it_shadows():
     twin's description (`FuelRecordResponse.cost`, say).
     """
     count, drift, stale = _twins(RESPONSE_MODELS, DELIBERATE_TWINS)
-    # 147 today. A floor, so a change in how annotations are read can't turn
+    # 161 today. A floor, so a change in how annotations are read can't turn
     # this into a pass over nothing.
     assert count >= 140
     assert drift == {}, "a twin drifted from the field it shadows: copy it again, bound aside"

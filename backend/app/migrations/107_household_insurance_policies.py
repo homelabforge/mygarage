@@ -223,9 +223,10 @@ def _chain_history(policies: list[dict[str, Any]]) -> None:
                 other
                 for other in members
                 if other is not policy
-                and _day(other["end_date"]) is not None
-                and _day(other["end_date"]) <= start
-                and _day(other["start_date"]) < start
+                and (other_end := _day(other["end_date"])) is not None
+                and other_end <= start
+                and (other_start := _day(other["start_date"])) is not None
+                and other_start < start
             ]
             if not earlier:
                 continue

@@ -198,7 +198,7 @@ def suggested_tax_records(data: RegistrationData) -> list[dict[str, Any]]:
 
 @dataclass
 class RegistrationParseResult:
-    source: str
+    source: document_reader_service.Source
     data: RegistrationData
     vehicle_patch: dict[str, Any] = field(default_factory=dict)
     inspection_due_date: date | None = None

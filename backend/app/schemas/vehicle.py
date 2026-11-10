@@ -163,23 +163,11 @@ def _clean_identifier(v: Any) -> Any:
 class VehicleBase(BaseModel):
     """Base vehicle schema with common fields."""
 
-    nickname: str = Field(
-        ..., description="User-friendly display name", min_length=1, max_length=100
-    )
-    vehicle_type: VehicleType = Field(..., description="Type of vehicle")
-    usage_unit: UsageUnit = Field(
-        default="distance",
-        description="Usage tracking dimension: 'distance' (odometer) or 'hours' (hour meter)",
-    )
     current_hours: Annotated[Decimal | None, AfterValidator(to_stored_tenth)] = Field(
         default=None,
         description="Current engine-hour reading (used when usage_unit == 'hours')",
         ge=0,
         le=999999999.9,
-    )
-    secondary_usage_enabled: bool = Field(
-        default=False,
-        description="Also track the non-primary usage dimension (distance+hours dual tracking)",
     )
     distance_unit: DistanceUnit | None = Field(
         default=None,
@@ -318,6 +306,20 @@ class VehicleBase(BaseModel):
 class VehicleCreate(VehicleBase):
     """Schema for creating a new vehicle."""
 
+    # These four are not on VehicleBase: the update makes them optional and the
+    # response reads two of them leniently, and a subclass can't retype a field.
+    nickname: str = Field(
+        ..., description="User-friendly display name", min_length=1, max_length=100
+    )
+    vehicle_type: VehicleType = Field(..., description="Type of vehicle")
+    usage_unit: UsageUnit = Field(
+        default="distance",
+        description="Usage tracking dimension: 'distance' (odometer) or 'hours' (hour meter)",
+    )
+    secondary_usage_enabled: bool = Field(
+        default=False,
+        description="Also track the non-primary usage dimension (distance+hours dual tracking)",
+    )
     vin: str | None = Field(
         default=None,
         description=(
@@ -440,9 +442,9 @@ class VehicleUpdate(VehicleBase):
     identifier: str | None = Field(
         default=None, description="Serial / HIN / chassis number / asset tag", max_length=64
     )
-    # Overridden as optional: VehicleBase gives these non-null defaults, which
-    # the generated OpenAPI otherwise marks REQUIRED, forcing every partial
-    # update (equipment/pricing sidecars) to resend them. exclude_unset makes an
+    # Optional here: with VehicleCreate's non-null defaults the generated
+    # OpenAPI would mark them REQUIRED, forcing every partial update
+    # (equipment/pricing sidecars) to resend them. exclude_unset makes an
     # omitted field a no-op, so callers editing unrelated fields can drop them.
     usage_unit: UsageUnit | None = Field(
         default=None, description="Usage tracking dimension (omit to leave unchanged)"
@@ -551,6 +553,10 @@ class VehicleResponse(VehicleBase):
         default="distance",
         description="Usage tracking dimension: 'distance' (odometer) or 'hours' (hour meter)",
     )
+    secondary_usage_enabled: bool = Field(
+        default=False,
+        description="Also track the non-primary usage dimension (distance+hours dual tracking)",
+    )
     # Numbers without the input bounds, so a stored value past today's rules
     # (a legacy negative price, say) still reads (test_response_contract).
     current_hours: Decimal | None = Field(
@@ -644,7 +650,7 @@ class VehicleResponse(VehicleBase):
         default=None, description="Serial / HIN / chassis number / asset tag"
     )
 
-    @computed_field  # type: ignore[prop-decorator]
+    @computed_field
     @property
     def has_vin(self) -> bool:
         """Whether `vin` is a real VIN (decode, recalls and VIN display apply)."""
@@ -652,7 +658,7 @@ class VehicleResponse(VehicleBase):
 
     wheel_layout: LenientWheelLayout = Field(default=None, description=_WHEEL_LAYOUT_DESCRIPTION)
 
-    @computed_field  # type: ignore[prop-decorator]
+    @computed_field
     @property
     def effective_wheel_layout(self) -> WheelLayoutId:
         """The layout in force: the stored override, else the vehicle type's default (#272)."""
@@ -660,7 +666,7 @@ class VehicleResponse(VehicleBase):
             self.wheel_layout, self.vehicle_type, vin=self.vin
         ).id
 
-    @computed_field  # type: ignore[prop-decorator]
+    @computed_field
     @property
     def default_wheel_layout(self) -> WheelLayoutId:
         """The layout the vehicle type gets with no override, for the Automatic option (#272)."""

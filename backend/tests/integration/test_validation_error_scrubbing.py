@@ -23,7 +23,7 @@ from httpx import ASGITransport, AsyncClient
 from pydantic import BaseModel, field_validator
 from starlette.requests import Request
 
-from app.utils.error_handlers import handle_validation_error
+from app.utils.error_handlers import handle_validation_error, register_exception_handler
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
@@ -200,7 +200,7 @@ class _Probe(BaseModel):
 
 def _probe_app() -> FastAPI:
     probe = FastAPI()
-    probe.add_exception_handler(RequestValidationError, handle_validation_error)  # type: ignore[arg-type]
+    register_exception_handler(probe, RequestValidationError, handle_validation_error)
 
     @probe.post("/probe")
     async def _post(body: _Probe) -> dict[str, str]:  # pyright: ignore[reportUnusedFunction]
@@ -242,7 +242,7 @@ def _password_app() -> FastAPI:
     from app.schemas.user import AdminPasswordReset, UserCreate, UserPasswordUpdate
 
     probe = FastAPI()
-    probe.add_exception_handler(RequestValidationError, handle_validation_error)  # type: ignore[arg-type]
+    register_exception_handler(probe, RequestValidationError, handle_validation_error)
 
     @probe.post("/create")
     async def _create(body: UserCreate) -> dict[str, str]:  # pyright: ignore[reportUnusedFunction]

@@ -742,10 +742,11 @@ async def update_reminder(reminder: Reminder, data: ReminderUpdate, db: AsyncSes
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
 
-    if "title" in set_fields:
-        reminder.title = data.title  # type: ignore[assignment]
+    # reject_null keeps an explicit null title out, so this only narrows.
+    if "title" in set_fields and data.title is not None:
+        reminder.title = data.title
     if "reminder_type" in set_fields:
-        reminder.reminder_type = final_type  # type: ignore[assignment]
+        reminder.reminder_type = final_type
     if "due_date" in set_fields:
         reminder.due_date = final_date
     if "due_mileage_km" in set_fields:

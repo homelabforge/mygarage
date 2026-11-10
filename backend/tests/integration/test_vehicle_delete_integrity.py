@@ -173,7 +173,7 @@ async def test_delete_vehicle_removes_all_child_rows(
     orphaned history from the old vehicle silently reattaches.
     """
     vin = "DELINTEG000000001"
-    await _seed_vehicle_with_children(db_session, int(test_user["id"]), vin)  # type: ignore[arg-type]
+    await _seed_vehicle_with_children(db_session, int(test_user["id"]), vin)
 
     for model, _ in CHILD_MODELS:
         assert await _count(db_session, model, vin) == 1, f"seed failed for {model.__name__}"
@@ -273,7 +273,7 @@ async def test_delete_vehicle_removes_vin_keyed_files(
         vin_dir.mkdir(parents=True)
         (vin_dir / "orphan-candidate.bin").write_bytes(b"data")
 
-    await _seed_vehicle_with_children(db_session, int(test_user["id"]), vin)  # type: ignore[arg-type]
+    await _seed_vehicle_with_children(db_session, int(test_user["id"]), vin)
 
     # Attachments are polymorphic (record_type/record_id, NOT VIN-keyed) and
     # live outside the VIN directories - production evidence: 26 service-visit
@@ -347,7 +347,7 @@ async def test_delete_vehicle_survives_file_cleanup_failure(
 
     monkeypatch.setattr(shutil_module, "rmtree", _boom)
 
-    await _seed_vehicle_with_children(db_session, int(test_user["id"]), vin)  # type: ignore[arg-type]
+    await _seed_vehicle_with_children(db_session, int(test_user["id"]), vin)
     user = await db_session.get(User, test_user["id"])
     assert user is not None
 

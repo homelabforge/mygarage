@@ -29,7 +29,7 @@ TaxType = Literal[
     "parking_permit",
     "other",
 ]
-assert set(TaxType.__args__) == set(TAX_TYPE_VALUES)  # type: ignore[attr-defined]
+assert set(TaxType.__args__) == set(TAX_TYPE_VALUES)
 
 
 def _accept_legacy(value: object) -> object:

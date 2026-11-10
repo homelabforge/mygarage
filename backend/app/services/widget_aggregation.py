@@ -20,8 +20,6 @@ Design rules:
    two differ on a long history. Two indexed queries fix and load the span.
 """
 
-# pyright: reportAssignmentType=false, reportAttributeAccessIssue=false
-
 from dataclasses import dataclass
 from datetime import date as date_type
 from decimal import Decimal

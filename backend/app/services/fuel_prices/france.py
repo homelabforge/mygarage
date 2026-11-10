@@ -103,8 +103,10 @@ def _coordinates(record: dict[str, Any]) -> tuple[float, float] | None:
         lat, lon = geom.get("lat"), geom.get("lon")
     else:
         lat, lon = record.get("latitude"), record.get("longitude")
+    if lat is None or lon is None:
+        return None
     try:
-        return float(lat), float(lon)  # type: ignore[arg-type]
+        return float(lat), float(lon)
     except TypeError, ValueError:
         return None
 

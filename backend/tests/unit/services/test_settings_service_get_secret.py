@@ -53,7 +53,9 @@ async def test_get_secret(
     assert "tk_elsewhere" not in str(caught.value)
     assert "enc:v1:" not in str(caught.value)
     # The plain getter still reads it as unset.
-    assert (await SettingsService.get(db_session, KEY)).value is None  # type: ignore[union-attr]
+    row = await SettingsService.get(db_session, KEY)
+    assert row is not None
+    assert row.value is None
 
 
 @pytest.mark.integration

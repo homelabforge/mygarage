@@ -1,7 +1,5 @@
 """Path validation utilities for preventing path traversal attacks."""
 
-# pyright: reportReturnType=false
-
 import logging
 import re
 from pathlib import Path

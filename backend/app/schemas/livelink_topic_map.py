@@ -31,7 +31,6 @@ class TopicMapBase(BaseModel):
 
     device_id: str = Field(..., max_length=20)
     topic: str = Field(..., max_length=255)
-    role: TopicMapRole = "telemetry"
     param_key: str | None = Field(default=None, max_length=100)
     value_path: str | None = Field(default=None, max_length=100)
     unit: str | None = Field(default=None, max_length=20)
@@ -61,6 +60,8 @@ class TopicMapCreate(TopicMapBase):
     #: pattern there would run on every stored row during response validation,
     #: so one row written before this rule existed would 500 the whole list.
     device_id: str = Field(..., max_length=20, pattern=DEVICE_ID_PATTERN)
+    # Not on the base either: the response reads a stored role leniently.
+    role: TopicMapRole = "telemetry"
 
     # Here for the same reason as device_id: no CHECK holds either rule, so a
     # stored row can break them. The PATCH revalidates the merged row through

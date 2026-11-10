@@ -1,7 +1,5 @@
 """Vehicle sharing service for granting vehicle access to other users."""
 
-# pyright: reportOptionalOperand=false, reportReturnType=false
-
 from __future__ import annotations
 
 import logging

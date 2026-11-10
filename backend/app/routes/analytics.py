@@ -1,7 +1,5 @@
 """Analytics and reporting routes."""
 
-# pyright: reportOptionalOperand=false
-
 import calendar
 import logging
 from collections import defaultdict

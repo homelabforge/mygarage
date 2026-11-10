@@ -36,7 +36,7 @@ SERVICES = {
 
 
 def _with_transport(service: NotificationService, handler) -> NotificationService:
-    service.client = httpx.AsyncClient(transport=httpx.MockTransport(handler))  # type: ignore[attr-defined]
+    service.client = httpx.AsyncClient(transport=httpx.MockTransport(handler))  # pyright: ignore[reportAttributeAccessIssue]  # every backend here has a client
     return service
 
 

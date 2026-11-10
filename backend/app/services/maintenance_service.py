@@ -567,7 +567,7 @@ def anchor_of(reminder: Reminder) -> Anchor | None:
     if reminder.anchor_kind is None or reminder.anchor_date is None:
         return None
     return Anchor(
-        reminder.anchor_kind,  # type: ignore[arg-type]
+        reminder.anchor_kind,
         reminder.anchor_date,
         reminder.anchor_odometer_km,
         reminder.anchor_hours,
@@ -1549,12 +1549,12 @@ async def _plan_item(
         if resolved.odometer_km != effective.odometer_km or resolved.hours != effective.hours:
             note = (note + "; " if note else "") + "a reading was taken from the nearest record"
         plan.anchor = AnchorProposal(
-            kind=resolved.kind,
+            kind=resolved.kind,  # pyright: ignore[reportArgumentType]  # lenient vocab reads the stored str
             date=resolved.date,
             odometer_km=resolved.odometer_km,
             hours=resolved.hours,
             line_item_id=resolved.line_item_id,
-            origin=origin,  # type: ignore[arg-type]
+            origin=origin,
             note=note,
         )
         thresholds = next_thresholds(intervals, resolved)

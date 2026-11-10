@@ -21,8 +21,6 @@ for zero security benefit. This matches industry practice for API tokens
 (GitHub PATs, AWS access keys, and similar).
 """
 
-# pyright: reportAssignmentType=false, reportAttributeAccessIssue=false
-
 import hashlib
 import logging
 import secrets

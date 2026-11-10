@@ -24,8 +24,6 @@ from typing import TYPE_CHECKING, Protocol
 
 from dateutil.relativedelta import relativedelta
 
-from app.schemas.maintenance import AnchorKind
-
 if TYPE_CHECKING:
     from app.models.maintenance_rule import MaintenanceRule
 
@@ -55,9 +53,12 @@ class Anchor:
     `service`: a line item's visit (date, odometer, hours as recorded there).
     `completion`: a reminder marked done without a service record.
     `baseline`: no history; today's date and the current readings, stored once.
+
+    A `str`, not `AnchorKind`: one read back from a reminder is whatever the
+    column holds, and it has no CHECK. The responses read an unknown one as null.
     """
 
-    kind: AnchorKind
+    kind: str
     date: date
     odometer_km: Decimal | None = None
     hours: Decimal | None = None

@@ -24,13 +24,13 @@ FROZEN = datetime(2026, 10, 4, 12, 0, tzinfo=UTC)
 
 class _FrozenDatetime(datetime):
     @classmethod
-    def now(cls, tz: tzinfo | None = None) -> datetime:  # type: ignore[override]
+    def now(cls, tz: tzinfo | None = None) -> datetime:
         return FROZEN.astimezone(tz) if tz is not None else FROZEN.replace(tzinfo=None)
 
 
 def _text(pdf: bytes) -> str:
     document = pymupdf.open(stream=pdf, filetype="pdf")
-    text = " ".join(page.get_text() for page in document)  # type: ignore[operator]
+    text = " ".join(page.get_text() for page in document)  # pyright: ignore[reportArgumentType, reportCallIssue]  # get_text() with no option returns str
     document.close()
     return text
 

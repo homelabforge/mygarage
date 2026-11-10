@@ -142,18 +142,18 @@ class TestAWronglyShapedVehicleTypesColumn:
 
     def test_a_json_object_means_every_type(self):
         row = _pack(None)
-        row.vehicle_types = {"Truck": True}  # type: ignore[assignment]
+        row.vehicle_types = {"Truck": True}  # pyright: ignore[reportAttributeAccessIssue]  # deliberately invalid
         assert _vehicle_types(row) == []
 
     def test_a_bare_string_means_every_type(self):
         # Not a list of one type: `"Truck"` would otherwise iterate as letters.
         row = _pack(None)
-        row.vehicle_types = "Truck"  # type: ignore[assignment]
+        row.vehicle_types = "Truck"  # pyright: ignore[reportAttributeAccessIssue]  # deliberately invalid
         assert _vehicle_types(row) == []
 
     def test_non_string_entries_are_dropped_and_the_rest_kept(self):
         row = _pack(None)
-        row.vehicle_types = ["Truck", 7, None, "Boat"]  # type: ignore[list-item]
+        row.vehicle_types = ["Truck", 7, None, "Boat"]  # pyright: ignore[reportAttributeAccessIssue]  # deliberately invalid
         assert _vehicle_types(row) == ["Truck", "Boat"]
 
 

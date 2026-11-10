@@ -44,7 +44,7 @@ async def test_gas_station_entry_skips_vendor_sync():
     """A poi_category='gas_station' entry must short-circuit the helper."""
     entry = _FakeEntry(business_name="Costco Gas #42", poi_category="gas_station")
     db = _SessionRecorder()
-    await _sync_to_vendor(db, entry.business_name, entry)  # type: ignore[arg-type]
+    await _sync_to_vendor(db, entry.business_name, entry)  # pyright: ignore[reportArgumentType]  # duck-typed fakes
     # The recorder explodes on any DB call; reaching here means the guard fired.
     assert db.calls == []
 
@@ -54,5 +54,5 @@ async def test_blank_business_name_short_circuits_first():
     """Blank business names short-circuit ahead of the poi_category guard."""
     entry = _FakeEntry(business_name="   ", poi_category="auto_shop")
     db = _SessionRecorder()
-    await _sync_to_vendor(db, "   ", entry)  # type: ignore[arg-type]
+    await _sync_to_vendor(db, "   ", entry)  # pyright: ignore[reportArgumentType]  # duck-typed fakes
     assert db.calls == []

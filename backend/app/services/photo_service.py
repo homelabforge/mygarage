@@ -1,7 +1,5 @@
 """Photo management business logic."""
 
-# pyright: reportOptionalMemberAccess=false
-
 import logging
 from io import BytesIO
 from pathlib import Path
@@ -16,16 +14,21 @@ from app.utils.path_validation import validate_path_within_base
 
 logger = logging.getLogger(__name__)
 
-HEIF_SUPPORTED = False
-try:
-    # See file_upload_service: pillow-heif 1.7.0 has py.typed but no `__all__`,
-    # so the package root re-export is not a public export to a type checker.
-    from pillow_heif.as_plugin import register_heif_opener
 
-    register_heif_opener()
-    HEIF_SUPPORTED = True
-except Exception:  # pragma: no cover - optional dependency
-    pass
+def _register_heif() -> bool:
+    """Teach Pillow to open HEIC/HEIF, when pillow-heif is installed."""
+    try:
+        # See file_upload_service: pillow-heif 1.7.0 has py.typed but no `__all__`,
+        # so the package root re-export is not a public export to a type checker.
+        from pillow_heif.as_plugin import register_heif_opener
+
+        register_heif_opener()
+    except Exception:  # pragma: no cover - optional dependency
+        return False
+    return True
+
+
+HEIF_SUPPORTED = _register_heif()
 
 IMAGE_FORMAT_MAP = {
     ".jpg": "JPEG",

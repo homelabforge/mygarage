@@ -252,13 +252,13 @@ class BrakeService:
         reminder sync reads all of them, so old low pads keep their reminder.
         """
         rows, measurements, jobs = await self._load(vin)
-        setups = {axle: axle_setup(axle, rows.get(axle)) for axle in AXLES}
+        setups: dict[Axle, AxleSetup] = {axle: axle_setup(axle, rows.get(axle)) for axle in AXLES}
         today = household_today()
         used = {row.position for row in (*measurements, *jobs)}
         off_layout = [
             p for p in get_args(BrakePosition) if p in used and p not in layout.brake_positions
         ]
-        corners = []
+        corners: list[_Corner] = []
         for position in (*layout.brake_positions, *off_layout):
             setup = setups[AXLE_OF[position]]
             own_measurements = [m for m in measurements if m.position == position]

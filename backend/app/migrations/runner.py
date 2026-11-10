@@ -69,7 +69,7 @@ class MigrationRunner:
             unpinned.dispose()
         except Exception as e:
             logger.error("Couldn't pin migration sessions to UTC, so startup stops: %s", e)
-            e.__migration_fatal__ = True  # type: ignore[attr-defined]
+            setattr(e, "__migration_fatal__", True)
             raise
         self.pinned = True
         logger.info("Timestamp repair is applied; migration sessions now run in UTC")
@@ -386,7 +386,7 @@ class MigrationRunner:
                     )
                 logger.error("Stopping migration run - fix errors and restart")
                 try:
-                    e.__migration_fatal__ = fatal  # type: ignore[attr-defined]
+                    setattr(e, "__migration_fatal__", fatal)
                 except Exception:
                     pass
                 raise
