@@ -20,23 +20,30 @@ import math
 from dataclasses import dataclass
 from datetime import date, timedelta
 from decimal import ROUND_HALF_UP, Decimal
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
 from dateutil.relativedelta import relativedelta
 
-from app.schemas.maintenance import AnchorKind
+if TYPE_CHECKING:
+    from app.models.maintenance_rule import MaintenanceRule
 
 KM_QUANTUM = Decimal("0.01")
 HOURS_QUANTUM = Decimal("0.1")
 
 
-class HasIntervals(Protocol):
+class IntervalsShape(Protocol):
     """What a rule (ORM row or request schema) must offer."""
 
     interval_km: Decimal | None
     interval_months: int | None
     interval_days: int | None
     interval_hours: Decimal | None
+
+
+# Pyright never applies a descriptor's __get__ when it matches a protocol, so an
+# ORM model fails a protocol on its Mapped columns. The model goes in the union
+# by name; it's a typing-only import, and the alias is only ever read by pyright.
+type HasIntervals = MaintenanceRule | IntervalsShape
 
 
 @dataclass(frozen=True)
@@ -46,9 +53,12 @@ class Anchor:
     `service`: a line item's visit (date, odometer, hours as recorded there).
     `completion`: a reminder marked done without a service record.
     `baseline`: no history; today's date and the current readings, stored once.
+
+    A `str`, not `AnchorKind`: one read back from a reminder is whatever the
+    column holds, and it has no CHECK. The responses read an unknown one as null.
     """
 
-    kind: AnchorKind
+    kind: str
     date: date
     odometer_km: Decimal | None = None
     hours: Decimal | None = None

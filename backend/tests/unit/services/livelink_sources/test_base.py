@@ -1,6 +1,7 @@
 """The source-module contract: shapes only, no database."""
 
 import pytest
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services.livelink_sources.base import (
     BaseSourceModule,
@@ -26,12 +27,13 @@ class _Fake(BaseSourceModule):
 
 def test_abstract_module_cannot_be_instantiated():
     with pytest.raises(TypeError):
-        BaseSourceModule()  # type: ignore[abstract]
+        BaseSourceModule()  # pyright: ignore[reportAbstractUsage]  # deliberately abstract
 
 
 @pytest.mark.asyncio
 async def test_concrete_module_parses_to_a_batch():
     batch = await _Fake().parse(MqttEnvelope(topic="a/b", payload=b"1"))
+    assert batch is not None
     assert batch.device_key == "dev1"
     assert batch.readings == [Reading("X", 1.0)]
     assert batch.session is None
@@ -40,7 +42,8 @@ async def test_concrete_module_parses_to_a_batch():
 
 @pytest.mark.asyncio
 async def test_modules_declare_no_subscriptions_by_default():
-    assert await _Fake().subscriptions(None) == []
+    # An unbound session: the default never touches it, and nothing here can reach a DB.
+    assert await _Fake().subscriptions(AsyncSession()) == []
 
 
 def test_default_storage_policy_is_the_safe_one():

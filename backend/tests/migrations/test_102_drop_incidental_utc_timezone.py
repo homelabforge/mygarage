@@ -4,20 +4,9 @@ Parameterized over SQLite *and* PostgreSQL via ``engine_for_migration``.
 The fallback chain is driven deterministically through ``MYGARAGE_TIMEZONE``.
 """
 
-import importlib.util
-from pathlib import Path
-
 from sqlalchemy import text
 
-import app.migrations as _m
-
-
-def _load(name):
-    path = Path(_m.__file__).parent / f"{name}.py"
-    spec = importlib.util.spec_from_file_location(name, path)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
+from tests.migrations._loader import load_migration
 
 
 def _make_settings(engine, timezone_value=None):
@@ -40,7 +29,7 @@ def test_102_deletes_utc_when_fallback_is_non_utc(engine_for_migration, monkeypa
     _make_settings(engine, "UTC")
     monkeypatch.setenv("MYGARAGE_TIMEZONE", "America/Chicago")
 
-    _load("102_drop_incidental_utc_timezone").upgrade(engine)
+    load_migration("102_drop_incidental_utc_timezone").upgrade(engine)
 
     assert _row(engine) is None
 
@@ -50,7 +39,7 @@ def test_102_keeps_utc_when_fallback_is_utc_too(engine_for_migration, monkeypatc
     _make_settings(engine, "UTC")
     monkeypatch.setenv("MYGARAGE_TIMEZONE", "UTC")
 
-    _load("102_drop_incidental_utc_timezone").upgrade(engine)
+    load_migration("102_drop_incidental_utc_timezone").upgrade(engine)
 
     assert _row(engine) == "UTC"
 
@@ -60,7 +49,7 @@ def test_102_keeps_a_non_utc_row(engine_for_migration, monkeypatch):
     _make_settings(engine, "Europe/Warsaw")
     monkeypatch.setenv("MYGARAGE_TIMEZONE", "America/Chicago")
 
-    _load("102_drop_incidental_utc_timezone").upgrade(engine)
+    load_migration("102_drop_incidental_utc_timezone").upgrade(engine)
 
     assert _row(engine) == "Europe/Warsaw"
 
@@ -70,7 +59,7 @@ def test_102_is_a_noop_without_the_row_and_on_rerun(engine_for_migration, monkey
     _make_settings(engine, "UTC")
     monkeypatch.setenv("MYGARAGE_TIMEZONE", "America/Chicago")
 
-    mig = _load("102_drop_incidental_utc_timezone")
+    mig = load_migration("102_drop_incidental_utc_timezone")
     mig.upgrade(engine)
     assert _row(engine) is None
     mig.upgrade(engine)  # re-run: no error, still gone
@@ -79,4 +68,4 @@ def test_102_is_a_noop_without_the_row_and_on_rerun(engine_for_migration, monkey
 
 def test_102_survives_a_missing_settings_table(engine_for_migration):
     _dialect, engine, _url = engine_for_migration
-    _load("102_drop_incidental_utc_timezone").upgrade(engine)  # no table: returns
+    load_migration("102_drop_incidental_utc_timezone").upgrade(engine)  # no table: returns

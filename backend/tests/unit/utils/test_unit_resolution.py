@@ -366,10 +366,11 @@ class TestUserResponseSerialisation:
         field_validator rejecting 'custom' at runtime while leaving it in the
         Literal would pass a type-only check but 500 the real response."""
         from datetime import datetime
+        from typing import get_args
 
         from app.schemas.user import UserResponse
 
-        assert "custom" in UserResponse.model_fields["unit_preference"].annotation.__args__
+        assert "custom" in get_args(UserResponse.model_fields["unit_preference"].annotation)
 
         response = UserResponse(
             id=1,
@@ -465,9 +466,12 @@ class TestUserResponseSerialisation:
             assert "unit_preference" not in schema.model_fields
 
         with pytest.raises(ValidationError):
-            UserSelfUpdate(unit_preference="metric")
+            UserSelfUpdate.model_validate({"unit_preference": "metric"})
 
-        assert "unit_preference" not in AdminUserUpdate(unit_preference="metric").model_dump()
+        assert (
+            "unit_preference"
+            not in AdminUserUpdate.model_validate({"unit_preference": "metric"}).model_dump()
+        )
 
     def test_out_of_vocabulary_unit_preference_reads_as_imperial(self) -> None:
         """The twelfth field needs the same defence-in-depth as the eleven raw

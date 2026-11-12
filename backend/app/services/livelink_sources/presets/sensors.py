@@ -215,14 +215,13 @@ async def create_sensor(
         param = await telemetry.get_or_create_parameter(
             key, unit=reading.unit, param_class=reading.param_class
         )
-        if param is not None:
-            # REQUIRED, not tuning: the gateway republishes every few seconds
-            # and the storage path stamps server time, so without an interval
-            # a sensor writes a row per message.
-            param.storage_interval_seconds = preset.storage_interval_seconds
-            param.display_name = reading_display_name(label, reading)
-            param.warning_min = reading.low
-            param.critical_min = reading.critical
+        # REQUIRED, not tuning: the gateway republishes every few seconds
+        # and the storage path stamps server time, so without an interval
+        # a sensor writes a row per message.
+        param.storage_interval_seconds = preset.storage_interval_seconds
+        param.display_name = reading_display_name(label, reading)
+        param.warning_min = reading.low
+        param.critical_min = reading.critical
     return device
 
 
@@ -287,7 +286,8 @@ async def live_sensors(
     keys_by_device: dict[str, list[str]] = {}
     for device_id, key in rows.all():
         keys = keys_by_device.setdefault(device_id, [])
-        if key not in keys:
+        # The query skips null keys; the first test only narrows the type.
+        if key is not None and key not in keys:
             keys.append(key)
 
     def added(device: LiveLinkDevice) -> tuple[str, bool, int, str]:

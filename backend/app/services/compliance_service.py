@@ -52,18 +52,19 @@ async def compliance_for_vehicle(db: AsyncSession, vehicle: Vehicle) -> Complian
     if profile.inspection is not None:
         rule = await engine_rule(db, vehicle.vin)
         pending = await maintenance_service.pending_reminder(db, rule.id) if rule else None
+        # One constructor call, so the lenient anchor_kind validator runs on
+        # the stored value (an attribute set afterwards skips it).
         inspection = InspectionStatus(
             name=profile.inspection.name,
             automatic=rule is not None and rule.is_active,
             rule_id=rule.id if rule else None,
+            reminder_id=pending.id if pending else None,
+            next_due_date=pending.due_date if pending else None,
+            lead_days=rule.lead_days if rule and pending else None,
+            window_opens_on=window_opens_on(pending) if pending else None,
+            anchor_kind=pending.anchor_kind if pending else None,  # pyright: ignore[reportArgumentType]  # lenient vocab reads the stored str
+            from_registration=pending is not None and pending.anchor_kind == "baseline",
         )
-        if pending is not None:
-            inspection.reminder_id = pending.id
-            inspection.next_due_date = pending.due_date
-            inspection.lead_days = rule.lead_days if rule else None
-            inspection.window_opens_on = window_opens_on(pending)
-            inspection.anchor_kind = pending.anchor_kind  # type: ignore[assignment]
-            inspection.from_registration = pending.anchor_kind == "baseline"
 
     return ComplianceResponse(
         vin=vehicle.vin,

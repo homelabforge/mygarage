@@ -12,6 +12,7 @@ only. Callers compose `f"{symbol}{value:,.2f}"` or equivalent.
 from __future__ import annotations
 
 import re
+from typing import TypeGuard
 
 from app.constants.i18n import SUPPORTED_CURRENCIES
 
@@ -59,12 +60,12 @@ _CURRENCY_CODE_RE = re.compile(r"^[A-Z]{3}$")
 _LOCALE_RE = re.compile(r"^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$")
 
 
-def is_valid_currency_code(code: str | None) -> bool:
+def is_valid_currency_code(code: str | None) -> TypeGuard[str]:
     """Reject anything that isn't ISO 4217 shape (3 uppercase letters)."""
     return bool(code) and bool(_CURRENCY_CODE_RE.fullmatch(code or ""))
 
 
-def is_valid_locale(locale: str | None) -> bool:
+def is_valid_locale(locale: str | None) -> TypeGuard[str]:
     """Reject anything that isn't BCP 47 shape."""
     return bool(locale) and bool(_LOCALE_RE.fullmatch(locale or ""))
 

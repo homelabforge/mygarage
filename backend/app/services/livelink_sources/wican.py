@@ -25,6 +25,7 @@ from app.services.livelink_sources.base import (
     BaseSourceModule,
     Capability,
     DiscoveryInfo,
+    Envelope,
     InferSession,
     IngestBatch,
     MqttEnvelope,
@@ -229,7 +230,7 @@ class WicanModule(BaseSourceModule):
         prefix = await mqtt_subscriber.configured_topic_prefix(db)
         return [f"{prefix}/+/#"] if prefix else []
 
-    async def parse(self, env) -> IngestBatch | None:
+    async def parse(self, env: Envelope) -> IngestBatch | None:
         if isinstance(env, WicanHttpsEnvelope):
             return _parse_https(env)
         if not isinstance(env, MqttEnvelope):

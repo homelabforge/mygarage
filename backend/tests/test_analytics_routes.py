@@ -33,7 +33,7 @@ def _extract_pdf_text(pdf_bytes: bytes) -> str:
     doc = pymupdf.open(stream=pdf_bytes, filetype="pdf")
     text = ""
     for page in doc:
-        text += page.get_text()  # type: ignore[operator]
+        text += page.get_text()  # pyright: ignore[reportOperatorIssue]  # get_text() with no option returns str
     doc.close()
     return text
 

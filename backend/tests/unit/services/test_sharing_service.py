@@ -6,6 +6,7 @@ Tests vehicle sharing with read/write permissions.
 
 import pytest
 import pytest_asyncio
+from fastapi import HTTPException
 from sqlalchemy import select
 
 from app.models.user import User
@@ -235,7 +236,7 @@ class TestShareVehicle:
             permission="read",
         )
 
-        with pytest.raises(Exception) as exc_info:
+        with pytest.raises(HTTPException) as exc_info:
             await service.share_vehicle(
                 vin=share_vehicle.vin,
                 share_request=request,
@@ -253,7 +254,7 @@ class TestShareVehicle:
             permission="read",
         )
 
-        with pytest.raises(Exception) as exc_info:
+        with pytest.raises(HTTPException) as exc_info:
             await service.share_vehicle(
                 vin=share_vehicle.vin,
                 share_request=request,
@@ -272,7 +273,7 @@ class TestShareVehicle:
             permission="read",
         )
 
-        with pytest.raises(Exception) as exc_info:
+        with pytest.raises(HTTPException) as exc_info:
             await service.share_vehicle(
                 vin=share_vehicle.vin,
                 share_request=request,
@@ -293,7 +294,7 @@ class TestShareVehicle:
             permission="read",
         )
 
-        with pytest.raises(Exception) as exc_info:
+        with pytest.raises(HTTPException) as exc_info:
             await service.share_vehicle(
                 vin=share_vehicle.vin,
                 share_request=request,
@@ -322,7 +323,7 @@ class TestShareVehicle:
         )
 
         # Try to create duplicate
-        with pytest.raises(Exception) as exc_info:
+        with pytest.raises(HTTPException) as exc_info:
             await service.share_vehicle(
                 vin=share_vehicle.vin,
                 share_request=request,
@@ -440,7 +441,7 @@ class TestRevokeShare:
         )
 
         # Try to revoke as non-owner
-        with pytest.raises(Exception) as exc_info:
+        with pytest.raises(HTTPException) as exc_info:
             await service.revoke_share(
                 share_id=share.id,
                 current_user=other_user,
@@ -482,7 +483,7 @@ class TestGetVehicleShares:
         """Test that non-owner cannot view shares."""
         service = SharingService(db_session)
 
-        with pytest.raises(Exception) as exc_info:
+        with pytest.raises(HTTPException) as exc_info:
             await service.get_vehicle_shares(
                 vin=share_vehicle.vin,
                 current_user=other_user,

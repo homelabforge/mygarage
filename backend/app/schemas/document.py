@@ -10,7 +10,7 @@ from app.schemas._nullability import reject_null
 class DocumentBase(BaseModel):
     """Base document schema."""
 
-    document_type: str | None = Field(None, max_length=50)
+    document_type: str | None = Field(default=None, max_length=50)
     title: str = Field(..., max_length=200)
     description: str | None = None
 
@@ -40,8 +40,8 @@ class DocumentCreate(DocumentBase):
 class DocumentUpdate(BaseModel):
     """Schema for updating a document."""
 
-    document_type: str | None = Field(None, max_length=50)
-    title: str | None = Field(None, max_length=200)
+    document_type: str | None = Field(default=None, max_length=50)
+    title: str | None = Field(default=None, max_length=200)
     description: str | None = None
 
     _no_null = reject_null("title")

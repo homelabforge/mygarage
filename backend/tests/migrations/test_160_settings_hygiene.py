@@ -1,13 +1,10 @@
 """Migration 160: tidy stored switches, drop the dead map keys, empty the token tables."""
 
-import importlib.util
-from pathlib import Path
-
 import pytest
 from sqlalchemy import Engine, text
 
-import app.migrations as _m
 from app.services.setting_switches import SWITCH_SETTING_KEYS
+from tests.migrations._loader import load_migration
 
 pytestmark = pytest.mark.migrations
 
@@ -32,11 +29,7 @@ _OTHERS = {
 
 
 def _load():
-    path = Path(_m.__file__).parent / f"{_NAME}.py"
-    spec = importlib.util.spec_from_file_location(_NAME, path)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
+    return load_migration(_NAME)
 
 
 #: The migration's own list; the tie test below pins it to the restore's.

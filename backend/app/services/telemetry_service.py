@@ -8,6 +8,7 @@ import weakref
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field, replace
 from datetime import date, datetime, timedelta
+from decimal import Decimal
 from functools import partial
 from typing import Any, cast
 
@@ -279,7 +280,7 @@ class TelemetryService:
         display_name: str | None = None,
         unit: str | None = None,
         param_class: str | None = None,
-    ) -> LiveLinkParameter | None:
+    ) -> LiveLinkParameter:
         """Get or create a parameter definition.
 
         Wrapper for auto_register_parameter for route compatibility.
@@ -1080,14 +1081,14 @@ class TelemetryService:
         existing = result.scalars().first()
 
         if existing is not None:
-            existing.odometer_km = odometer_km
+            existing.odometer_km = Decimal(odometer_km)
             existing.notes = f"Auto-updated from LiveLink ({odometer_key})"
         else:
             # Create new odometer record
             odometer_record = OdometerRecord(
                 vin=vin,
                 date=record_date,
-                odometer_km=odometer_km,
+                odometer_km=Decimal(odometer_km),
                 source="livelink",
                 notes=f"Auto-recorded from LiveLink ({odometer_key})",
             )
@@ -1695,8 +1696,8 @@ class TelemetryService:
                 {r.param_key: r.unit for r in readings},
             )
             readings = [
-                replace(r, value=float(converted[r.param_key]))
-                if r.param_key in normalised and converted.get(r.param_key) is not None
+                replace(r, value=float(value))
+                if r.param_key in normalised and (value := converted.get(r.param_key)) is not None
                 else r
                 for r in readings
             ]

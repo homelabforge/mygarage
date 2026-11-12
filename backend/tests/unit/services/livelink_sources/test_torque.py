@@ -65,6 +65,7 @@ async def test_ignores_an_mqtt_envelope():
 @pytest.mark.asyncio
 async def test_device_key_is_the_path_token():
     batch = await M.parse(HttpEnvelope(token="tok123", params={"session": "9"}))
+    assert batch is not None
     assert batch.device_key == "tok123"
     assert batch.session == ExplicitSession(external_id="9")
 
@@ -75,6 +76,7 @@ async def test_a_past_device_clock_is_trusted():
     batch = await M.parse(
         HttpEnvelope(token="t", params={"time": str(int(past.timestamp() * 1000))})
     )
+    assert batch is not None
     assert batch.timestamp is not None
     assert batch.timestamp < datetime.now(UTC).replace(tzinfo=None)
 
@@ -85,19 +87,23 @@ async def test_a_future_device_clock_is_clamped_to_now():
     batch = await M.parse(
         HttpEnvelope(token="t", params={"time": str(int(future.timestamp() * 1000))})
     )
+    assert batch is not None
     now = datetime.now(UTC).replace(tzinfo=None)
+    assert batch.timestamp is not None
     assert batch.timestamp <= now + timedelta(seconds=5)
 
 
 @pytest.mark.asyncio
 async def test_garbage_time_degrades_to_server_now_rather_than_raising():
     batch = await M.parse(HttpEnvelope(token="t", params={"time": "9" * 20}))
+    assert batch is not None
     assert batch.timestamp is not None
 
 
 @pytest.mark.asyncio
 async def test_flags_preserve_torques_current_side_effects():
     batch = await M.parse(HttpEnvelope(token="t", params={"kc": "900"}))
+    assert batch is not None
     assert batch.requires_link is True
     assert batch.alert_on_thresholds is False, "Torque has never sent threshold alerts"
     assert batch.clear_pending_offline is False
@@ -106,6 +112,7 @@ async def test_flags_preserve_torques_current_side_effects():
 @pytest.mark.asyncio
 async def test_gps_becomes_a_geopoint():
     batch = await M.parse(HttpEnvelope(token="t", params={"kff1006": "45.5", "kff1005": "-122.6"}))
+    assert batch is not None
     assert batch.location is not None
     assert float(batch.location.latitude) == pytest.approx(45.5)
 
@@ -113,6 +120,7 @@ async def test_gps_becomes_a_geopoint():
 @pytest.mark.asyncio
 async def test_a_reading_with_data_asserts_ecu_online():
     batch = await M.parse(HttpEnvelope(token="t", params={"kc": "900"}))
+    assert batch is not None
     assert batch.ecu_status == "online"
 
 
@@ -133,6 +141,7 @@ async def test_readings_carry_torques_default_unit_and_name():
             },
         )
     )
+    assert batch is not None
     assert batch.readings == [
         Reading("COOLANT_TMP", 91.0, unit="°C"),
         Reading("INTAKE_PRESSURE", 62.0, unit="kPa"),

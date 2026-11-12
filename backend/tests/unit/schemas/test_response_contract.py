@@ -259,12 +259,7 @@ def test_no_response_constrains_text():
 #: Twins that differ from the field they shadow on purpose: (model, field) -> why.
 DELIBERATE_TWINS: dict[tuple[str, str], str] = {
     ("AddressBookEntryResponse", "email"): "a plain str: EmailStr refuses a local-domain address",
-    ("RecallResponse", "component"): "nullable column: a sync or import can store none",
-    ("RecallResponse", "summary"): "nullable column: a sync or import can store none",
-    ("TopicMapResponse", "role"): "lenient read; the input stays strict",
     ("UserResponse", "email"): "a plain str: EmailStr refuses an SSO email at a local domain",
-    ("VehicleResponse", "usage_unit"): "lenient read; the input stays strict",
-    ("VehicleResponse", "vehicle_type"): "lenient read; the input stays strict",
 }
 
 
@@ -341,7 +336,7 @@ def test_a_twin_matches_the_field_it_shadows():
     twin's description (`FuelRecordResponse.cost`, say).
     """
     count, drift, stale = _twins(RESPONSE_MODELS, DELIBERATE_TWINS)
-    # 147 today. A floor, so a change in how annotations are read can't turn
+    # 161 today. A floor, so a change in how annotations are read can't turn
     # this into a pass over nothing.
     assert count >= 140
     assert drift == {}, "a twin drifted from the field it shadows: copy it again, bound aside"
@@ -879,11 +874,15 @@ def _reads_leniently(info: FieldInfo) -> bool:
     marker = next((item for item in metadata if isinstance(item, LenientVocab)), None)
     if marker is None:
         return False
-    annotation = Annotated[info.annotation, *info.metadata] if info.metadata else info.annotation
+    # Built at runtime, so there's no static type to give it.
+    annotation: Any = (
+        Annotated[info.annotation, *info.metadata] if info.metadata else info.annotation
+    )
+    # A model, not a TypeAdapter: the lenient validators read `info.data`.
     read_back = create_model("_ReadBack", value=(annotation, ...))
     try:
         return all(
-            read_back.model_validate({"value": value}).value == marker.fallback
+            getattr(read_back.model_validate({"value": value}), "value") == marker.fallback
             for value in (_OUT_OF_VOCABULARY, None)
         )
     except ValidationError:
@@ -1060,24 +1059,24 @@ type _BoundedCount = Annotated[int, Field(ge=1)]
 
 
 class _Nested(BaseModel):
-    cost: Decimal | None = Field(None, ge=0)
+    cost: Decimal | None = Field(default=None, ge=0)
 
 
 class _Probe(BaseModel):
-    amount: Decimal | None = Field(None, le=100)
+    amount: Decimal | None = Field(default=None, le=100)
     cost: Annotated[Decimal, Field(ge=0)] | None = None
     premium: OptionalMoney = None
     deductible: _BoundedAlias | None = None
-    price: float = Field(0, gt=0)
-    rate: Decimal | None = Field(None, decimal_places=2)
-    fee: Decimal | None = Field(None, max_digits=12)
-    charge: Decimal | None = Field(None, multiple_of=Decimal("0.01"))
+    price: float = Field(default=0, gt=0)
+    rate: Decimal | None = Field(default=None, decimal_places=2)
+    fee: Decimal | None = Field(default=None, max_digits=12)
+    charge: Decimal | None = Field(default=None, multiple_of=0.01)
     # A number with no bound stays out. A measurement and a count aren't money,
     # but their bounds 500 a read all the same.
     total_cost: Decimal | None = None
-    odometer_km: Decimal | None = Field(None, ge=0)
-    total: int = Field(0, ge=0)
-    count: int | None = Field(None, ge=0)
+    odometer_km: Decimal | None = Field(default=None, ge=0)
+    total: int = Field(default=0, ge=0)
+    count: int | None = Field(default=None, ge=0)
     aliased: _BoundedCount | None = None
     items: list[_Nested] = []
 
@@ -1108,7 +1107,7 @@ def test_the_detector_sees_every_form():
 class _TextProbe(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     color: Annotated[str, Field(max_length=30)] | None = None
-    code: str | None = Field(None, pattern=r"^[A-Z]+$")
+    code: str | None = Field(default=None, pattern=r"^[A-Z]+$")
     email: EmailStr
     backup_email: EmailStr | None = None
     # No rule, so they stay out.
@@ -1137,28 +1136,28 @@ def test_the_text_detector_sees_every_form():
 
 
 class _TwinBase(BaseModel):
-    same: Decimal | None = Field(None, ge=0, description="Kept")
-    money: OptionalMoney = Field(None, description="Paid")
+    same: Decimal | None = Field(default=None, ge=0, description="Kept")
+    money: OptionalMoney = Field(default=None, description="Paid")
     counted: _BoundedCount | None = None
-    described: Decimal | None = Field(None, ge=0, description="Original")
-    defaulted: Decimal | None = Field(None, ge=0)
+    described: Decimal | None = Field(default=None, ge=0, description="Original")
+    defaulted: Decimal | None = Field(default=None, ge=0)
     required: Decimal = Field(..., ge=0)
-    typed: Decimal | None = Field(None, ge=0)
-    registered: int | None = Field(None, ge=0, description="Bounded")
-    settled: int | None = Field(None, ge=0)
+    typed: Decimal | None = Field(default=None, ge=0)
+    registered: int | None = Field(default=None, ge=0, description="Bounded")
+    settled: int | None = Field(default=None, ge=0)
 
 
 class _TwinProbe(_TwinBase):
     # Bounds dropped and nothing else, through a plain field, the shared money
     # alias and a PEP 695 alias.
-    same: Decimal | None = Field(None, description="Kept")
-    money: Decimal | None = Field(None, description="Paid")
+    same: Decimal | None = Field(default=None, description="Kept")
+    money: Decimal | None = Field(default=None, description="Paid")
     counted: int | None = None
     # One drift each.
-    described: Decimal | None = Field(None, description="Changed")
+    described: Decimal | None = Field(default=None, description="Changed")
     defaulted: Decimal | None = Decimal(0)
     required: Decimal = Decimal(0)
-    typed: float | None = None
+    typed: float | None = None  # pyright: ignore[reportIncompatibleVariableOverride]  # deliberately invalid: the drift under test
     # Registered: one still differs, one matches now and so is stale.
     registered: int | None = None
     settled: int | None = None

@@ -20,6 +20,7 @@ from __future__ import annotations
 from datetime import date, timedelta
 from decimal import Decimal
 from pathlib import Path
+from typing import Any
 
 import pytest
 from sqlalchemy import func, select, text
@@ -165,7 +166,7 @@ async def test_sqlite_connections_enforce_foreign_keys(db_session: AsyncSession)
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_delete_vehicle_removes_all_child_rows(
-    db_session: AsyncSession, test_user: dict[str, object]
+    db_session: AsyncSession, test_user: dict[str, Any]
 ) -> None:
     """F1: delete_vehicle must leave zero child rows on the live engine.
 
@@ -173,7 +174,7 @@ async def test_delete_vehicle_removes_all_child_rows(
     orphaned history from the old vehicle silently reattaches.
     """
     vin = "DELINTEG000000001"
-    await _seed_vehicle_with_children(db_session, int(test_user["id"]), vin)  # type: ignore[arg-type]
+    await _seed_vehicle_with_children(db_session, int(test_user["id"]), vin)
 
     for model, _ in CHILD_MODELS:
         assert await _count(db_session, model, vin) == 1, f"seed failed for {model.__name__}"
@@ -199,7 +200,7 @@ async def test_delete_vehicle_removes_all_child_rows(
 @pytest.mark.asyncio
 @pytest.mark.filterwarnings("error::sqlalchemy.exc.SAWarning")
 async def test_delete_vehicle_with_synced_rows_warns_nothing(
-    db_session: AsyncSession, test_user: dict[str, object]
+    db_session: AsyncSession, test_user: dict[str, Any]
 ) -> None:
     """Rows synced from a fuel record or a service visit go with it by FK cascade.
 
@@ -250,7 +251,7 @@ async def test_delete_vehicle_with_synced_rows_warns_nothing(
 @pytest.mark.asyncio
 async def test_delete_vehicle_removes_vin_keyed_files(
     db_session: AsyncSession,
-    test_user: dict[str, object],
+    test_user: dict[str, Any],
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -273,7 +274,7 @@ async def test_delete_vehicle_removes_vin_keyed_files(
         vin_dir.mkdir(parents=True)
         (vin_dir / "orphan-candidate.bin").write_bytes(b"data")
 
-    await _seed_vehicle_with_children(db_session, int(test_user["id"]), vin)  # type: ignore[arg-type]
+    await _seed_vehicle_with_children(db_session, int(test_user["id"]), vin)
 
     # Attachments are polymorphic (record_type/record_id, NOT VIN-keyed) and
     # live outside the VIN directories - production evidence: 26 service-visit
@@ -323,7 +324,7 @@ async def test_delete_vehicle_removes_vin_keyed_files(
 @pytest.mark.asyncio
 async def test_delete_vehicle_survives_file_cleanup_failure(
     db_session: AsyncSession,
-    test_user: dict[str, object],
+    test_user: dict[str, Any],
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -347,7 +348,7 @@ async def test_delete_vehicle_survives_file_cleanup_failure(
 
     monkeypatch.setattr(shutil_module, "rmtree", _boom)
 
-    await _seed_vehicle_with_children(db_session, int(test_user["id"]), vin)  # type: ignore[arg-type]
+    await _seed_vehicle_with_children(db_session, int(test_user["id"]), vin)
     user = await db_session.get(User, test_user["id"])
     assert user is not None
 

@@ -120,7 +120,7 @@ class RequestIDMiddleware:
         if isinstance(state, dict):
             state["request_id"] = request_id
         else:
-            state.request_id = request_id  # type: ignore[attr-defined]
+            state.request_id = request_id
 
         async def send_with_request_id(message: Message) -> None:
             if message["type"] == "http.response.start":
@@ -233,7 +233,7 @@ class CSRFProtectionMiddleware:
                 if isinstance(state, dict):
                     state["csrf_validated_user_id"] = token_record.user_id
                 else:
-                    state.csrf_validated_user_id = token_record.user_id  # type: ignore[attr-defined]
+                    state.csrf_validated_user_id = token_record.user_id
         except Exception as e:
             logger.error("CSRF validation error: %s", e, exc_info=True)
             await _send_json(

@@ -39,7 +39,7 @@ from app.services.reminder_service import (
     DueContext,
     ReminderStart,
     _build_reminder_message,
-    _due_event,  # pyright: ignore[reportPrivateUsage]
+    _due_event,
     anchor_start,
     calculate_hours_driving_rate,
     check_due_reminders,
@@ -1664,6 +1664,7 @@ class TestCheckDueRemindersNaiveLastNotifiedAt:
         # The precondition, asserted rather than assumed: without a naive stored
         # value there is no TypeError for `check_due_reminders` to avoid, and
         # this test would pass against the unfixed code.
+        assert reminder.last_notified_at is not None
         assert reminder.last_notified_at.tzinfo is None
 
         sent_messages: list[str] = []
@@ -1915,7 +1916,7 @@ class TestDueValueChangeRearmsTheHeadsUp:
     ):
         from app.services.maintenance_recurrence import Thresholds
         from app.services.maintenance_service import (
-            _set_thresholds,  # pyright: ignore[reportPrivateUsage]
+            _set_thresholds,
         )
 
         reminder = await self._told(

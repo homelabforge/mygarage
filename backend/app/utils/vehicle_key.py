@@ -16,7 +16,10 @@ from __future__ import annotations
 
 import re
 import secrets
-from typing import Any, Literal, Protocol
+from typing import TYPE_CHECKING, Any, Literal, Protocol
+
+if TYPE_CHECKING:
+    from app.models.vehicle import Vehicle
 
 IdentifierType = Literal["vin", "serial", "hin", "chassis", "asset_tag", "none"]
 IDENTIFIER_TYPES: tuple[str, ...] = ("vin", "serial", "hin", "chassis", "asset_tag", "none")
@@ -27,10 +30,16 @@ _VIN_SHAPE = re.compile(r"^[A-HJ-NPR-Z0-9]{17}$")
 _SYNTHETIC_SHAPE = re.compile(r"^Q[A-HJ-NPR-Z0-9]{16}$")
 
 
-class _HasIdentity(Protocol):
+class _IdentityShape(Protocol):
     vin: str
     identifier_type: str
     identifier: str | None
+
+
+# Pyright never applies a descriptor's __get__ when it matches a protocol, so an
+# ORM model fails a protocol on its Mapped columns. The model goes in the union
+# by name; it's a typing-only import, and the alias is only ever read by pyright.
+type _HasIdentity = Vehicle | _IdentityShape
 
 
 def generate_vehicle_key() -> str:

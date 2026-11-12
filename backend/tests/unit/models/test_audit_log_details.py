@@ -25,7 +25,7 @@ def test_assigning_details_later_is_checked_too() -> None:
     row = AuditLog(action="test")
 
     with pytest.raises(TypeError):
-        row.details = "x"  # type: ignore[assignment]
+        row.details = "x"  # pyright: ignore[reportAttributeAccessIssue]  # deliberately invalid
 
 
 def test_details_takes_a_dict_or_none() -> None:

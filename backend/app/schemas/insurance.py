@@ -7,6 +7,7 @@ from decimal import Decimal
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic.config import JsonDict
 
 from app.constants.insurance import NO_CLAIMS_CLASS_PATTERN
 from app.schemas._money import OptionalMoney
@@ -106,7 +107,7 @@ class NamedFieldResponse(BaseModel):
 #: lacks renders no input, and saving the form then clears the stored amount.
 #: `frontend/src/constants/__tests__/insuranceCoverages.test.ts` compares
 #: against it.
-_COVERAGE_SLOTS_SCHEMA = {
+_COVERAGE_SLOTS_SCHEMA: JsonDict = {
     "x-coverage-slots": {
         key: {name: slot.kind for name, slot in coverage.slots()}
         for key, coverage in COVERAGE_BY_KEY.items()
@@ -136,10 +137,10 @@ class CoverageEntry(BaseModel):
     """
 
     coverage_key: CoverageKey
-    limit_primary: OptionalMoney = Field(None, decimal_places=2)
-    limit_secondary: OptionalMoney = Field(None, decimal_places=2)
-    deductible: OptionalMoney = Field(None, decimal_places=2)
-    premium: OptionalMoney = Field(None, decimal_places=2)
+    limit_primary: OptionalMoney = Field(default=None, decimal_places=2)
+    limit_secondary: OptionalMoney = Field(default=None, decimal_places=2)
+    deductible: OptionalMoney = Field(default=None, decimal_places=2)
+    premium: OptionalMoney = Field(default=None, decimal_places=2)
 
     model_config = ConfigDict(from_attributes=True, json_schema_extra=_COVERAGE_SLOTS_SCHEMA)
 
@@ -206,11 +207,14 @@ class PolicyVehicleCreate(BaseModel):
     vin: str = Field(..., min_length=17, max_length=17)
     policy_type: PolicyType
     premium_share: OptionalMoney = Field(
-        None, decimal_places=2, description="Per-period share; omit for an even split"
+        default=None, decimal_places=2, description="Per-period share; omit for an even split"
     )
-    deductible: OptionalMoney = Field(None, decimal_places=2)
+    deductible: OptionalMoney = Field(default=None, decimal_places=2)
     no_claims_class: str | None = Field(
-        None, max_length=10, pattern=NO_CLAIMS_CLASS_PATTERN, description=_NO_CLAIMS_DESCRIPTION
+        default=None,
+        max_length=10,
+        pattern=NO_CLAIMS_CLASS_PATTERN,
+        description=_NO_CLAIMS_DESCRIPTION,
     )
     notes: str | None = None
     coverages: list[CoverageEntry] = Field(default_factory=list)
@@ -229,10 +233,13 @@ class PolicyVehicleUpdate(BaseModel):
     """
 
     policy_type: PolicyType | None = None
-    premium_share: OptionalMoney = Field(None, decimal_places=2)
-    deductible: OptionalMoney = Field(None, decimal_places=2)
+    premium_share: OptionalMoney = Field(default=None, decimal_places=2)
+    deductible: OptionalMoney = Field(default=None, decimal_places=2)
     no_claims_class: str | None = Field(
-        None, max_length=10, pattern=NO_CLAIMS_CLASS_PATTERN, description=_NO_CLAIMS_DESCRIPTION
+        default=None,
+        max_length=10,
+        pattern=NO_CLAIMS_CLASS_PATTERN,
+        description=_NO_CLAIMS_DESCRIPTION,
     )
     notes: str | None = None
     effective_to: date_type | None = None
@@ -252,18 +259,21 @@ class PolicyVehicleUpsert(BaseModel):
 
     vin: str = Field(..., min_length=17, max_length=17)
     policy_type: PolicyType
-    premium_share: OptionalMoney = Field(None, decimal_places=2)
-    deductible: OptionalMoney = Field(None, decimal_places=2)
+    premium_share: OptionalMoney = Field(default=None, decimal_places=2)
+    deductible: OptionalMoney = Field(default=None, decimal_places=2)
     no_claims_class: str | None = Field(
-        None, max_length=10, pattern=NO_CLAIMS_CLASS_PATTERN, description=_NO_CLAIMS_DESCRIPTION
+        default=None,
+        max_length=10,
+        pattern=NO_CLAIMS_CLASS_PATTERN,
+        description=_NO_CLAIMS_DESCRIPTION,
     )
     notes: str | None = None
     effective_to: date_type | None = None
     coverages: list[CoverageEntry] | None = Field(
-        None, description="Omit to leave an existing vehicle's coverages alone"
+        default=None, description="Omit to leave an existing vehicle's coverages alone"
     )
     fields: list[NamedField] | None = Field(
-        None, description="Omit to leave an existing vehicle's named fields alone"
+        default=None, description="Omit to leave an existing vehicle's named fields alone"
     )
 
     _check_coverages = field_validator("coverages")(no_repeated_coverage)
@@ -279,13 +289,15 @@ class PolicyVehicleResponse(BaseModel):
     #: As stored: the inputs hold the vocabulary (`PolicyType`), a row written
     #: before this release or by an import reads whatever it holds.
     policy_type: str
-    premium_share: Decimal | None = Field(None, description="Explicit share, if the user set one")
+    premium_share: Decimal | None = Field(
+        default=None, description="Explicit share, if the user set one"
+    )
     effective_share: Decimal | None = Field(
-        None, description="What this vehicle costs per period: explicit, or the even split"
+        default=None, description="What this vehicle costs per period: explicit, or the even split"
     )
     deductible: Decimal | None = None
     # The same field as the inputs', read without its length and pattern rules.
-    no_claims_class: str | None = Field(None, description=_NO_CLAIMS_DESCRIPTION)
+    no_claims_class: str | None = Field(default=None, description=_NO_CLAIMS_DESCRIPTION)
     notes: str | None = None
     effective_to: date_type | None = None
     #: In catalogue order, which IS the display order.
@@ -317,7 +329,7 @@ class InsurancePolicyCreate(_PolicyDates):
     start_date: date_type
     end_date: date_type
     premium_amount: OptionalMoney = Field(
-        None,
+        default=None,
         decimal_places=2,
         description="Whole-policy amount per premium_frequency period",
     )
@@ -330,22 +342,22 @@ class InsurancePolicyCreate(_PolicyDates):
 class InsurancePolicyUpdate(_PolicyDates):
     """Edit the policy-level details. Vehicles are edited through their links."""
 
-    provider: str | None = Field(None, min_length=1, max_length=100)
-    policy_number: str | None = Field(None, min_length=1, max_length=50)
+    provider: str | None = Field(default=None, min_length=1, max_length=100)
+    policy_number: str | None = Field(default=None, min_length=1, max_length=50)
     start_date: date_type | None = None
     end_date: date_type | None = None
-    premium_amount: OptionalMoney = Field(None, decimal_places=2)
+    premium_amount: OptionalMoney = Field(default=None, decimal_places=2)
     premium_frequency: PremiumFrequency | None = None
     notes: str | None = None
     fields: list[NamedField] | None = None
     vehicles: list[PolicyVehicleUpsert] | None = Field(
-        None,
+        default=None,
         description="The policy's COMPLETE vehicle list. Omit to leave the vehicles alone; "
         "when present, vehicles not listed are removed. Sending the premium and every share "
         "together is how a vehicle is added and the premium raised in one valid step",
     )
     share_strategy: ShareStrategy | None = Field(
-        None,
+        default=None,
         description="Required when the premium changes on a policy whose vehicle shares "
         "are all explicit: rescale them proportionally, or reset to an even split",
     )
@@ -358,9 +370,9 @@ class InsurancePolicyRenew(_PolicyDates):
     """Enter the next term. Allowed any time, so a renewal notice can be
     recorded the day it arrives; the new term reads `upcoming` until it starts."""
 
-    start_date: date_type | None = Field(None, description="Default: the current end_date")
-    end_date: date_type | None = Field(None, description="Default: the same term length")
-    premium_amount: OptionalMoney = Field(None, decimal_places=2)
+    start_date: date_type | None = Field(default=None, description="Default: the current end_date")
+    end_date: date_type | None = Field(default=None, description="Default: the same term length")
+    premium_amount: OptionalMoney = Field(default=None, decimal_places=2)
     premium_frequency: PremiumFrequency | None = None
     notes: str | None = None
 
@@ -372,19 +384,19 @@ class InsurancePolicyReplace(_PolicyDates):
     policy_number: str = Field(..., min_length=1, max_length=50)
     start_date: date_type
     end_date: date_type
-    premium_amount: OptionalMoney = Field(None, decimal_places=2)
+    premium_amount: OptionalMoney = Field(default=None, decimal_places=2)
     premium_frequency: PremiumFrequency | None = None
     notes: str | None = None
     vins: list[str] | None = Field(
-        None, description="Vehicles to carry over; omit to carry every vehicle"
+        default=None, description="Vehicles to carry over; omit to carry every vehicle"
     )
     vehicles: list[PolicyVehicleCreate] | None = Field(
-        None,
+        default=None,
         description="The new policy's vehicles WITH the new insurer's coverages. When "
         "present it replaces `vins`; omit both to carry every vehicle over by type only",
     )
     end_old_on: date_type | None = Field(
-        None, description="Shorten the old policy to this date for a mid-term switch"
+        default=None, description="Shorten the old policy to this date for a mid-term switch"
     )
 
 
@@ -407,7 +419,7 @@ class InsurancePolicyResponse(BaseModel):
     fields: list[NamedFieldResponse] = Field(default_factory=list)
     vehicles: list[PolicyVehicleResponse] = Field(default_factory=list)
     other_vehicle_count: int = Field(
-        0, description="Covered vehicles the caller has no access to see"
+        default=0, description="Covered vehicles the caller has no access to see"
     )
     can_edit: bool = False
 
@@ -424,7 +436,7 @@ class PolicyHistoryEntry(BaseModel):
     premium_frequency: str | None = None
     status: PolicyStatus
     premium_change: Decimal | None = Field(
-        None, description="This term's premium minus the prior term's, same frequency only"
+        default=None, description="This term's premium minus the prior term's, same frequency only"
     )
     vehicles: list[PolicyVehicleResponse] = Field(default_factory=list)
-    is_current: bool = Field(False, description="The policy the history was requested for")
+    is_current: bool = Field(default=False, description="The policy the history was requested for")

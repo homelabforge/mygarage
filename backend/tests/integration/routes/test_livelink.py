@@ -249,10 +249,14 @@ def test_the_blank_normaliser_leaves_anything_that_isnt_blank_text_alone(field: 
     Mutant: `return v.strip() or None` for whatever arrives (None and the
     number raise AttributeError, which pydantic doesn't turn into a 422).
     """
-    assert getattr(WiCANStatus(device_id="aabbccddeeff", **{field: "4.45"}), field) == "4.45"
-    assert getattr(WiCANStatus(device_id="aabbccddeeff", **{field: None}), field) is None
+
+    def status(value: object) -> WiCANStatus:
+        return WiCANStatus.model_validate({"device_id": "aabbccddeeff", field: value})
+
+    assert getattr(status("4.45"), field) == "4.45"
+    assert getattr(status(None), field) is None
     with pytest.raises(ValidationError):
-        WiCANStatus(device_id="aabbccddeeff", **{field: 4.45})
+        status(4.45)
 
 
 @pytest.mark.integration
@@ -432,4 +436,5 @@ def test_the_ecu_status_normaliser_feeds_the_literal(sent: str, stored: str):
 
     Mutant: make it an after-validator again (the Literal refuses " ON ").
     """
-    assert WiCANStatus(device_id="aabbccddeeff", ecu_status=sent).ecu_status == stored
+    status = WiCANStatus.model_validate({"device_id": "aabbccddeeff", "ecu_status": sent})
+    assert status.ecu_status == stored

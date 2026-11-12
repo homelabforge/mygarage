@@ -67,7 +67,7 @@ def _canon_py(key: str) -> str:
     return key.upper().replace(" ", "_")
 
 
-def _merge_daily_summary(engine) -> None:
+def _merge_daily_summary(engine: Engine) -> None:
     """Re-aggregate ``telemetry_daily_summary`` to canonical keys (merge, not drop).
 
     Groups every row by ``(vin, canonical_param_key, date)`` and, where a group
@@ -106,7 +106,7 @@ def _merge_daily_summary(engine) -> None:
             groups[(r.vin, canon, r.date)].append(r)
 
         merged = 0
-        for (vin, canon, date), members in groups.items():
+        for (_vin, canon, _date), members in groups.items():
             # No work for a group that is already a single canonical row.
             if len(members) == 1 and members[0].param_key == canon:
                 continue

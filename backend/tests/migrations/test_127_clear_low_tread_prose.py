@@ -1,21 +1,14 @@
 """Migration 127: clear the low-tread sync's old prose (G3a-21). Exact matches only."""
 
-import importlib.util
-from pathlib import Path
-
 from sqlalchemy import text
 
-import app.migrations as _m
+from tests.migrations._loader import load_migration
 
 _NAME = "127_clear_low_tread_prose"
 
 
 def _load():
-    path = Path(_m.__file__).parent / f"{_NAME}.py"
-    spec = importlib.util.spec_from_file_location(_NAME, path)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
+    return load_migration(_NAME)
 
 
 _ROWS = [

@@ -42,6 +42,7 @@ from __future__ import annotations
 import argparse
 import ast
 import sys
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -243,10 +244,12 @@ def _analyze_function(node: ast.FunctionDef | ast.AsyncFunctionDef, lines: list[
             facts.has_owner_gate = True
         elif cname == "delete":
             # SQLAlchemy ``delete(Vehicle)`` destructive statement.
-            if call.args and isinstance(call.args[0], ast.Name) and call.args[0].id == "Vehicle":
+            first = call.args[0] if call.args else None
+            if isinstance(first, ast.Name) and first.id == "Vehicle":
                 facts.deletes_vehicle_lines.append(call.lineno)
         elif cname == "select":
-            if call.args and isinstance(call.args[0], ast.Name) and call.args[0].id == "Vehicle":
+            first = call.args[0] if call.args else None
+            if isinstance(first, ast.Name) and first.id == "Vehicle":
                 facts.touches_vehicle_model = True
 
     # Comparisons: vin filters and user-scope detection.
@@ -268,7 +271,7 @@ def _analyze_function(node: ast.FunctionDef | ast.AsyncFunctionDef, lines: list[
     return facts
 
 
-def _references_current_user_id(operands: list[ast.AST]) -> bool:
+def _references_current_user_id(operands: Sequence[ast.AST]) -> bool:
     for o in operands:
         if (
             isinstance(o, ast.Attribute)

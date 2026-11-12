@@ -114,12 +114,12 @@ async def list_quick_entry_vehicles(
                 year=vehicle.year,
                 make=vehicle.make,
                 model=vehicle.model,
-                vehicle_type=vehicle.vehicle_type,
+                vehicle_type=vehicle.vehicle_type,  # pyright: ignore[reportArgumentType]  # lenient vocab reads the stored str
                 fuel_type=vehicle.fuel_type,
                 fuel_type_secondary=vehicle.fuel_type_secondary,
-                usage_unit=vehicle.usage_unit or "distance",
+                usage_unit=vehicle.usage_unit or "distance",  # pyright: ignore[reportArgumentType]  # lenient vocab reads the stored str
                 secondary_usage_enabled=bool(vehicle.secondary_usage_enabled),
-                distance_unit=vehicle.distance_unit,
+                distance_unit=vehicle.distance_unit,  # pyright: ignore[reportArgumentType]  # lenient vocab reads the stored str
                 thumbnail_url=thumbnail_url,
             )
         )

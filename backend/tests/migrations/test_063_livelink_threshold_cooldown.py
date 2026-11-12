@@ -4,20 +4,9 @@ Parameterized over SQLite *and* PostgreSQL via the ``engine_for_migration``
 fixture (PG runs skip when ``TEST_DATABASE_URL`` is unset).
 """
 
-import importlib.util
-from pathlib import Path
-
 from sqlalchemy import inspect, text
 
-import app.migrations as _m
-
-
-def _load(name):
-    path = Path(_m.__file__).parent / f"{name}.py"
-    spec = importlib.util.spec_from_file_location(name, path)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
+from tests.migrations._loader import load_migration
 
 
 def _make_livelink_parameters(engine):
@@ -37,7 +26,7 @@ def test_063_adds_column(engine_for_migration):
     _dialect, engine, _url = engine_for_migration
     _make_livelink_parameters(engine)
 
-    _load("063_livelink_threshold_cooldown").upgrade(engine)
+    load_migration("063_livelink_threshold_cooldown").upgrade(engine)
 
     insp = inspect(engine)
     cols = {c["name"] for c in insp.get_columns("livelink_parameters")}
@@ -47,7 +36,7 @@ def test_063_adds_column(engine_for_migration):
 def test_063_column_is_writable_and_nullable(engine_for_migration):
     _dialect, engine, _url = engine_for_migration
     _make_livelink_parameters(engine)
-    _load("063_livelink_threshold_cooldown").upgrade(engine)
+    load_migration("063_livelink_threshold_cooldown").upgrade(engine)
 
     with engine.begin() as conn:
         conn.execute(
@@ -81,7 +70,7 @@ def test_063_idempotent(engine_for_migration):
     """Second run is a no-op — no raise, no duplicate column."""
     _dialect, engine, _url = engine_for_migration
     _make_livelink_parameters(engine)
-    mod = _load("063_livelink_threshold_cooldown")
+    mod = load_migration("063_livelink_threshold_cooldown")
 
     mod.upgrade(engine)
     mod.upgrade(engine)  # must not raise
@@ -94,4 +83,4 @@ def test_063_idempotent(engine_for_migration):
 def test_063_missing_table_skips(engine_for_migration):
     """Fresh DB without livelink_parameters → migration must skip, not raise."""
     _dialect, engine, _url = engine_for_migration
-    _load("063_livelink_threshold_cooldown").upgrade(engine)  # no table created
+    load_migration("063_livelink_threshold_cooldown").upgrade(engine)  # no table created

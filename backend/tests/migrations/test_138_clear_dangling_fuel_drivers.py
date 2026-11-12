@@ -4,17 +4,15 @@ Builds the tables by hand with no FK, the way 054 left SQLite. The model has
 the FK, so a create_all baseline couldn't even hold a dead id to clear.
 """
 
-import importlib.util
 import logging
-from pathlib import Path
 
 import pytest
 from sqlalchemy import Engine, text
 from sqlalchemy.exc import OperationalError
 
-import app.migrations as _m
 from tests._engines import SyncEngine
 from tests._logged import CaplogOnly, problems
+from tests.migrations._loader import load_migration
 
 pytestmark = pytest.mark.migrations
 
@@ -23,11 +21,7 @@ _NAME = "138_clear_dangling_fuel_drivers"
 
 def _load(name: str = _NAME):
     """Load a migration module by file, as the runner does."""
-    path = Path(_m.__file__).parent / f"{name}.py"
-    spec = importlib.util.spec_from_file_location(name, path)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
+    return load_migration(name)
 
 
 def _pk(engine: Engine) -> str:

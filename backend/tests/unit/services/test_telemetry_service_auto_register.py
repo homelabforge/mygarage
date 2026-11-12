@@ -368,8 +368,10 @@ async def test_declared_units_fill_rows_on_file_and_create_none(db_session):
     await svc.auto_register_parameter(with_unit, unit="psi")
     await svc.auto_register_parameter(without)
     await svc.fill_declared_units({with_unit: "kPa", without: "kPa", absent: "kPa"})
-    assert (await svc.get_parameter(with_unit)).unit == "psi"
-    assert (await svc.get_parameter(without)).unit == "kPa"
+    filled, unfilled = await svc.get_parameter(with_unit), await svc.get_parameter(without)
+    assert filled is not None and unfilled is not None
+    assert filled.unit == "psi"
+    assert unfilled.unit == "kPa"
     assert await svc.get_parameter(absent) is None
 
 

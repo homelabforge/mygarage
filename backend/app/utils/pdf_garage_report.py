@@ -112,11 +112,11 @@ def generate_garage_analytics_pdf(
 
     subtitle = "Garage Analytics Report"
 
-    def on_first_page(canvas: Any, doc: Any) -> None:  # pyright: ignore[reportUnusedParameter]
+    def on_first_page(canvas: Any, doc: Any) -> None:
         draw_branded_header(canvas, doc, subtitle, date_order=date_order)
         draw_branded_footer(canvas, doc)
 
-    def on_later_pages(canvas: Any, doc: Any) -> None:  # pyright: ignore[reportUnusedParameter]
+    def on_later_pages(canvas: Any, doc: Any) -> None:
         draw_branded_footer(canvas, doc)
 
     doc.addPageTemplates(

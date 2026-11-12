@@ -17,7 +17,7 @@ pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 NewVehicle = Callable[..., Awaitable[str]]
 
 
-def _v9(*recalls: dict[str, Any]) -> dict[str, Any]:
+def _v9(*recalls: object) -> dict[str, Any]:
     return {**V9, "recalls": list(recalls)}
 
 

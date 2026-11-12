@@ -5,12 +5,11 @@ Covers `is_diesel_vehicle` (app/constants/fuel.py) and `ensure_def_capable`
 against legacy, non-canonical DB values even before migration 061 runs.
 """
 
-from types import SimpleNamespace
-
 import pytest
 from fastapi import HTTPException
 
 from app.constants.fuel import is_diesel_vehicle
+from app.models.vehicle import Vehicle
 from app.utils.def_sync import ensure_def_capable
 
 
@@ -43,15 +42,15 @@ class TestEnsureDefCapable:
     """HTTP gate: raises 400 unless the vehicle can use DEF."""
 
     def test_no_raise_on_diesel_primary(self) -> None:
-        vehicle = SimpleNamespace(fuel_type="diesel", fuel_type_secondary=None)
+        vehicle = Vehicle(fuel_type="diesel", fuel_type_secondary=None)
         ensure_def_capable(vehicle)  # should not raise
 
     def test_no_raise_on_diesel_secondary(self) -> None:
-        vehicle = SimpleNamespace(fuel_type="gasoline", fuel_type_secondary="diesel")
+        vehicle = Vehicle(fuel_type="gasoline", fuel_type_secondary="diesel")
         ensure_def_capable(vehicle)  # should not raise
 
     def test_raises_400_on_gasoline(self) -> None:
-        vehicle = SimpleNamespace(fuel_type="gasoline", fuel_type_secondary=None)
+        vehicle = Vehicle(fuel_type="gasoline", fuel_type_secondary=None)
         with pytest.raises(HTTPException) as exc_info:
             ensure_def_capable(vehicle)
         assert exc_info.value.status_code == 400

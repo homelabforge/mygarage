@@ -19644,11 +19644,8 @@ export interface components {
              *     ever needs the database, this field has to move to the route.
              *
              *     This call is the only place a `UserResponse` is checked against the
-             *     `UnitPreferenceSource` Protocol. That check only runs because of this
-             *     file's `reportArgumentType=error` pragma: the project-wide setting is
-             *     "none" (FastAPI `Depends()` noise), which would silently accept a
-             *     broken Protocol conformance here too. Do not remove the pragma without
-             *     another way to catch that.
+             *     `UnitPreferenceShape` Protocol, so pyright fails here if it stops
+             *     conforming.
              */
             readonly resolved_units: components["schemas"]["UnitSet"];
             /** Secondary Gallon */

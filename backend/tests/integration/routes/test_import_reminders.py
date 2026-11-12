@@ -189,6 +189,7 @@ async def test_a_one_time_legacy_reminder_keeps_its_due_date_and_mileage(
     assert data["reminders"]["success_count"] == 1, data
     assert "Reminder 1: no due date or mileage to import" in data["errors"], data
     (reminder,) = await _reminders(db_session, vin)
+    assert reminder.due_date is not None
     assert reminder.reminder_type == "both"
     assert reminder.due_date.isoformat() == due
     assert reminder.due_mileage_km == Decimal("51499.01")  # 32,000 mi; main: None
@@ -380,6 +381,7 @@ async def test_a_legacy_zero_mileage_reads_as_no_mileage(
     assert data["errors"] == ["Reminder 2: no due date or mileage to import"], data
     plates, wash = await _reminders(db_session, vin)
     assert (plates.status, plates.reminder_type, plates.due_mileage_km) == ("pending", "date", None)
+    assert plates.due_date is not None
     assert plates.due_date.isoformat() == due
     assert (wash.status, wash.reminder_type, wash.due_mileage_km) == ("done", "date", None)
 
@@ -455,6 +457,7 @@ async def test_a_repeating_legacy_reminder_keeps_its_exported_due_point(
     )
     assert data["reminders"]["success_count"] == 1, data
     (reminder,) = await _reminders(db_session, vin)
+    assert reminder.due_date is not None
     # main: ("both", today + 180 days, 77248.51)
     assert (reminder.reminder_type, reminder.due_date.isoformat(), reminder.due_mileage_km) == (
         "both",

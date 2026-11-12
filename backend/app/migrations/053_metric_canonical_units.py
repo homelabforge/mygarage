@@ -38,8 +38,10 @@ from __future__ import annotations
 import os
 import re
 from pathlib import Path
+from typing import Protocol
 
-from sqlalchemy import Engine, create_engine, inspect, text
+from sqlalchemy import Connection, Engine, TextClause, create_engine, inspect, text
+from sqlalchemy.engine.interfaces import DBAPICursor
 
 # Signal to init_db() that failures here must halt startup (see §7 Rollout).
 FATAL = True
@@ -135,7 +137,7 @@ def upgrade(engine: Engine | None = None) -> None:
 # ============================================================================
 
 
-def _run_postgres_migration(engine) -> None:
+def _run_postgres_migration(engine: Engine) -> None:
     """Postgres: one transaction, direct ALTER TABLE commands."""
     with engine.begin() as conn:
         _populate_metric_columns(conn)
@@ -143,7 +145,13 @@ def _run_postgres_migration(engine) -> None:
         _recreate_indexes(conn)
 
 
-def _populate_metric_columns(conn) -> None:
+class _Executes(Protocol):
+    """A Connection, or the cursor shim the SQLite path wraps its raw cursor in."""
+
+    def execute(self, clause: TextClause, /) -> object: ...
+
+
+def _populate_metric_columns(conn: _Executes) -> None:
     """Add metric columns + populate them via Decimal-safe arithmetic.
 
     Uses SQLAlchemy Connection.execute(text(...)) — works on both dialects.
@@ -310,7 +318,7 @@ def _populate_metric_columns(conn) -> None:
     )
 
 
-def _drop_imperial_columns_postgres(conn) -> None:
+def _drop_imperial_columns_postgres(conn: Connection) -> None:
     """Postgres-only: drop imperial-named indexes and columns, restore CHECKs."""
     # Drop only indexes that reference imperial columns.
     for stmt in [
@@ -370,7 +378,7 @@ def _drop_imperial_columns_postgres(conn) -> None:
         conn.execute(text(stmt))
 
 
-def _recreate_indexes(conn) -> None:
+def _recreate_indexes(conn: Connection) -> None:
     """Recreate metric-named indexes for the renamed columns (both dialects)."""
     for stmt in [
         "CREATE INDEX idx_fuel_records_odometer_km      ON fuel_records(odometer_km)",
@@ -387,7 +395,7 @@ def _recreate_indexes(conn) -> None:
 # ============================================================================
 
 
-def _run_sqlite_migration(engine) -> None:
+def _run_sqlite_migration(engine: Engine) -> None:
     """SQLite path using the raw DBAPI connection.
 
     SQLAlchemy 2.0 Connection.execute() autobegins a transaction, which would
@@ -513,7 +521,7 @@ def _is_legacy_backup_table(name: str) -> bool:
     return "_backup" in name
 
 
-def _scan_raw_sqlite_master_for_imperial_refs(cur) -> list[str]:
+def _scan_raw_sqlite_master_for_imperial_refs(cur: DBAPICursor) -> list[str]:
     """Scan sqlite_master for CHECK/trigger/view references to dropped columns."""
     cur.execute(
         "SELECT type, name, tbl_name, sql FROM sqlite_master "
@@ -540,20 +548,20 @@ class _CursorConnectionShim:
     Connection-like object supporting `execute(text(...))`) can run against
     a raw DB-API cursor inside our explicit BEGIN/COMMIT on SQLite."""
 
-    def __init__(self, cur) -> None:
+    def __init__(self, cur: DBAPICursor) -> None:
         self._cur = cur
 
-    def execute(self, clause) -> None:
+    def execute(self, clause: TextClause) -> None:
         sql = str(clause)
         self._cur.execute(sql)
 
 
-def _populate_metric_columns_via_cursor(cur) -> None:
+def _populate_metric_columns_via_cursor(cur: DBAPICursor) -> None:
     """Run the dialect-agnostic ADD/UPDATE helper against the raw cursor."""
     _populate_metric_columns(_CursorConnectionShim(cur))
 
 
-def _recreate_indexes_raw(cur) -> None:
+def _recreate_indexes_raw(cur: DBAPICursor) -> None:
     """SQLite-path index creation via raw cursor."""
     for stmt in (
         "CREATE INDEX idx_fuel_records_odometer_km      ON fuel_records(odometer_km)",
@@ -578,7 +586,7 @@ def _recreate_indexes_raw(cur) -> None:
 # ============================================================================
 
 
-def _rebuild_odometer_records(cur) -> None:
+def _rebuild_odometer_records(cur: DBAPICursor) -> None:
     """odometer_records rebuild — preserves NOT NULL on odometer_km.
 
     Handles legacy rows where `source` may be NULL (the 035 migration added
@@ -615,7 +623,7 @@ def _rebuild_odometer_records(cur) -> None:
         cur.execute(stmt)
 
 
-def _rebuild_fuel_records(cur) -> None:
+def _rebuild_fuel_records(cur: DBAPICursor) -> None:
     """fuel_records rebuild — drops mileage/gallons/propane_gallons/tank_size_lb,
     adds price_basis enum CHECK, preserves all other columns and indexes."""
     cur.execute("""
@@ -668,7 +676,7 @@ def _rebuild_fuel_records(cur) -> None:
         cur.execute(stmt)
 
 
-def _rebuild_def_records(cur) -> None:
+def _rebuild_def_records(cur: DBAPICursor) -> None:
     """def_records rebuild — drops mileage/gallons (and their CHECKs), keeps
     entry_type + origin_fuel_record_id added in migration 041."""
     cur.execute("""
@@ -718,7 +726,7 @@ def _rebuild_def_records(cur) -> None:
         cur.execute(stmt)
 
 
-def _rebuild_vehicle_reminders(cur) -> None:
+def _rebuild_vehicle_reminders(cur: DBAPICursor) -> None:
     """vehicle_reminders rebuild — drops due_mileage (and its CHECK > 0),
     replaces with due_mileage_km (also CHECK > 0)."""
     cur.execute("""
@@ -760,7 +768,7 @@ def _rebuild_vehicle_reminders(cur) -> None:
         cur.execute(stmt)
 
 
-def _rebuild_service_visits(cur) -> None:
+def _rebuild_service_visits(cur: DBAPICursor) -> None:
     """service_visits rebuild — drops mileage, adds odometer_km."""
     cur.execute("""
         CREATE TABLE service_visits_new (
@@ -805,7 +813,7 @@ def _rebuild_service_visits(cur) -> None:
         cur.execute(stmt)
 
 
-def _rebuild_warranty_records(cur) -> None:
+def _rebuild_warranty_records(cur: DBAPICursor) -> None:
     """warranty_records rebuild — drops mileage_limit, adds mileage_limit_km."""
     cur.execute("""
         CREATE TABLE warranty_records_new (
@@ -846,7 +854,7 @@ def _rebuild_warranty_records(cur) -> None:
         cur.execute(stmt)
 
 
-def _rebuild_vehicles(cur) -> None:
+def _rebuild_vehicles(cur: DBAPICursor) -> None:
     """vehicles rebuild — big one (~60 columns). Drops imperial spec columns,
     adds metric replacements, preserves everything else incl. FK to users."""
     cur.execute("""
@@ -951,7 +959,7 @@ def _rebuild_vehicles(cur) -> None:
         cur.execute(stmt)
 
 
-def _rebuild_trailer_details(cur) -> None:
+def _rebuild_trailer_details(cur: DBAPICursor) -> None:
     """trailer_details rebuild — drops *_ft and gvwr, adds *_m and gvwr_kg."""
     cur.execute("""
         CREATE TABLE trailer_details_new (
@@ -988,7 +996,7 @@ def _rebuild_trailer_details(cur) -> None:
 # ============================================================================
 
 
-def downgrade(engine=None) -> None:
+def downgrade(engine: Engine | None = None) -> None:
     """Reverse the migration. Lossy for odometer values originally stored as
     integer miles — converting km → mi → int can drift by ≤1 mi per record.
 

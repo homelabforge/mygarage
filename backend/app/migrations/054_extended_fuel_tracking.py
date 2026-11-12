@@ -42,7 +42,7 @@ import logging
 import os
 from pathlib import Path
 
-from sqlalchemy import Engine, create_engine, inspect, text
+from sqlalchemy import Connection, Engine, create_engine, inspect, text
 
 logger = logging.getLogger(__name__)
 
@@ -128,7 +128,7 @@ _PG_FK_CONSTRAINTS: list[tuple[str, str, str]] = [
 ]
 
 
-def _pg_column_has_fk(conn, table: str, column: str) -> bool:
+def _pg_column_has_fk(conn: Connection, table: str, column: str) -> bool:
     """True if any FOREIGN KEY already covers ``table.column`` on PostgreSQL.
 
     Checks by column, not by our constraint name, so a FK that ``create_all``
@@ -151,7 +151,7 @@ def _pg_column_has_fk(conn, table: str, column: str) -> bool:
     )
 
 
-def _ensure_pg_fk_constraints(engine) -> None:
+def _ensure_pg_fk_constraints(engine: Engine) -> None:
     """Idempotently add the PG-only FK constraints for migration 054.
 
     Earlier rc1 code used ``ALTER TABLE ... ADD CONSTRAINT IF NOT EXISTS``

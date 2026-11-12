@@ -21,6 +21,7 @@ from app.models import (
 from app.models.user import User
 from app.routes.import_data._common import (
     ImportResult,
+    ImportResultDict,
     _in_vocabulary,
     _RowError,
     _unexpected_reason,
@@ -41,6 +42,7 @@ from app.schemas.fuel import (
     FuelRecordCreate,
 )
 from app.services.auth import get_vehicle_or_403, require_auth
+from app.services.import_adapters import PARSERS, ParseOptions, detect_format
 from app.services.vehicle_lock import lock_vehicle_for_write
 from app.utils.file_validation import validate_csv_upload
 from app.utils.logging_utils import sanitize_for_log
@@ -154,8 +156,6 @@ async def import_external_fuel_csv(
 ):
     """Auto-detect Fuelio / Drivvo / Tesla CSV format (or pass format= explicitly)."""
     csv_data = await validate_csv_upload(file)
-    from app.services.import_adapters import PARSERS, detect_format
-
     fmt = (format or detect_format(csv_data) or "").lower()
     if fmt not in PARSERS:
         raise HTTPException(
@@ -216,10 +216,8 @@ def _third_party_duplicate_conditions(
     ]
 
 
-def _parse_options(odometer_unit: str, decimal_separator: str):
+def _parse_options(odometer_unit: str, decimal_separator: str) -> ParseOptions:
     """Build ParseOptions from form input, rejecting anything off-vocabulary."""
-    from app.services.import_adapters import ParseOptions
-
     if odometer_unit not in ("km", "mi"):
         raise HTTPException(status_code=400, detail="odometer_unit must be km or mi")
     if decimal_separator not in ("dot", "comma"):
@@ -234,10 +232,8 @@ async def _import_third_party_fuel(
     db: AsyncSession,
     current_user: User | None,
     format_name: str,
-    opts=None,
+    opts: ParseOptions | None = None,
 ):
-    from app.services.import_adapters import PARSERS
-
     await get_vehicle_or_403(vin, current_user, db, require_write=True)
     csv_data = await validate_csv_upload(file)
     parsed = PARSERS[format_name](csv_data, opts)
@@ -250,7 +246,7 @@ async def _persist_parsed_fuel(
     parsed: list[dict],
     skip_duplicates: bool,
     db: AsyncSession,
-):
+) -> ImportResultDict:
     import_result = ImportResult()
     # Odometer sync matches on (vin, date) and overwrites, so syncing every row
     # would let CSV order decide the stored value and reassign the cascade FK.

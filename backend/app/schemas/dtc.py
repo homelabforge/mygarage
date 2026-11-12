@@ -14,17 +14,17 @@ class DTCDefinitionResponse(BaseModel):
     code: str = Field(..., description="DTC code (e.g., P0657)")
     description: str = Field(..., description="Code description")
     category: str = Field(..., description="Category: powertrain, body, chassis, network")
-    subcategory: str | None = Field(None, description="Subcategory for grouping")
-    severity: str = Field("warning", description="Severity: info, warning, critical")
+    subcategory: str | None = Field(default=None, description="Subcategory for grouping")
+    severity: str = Field(default="warning", description="Severity: info, warning, critical")
     estimated_severity_level: int = Field(
-        2,
+        default=2,
         description="Severity level: 2=moderate, 3=serious, 4=critical (1=minor is unused by the bundled data)",
     )
-    is_emissions_related: bool = Field(False, description="Whether emissions-related")
+    is_emissions_related: bool = Field(default=False, description="Whether emissions-related")
 
-    common_causes: list[str] | None = Field(None, description="Common causes")
-    symptoms: list[str] | None = Field(None, description="Common symptoms")
-    fix_guidance: str | None = Field(None, description="Fix guidance")
+    common_causes: list[str] | None = Field(default=None, description="Common causes")
+    symptoms: list[str] | None = Field(default=None, description="Common symptoms")
+    fix_guidance: str | None = Field(default=None, description="Fix guidance")
 
     model_config = {"from_attributes": True}
 
@@ -64,16 +64,16 @@ class VehicleDTCBase(BaseModel):
     """Base vehicle DTC schema."""
 
     code: str = Field(..., description="DTC code")
-    description: str | None = Field(None, description="Description (from lookup or user)")
-    severity: str = Field("warning", description="Severity level")
+    description: str | None = Field(default=None, description="Description (from lookup or user)")
+    severity: str = Field(default="warning", description="Severity level")
 
 
 class VehicleDTCUpdate(BaseModel):
     """Schema for updating a vehicle DTC."""
 
-    description: str | None = Field(None, description="Custom description")
-    severity: str | None = Field(None, description="Custom severity")
-    user_notes: str | None = Field(None, description="User notes about this DTC")
+    description: str | None = Field(default=None, description="Custom description")
+    severity: str | None = Field(default=None, description="Custom severity")
+    user_notes: str | None = Field(default=None, description="User notes about this DTC")
 
     # NOT NULL column: omitted keeps the stored severity, null is a 422.
     _no_null = reject_null("severity")
@@ -85,21 +85,25 @@ class VehicleDTCResponse(VehicleDTCBase):
     id: int
     vin: str
     device_id: str
-    user_notes: str | None = Field(None, description="User notes")
+    user_notes: str | None = Field(default=None, description="User notes")
     first_seen: datetime = Field(..., description="When DTC first appeared")
     last_seen: datetime = Field(..., description="When DTC was last reported")
-    cleared_at: datetime | None = Field(None, description="When manually cleared")
-    is_active: bool = Field(True, description="Whether DTC is currently active")
+    cleared_at: datetime | None = Field(default=None, description="When manually cleared")
+    is_active: bool = Field(default=True, description="Whether DTC is currently active")
     created_at: datetime
 
     # Enrichment from dtc_definitions lookup
-    category: str | None = Field(None, description="Category from lookup")
-    subcategory: str | None = Field(None, description="Subcategory from lookup")
-    is_emissions_related: bool | None = Field(None, description="Emissions-related from lookup")
-    estimated_severity_level: int | None = Field(None, description="Severity level from lookup")
-    common_causes: list[str] | None = Field(None, description="Common causes from lookup")
-    symptoms: list[str] | None = Field(None, description="Common symptoms from lookup")
-    fix_guidance: str | None = Field(None, description="Fix guidance from lookup")
+    category: str | None = Field(default=None, description="Category from lookup")
+    subcategory: str | None = Field(default=None, description="Subcategory from lookup")
+    is_emissions_related: bool | None = Field(
+        default=None, description="Emissions-related from lookup"
+    )
+    estimated_severity_level: int | None = Field(
+        default=None, description="Severity level from lookup"
+    )
+    common_causes: list[str] | None = Field(default=None, description="Common causes from lookup")
+    symptoms: list[str] | None = Field(default=None, description="Common symptoms from lookup")
+    fix_guidance: str | None = Field(default=None, description="Fix guidance from lookup")
 
     model_config = {"from_attributes": True}
 
@@ -109,14 +113,14 @@ class VehicleDTCListResponse(BaseModel):
 
     dtcs: list[VehicleDTCResponse]
     total: int
-    active_count: int = Field(0, description="Number of currently active DTCs")
-    critical_count: int = Field(0, description="Number of critical DTCs")
+    active_count: int = Field(default=0, description="Number of currently active DTCs")
+    critical_count: int = Field(default=0, description="Number of critical DTCs")
 
 
 class DTCClearRequest(BaseModel):
     """Schema for clearing a DTC."""
 
-    notes: str | None = Field(None, description="Notes about why/how DTC was cleared")
+    notes: str | None = Field(default=None, description="Notes about why/how DTC was cleared")
 
 
 class DTCClearResponse(BaseModel):

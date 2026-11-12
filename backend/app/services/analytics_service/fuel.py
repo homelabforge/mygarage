@@ -1,4 +1,3 @@
-# pyright: reportOptionalOperand=false
 """Fuel economy and propane cost calculations.
 
 Metric-canonical since v3: source columns are `odometer_km` and `liters`,
@@ -92,7 +91,7 @@ def calculate_fuel_economy_with_pandas(
         data.append(
             {
                 "date": pd.Timestamp(record.date),
-                "odometer_km": float(record.odometer_km),
+                "odometer_km": float(period.odometer_km),
                 "liters": float(record.liters) if record.liters else 0.0,
                 "cost": float(record.cost) if record.cost else 0.0,
                 "l_per_100km": value,

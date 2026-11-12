@@ -102,7 +102,7 @@ def upgrade(engine: Engine | None = None) -> None:
     print("✓ tire_readings.tread_depth_mm nullable migration completed")
 
 
-def _run_sqlite(engine) -> None:
+def _run_sqlite(engine: Engine) -> None:
     """SQLite: rebuild tire_readings with a nullable tread_depth_mm."""
     raw = engine.raw_connection()
     try:

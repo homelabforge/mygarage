@@ -20,6 +20,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
+from app.constants.service_vocab import ServiceCategory
 from app.database import Base
 from app.models._types import ScaledNumeric
 
@@ -49,7 +50,7 @@ class ServiceVisit(Base):
     shop_supplies: Mapped[Decimal | None] = mapped_column(ScaledNumeric(12, 2))
     misc_fees: Mapped[Decimal | None] = mapped_column(ScaledNumeric(12, 2))
     notes: Mapped[str | None] = mapped_column(Text)
-    service_category: Mapped[str | None] = mapped_column(String(30))
+    service_category: Mapped[ServiceCategory | None] = mapped_column(String(30))
     insurance_claim_number: Mapped[str | None] = mapped_column(String(50))
     # The shop's paperwork refs. Migration 157.
     invoice_number: Mapped[str | None] = mapped_column(String(50))

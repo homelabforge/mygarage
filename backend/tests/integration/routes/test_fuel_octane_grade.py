@@ -11,7 +11,7 @@ directly and bypass Pydantic (codex R1-M2).
 from io import BytesIO
 
 import pytest
-from httpx import AsyncClient
+from httpx import AsyncClient, Response
 from sqlalchemy import select
 
 from app.models.fuel import FuelRecord
@@ -22,7 +22,7 @@ pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
 async def _create(
     client: AsyncClient, headers: dict, vin: str, *, odometer_km: float, **extra
-) -> dict:
+) -> Response:
     payload = {
         "vin": vin,
         "date": "2026-05-01",

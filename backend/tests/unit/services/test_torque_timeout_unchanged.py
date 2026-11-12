@@ -110,6 +110,7 @@ class TestTorqueTimeouts:
         service = SessionService(db_session)
 
         session = await service.resolve_torque_session(device, "phone-3", T0)
+        assert session is not None
         await db_session.flush()
         session_id = session.id
 

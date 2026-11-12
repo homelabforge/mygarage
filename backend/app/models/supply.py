@@ -21,6 +21,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func, true
 
+from app.constants.supply_vocab import SupplyUnitType
 from app.database import Base
 from app.models._types import ScaledNumeric
 
@@ -38,7 +39,7 @@ class Supply(Base):
     part_number: Mapped[str | None] = mapped_column(String(60))
     barcode: Mapped[str | None] = mapped_column(String(64))  # UPC/EAN/QR product code
     category: Mapped[str | None] = mapped_column(String(40))
-    unit_type: Mapped[str] = mapped_column(String(10), nullable=False)  # 'volume' | 'count'
+    unit_type: Mapped[SupplyUnitType] = mapped_column(String(10), nullable=False)
     # Display token (e.g. 'qt_us', 'mL'). NULL means the legacy binary pick.
     volume_unit: Mapped[str | None] = mapped_column(String(8))
     vin: Mapped[str | None] = mapped_column(

@@ -1,20 +1,12 @@
 """Migration 113: preset_key column, plus the two backfills it owes."""
 
-import importlib.util
-from pathlib import Path
-
 from sqlalchemy import inspect, text
 
-_MIG = (
-    Path(__file__).resolve().parents[2] / "app" / "migrations" / "113_livelink_device_preset_key.py"
-)
+from tests.migrations._loader import load_migration
 
 
 def _load():
-    spec = importlib.util.spec_from_file_location("mig113", _MIG)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+    return load_migration("113_livelink_device_preset_key", "mig113")
 
 
 def _schema(engine):

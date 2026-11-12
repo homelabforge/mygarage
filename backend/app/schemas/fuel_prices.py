@@ -12,7 +12,7 @@ class FuelPriceResponse(BaseModel):
     """One pump price at one station."""
 
     grade: str = Field(..., description="EN 16942 label (E5, E10, B7, E85, LPG…)")
-    octane: int | None = Field(None, description="RON where the label alone is ambiguous")
+    octane: int | None = Field(default=None, description="RON where the label alone is ambiguous")
     price: Decimal = Field(..., description="Per litre (per kilogram for a gas)")
     currency: str
     updated_at: datetime | None = None

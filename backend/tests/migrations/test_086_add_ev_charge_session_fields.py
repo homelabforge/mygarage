@@ -6,20 +6,9 @@ Parameterized over SQLite *and* PostgreSQL via the ``engine_for_migration``
 fixture (PG runs skip when ``TEST_DATABASE_URL`` is unset).
 """
 
-import importlib.util
-from pathlib import Path
-
 from sqlalchemy import inspect, text
 
-import app.migrations as _m
-
-
-def _load(name):
-    path = Path(_m.__file__).parent / f"{name}.py"
-    spec = importlib.util.spec_from_file_location(name, path)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
+from tests.migrations._loader import load_migration
 
 
 def _make_fuel_records_table(engine):
@@ -49,7 +38,7 @@ def test_086_adds_ev_charge_columns(engine_for_migration):
     _dialect, engine, _url = engine_for_migration
     _make_fuel_records_table(engine)
 
-    _load("086_add_ev_charge_session_fields").upgrade(engine)
+    load_migration("086_add_ev_charge_session_fields").upgrade(engine)
 
     inspector = inspect(engine)
     cols = {col["name"] for col in inspector.get_columns("fuel_records")}
@@ -66,7 +55,7 @@ def test_086_is_idempotent(engine_for_migration):
     _dialect, engine, _url = engine_for_migration
     _make_fuel_records_table(engine)
 
-    mod = _load("086_add_ev_charge_session_fields")
+    mod = load_migration("086_add_ev_charge_session_fields")
     mod.upgrade(engine)
 
     inspector = inspect(engine)
@@ -82,7 +71,7 @@ def test_086_skips_cleanly_when_fuel_records_absent(engine_for_migration):
     """Early return when fuel_records table doesn't exist."""
     _dialect, engine, _url = engine_for_migration
 
-    _load("086_add_ev_charge_session_fields").upgrade(engine)
+    load_migration("086_add_ev_charge_session_fields").upgrade(engine)
 
 
 def test_086_columns_accept_decimal_values(engine_for_migration):
@@ -90,7 +79,7 @@ def test_086_columns_accept_decimal_values(engine_for_migration):
     _dialect, engine, _url = engine_for_migration
     _make_fuel_records_table(engine)
 
-    _load("086_add_ev_charge_session_fields").upgrade(engine)
+    load_migration("086_add_ev_charge_session_fields").upgrade(engine)
 
     with engine.begin() as conn:
         conn.execute(

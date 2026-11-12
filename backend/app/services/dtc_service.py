@@ -194,7 +194,7 @@ class DTCService:
         self,
         dtc_id: int,
         notes: str | None = None,
-    ) -> VehicleDTC | None:
+    ) -> datetime | None:
         """Mark a DTC as cleared.
 
         Args:
@@ -202,7 +202,7 @@ class DTCService:
             notes: Optional notes about clearing
 
         Returns:
-            The updated VehicleDTC, or None if not found
+            When it was cleared, or None if not found
         """
         result = await self.db.execute(select(VehicleDTC).where(VehicleDTC.id == dtc_id))
         dtc = result.scalar_one_or_none()
@@ -210,8 +210,9 @@ class DTCService:
         if not dtc:
             return None
 
+        cleared_at = utc_now()
         dtc.is_active = False
-        dtc.cleared_at = utc_now()
+        dtc.cleared_at = cleared_at
         if notes:
             # Append to existing notes if any
             if dtc.user_notes:
@@ -223,27 +224,21 @@ class DTCService:
         logger.info(
             "DTC %s cleared for vehicle %s", sanitize_for_log(dtc.code), sanitize_for_log(dtc.vin)
         )
-        return dtc
+        return cleared_at
 
-    async def update_dtc(self, dtc_id: int, changes: dict[str, Any]) -> VehicleDTC | None:
+    async def update_dtc(self, dtc: VehicleDTC, changes: dict[str, Any]) -> VehicleDTC:
         """Update a DTC record (user-editable fields).
 
         Args:
-            dtc_id: The DTC record ID
+            dtc: The DTC row, already checked against the vehicle by the caller
             changes: Only the fields the request sent (``exclude_unset``). An
                 omitted field keeps its value and a None clears it. Separate
                 parameters defaulting to None could not tell the two apart,
                 so a cleared note said saved and stayed.
 
         Returns:
-            The updated VehicleDTC, or None if not found
+            The updated VehicleDTC
         """
-        result = await self.db.execute(select(VehicleDTC).where(VehicleDTC.id == dtc_id))
-        dtc = result.scalar_one_or_none()
-
-        if not dtc:
-            return None
-
         for field, value in changes.items():
             setattr(dtc, field, value)
 
@@ -321,11 +316,11 @@ class DTCService:
             "total": total_count,
         }
 
-    async def enrich_dtc_response(self, dtc: VehicleDTC) -> dict:
+    async def enrich_dtc_response(self, dtc: VehicleDTC) -> dict[str, Any]:
         """Enrich a DTC with lookup data for response."""
         definition = await self.lookup_dtc(dtc.code)
 
-        result = {
+        result: dict[str, Any] = {
             "id": dtc.id,
             "vin": dtc.vin,
             "device_id": dtc.device_id,

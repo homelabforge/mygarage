@@ -237,7 +237,7 @@ async def _vehicle_detail_stats(db: AsyncSession, vin: str) -> VehicleDetailStat
         overdue_count=counts.overdue,
         upcoming_count=counts.upcoming,
         due_soon_count=counts.due_soon,
-        usage_unit=usage_unit,
+        usage_unit=usage_unit,  # pyright: ignore[reportArgumentType]  # lenient vocab reads the stored str
         current_hours=current_hours,
         latest_hours=latest_hours,
         average_l_per_hr=average_l_per_hr,

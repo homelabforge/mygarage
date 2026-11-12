@@ -395,7 +395,7 @@ class _FrozenClock(datetime):
     """Every `now()` lands in the same second, as two quick restores do."""
 
     @classmethod
-    def now(cls, tz=None):  # type: ignore[override]
+    def now(cls, tz=None):
         return cls(2026, 10, 31, 12, 0, 0)
 
 

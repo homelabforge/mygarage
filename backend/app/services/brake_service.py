@@ -252,13 +252,13 @@ class BrakeService:
         reminder sync reads all of them, so old low pads keep their reminder.
         """
         rows, measurements, jobs = await self._load(vin)
-        setups = {axle: axle_setup(axle, rows.get(axle)) for axle in AXLES}
+        setups: dict[Axle, AxleSetup] = {axle: axle_setup(axle, rows.get(axle)) for axle in AXLES}
         today = household_today()
         used = {row.position for row in (*measurements, *jobs)}
         off_layout = [
             p for p in get_args(BrakePosition) if p in used and p not in layout.brake_positions
         ]
-        corners = []
+        corners: list[_Corner] = []
         for position in (*layout.brake_positions, *off_layout):
             setup = setups[AXLE_OF[position]]
             own_measurements = [m for m in measurements if m.position == position]
@@ -364,7 +364,7 @@ class BrakeService:
         if layout is None:
             layout = await vehicle_wheel_layout(self.db, vin)
         setups, corners = await self._corners(vin, axes, layout)
-        news = {*evidence, *_pad_news(written, corners, axes.primary)}
+        news: set[Axle] = {*evidence, *_pad_news(written, corners, axes.primary)}
         await self._sync_axle_reminders(vin, setups, corners, evidence=news)
         await self.db.commit()
         return await self._respond(vin, axes, layout)
@@ -409,7 +409,7 @@ class BrakeService:
         daily pass only raises (`raise_only`): a pending reminder is left as
         the user may have edited it.
         """
-        all_marks = {
+        all_marks: dict[BrakePosition, BrakeReminderMark] = {
             row.position: row
             for row in (
                 await self.db.execute(select(BrakeReminderMark).where(BrakeReminderMark.vin == vin))

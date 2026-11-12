@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, patch
 from urllib.parse import parse_qs, urlparse, urlsplit
 
 import pytest
+from fastapi import Request
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -15,11 +16,9 @@ from app.utils import request_scheme
 from tests.integration.routes.test_oidc import clear_oidc_settings, set_settings
 
 
-class _Req:
-    """Minimal Request stand-in: only `.headers` is read once the scheme is patched."""
-
-    def __init__(self, host):
-        self.headers = {"host": host}
+def _req(host: str) -> Request:
+    """A bare Request with only a Host header; the scheme is patched out below."""
+    return Request({"type": "http", "headers": [(b"host", host.encode())]})
 
 
 def test_external_base_includes_prefix(monkeypatch):
@@ -29,7 +28,7 @@ def test_external_base_includes_prefix(monkeypatch):
     monkeypatch.setattr(
         request_scheme, "get_request_scheme", lambda r: "https"
     )  # avoid a heavy request mock
-    assert _external_base(_Req("example.com")) == "https://example.com/mygarage"
+    assert _external_base(_req("example.com")) == "https://example.com/mygarage"
 
 
 def test_external_base_root_unchanged(monkeypatch):
@@ -38,7 +37,7 @@ def test_external_base_root_unchanged(monkeypatch):
     monkeypatch.setattr(config.settings, "root_path", "", raising=False)
     monkeypatch.setattr(request_scheme, "get_request_scheme", lambda r: "https")
     assert (
-        _external_base(_Req("example.com")) == "https://example.com"
+        _external_base(_req("example.com")) == "https://example.com"
     )  # no prefix, no trailing slash
 
 

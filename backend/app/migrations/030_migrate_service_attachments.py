@@ -12,7 +12,7 @@ is already updated, the row remap still runs to catch partial prior executions.
 import os
 from pathlib import Path
 
-from sqlalchemy import Engine, create_engine, inspect, text
+from sqlalchemy import Connection, Engine, create_engine, inspect, text
 
 
 def _get_fallback_engine():
@@ -60,7 +60,7 @@ def upgrade(engine: Engine | None = None):
             _upgrade_sqlite(conn, pk_type, ts_type, has_service_records)
 
 
-def _upgrade_postgres(conn, has_service_records: bool) -> None:
+def _upgrade_postgres(conn: Connection, has_service_records: bool) -> None:
     """PostgreSQL: update constraint in-place and remap rows."""
     # Step 1: Update CHECK constraint if needed
     result = conn.execute(
@@ -103,7 +103,9 @@ def _upgrade_postgres(conn, has_service_records: bool) -> None:
     _remap_service_rows(conn, has_service_records)
 
 
-def _upgrade_sqlite(conn, pk_type: str, ts_type: str, has_service_records: bool) -> None:
+def _upgrade_sqlite(
+    conn: Connection, pk_type: str, ts_type: str, has_service_records: bool
+) -> None:
     """SQLite: rebuild table to update CHECK constraint, then remap rows."""
     # Count attachments to migrate
     result = conn.execute(text("SELECT COUNT(*) FROM attachments WHERE record_type = 'service'"))
@@ -189,7 +191,7 @@ def _upgrade_sqlite(conn, pk_type: str, ts_type: str, has_service_records: bool)
     print(f"  Migrated {migrated} attachment(s) to service_visit")
 
 
-def _build_mapping(conn, has_service_records: bool) -> dict:
+def _build_mapping(conn: Connection, has_service_records: bool) -> dict:
     """Build old service_records ID → new service_visits ID mapping."""
     if not has_service_records:
         return {}
@@ -206,7 +208,7 @@ def _build_mapping(conn, has_service_records: bool) -> dict:
     return mapping
 
 
-def _remap_service_rows(conn, has_service_records: bool) -> None:
+def _remap_service_rows(conn: Connection, has_service_records: bool) -> None:
     """Remap record_type='service' attachment rows to 'service_visit' in-place."""
     # Count rows to remap
     result = conn.execute(text("SELECT COUNT(*) FROM attachments WHERE record_type = 'service'"))

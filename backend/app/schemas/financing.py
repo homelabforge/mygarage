@@ -19,8 +19,8 @@ class FinancingRecordBase(BaseModel):
     date: dt.date = Field(..., description="Date of the payment or fee")
     amount: Money = Field(..., description="Payment or fee amount", decimal_places=2)
     category: FinancingCategory = Field(..., description="Type of financing cost")
-    vendor_id: int | None = Field(None, description="Associated vendor/lender ID")
-    notes: str | None = Field(None, description="Additional notes")
+    vendor_id: int | None = Field(default=None, description="Associated vendor/lender ID")
+    notes: str | None = Field(default=None, description="Additional notes")
 
 
 class FinancingRecordCreate(FinancingRecordBase):
@@ -47,11 +47,13 @@ class FinancingRecordCreate(FinancingRecordBase):
 class FinancingRecordUpdate(BaseModel):
     """Schema for updating an existing financing record."""
 
-    date: dt.date | None = Field(None, description="Date of the payment or fee")
-    amount: OptionalMoney = Field(None, description="Payment or fee amount", decimal_places=2)
-    category: FinancingCategory | None = Field(None, description="Type of financing cost")
-    vendor_id: int | None = Field(None, description="Associated vendor/lender ID")
-    notes: str | None = Field(None, description="Additional notes")
+    date: dt.date | None = Field(default=None, description="Date of the payment or fee")
+    amount: OptionalMoney = Field(
+        default=None, description="Payment or fee amount", decimal_places=2
+    )
+    category: FinancingCategory | None = Field(default=None, description="Type of financing cost")
+    vendor_id: int | None = Field(default=None, description="Associated vendor/lender ID")
+    notes: str | None = Field(default=None, description="Additional notes")
 
     # NOT NULL columns: omitted keeps the stored value, null is a 422.
     _no_null = reject_null("amount", "category", "date")
@@ -68,7 +70,7 @@ class FinancingRecordResponse(FinancingRecordBase):
     created_at: dt.datetime
     updated_at: dt.datetime | None = None
     lender: VendorSummary | None = Field(
-        None, validation_alias="vendor", description="Lender/vendor details, if set"
+        default=None, validation_alias="vendor", description="Lender/vendor details, if set"
     )
 
     model_config = {

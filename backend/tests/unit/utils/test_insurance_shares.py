@@ -28,7 +28,8 @@ class TestEffectiveShares:
     def test_the_leftover_cents_go_to_the_earliest_links_and_the_sum_is_exact(self):
         got = effective_shares(D("100.00"), [(1, None), (2, None), (3, None)])
         assert got == {1: D("33.34"), 2: D("33.33"), 3: D("33.33")}
-        assert sum(got.values()) == D("100.00")
+        # The check above already pins every share to a number, so no None to drop.
+        assert sum(share for share in got.values() if share is not None) == D("100.00")
 
     def test_two_leftover_cents_are_spread_not_stacked(self):
         got = effective_shares(D("100.01"), [(1, None), (2, None), (3, None)])

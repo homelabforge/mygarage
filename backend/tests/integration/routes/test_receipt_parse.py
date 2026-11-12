@@ -3,6 +3,7 @@
 import json
 import math
 from decimal import Decimal
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -47,7 +48,7 @@ async def _parse_with_llm(
     vin: str,
     db_session: AsyncSession,
     llm_reply: dict[str, object],
-) -> tuple[dict[str, object], str]:
+) -> tuple[dict[str, Any], str]:
     """Run the parse route against a mocked LLM; return the draft and the system prompt."""
     await set_settings(
         db_session,

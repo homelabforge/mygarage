@@ -2,12 +2,12 @@
 
 import logging
 import math
-from collections.abc import Mapping
+from collections.abc import Awaitable, Callable, Mapping
 from typing import cast
 
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from sqlalchemy.exc import DBAPIError, SQLAlchemyError
 
 from app.utils.logging_utils import sanitize_for_log
@@ -377,6 +377,21 @@ async def handle_plaintext_secrets_remain(
     )
 
 
+def register_exception_handler[E: Exception](
+    app: FastAPI,
+    exc_class: type[E],
+    handler: Callable[[Request, E], Awaitable[Response]] | Callable[[Request, E], Response],
+) -> None:
+    """Register a handler that takes its own exception class, not plain Exception.
+
+    Starlette types every handler as taking Exception, so a handler for a
+    subclass fails pyright even though Starlette only ever calls it with that
+    class. Here the class and the handler are tied by `E` instead, and the
+    mismatch is ignored once, in this one place.
+    """
+    app.add_exception_handler(exc_class, handler)  # pyright: ignore[reportArgumentType]  # Starlette calls it only with exc_class
+
+
 def register_error_handlers(app: FastAPI, *, debug: bool) -> None:
     """Register the app's exception handlers.
 
@@ -391,17 +406,17 @@ def register_error_handlers(app: FastAPI, *, debug: bool) -> None:
     traceback 500 (R2-3).
     """
     if debug:
-        app.add_exception_handler(DBAPIError, handle_dbapi_error_debug)  # type: ignore[arg-type]
+        register_exception_handler(app, DBAPIError, handle_dbapi_error_debug)
     else:
-        app.add_exception_handler(Exception, handle_generic_exception)  # type: ignore[arg-type]
-        app.add_exception_handler(SQLAlchemyError, handle_database_error)  # type: ignore[arg-type]
+        register_exception_handler(app, Exception, handle_generic_exception)
+        register_exception_handler(app, SQLAlchemyError, handle_database_error)
         # More specific than SQLAlchemyError, so a DBAPI error lands here first.
-        app.add_exception_handler(DBAPIError, handle_dbapi_error)  # type: ignore[arg-type]
-    app.add_exception_handler(RequestValidationError, handle_validation_error)  # type: ignore[arg-type]
-    app.add_exception_handler(SettingsKeyUnavailable, handle_settings_key_unavailable)  # type: ignore[arg-type]
-    app.add_exception_handler(SettingCiphertextValue, handle_setting_ciphertext_value)  # type: ignore[arg-type]
-    app.add_exception_handler(SettingValueNotText, handle_setting_value_not_text)  # type: ignore[arg-type]
-    app.add_exception_handler(PlaintextSecretsRemain, handle_plaintext_secrets_remain)  # type: ignore[arg-type]
+        register_exception_handler(app, DBAPIError, handle_dbapi_error)
+    register_exception_handler(app, RequestValidationError, handle_validation_error)
+    register_exception_handler(app, SettingsKeyUnavailable, handle_settings_key_unavailable)
+    register_exception_handler(app, SettingCiphertextValue, handle_setting_ciphertext_value)
+    register_exception_handler(app, SettingValueNotText, handle_setting_value_not_text)
+    register_exception_handler(app, PlaintextSecretsRemain, handle_plaintext_secrets_remain)
 
 
 def safe_error_detail(exc: Exception, development_mode: bool = False) -> str:

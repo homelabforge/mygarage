@@ -31,7 +31,7 @@ from app.utils.settings_crypto import (
     ENV_KEY_FILE,
     DecryptStatus,
     SettingsKeyUnavailable,
-    _reset_keyring_for_tests,  # pyright: ignore[reportPrivateUsage] - the suite's reset hook
+    _reset_keyring_for_tests,  # the suite's reset hook
     current_kid,
     decrypt,
     encrypt,

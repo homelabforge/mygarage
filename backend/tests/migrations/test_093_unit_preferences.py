@@ -212,7 +212,9 @@ class TestUsDefault:
         _load_migration().upgrade(engine)
 
         assert _users(engine)["fresh"]["secondary_gallon"] == "us"
-        assert json.loads(_setting(engine, "default_unit_prefs"))["secondary_gallon"] == "us"
+        raw = _setting(engine, "default_unit_prefs")
+        assert raw is not None
+        assert json.loads(raw)["secondary_gallon"] == "us"
 
 
 class TestUkMaterialisation:
@@ -265,7 +267,9 @@ class TestUkMaterialisation:
         engine = _make_db(sync_engine, tmp_path, gallon_standard="uk", users=[])
         _load_migration().upgrade(engine)
 
-        prefs = json.loads(_setting(engine, "default_unit_prefs"))
+        raw = _setting(engine, "default_unit_prefs")
+        assert raw is not None
+        prefs = json.loads(raw)
         assert prefs["volume"] == "gal_uk"
         assert prefs["consumption"] == "mpg_uk"
         assert prefs["secondary_gallon"] == "uk"

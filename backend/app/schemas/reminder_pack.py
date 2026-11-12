@@ -97,17 +97,17 @@ class ReminderPackItem(BaseModel):
     """A single maintenance rule template inside a pack."""
 
     title: str
-    key: str | None = Field(None, max_length=64)
-    maintenance_type: str | None = Field(None, max_length=50)
+    key: str | None = Field(default=None, max_length=64)
+    maintenance_type: str | None = Field(default=None, max_length=50)
     interval_km: Decimal | None = Field(
-        None, gt=0, validation_alias=AliasChoices("interval_km", "due_mileage_km")
+        default=None, gt=0, validation_alias=AliasChoices("interval_km", "due_mileage_km")
     )
-    interval_months: int | None = Field(None, gt=0)
+    interval_months: int | None = Field(default=None, gt=0)
     interval_days: int | None = Field(
-        None, gt=0, validation_alias=AliasChoices("interval_days", "due_date_offset_days")
+        default=None, gt=0, validation_alias=AliasChoices("interval_days", "due_date_offset_days")
     )
     interval_hours: Annotated[Decimal | None, AfterValidator(to_stored_positive_tenth)] = Field(
-        None, gt=0, validation_alias=AliasChoices("interval_hours", "due_hours")
+        default=None, gt=0, validation_alias=AliasChoices("interval_hours", "due_hours")
     )
     #: v1 field, accepted and ignored: the type is derived from the intervals.
     reminder_type: str | None = None
@@ -146,10 +146,10 @@ class ReminderPackSummary(BaseModel):
         description="Applicable vehicle types; empty means all types",
     )
     is_custom: bool = Field(
-        False, description="Saved on this instance rather than shipped with the app"
+        default=False, description="Saved on this instance rather than shipped with the app"
     )
     can_edit: bool = Field(
-        False,
+        default=False,
         description="This caller may rename, overwrite or delete it; always false for built-ins",
     )
 
@@ -198,7 +198,7 @@ class SaveReminderPackRequest(BaseModel):
         ..., description="Vehicle to read the rules from", min_length=17, max_length=17
     )
     name: str = Field(..., min_length=1, max_length=100)
-    description: str = Field("", max_length=2000)
+    description: str = Field(default="", max_length=2000)
     vehicle_types: list[VehicleType] = Field(
         default_factory=list,
         description="Applicable vehicle types; empty means all types",

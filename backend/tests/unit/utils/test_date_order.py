@@ -4,16 +4,24 @@ The PDFs are English for everyone, so month-first is right only for an English
 reader who kept the default.
 """
 
+from dataclasses import dataclass
 from datetime import date, datetime
-from types import SimpleNamespace
 
 import pytest
 
 from app.utils.date_order import DateStyle, format_date, format_datetime, resolve_date_order
 
 
-def _user(language: str = "en", date_format: str = "mdy") -> SimpleNamespace:
-    return SimpleNamespace(language=language, date_format=date_format)
+@dataclass(frozen=True)
+class _User:
+    """Just the two account fields `DateOrderShape` reads."""
+
+    language: str
+    date_format: str
+
+
+def _user(language: str = "en", date_format: str = "mdy") -> _User:
+    return _User(language=language, date_format=date_format)
 
 
 class TestResolveDateOrder:

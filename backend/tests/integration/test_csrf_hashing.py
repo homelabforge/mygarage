@@ -8,6 +8,7 @@ in ``routes/test_oidc_callback_and_link.py``.
 """
 
 from collections.abc import AsyncIterator
+from typing import Any
 
 import pytest
 import pytest_asyncio
@@ -33,7 +34,7 @@ async def issued(db_session: AsyncSession) -> AsyncIterator[list[str]]:
     await db_session.commit()
 
 
-async def _login(client: AsyncClient, test_user: dict[str, object], issued: list[str]) -> str:
+async def _login(client: AsyncClient, test_user: dict[str, Any], issued: list[str]) -> str:
     response = await client.post(
         "/api/auth/login",
         json={"username": test_user["username"], "password": "testpassword123"},
@@ -53,7 +54,7 @@ def test_hash_token_is_the_sha256_hex_digest() -> None:
 async def test_login_stores_the_digest_and_the_token_still_works(
     client: AsyncClient,
     test_sessionmaker: async_sessionmaker[AsyncSession],
-    test_user: dict[str, object],
+    test_user: dict[str, Any],
     issued: list[str],
 ) -> None:
     token = await _login(client, test_user, issued)
@@ -65,7 +66,7 @@ async def test_login_stores_the_digest_and_the_token_still_works(
 async def test_refresh_stores_the_digest_and_the_token_still_works(
     client: AsyncClient,
     test_sessionmaker: async_sessionmaker[AsyncSession],
-    test_user: dict[str, object],
+    test_user: dict[str, Any],
     issued: list[str],
 ) -> None:
     await _login(client, test_user, issued)

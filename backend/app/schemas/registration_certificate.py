@@ -28,7 +28,7 @@ class RegistrationParseResponse(BaseModel):
     source: Literal["text", "llm"] = Field(
         description="text: the PDF's own text layer; llm: images read by the vision model"
     )
-    country: str | None = Field(None, description="The issuing country, when recognised")
+    country: str | None = Field(default=None, description="The issuing country, when recognised")
     confidence: float = Field(description="0 to 100, from the fields found")
     fields: dict[str, Any] = Field(description="Every harmonised field read, by name")
     field_confidence: dict[str, str] = Field(
@@ -38,15 +38,17 @@ class RegistrationParseResponse(BaseModel):
         description="The vehicle fields the certificate fills, already validated"
     )
     inspection_due_date: date_type | None = Field(
-        None,
+        default=None,
         description="Field X.1, the date the next periodic inspection is due by (a deadline)",
     )
     suggested_tax_records: list[SuggestedTaxRecord] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
-    model: str | None = Field(None, description="The vision model that read it, on the llm path")
-    pages: int = Field(0, description="How many images were sent, on the llm path")
+    model: str | None = Field(
+        default=None, description="The vision model that read it, on the llm path"
+    )
+    pages: int = Field(default=0, description="How many images were sent, on the llm path")
     parse_token: str | None = Field(
-        None,
+        default=None,
         description=(
             "On the parse route: present it with the same file to the vehicle import "
             "within 30 minutes and the server reuses this read instead of reading again"

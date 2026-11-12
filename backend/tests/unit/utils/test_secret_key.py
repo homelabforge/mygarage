@@ -13,6 +13,7 @@ import os
 import stat
 from collections.abc import Iterator
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -125,13 +126,13 @@ class TestCreateKeyFile:
             if path.exists():
                 seen.append(path.read_bytes())
 
-        def spy_open(*args: object, **kwargs: object) -> int:
-            fd = real_open(*args, **kwargs)  # pyright: ignore[reportArgumentType, reportCallIssue]
+        def spy_open(*args: Any, **kwargs: Any) -> int:
+            fd = real_open(*args, **kwargs)
             look()
             return fd
 
-        def spy_link(*args: object, **kwargs: object) -> None:
-            real_link(*args, **kwargs)  # pyright: ignore[reportArgumentType, reportCallIssue]
+        def spy_link(*args: Any, **kwargs: Any) -> None:
+            real_link(*args, **kwargs)
             look()
 
         monkeypatch.setattr(secret_key.os, "open", spy_open)
@@ -456,7 +457,7 @@ class TestKeyFileWriters:
         """
         path = tmp_path / "secret.key"
         real_flock = fcntl.flock
-        real_read = secret_key._read_key  # pyright: ignore[reportPrivateUsage]
+        real_read = secret_key._read_key
         loser: dict[str, object] = {}
 
         def read_before_the_create(target: Path) -> str | None:

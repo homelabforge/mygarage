@@ -6,13 +6,11 @@ rebuilds the whole table, PostgreSQL runs one ALTER. The conversion itself is
 pure, so its edge cases are also tested without a database.
 """
 
-import importlib.util
 from decimal import Decimal
-from pathlib import Path
 
 from sqlalchemy import inspect, text
 
-import app.migrations as _m
+from tests.migrations._loader import load_migration
 
 D = Decimal
 RAM = "MIG108VIN00000001"
@@ -26,19 +24,11 @@ Disappearing Deductibles"""
 
 
 def _load_107():
-    return _load_module("107_household_insurance_policies")
+    return load_migration("107_household_insurance_policies")
 
 
 def _load():
-    return _load_module("108_insurance_standard_coverages")
-
-
-def _load_module(name: str):
-    path = Path(_m.__file__).parent / f"{name}.py"
-    spec = importlib.util.spec_from_file_location(name, path)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
+    return load_migration("108_insurance_standard_coverages")
 
 
 def _make_post_107(engine):

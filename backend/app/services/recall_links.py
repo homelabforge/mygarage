@@ -93,7 +93,8 @@ async def validate_links(db: AsyncSession, vin: str, items: Sequence[ServiceLine
         ours = [i.id for i in items if sa_inspect(i).has_identity]
         if ours:
             query = query.where(ServiceLineItem.id.not_in(ours))
-        taken = sorted({int(rid) for rid in (await db.scalars(query)).all()})
+        # IN never matches NULL; the filter only narrows the type.
+        taken = sorted({int(rid) for rid in (await db.scalars(query)).all() if rid is not None})
         if taken:
             raise HTTPException(
                 status_code=409,

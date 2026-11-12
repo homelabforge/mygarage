@@ -26,6 +26,7 @@ from typing import TYPE_CHECKING, Literal, Protocol
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
+    from app.models.livelink_parameter import LiveLinkParameter
     from app.utils.render_context import RenderContext
 
 AlertBand = Literal["low", "critical", "high"]
@@ -35,12 +36,18 @@ AlertBand = Literal["low", "critical", "high"]
 REARM_MARGIN = 5.0
 
 
-class AlertLines(Protocol):
-    """A reading's lines: `LiveLinkParameter` in the app, anything alike in tests."""
+class AlertLinesShape(Protocol):
+    """A reading's lines, for anything alike in tests."""
 
     warning_min: float | None
     critical_min: float | None
     warning_max: float | None
+
+
+# Pyright never applies a descriptor's __get__ when it matches a protocol, so an
+# ORM model fails a protocol on its Mapped columns. The model goes in the union
+# by name; it's a typing-only import, and the alias is only ever read by pyright.
+type AlertLines = LiveLinkParameter | AlertLinesShape
 
 
 def alert_band(value: float, lines: AlertLines) -> AlertBand | None:

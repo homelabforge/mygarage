@@ -257,6 +257,7 @@ class TestMPGCalculation:
 
         # 45.42 / 535.92 * 100 = 8.47514... → rounds to 8.4751
         assert result == Decimal("8.4751")
+        assert result is not None
         # Check it's actually rounded to the consumption columns' 4 places
         assert result.as_tuple().exponent == -4
 

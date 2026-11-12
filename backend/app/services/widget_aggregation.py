@@ -20,8 +20,6 @@ Design rules:
    two differ on a long history. Two indexed queries fix and load the span.
 """
 
-# pyright: reportAssignmentType=false, reportAttributeAccessIssue=false
-
 from dataclasses import dataclass
 from datetime import date as date_type
 from decimal import Decimal
@@ -556,8 +554,9 @@ class WidgetAggregationService:
         are scored on, so a misdated fill-up can neither drop the newest tank
         nor stretch the span over the whole history.
         """
-        span_ends = (
-            (
+        span_ends = [
+            km
+            for km in (
                 await self.db.execute(
                     select(FuelRecord.odometer_km)
                     .where(
@@ -571,7 +570,9 @@ class WidgetAggregationService:
             )
             .scalars()
             .all()
-        )
+            # The query already drops nulls; this just tells pyright.
+            if km is not None
+        ]
         if len(span_ends) < 2:
             return None, None
 

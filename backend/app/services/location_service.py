@@ -66,7 +66,7 @@ class LocationService:
             .on_conflict_do_nothing(index_elements=["vin", "timestamp", "source"])
         )
         result = await self.db.execute(stmt)
-        return bool(result.rowcount)
+        return bool(result.rowcount)  # pyright: ignore[reportAttributeAccessIssue]  # DML execute returns CursorResult
 
     async def get_trips(self, vin: str, limit: int = 50) -> list[dict]:
         """Return sessions that have >=1 location point, newest first, each with

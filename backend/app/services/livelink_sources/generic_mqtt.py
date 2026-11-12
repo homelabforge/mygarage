@@ -24,6 +24,7 @@ from app.schemas.livelink import DeviceStatusType
 from app.services.livelink_sources.base import (
     BaseSourceModule,
     Capability,
+    Envelope,
     IngestBatch,
     MqttEnvelope,
     Reading,
@@ -154,7 +155,7 @@ class GenericMqttModule(BaseSourceModule):
         await self.refresh(db)
         return sorted(self._cache)
 
-    async def parse(self, env) -> IngestBatch | None:
+    async def parse(self, env: Envelope) -> IngestBatch | None:
         if not isinstance(env, MqttEnvelope):
             return None
         entries = self._cache.get(env.topic)

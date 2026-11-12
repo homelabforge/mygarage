@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient
-from sqlalchemy import delete, func, select
+from sqlalchemy import Table, delete, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -340,7 +340,9 @@ async def without_the_index(test_engine: Any) -> AsyncIterator[list[str]]:
 
     A test adds its vins, so their rows go before the index is built again.
     """
-    [index] = [i for i in VehicleDTC.__table__.indexes if i.name == "uq_vehicle_dtcs_active_code"]
+    table = VehicleDTC.__table__
+    assert isinstance(table, Table)
+    [index] = [i for i in table.indexes if i.name == "uq_vehicle_dtcs_active_code"]
     vins: list[str] = []
     async with test_engine.begin() as conn:
         await conn.run_sync(index.drop)

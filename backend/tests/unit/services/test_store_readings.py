@@ -132,6 +132,7 @@ async def test_storage_interval_thins_history(db_session, make_livelink_vehicle)
     svc = TelemetryService(db_session)
     await svc.auto_register_parameter("STORERD_X")
     param = await svc.get_parameter("STORERD_X")
+    assert param is not None
     param.storage_interval_seconds = 300
     await db_session.flush()
     p = StoragePolicy()
@@ -200,7 +201,9 @@ async def test_a_reading_name_reaches_the_registry(db_session, make_livelink_veh
         timestamp=TS,
         policy=StoragePolicy(latest="if_newer"),
     )
-    assert (await svc.get_parameter(key)).display_name == "Readable name"
+    param = await svc.get_parameter(key)
+    assert param is not None
+    assert param.display_name == "Readable name"
 
 
 @pytest.mark.asyncio
@@ -219,4 +222,6 @@ async def test_the_odometer_rebuild_keeps_the_name(db_session, make_livelink_veh
         policy=StoragePolicy(latest="if_newer"),
         device=device,
     )
-    assert (await svc.get_parameter(key)).display_name == "Readable odometer"
+    param = await svc.get_parameter(key)
+    assert param is not None
+    assert param.display_name == "Readable odometer"

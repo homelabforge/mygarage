@@ -66,7 +66,8 @@ def _coverages_from_rows(raw: list[dict[str, Any]]) -> list[dict[str, Any]]:
     rows = []
     for item in raw:
         key = item.get("coverage_key")
-        coverage = COVERAGE_BY_KEY.get(key)
+        # The file is untrusted: a list here can't even be looked up.
+        coverage = COVERAGE_BY_KEY.get(key) if isinstance(key, str) else None
         if coverage is None:
             logger.warning("Import: unknown insurance coverage %s, skipped", sanitize_for_log(key))
             continue

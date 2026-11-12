@@ -338,7 +338,7 @@ class TestSaleHistoryPrivacy:
         assert response.content[:4] == b"%PDF"
 
         with pymupdf.open(stream=response.content, filetype="pdf") as doc:
-            text = "".join(page.get_text() for page in doc)
+            text = "".join(page.get_text() for page in doc)  # pyright: ignore[reportArgumentType, reportCallIssue]  # get_text() with no option returns str
 
         # The header promises costs, vendors and plates are omitted.
         assert "850" not in text
@@ -420,7 +420,7 @@ class TestTypedMarkupPrintsAsText:
         import pymupdf
 
         with pymupdf.open(stream=content, filetype="pdf") as doc:
-            return " ".join(" ".join(page.get_text().split()) for page in doc)
+            return " ".join(" ".join(page.get_text().split()) for page in doc)  # pyright: ignore[reportAttributeAccessIssue]  # get_text() with no option returns str
 
     async def _pdf(self, client: AsyncClient, headers: dict, path: str, **params) -> str:
         response = await client.get(

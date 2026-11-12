@@ -12,9 +12,12 @@ import pytest
 import pytest_asyncio
 from dateutil.relativedelta import relativedelta
 from httpx import AsyncClient
-from sqlalchemy import delete
+from sqlalchemy import delete, update
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.reminder import Reminder
 from app.models.vehicle import Vehicle
+from app.services.compliance_service import compliance_for_vehicle
 from app.utils.household_time import household_today
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
@@ -130,6 +133,36 @@ class TestCompliance:
         assert inspection["from_registration"] is True
         assert inspection["reminder_id"] and inspection["rule_id"]
         assert body["sources"]
+
+    async def test_an_unknown_stored_anchor_kind_reads_as_null(
+        self, client: AsyncClient, auth_headers, db_session: AsyncSession
+    ):
+        # vehicle_reminders.anchor_kind has no CHECK, so a restored backup can
+        # hold any word. It used to be set on the model after construction,
+        # which skipped the lenient read.
+        first = household_today() - relativedelta(years=3, months=6)
+        vin = await _vehicle(
+            client,
+            auth_headers,
+            registration_country="FR",
+            fuel_type="gasoline",
+            first_registration_date=first.isoformat(),
+        )
+        reminder_id = (await _compliance(client, auth_headers, vin))["inspection"]["reminder_id"]
+        await db_session.execute(
+            update(Reminder).where(Reminder.id == reminder_id).values(anchor_kind="mystery")
+        )
+        await db_session.commit()
+
+        vehicle = await db_session.get(Vehicle, vin)
+        assert vehicle is not None
+        result = await compliance_for_vehicle(db_session, vehicle)
+        assert result.inspection is not None
+        assert result.inspection.reminder_id == reminder_id
+        assert result.inspection.anchor_kind is None
+        assert result.inspection.from_registration is False
+        body = await _compliance(client, auth_headers, vin)
+        assert body["inspection"]["anchor_kind"] is None
 
     async def test_recorded_euro_class_and_override(self, client: AsyncClient, auth_headers):
         vin = await _vehicle(

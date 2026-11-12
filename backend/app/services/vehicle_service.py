@@ -1,7 +1,5 @@
 """Vehicle business logic service layer."""
 
-# pyright: reportOptionalOperand=false, reportReturnType=false
-
 import logging
 import shutil
 from decimal import Decimal
@@ -135,7 +133,7 @@ class VehicleService:
             if ownership_filter is not None:
                 count_query = count_query.where(ownership_filter)
             count_result = await self.db.execute(count_query)
-            total = count_result.scalar()
+            total = count_result.scalar_one()
 
             return vehicles, total
 

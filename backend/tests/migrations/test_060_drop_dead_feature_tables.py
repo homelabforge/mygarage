@@ -8,21 +8,9 @@ raises "foreign key mismatch" — the dead DDL became a live landmine.
 Runs on SQLite and PostgreSQL via ``engine_for_migration``.
 """
 
-import importlib.util
-from pathlib import Path
-
 from sqlalchemy import inspect, text
 
-import app.migrations as _m
-
-
-def _load(name):
-    path = Path(_m.__file__).parent / f"{name}.py"
-    spec = importlib.util.spec_from_file_location(name, path)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
-
+from tests.migrations._loader import load_migration
 
 MIGRATION = "060_drop_dead_feature_tables"
 
@@ -39,7 +27,7 @@ def test_drops_empty_dead_tables(engine_for_migration):
     _dialect, engine, _url = engine_for_migration
     _create_dead_tables(engine)
 
-    _load(MIGRATION).upgrade(engine=engine)
+    load_migration(MIGRATION).upgrade(engine=engine)
 
     remaining = set(inspect(engine).get_table_names())
     for table in ("tsbs", "vincario_cache", "vincario_credits", "vincario_usage_log"):
@@ -53,7 +41,7 @@ def test_populated_table_is_left_alone(engine_for_migration):
     with engine.begin() as conn:
         conn.execute(text("INSERT INTO tsbs (id, vin) VALUES (1, 'SOMEVIN0000000001')"))
 
-    _load(MIGRATION).upgrade(engine=engine)
+    load_migration(MIGRATION).upgrade(engine=engine)
 
     remaining = set(inspect(engine).get_table_names())
     assert "tsbs" in remaining, "populated table must NOT be dropped"
@@ -64,7 +52,7 @@ def test_idempotent_when_tables_absent(engine_for_migration):
     """Second run (or a fresh install that never had the tables) is a no-op."""
     _dialect, engine, _url = engine_for_migration
     _create_dead_tables(engine)
-    migration = _load(MIGRATION)
+    migration = load_migration(MIGRATION)
 
     migration.upgrade(engine=engine)
     migration.upgrade(engine=engine)  # must not raise

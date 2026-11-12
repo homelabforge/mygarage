@@ -188,7 +188,7 @@ async def remove_synced_hours(
     result = await db.execute(
         delete(HoursRecord).where(_source_identity_filter(source_type, source_id))
     )
-    if result.rowcount:
+    if result.rowcount:  # pyright: ignore[reportAttributeAccessIssue]  # DML execute returns CursorResult
         await _commit_or_flush(db, commit=commit)
 
 

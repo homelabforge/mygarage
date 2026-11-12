@@ -15,22 +15,11 @@ Covers:
   - Full idempotency (``upgrade`` run twice).
 """
 
-import importlib.util
-from pathlib import Path
-
 import pytest
 from sqlalchemy import inspect, text
 from sqlalchemy.exc import IntegrityError
 
-import app.migrations as _m
-
-
-def _load(name):
-    path = Path(_m.__file__).parent / f"{name}.py"
-    spec = importlib.util.spec_from_file_location(name, path)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
+from tests.migrations._loader import load_migration
 
 
 def _vin_fk_is_cascade(dialect, engine):
@@ -119,7 +108,7 @@ def _make_deps(engine, *, with_current_hours=None):
 def test_083_creates_hours_records_table(engine_for_migration):
     _dialect, engine, _url = engine_for_migration
     _make_deps(engine)
-    _load("083_add_hours_tracking").upgrade(engine)
+    load_migration("083_add_hours_tracking").upgrade(engine)
 
     insp = inspect(engine)
     assert insp.has_table("hours_records")
@@ -154,7 +143,7 @@ def test_083_creates_hours_records_table(engine_for_migration):
 def test_083_adds_the_four_columns(engine_for_migration):
     _dialect, engine, _url = engine_for_migration
     _make_deps(engine)
-    _load("083_add_hours_tracking").upgrade(engine)
+    load_migration("083_add_hours_tracking").upgrade(engine)
 
     insp = inspect(engine)
     assert "secondary_usage_enabled" in {c["name"] for c in insp.get_columns("vehicles")}
@@ -171,7 +160,7 @@ def test_083_adds_the_four_columns(engine_for_migration):
 def test_083_widens_reminder_type_check(engine_for_migration):
     _dialect, engine, _url = engine_for_migration
     _make_deps(engine)
-    _load("083_add_hours_tracking").upgrade(engine)
+    load_migration("083_add_hours_tracking").upgrade(engine)
 
     vin = "1FT0000000000000X"
     # 'hours' must now be accepted.
@@ -198,7 +187,7 @@ def test_083_widens_reminder_type_check(engine_for_migration):
 def test_083_reminder_rows_indexes_and_fk_survive(engine_for_migration):
     _dialect, engine, _url = engine_for_migration
     _make_deps(engine)
-    _load("083_add_hours_tracking").upgrade(engine)
+    load_migration("083_add_hours_tracking").upgrade(engine)
 
     insp = inspect(engine)
     # Existing rows survived the rebuild.
@@ -230,7 +219,7 @@ def test_083_reminder_rows_indexes_and_fk_survive(engine_for_migration):
 def test_083_backfills_current_hours_seed(engine_for_migration):
     _dialect, engine, _url = engine_for_migration
     _make_deps(engine, with_current_hours=123.4)
-    _load("083_add_hours_tracking").upgrade(engine)
+    load_migration("083_add_hours_tracking").upgrade(engine)
 
     with engine.connect() as conn:
         rows = conn.execute(
@@ -249,7 +238,7 @@ def test_083_backfills_current_hours_seed(engine_for_migration):
 def test_083_no_backfill_when_current_hours_null(engine_for_migration):
     _dialect, engine, _url = engine_for_migration
     _make_deps(engine, with_current_hours=None)
-    _load("083_add_hours_tracking").upgrade(engine)
+    load_migration("083_add_hours_tracking").upgrade(engine)
 
     with engine.connect() as conn:
         count = conn.execute(text("SELECT COUNT(*) FROM hours_records")).scalar()
@@ -259,7 +248,7 @@ def test_083_no_backfill_when_current_hours_null(engine_for_migration):
 def test_083_idempotent(engine_for_migration):
     _dialect, engine, _url = engine_for_migration
     _make_deps(engine, with_current_hours=99.9)
-    mod = _load("083_add_hours_tracking")
+    mod = load_migration("083_add_hours_tracking")
     mod.upgrade(engine)
     mod.upgrade(engine)  # second run must not raise
 
@@ -277,7 +266,7 @@ def test_083_idempotent(engine_for_migration):
 def test_083_missing_vehicles_table_skips(engine_for_migration):
     """A bare DB without the ``vehicles`` table must skip, not raise."""
     _dialect, engine, _url = engine_for_migration
-    _load("083_add_hours_tracking").upgrade(engine)
+    load_migration("083_add_hours_tracking").upgrade(engine)
 
 
 def test_083_tolerates_preexisting_orphans_in_other_tables(migration_db, sync_engine):
@@ -325,7 +314,7 @@ def test_083_tolerates_preexisting_orphans_in_other_tables(migration_db, sync_en
 
     # Migration 083 must succeed anyway — the orphan lives outside the table
     # it rebuilds and pre-commit-checks.
-    _load("083_add_hours_tracking").upgrade(engine)
+    load_migration("083_add_hours_tracking").upgrade(engine)
 
     # ...and the CHECK widening itself took effect.
     vin = "1FT0000000000000X"

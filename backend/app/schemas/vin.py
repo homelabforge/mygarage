@@ -49,14 +49,14 @@ class VINDecodeRequest(BaseModel):
         return vin_input(v)
 
     provider: Provider | None = Field(
-        None,
+        default=None,
         description=(
             "The decoder the person chose. Omitted means Automatic: the preferred "
             "decoder first, NHTSA when AutoRef has no answer"
         ),
     )
     country: str | None = Field(
-        None,
+        default=None,
         description=(
             "The country deciding which decoder Automatic asks first (the vehicle's "
             "registration country, else the person's); omitted reads the account's"
@@ -75,17 +75,17 @@ class VINDecodeRequest(BaseModel):
 class EngineInfo(BaseModel):
     """Engine information from VIN decode."""
 
-    displacement_l: str | None = Field(None, description="Engine displacement in liters")
-    cylinders: int | None = Field(None, description="Number of cylinders")
-    hp: int | None = Field(None, description="Horsepower")
-    kw: int | None = Field(None, description="Kilowatts")
-    fuel_type: str | None = Field(None, description="Primary fuel type (raw NHTSA string)")
+    displacement_l: str | None = Field(default=None, description="Engine displacement in liters")
+    cylinders: int | None = Field(default=None, description="Number of cylinders")
+    hp: int | None = Field(default=None, description="Horsepower")
+    kw: int | None = Field(default=None, description="Kilowatts")
+    fuel_type: str | None = Field(default=None, description="Primary fuel type (raw NHTSA string)")
     fuel_type_normalized: str | None = Field(
-        None,
+        default=None,
         description="Primary fuel type normalized to FuelTypeEnum vocabulary",
     )
     fuel_type_secondary: str | None = Field(
-        None,
+        default=None,
         description=(
             "Secondary fuel capability (PHEV / flex / dual-fuel), normalized to "
             "FuelTypeEnum vocabulary. Sourced from NHTSA FuelTypeSecondary, with "
@@ -97,8 +97,8 @@ class EngineInfo(BaseModel):
 class TransmissionInfo(BaseModel):
     """Transmission information from VIN decode."""
 
-    type: str | None = Field(None, description="Transmission type")
-    speeds: str | None = Field(None, description="Number of speeds")
+    type: str | None = Field(default=None, description="Transmission type")
+    speeds: str | None = Field(default=None, description="Number of speeds")
 
 
 class AutoRefCandidate(BaseModel):
@@ -107,49 +107,56 @@ class AutoRefCandidate(BaseModel):
     record_type: AutoRefRecordType = Field(..., description="The record type of its full record")
     id: str = Field(..., description="The id of its full record (ephemeral: pick it right away)")
     label: str = Field(..., description="AutoRef's name for the version")
-    model_full: str | None = Field(None, description="AutoRef's MODEL_FULL, echoed on a pick")
-    fuel_type: str | None = Field(None, description="Fuel normalized to FuelTypeEnum vocabulary")
-    kw: int | None = Field(None, description="Power in kW, echoed on a pick")
-    transmission: str | None = Field(None, description="Transmission type")
-    gearbox_code: AutoRefGearboxCode | None = Field(
-        None, description="AutoRef's gearbox code, echoed on a pick (the full record has none)"
+    model_full: str | None = Field(
+        default=None, description="AutoRef's MODEL_FULL, echoed on a pick"
     )
-    grouped: bool = Field(False, description="It stands for several configurations")
+    fuel_type: str | None = Field(
+        default=None, description="Fuel normalized to FuelTypeEnum vocabulary"
+    )
+    kw: int | None = Field(default=None, description="Power in kW, echoed on a pick")
+    transmission: str | None = Field(default=None, description="Transmission type")
+    gearbox_code: AutoRefGearboxCode | None = Field(
+        default=None,
+        description="AutoRef's gearbox code, echoed on a pick (the full record has none)",
+    )
+    grouped: bool = Field(default=False, description="It stands for several configurations")
 
 
 class VINDecodeResponse(BaseModel):
     """Response schema for VIN decode endpoint."""
 
     vin: str = Field(..., description="The decoded VIN")
-    year: int | None = Field(None, description="Model year")
-    make: str | None = Field(None, description="Vehicle make (manufacturer brand)")
-    model: str | None = Field(None, description="Vehicle model")
-    trim: str | None = Field(None, description="Trim level")
-    vehicle_type: str | None = Field(None, description="Type of vehicle")
-    body_class: str | None = Field(None, description="Body class/style")
-    engine: EngineInfo | None = Field(None, description="Engine information")
-    transmission: TransmissionInfo | None = Field(None, description="Transmission information")
-    drive_type: str | None = Field(None, description="Drive type (FWD, RWD, AWD, 4WD)")
-    manufacturer: str | None = Field(None, description="Manufacturer name")
-    plant_city: str | None = Field(None, description="Manufacturing plant city")
-    plant_country: str | None = Field(None, description="Manufacturing plant country")
-    doors: int | None = Field(None, description="Number of doors")
-    gvwr: str | None = Field(None, description="Gross Vehicle Weight Rating")
-    series: str | None = Field(None, description="Vehicle series")
-    steering_location: str | None = Field(None, description="Steering wheel location")
-    entertainment_system: str | None = Field(None, description="Entertainment system")
-    error_code: str | None = Field(None, description="NHTSA error code (if any)")
-    error_text: str | None = Field(None, description="NHTSA error text (if any)")
+    year: int | None = Field(default=None, description="Model year")
+    make: str | None = Field(default=None, description="Vehicle make (manufacturer brand)")
+    model: str | None = Field(default=None, description="Vehicle model")
+    trim: str | None = Field(default=None, description="Trim level")
+    vehicle_type: str | None = Field(default=None, description="Type of vehicle")
+    body_class: str | None = Field(default=None, description="Body class/style")
+    engine: EngineInfo | None = Field(default=None, description="Engine information")
+    transmission: TransmissionInfo | None = Field(
+        default=None, description="Transmission information"
+    )
+    drive_type: str | None = Field(default=None, description="Drive type (FWD, RWD, AWD, 4WD)")
+    manufacturer: str | None = Field(default=None, description="Manufacturer name")
+    plant_city: str | None = Field(default=None, description="Manufacturing plant city")
+    plant_country: str | None = Field(default=None, description="Manufacturing plant country")
+    doors: int | None = Field(default=None, description="Number of doors")
+    gvwr: str | None = Field(default=None, description="Gross Vehicle Weight Rating")
+    series: str | None = Field(default=None, description="Vehicle series")
+    steering_location: str | None = Field(default=None, description="Steering wheel location")
+    entertainment_system: str | None = Field(default=None, description="Entertainment system")
+    error_code: str | None = Field(default=None, description="NHTSA error code (if any)")
+    error_text: str | None = Field(default=None, description="NHTSA error text (if any)")
     # What the VIN itself says (#211), read from the bundled WMI table.
     region: str | None = Field(
-        None,
+        default=None,
         description="Region of the first character (ISO 3780): AF, AS, EU, NA, OC, SA",
     )
     wmi_country: str | None = Field(
-        None, description="Country of manufacture from the WMI (ISO 3166-1 alpha-2)"
+        default=None, description="Country of manufacture from the WMI (ISO 3166-1 alpha-2)"
     )
     decode_quality: Literal["full", "partial", "wmi_only", "none"] | None = Field(
-        None,
+        default=None,
         description=(
             "How much NHTSA itself decoded, before the WMI table fills anything. "
             "full: make and model; partial: make only; wmi_only: NHTSA named no make "
@@ -157,11 +164,11 @@ class VINDecodeResponse(BaseModel):
         ),
     )
     make_source: Literal["nhtsa", "wmi", "autoref"] | None = Field(
-        None,
+        default=None,
         description="Where `make` came from: NHTSA's answer, AutoRef's, or the bundled WMI table",
     )
     decoded_by: Provider | None = Field(
-        None, description="Which decoder answered: nhtsa or autoref"
+        default=None, description="Which decoder answered: nhtsa or autoref"
     )
     notes: list[str] = Field(
         default_factory=list,
@@ -175,7 +182,7 @@ class VINDecodeResponse(BaseModel):
     )
 
     candidates: list[AutoRefCandidate] | None = Field(
-        None,
+        default=None,
         description=(
             "AutoRef's versions for this VIN when it matched more than one, most "
             "registered first; pick one with POST /vin/autoref/version"
@@ -218,8 +225,10 @@ class AutoRefVersionRequest(BaseModel):
     record_type: AutoRefRecordType
     id: str = Field(..., pattern=r"^[A-Za-z0-9]{1,32}$")
     gearbox_code: AutoRefGearboxCode | None = None
-    expect_model: str | None = Field(None, max_length=200, description="The candidate's model_full")
-    expect_kw: int | None = Field(None, ge=0, le=2000, description="The candidate's kw")
+    expect_model: str | None = Field(
+        default=None, max_length=200, description="The candidate's model_full"
+    )
+    expect_kw: int | None = Field(default=None, ge=0, le=2000, description="The candidate's kw")
     grouped: bool = False
 
     @field_validator("vin")
@@ -246,7 +255,7 @@ class VINProvidersResponse(BaseModel):
 class AutoRefTestRequest(BaseModel):
     """An AutoRef key to test; null or the mask tests the stored one."""
 
-    api_key: str | None = Field(None, max_length=200)
+    api_key: str | None = Field(default=None, max_length=200)
 
 
 class AutoRefTestResponse(BaseModel):

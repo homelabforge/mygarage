@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - New installs start with a blank ntfy topic instead of the shared `mygarage`, since anyone who knows a topic can read it on ntfy.sh
 - The sign-in key file follows `MYGARAGE_DATA_DIR`; a key already at /data/secret.key is copied over, so nobody is signed out
 - Window sticker and document uploads follow `MYGARAGE_MAX_DOCUMENT_SIZE_MB` (25 MB by default) instead of a fixed 10 MB and 25 MB
+- Backend type checking: three pyright rules that were off are now errors, and the tests are checked in a standard-plus mode
 
 ### Fixed
 - Equipment (Standard/Optional) shows on every vehicle but plain trailers, on phones too, not only after a window sticker.
@@ -44,6 +45,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Settings > Files and System drop a load error once a reload works.
 - Restoring a backup answers a bad file name with 400 and a missing one with 404 first, not 503 while a secret is still waiting to be encrypted.
 - A Settings change made while the previous save is still finishing gets saved too, instead of dropped.
+- Editing a service visit no longer fails with "Database constraint violation" when one of its items holds a category the app doesn't know (from a restored backup).
+- The LiveLink MQTT settings load when the stored broker host or username is empty, instead of failing.
+- Importing a vehicle backup skips an insurance coverage whose key isn't text, with a warning, instead of failing the whole policy.
+- The POI provider usage counter reads a blank stored count as zero instead of failing.
+- The compliance inspection status reads an anchor kind the app doesn't know as empty, like the rest of the app.
 
 ## [3.10.0] - 2026-11-05
 

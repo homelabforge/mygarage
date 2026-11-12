@@ -6,8 +6,15 @@ from pathlib import Path
 
 from sqlalchemy import event, text
 from sqlalchemy.engine import URL, make_url
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.engine.interfaces import DBAPIConnection
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy.pool import ConnectionPoolEntry
 
 from app.config import settings
 from app.utils.pg_session import create_utc_async_engine
@@ -29,7 +36,9 @@ def is_sqlite_url(url: str) -> bool:
 is_sqlite = is_sqlite_url(settings.database_url)
 
 
-def _sqlite_connection_pragmas(dbapi_connection, connection_record) -> None:
+def _sqlite_connection_pragmas(
+    dbapi_connection: DBAPIConnection, connection_record: ConnectionPoolEntry
+) -> None:
     """Per-connection SQLite pragmas (runs once per new pooled connection).
 
     - journal_mode=WAL: concurrent readers + a single writer without
@@ -47,7 +56,7 @@ def _sqlite_connection_pragmas(dbapi_connection, connection_record) -> None:
     cursor.close()
 
 
-def configure_sqlite_engine(async_engine) -> None:
+def configure_sqlite_engine(async_engine: AsyncEngine) -> None:
     """Attach the standard SQLite pragmas to an async engine.
 
     Exported so the test suite can configure its own engine identically to

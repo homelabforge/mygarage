@@ -19,7 +19,7 @@ import logging
 import os
 from pathlib import Path
 
-from sqlalchemy import Engine, create_engine, inspect, text
+from sqlalchemy import Engine, Inspector, create_engine, inspect, text
 
 logger = logging.getLogger(__name__)
 
@@ -33,11 +33,11 @@ def _get_fallback_engine():
     return create_engine(f"sqlite:///{data_dir / 'mygarage.db'}")
 
 
-def _column_exists(inspector, table: str, column: str) -> bool:
+def _column_exists(inspector: Inspector, table: str, column: str) -> bool:
     return column in {c["name"] for c in inspector.get_columns(table)}
 
 
-def _index_exists(inspector, table: str, index: str) -> bool:
+def _index_exists(inspector: Inspector, table: str, index: str) -> bool:
     return index in {i["name"] for i in inspector.get_indexes(table)}
 
 

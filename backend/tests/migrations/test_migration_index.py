@@ -9,6 +9,7 @@ _GEN = Path(__file__).parent.parent.parent / "tools" / "gen_migration_index.py"
 
 def _load_gen():
     spec = importlib.util.spec_from_file_location("gen_migration_index", _GEN)
+    assert spec is not None and spec.loader is not None
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod

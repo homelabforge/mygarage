@@ -1,17 +1,6 @@
-import importlib.util
-from pathlib import Path
-
 from sqlalchemy import inspect, text
 
-import app.migrations as _m
-
-
-def _load(name):
-    path = Path(_m.__file__).parent / f"{name}.py"
-    spec = importlib.util.spec_from_file_location(name, path)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
+from tests.migrations._loader import load_migration
 
 
 def _legacy_devices_table(engine):
@@ -24,7 +13,7 @@ def _legacy_devices_table(engine):
 def test_058_adds_columns_and_table(sync_engine):
     engine = sync_engine("sqlite://")
     _legacy_devices_table(engine)
-    _load("058_sd_card_backfill").upgrade(engine)
+    load_migration("058_sd_card_backfill").upgrade(engine)
     insp = inspect(engine)
     cols = {c["name"] for c in insp.get_columns("livelink_devices")}
     assert {"device_address", "sd_backfill_enabled"} <= cols
@@ -36,7 +25,7 @@ def test_058_adds_columns_and_table(sync_engine):
 def test_058_idempotent(sync_engine):
     engine = sync_engine("sqlite://")
     _legacy_devices_table(engine)
-    mod = _load("058_sd_card_backfill")
+    mod = load_migration("058_sd_card_backfill")
     mod.upgrade(engine)
     mod.upgrade(engine)  # no raise
 
@@ -44,7 +33,7 @@ def test_058_idempotent(sync_engine):
 def test_058_ingest_state_autoincrements(sync_engine):
     engine = sync_engine("sqlite://")
     _legacy_devices_table(engine)
-    _load("058_sd_card_backfill").upgrade(engine)
+    load_migration("058_sd_card_backfill").upgrade(engine)
     with engine.begin() as conn:
         conn.execute(
             text("INSERT INTO sd_log_ingest_state (device_id, filename) VALUES ('dev1', 'a.db')")

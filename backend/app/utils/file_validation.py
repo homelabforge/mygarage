@@ -1,7 +1,5 @@
 """File upload validation utilities."""
 
-# pyright: reportOptionalMemberAccess=false, reportPossiblyUnboundVariable=false
-
 import csv
 import io
 import logging
@@ -13,13 +11,12 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 # Import python-magic for content-type verification
-MAGIC_AVAILABLE = False
 try:
     import magic
-
-    MAGIC_AVAILABLE = True
 except ImportError:
+    magic = None
     logger.warning("python-magic not available, magic byte verification disabled")
+MAGIC_AVAILABLE = magic is not None
 
 # Magic byte signatures for common file types
 MAGIC_BYTES = {
@@ -75,7 +72,7 @@ def verify_file_content_type(file_content: bytes, declared_mime: str, max_read: 
         return False
 
     # Fallback: use python-magic if available
-    if MAGIC_AVAILABLE:
+    if magic is not None:
         try:
             detected_mime = magic.from_buffer(file_content, mime=True)
             # Be lenient with text files (text/plain vs text/csv)
@@ -95,7 +92,7 @@ def verify_file_content_type(file_content: bytes, declared_mime: str, max_read: 
 
 
 def validate_file_magic_bytes(
-    file_bytes: bytes, filename: str, declared_mime: str, strict: bool = False
+    file_bytes: bytes, filename: str | None, declared_mime: str, strict: bool = False
 ) -> tuple[bool, str | None]:
     """Complete file validation with magic byte check.
 
@@ -125,7 +122,7 @@ def validate_file_magic_bytes(
     return True, None
 
 
-async def validate_csv_upload(file: UploadFile, max_size: int = None) -> str:
+async def validate_csv_upload(file: UploadFile, max_size: int | None = None) -> str:
     """Validate CSV file upload.
 
     Args:
@@ -188,7 +185,7 @@ async def validate_csv_upload(file: UploadFile, max_size: int = None) -> str:
 
 
 async def validate_image_upload(
-    file: UploadFile, max_size: int = None, verify_magic: bool = True
+    file: UploadFile, max_size: int | None = None, verify_magic: bool = True
 ) -> bytes:
     """Validate image file upload.
 
@@ -253,7 +250,7 @@ async def validate_image_upload(
 
 
 async def validate_document_upload(
-    file: UploadFile, max_size: int = None, verify_magic: bool = True
+    file: UploadFile, max_size: int | None = None, verify_magic: bool = True
 ) -> bytes:
     """Validate document file upload.
 
@@ -317,7 +314,7 @@ async def validate_document_upload(
 
 
 async def validate_attachment_upload(
-    file: UploadFile, max_size: int = None, verify_magic: bool = True
+    file: UploadFile, max_size: int | None = None, verify_magic: bool = True
 ) -> bytes:
     """Validate attachment file upload.
 

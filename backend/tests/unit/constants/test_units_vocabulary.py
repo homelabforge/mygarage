@@ -98,7 +98,7 @@ class TestPresets:
         """A mutable module-level preset is process-global state, which is the
         exact defect phase 0 spent fifteen commits removing."""
         with pytest.raises(ValidationError):
-            METRIC_PRESET.distance = "mi"  # type: ignore[misc]
+            METRIC_PRESET.distance = "mi"
 
 
 class TestColumnNameMapping:

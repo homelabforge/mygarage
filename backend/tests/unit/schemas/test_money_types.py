@@ -37,7 +37,7 @@ class _Sample(BaseModel):
 
     optional: OptionalMoney = None
     optional_with_field: OptionalMoney = Field(
-        None, decimal_places=2, description="Payment or fee amount"
+        default=None, decimal_places=2, description="Payment or fee amount"
     )
     required: Money
     required_with_field: Money = Field(..., decimal_places=2, description="Nightly rate")

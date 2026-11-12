@@ -6,20 +6,9 @@ Parameterized over SQLite *and* PostgreSQL via the ``engine_for_migration``
 fixture (PG runs skip when ``TEST_DATABASE_URL`` is unset).
 """
 
-import importlib.util
-from pathlib import Path
-
 from sqlalchemy import text
 
-import app.migrations as _m
-
-
-def _load(name):
-    path = Path(_m.__file__).parent / f"{name}.py"
-    spec = importlib.util.spec_from_file_location(name, path)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
+from tests.migrations._loader import load_migration
 
 
 def _make_settings_table(engine):
@@ -58,7 +47,7 @@ def test_087_inserts_webhook_settings(engine_for_migration):
     _dialect, engine, _url = engine_for_migration
     _make_settings_table(engine)
 
-    _load("087_add_webhook_ingest_settings").upgrade(engine)
+    load_migration("087_add_webhook_ingest_settings").upgrade(engine)
 
     settings = _get_settings(engine)
     assert "webhook_ingest_token" in settings
@@ -80,7 +69,7 @@ def test_087_is_idempotent(engine_for_migration):
     _dialect, engine, _url = engine_for_migration
     _make_settings_table(engine)
 
-    mod = _load("087_add_webhook_ingest_settings")
+    mod = load_migration("087_add_webhook_ingest_settings")
     mod.upgrade(engine)
     settings_before = _get_settings(engine)
 
@@ -93,7 +82,7 @@ def test_087_skips_cleanly_when_settings_absent(engine_for_migration):
     """Early return when settings table doesn't exist."""
     _dialect, engine, _url = engine_for_migration
 
-    _load("087_add_webhook_ingest_settings").upgrade(engine)
+    load_migration("087_add_webhook_ingest_settings").upgrade(engine)
 
 
 def test_087_preserves_existing_telegram_setting(engine_for_migration):
@@ -111,7 +100,7 @@ def test_087_preserves_existing_telegram_setting(engine_for_migration):
             )
         )
 
-    _load("087_add_webhook_ingest_settings").upgrade(engine)
+    load_migration("087_add_webhook_ingest_settings").upgrade(engine)
 
     settings = _get_settings(engine)
     tg_val, _, _ = settings["telegram_inbound_enabled"]

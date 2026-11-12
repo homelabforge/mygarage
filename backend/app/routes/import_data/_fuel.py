@@ -70,13 +70,16 @@ def _coerce_octane(value: object) -> int | None:
     JSON numbers arrive as int or float; a float only passes when it is
     integral, because int() would otherwise store 91.9 as 91 and let 150.9
     sneak under the 150 bound the API enforces (codex code review R1-M1).
-    Strings raise in int() and fail the row like any other bad field.
+    A string goes through int() too, so "91" reads and "91.5" fails the row;
+    anything else (a list, an object) fails the row like any other bad field.
     """
     if value is None:
         return None
     if isinstance(value, float) and not value.is_integer():
         raise ValueError(f"octane must be a whole number, got {value!r}")
-    return int(value)  # type: ignore[arg-type]
+    if not isinstance(value, int | float | str):
+        raise ValueError(f"octane must be a number, got {value!r}")
+    return int(value)
 
 
 def _derive_price_basis(

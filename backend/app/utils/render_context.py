@@ -45,7 +45,7 @@ from app.constants.units import UnitSet
 from app.models.user import User
 from app.models.vehicle import Vehicle
 from app.utils.default_unit_prefs import load_default_unit_prefs
-from app.utils.unit_resolution import UnitPreferenceSource, apply_vehicle_units, resolve_units
+from app.utils.unit_resolution import UnitPreferenceShape, apply_vehicle_units, resolve_units
 
 
 @dataclass(frozen=True)
@@ -56,33 +56,39 @@ class RenderContext:
     show_both: bool
 
 
-class UserRenderContextSource(UnitPreferenceSource, Protocol):
-    """`UnitPreferenceSource` plus the one extra field `render_context_for_user`
+class UserRenderContextShape(UnitPreferenceShape, Protocol):
+    """`UnitPreferenceShape` plus the one extra field `render_context_for_user`
     needs: whether this user opted into showing the counterpart alongside
     their primary unit.
 
     A Protocol rather than the ORM `User`, for the same reason
-    `UnitPreferenceSource` itself is one (see its docstring in
-    `unit_resolution.py`): `User` structurally satisfies this without either
-    module importing the other.
+    `UnitPreferenceShape` itself is one (see its docstring in
+    `unit_resolution.py`). `User` reaches it through the
+    `UserRenderContextSource` union below.
     """
 
     @property
     def show_both_units(self) -> bool: ...
 
 
-class VehicleUnitSource(Protocol):
+class VehicleUnitShape(Protocol):
     """What the vehicle half of a render needs: its VIN and odometer unit.
 
-    A Protocol for the same reason as `UserRenderContextSource`: the ORM
-    `Vehicle` satisfies it structurally, and so does anything else carrying
-    the two attributes.
+    Anything carrying the two attributes fits; the ORM `Vehicle` reaches it
+    through the `VehicleUnitSource` union below.
     """
 
     @property
     def vin(self) -> str: ...
     @property
     def distance_unit(self) -> str | None: ...
+
+
+# Pyright never applies a descriptor's __get__ when it matches a protocol, so an
+# ORM model fails a protocol on its Mapped columns. The model goes in the union
+# by name; the alias is only ever read by pyright.
+type UserRenderContextSource = User | UserRenderContextShape
+type VehicleUnitSource = Vehicle | VehicleUnitShape
 
 
 def with_vehicle(ctx: RenderContext, vehicle: VehicleUnitSource) -> RenderContext:

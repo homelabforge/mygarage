@@ -8,6 +8,7 @@ that moves to the new name has to keep working.
 
 import time
 import warnings
+from collections.abc import Mapping
 from unittest.mock import patch
 from urllib.parse import urlparse
 
@@ -25,18 +26,18 @@ JWKS_URI = "https://id.example.com/auth/v1/oidc/certs"
 
 
 class _FakeResponse:
-    def __init__(self, payload: dict) -> None:
+    def __init__(self, payload: Mapping[str, object]) -> None:
         self._payload = payload
 
     def raise_for_status(self) -> None:
         return None
 
-    def json(self) -> dict:
+    def json(self) -> Mapping[str, object]:
         return self._payload
 
 
 class _FakeAsyncClient:
-    def __init__(self, payload: dict) -> None:
+    def __init__(self, payload: Mapping[str, object]) -> None:
         self._payload = payload
 
     async def __aenter__(self) -> _FakeAsyncClient:

@@ -64,11 +64,13 @@ def test_hours_economy_data_point_requires_cost_per_hr():
     """Unlike l_per_hr, cost_per_hr has no default -- a point that exists in
     the series always has a real cost_per_hr figure."""
     with pytest.raises(ValidationError):
-        HoursEconomyDataPoint(
-            date=date(2026, 1, 1),
-            engine_hours=Decimal("100.0"),
-            liters=Decimal("10.000"),
-            cost=Decimal("10.00"),
+        HoursEconomyDataPoint.model_validate(
+            {
+                "date": date(2026, 1, 1),
+                "engine_hours": Decimal("100.0"),
+                "liters": Decimal("10.000"),
+                "cost": Decimal("10.00"),
+            }
         )
 
 
@@ -100,10 +102,14 @@ def test_hours_accumulated_data_point_field_names_and_required():
     }
 
     with pytest.raises(ValidationError):
-        HoursAccumulatedDataPoint(date=date(2026, 1, 1))  # engine_hours is required
+        HoursAccumulatedDataPoint.model_validate(
+            {"date": date(2026, 1, 1)}
+        )  # engine_hours is required
 
     with pytest.raises(ValidationError):
-        HoursAccumulatedDataPoint(engine_hours=Decimal("1.0"))  # date is required
+        HoursAccumulatedDataPoint.model_validate(
+            {"engine_hours": Decimal("1.0")}
+        )  # date is required
 
 
 def test_vehicle_analytics_exposes_hours_economy_and_accumulated_fields():

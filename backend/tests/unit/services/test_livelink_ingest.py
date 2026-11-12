@@ -49,7 +49,7 @@ class _Sessionless(_Fake):
     capabilities = frozenset({Capability.TELEMETRY})
     storage_policy = StoragePolicy()
 
-    async def parse(self, env):
+    async def parse(self, env) -> IngestBatch | None:
         return IngestBatch(
             device_key=self.device_id,
             readings=[Reading("PROPANE_T1_LEVEL_PCT", 71.0, unit="%")],
@@ -217,11 +217,13 @@ async def test_thresholds_are_checked_for_each_validated_param(db_session, linke
         tel.return_value.check_thresholds = AsyncMock()
         await ingest(_Sessionless(linked_device.device_id), ENV, db_session)
         tel.return_value.check_thresholds.assert_awaited_once()
+        call = tel.return_value.check_thresholds.await_args
+        assert call is not None
         # Not a preset sensor: alerts repeat every cooldown, as WiCAN's do.
-        assert tel.return_value.check_thresholds.await_args.kwargs["once"] is False
+        assert call.kwargs["once"] is False
         # No ODOMETER capability, so nothing here went through odometer
         # normalisation and an odometer-named key is not known to be km (D2a).
-        assert tel.return_value.check_thresholds.await_args.kwargs["odometer_normalised"] is False
+        assert call.kwargs["odometer_normalised"] is False
 
 
 class _OdometerSource(_Fake):
@@ -290,7 +292,9 @@ async def test_thresholds_learn_whether_the_store_normalised_the_odometer(
         tel.return_value.check_thresholds = AsyncMock()
         await ingest(module_cls(linked_device.device_id), ENV, db_session)
 
-    kwargs = tel.return_value.check_thresholds.await_args.kwargs
+    call = tel.return_value.check_thresholds.await_args
+    assert call is not None
+    kwargs = call.kwargs
     assert kwargs["odometer_normalised"] is expected
     assert kwargs["declared_odometer_key"] == declared
 
@@ -309,7 +313,9 @@ async def test_a_preset_sensors_readings_alert_once_per_crossing(db_session, lin
         tel.return_value.check_thresholds = AsyncMock()
         await ingest(_Sessionless(linked_device.device_id), ENV, db_session)
 
-    assert tel.return_value.check_thresholds.await_args.kwargs["once"] is True
+    call = tel.return_value.check_thresholds.await_args
+    assert call is not None
+    assert call.kwargs["once"] is True
 
 
 @pytest.mark.asyncio
@@ -422,7 +428,9 @@ async def test_a_telemetry_batch_does_not_resurrect_an_offline_device(db_session
         live.return_value.is_enabled = AsyncMock(return_value=True)  # the master switch
         live.return_value.update_device_status = AsyncMock()
         await ingest(_NoStatus(linked_device.device_id), ENV, db_session)
-        assert live.return_value.update_device_status.await_args.kwargs["device_status"] is None
+        call = live.return_value.update_device_status.await_args
+        assert call is not None
+        assert call.kwargs["device_status"] is None
 
 
 @pytest.mark.asyncio
@@ -441,7 +449,9 @@ async def test_a_source_without_the_odometer_capability_cannot_record_one(
         )
         tel.return_value.check_thresholds = AsyncMock()
         await ingest(_Sessionless(linked_device.device_id), ENV, db_session)
-        assert tel.return_value.store_readings.await_args.kwargs["device"] is None
+        call = tel.return_value.store_readings.await_args
+        assert call is not None
+        assert call.kwargs["device"] is None
 
 
 @pytest.mark.asyncio

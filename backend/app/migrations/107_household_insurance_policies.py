@@ -54,7 +54,7 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import Engine, create_engine, inspect, text
 
 FATAL = True
 
@@ -223,13 +223,15 @@ def _chain_history(policies: list[dict[str, Any]]) -> None:
                 other
                 for other in members
                 if other is not policy
-                and _day(other["end_date"]) is not None
-                and _day(other["end_date"]) <= start
-                and _day(other["start_date"]) < start
+                and (other_end := _day(other["end_date"])) is not None
+                and other_end <= start
+                and (other_start := _day(other["start_date"])) is not None
+                and other_start < start
             ]
             if not earlier:
                 continue
-            latest_end = max(_day(o["end_date"]) for o in earlier)
+            # `earlier` holds only dated rows; the walrus says so to pyright.
+            latest_end = max(d for o in earlier if (d := _day(o["end_date"])) is not None)
             nearest = [o for o in earlier if _day(o["end_date"]) == latest_end]
             if len(nearest) == 1:
                 chosen[policy["id"]] = nearest[0]["id"]
@@ -343,7 +345,7 @@ def _report(policies: list[dict[str, Any]], log: list[str], source_rows: int) ->
 # ============================================================================
 
 
-def _run_sqlite(engine) -> None:
+def _run_sqlite(engine: Engine) -> None:
     raw = engine.raw_connection()
     try:
         cur = raw.cursor()
@@ -358,7 +360,7 @@ def _run_sqlite(engine) -> None:
         try:
             cur.execute("BEGIN")
 
-            rows = [
+            rows: list[dict[str, Any]] = [
                 dict(zip(_LEGACY_COLUMNS, r, strict=True))
                 for r in cur.execute(_LEGACY_SELECT).fetchall()
             ]
@@ -463,7 +465,7 @@ def _num(value: Any) -> Any:
 # ============================================================================
 
 
-def _run_postgres(engine) -> None:
+def _run_postgres(engine: Engine) -> None:
     with engine.begin() as conn:
         rows = [dict(r._mapping) for r in conn.execute(text(_LEGACY_SELECT)).fetchall()]
         owner_by_vin = {
@@ -570,7 +572,7 @@ def _preflight_backup_marker() -> None:
         )
 
 
-def upgrade(engine=None) -> None:
+def upgrade(engine: Engine | None = None) -> None:
     """Run the migration, or return cleanly if it has already been applied.
 
     RE-ENTRANCY. The whole thing is one transaction, so there are two

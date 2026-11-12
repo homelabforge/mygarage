@@ -21,6 +21,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
+from app.constants.service_vocab import InspectionResult, InspectionSeverity
 from app.database import Base
 from app.models._types import ScaledNumeric
 
@@ -49,10 +50,8 @@ class ServiceLineItem(Base):
     cost: Mapped[Decimal | None] = mapped_column(ScaledNumeric(12, 2))
     notes: Mapped[str | None] = mapped_column(Text)
     is_inspection: Mapped[bool] = mapped_column(Boolean, default=False)
-    inspection_result: Mapped[str | None] = mapped_column(
-        String(20)
-    )  # passed, failed, needs_attention
-    inspection_severity: Mapped[str | None] = mapped_column(String(10))  # green, yellow, red
+    inspection_result: Mapped[InspectionResult | None] = mapped_column(String(20))
+    inspection_severity: Mapped[InspectionSeverity | None] = mapped_column(String(10))
     triggered_by_inspection_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("service_line_items.id")
     )

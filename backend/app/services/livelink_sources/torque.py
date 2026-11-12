@@ -27,6 +27,7 @@ from app.models.livelink_device import LiveLinkDevice
 from app.services.livelink_sources.base import (
     BaseSourceModule,
     Capability,
+    Envelope,
     ExplicitSession,
     GeoPoint,
     HttpEnvelope,
@@ -85,7 +86,7 @@ class TorqueModule(BaseSourceModule):
 
         return await TorqueService(db).resolve_by_token(batch.device_key), False
 
-    async def parse(self, env) -> IngestBatch | None:
+    async def parse(self, env: Envelope) -> IngestBatch | None:
         if not isinstance(env, HttpEnvelope):
             return None
 

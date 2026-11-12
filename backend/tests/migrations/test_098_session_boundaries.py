@@ -36,24 +36,14 @@ so a ``create_all`` baseline would start in the post-state and every
 
 from __future__ import annotations
 
-import importlib.util
 from datetime import datetime, timedelta
-from pathlib import Path
 
 import pytest
 from sqlalchemy import DateTime, bindparam, inspect, text
 
-import app.migrations as _m
+from tests.migrations._loader import load_migration
 
 pytestmark = pytest.mark.migrations
-
-
-def _load(name: str):
-    path = Path(_m.__file__).parent / f"{name}.py"
-    spec = importlib.util.spec_from_file_location(name, path)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
 
 
 #: (table, column, nullable). The whole set 098 adds, enumerated in one place so
@@ -227,7 +217,7 @@ class TestSchema:
             f"assertions below would pass without the migration: {missing_before}"
         )
 
-        _load("098_session_boundaries").upgrade(engine)
+        load_migration("098_session_boundaries").upgrade(engine)
 
         insp = inspect(engine)
         actual = {
@@ -254,7 +244,7 @@ class TestSchema:
             _add_device(conn, "dev1", current_session_id=None)
             _add_session(conn, "dev1", 1, BASE, BASE + timedelta(minutes=20))
 
-        _load("098_session_boundaries").upgrade(engine)
+        load_migration("098_session_boundaries").upgrade(engine)
 
         with engine.connect() as conn:
             version = conn.execute(
@@ -270,7 +260,7 @@ class TestSchema:
         """The timeout query scans on `last_movement_at`; unindexed it is a table scan."""
         _dialect, engine, _url = engine_for_migration
         _make_pre_098_schema(engine)
-        _load("098_session_boundaries").upgrade(engine)
+        load_migration("098_session_boundaries").upgrade(engine)
 
         names = {i["name"] for i in inspect(engine).get_indexes("livelink_devices")}
         assert "ix_livelink_devices_last_movement_at" in names
@@ -287,7 +277,7 @@ class TestSchema:
         with engine.begin() as conn:
             _add_device(conn, "dev1", current_session_id=1)
             _add_session(conn, "dev1", 1, BASE)
-        _load("098_session_boundaries").upgrade(engine)
+        load_migration("098_session_boundaries").upgrade(engine)
 
         with pytest.raises(Exception) as excinfo:
             with engine.begin() as conn:
@@ -302,7 +292,7 @@ class TestSchema:
         _make_pre_098_schema(engine)
         with engine.begin() as conn:
             _add_device(conn, "dev1", current_session_id=None)
-        _load("098_session_boundaries").upgrade(engine)
+        load_migration("098_session_boundaries").upgrade(engine)
 
         with engine.begin() as conn:
             _add_session(conn, "dev1", 1, BASE, BASE + timedelta(minutes=10))
@@ -334,7 +324,7 @@ class TestOpenSessionPreflight:
             _add_session(conn, "dev1", 2, BASE + timedelta(minutes=3))  # newer orphan
             _add_telemetry(conn, "dev1", BASE + timedelta(minutes=1))
 
-        _load("098_session_boundaries").upgrade(engine)
+        load_migration("098_session_boundaries").upgrade(engine)
 
         assert _open_sessions(engine, "dev1") == [1], "the pointed-at session must survive"
         assert _pointer(engine, "dev1") == 1
@@ -348,7 +338,7 @@ class TestOpenSessionPreflight:
             _add_session(conn, "dev1", 1, BASE)
             _add_session(conn, "dev1", 2, BASE + timedelta(minutes=30))
 
-        _load("098_session_boundaries").upgrade(engine)
+        load_migration("098_session_boundaries").upgrade(engine)
 
         assert _open_sessions(engine, "dev1") == [2]
         assert _pointer(engine, "dev1") == 2, "the pointer is repaired to the retained row"
@@ -363,7 +353,7 @@ class TestOpenSessionPreflight:
             _add_session(conn, "dev1", 2, BASE + timedelta(minutes=10))
             _add_session(conn, "dev1", 3, BASE + timedelta(minutes=40))
 
-        _load("098_session_boundaries").upgrade(engine)
+        load_migration("098_session_boundaries").upgrade(engine)
 
         assert _open_sessions(engine, "dev1") == [3]
         assert _pointer(engine, "dev1") == 3
@@ -384,7 +374,7 @@ class TestOpenSessionPreflight:
             _add_session(conn, "dev1", 1, BASE)
             _add_telemetry(conn, "dev1", BASE + timedelta(minutes=12))
 
-        _load("098_session_boundaries").upgrade(engine)
+        load_migration("098_session_boundaries").upgrade(engine)
 
         assert _open_sessions(engine, "dev1") == [1], (
             "a lone open session is legal; only its POINTER was missing, and "
@@ -404,7 +394,7 @@ class TestOpenSessionPreflight:
             _add_telemetry(conn, "dev1", BASE + timedelta(minutes=2))
             _add_telemetry(conn, "dev1", last_sample)
 
-        _load("098_session_boundaries").upgrade(engine)
+        load_migration("098_session_boundaries").upgrade(engine)
 
         assert _as_dt(_session_row(engine, 1)["ended_at"]) == last_sample
 
@@ -426,7 +416,7 @@ class TestOpenSessionPreflight:
             _add_session(conn, "dev1", 2, retained_start)
             _add_telemetry(conn, "dev1", BASE + timedelta(minutes=45))  # well past retained start
 
-        _load("098_session_boundaries").upgrade(engine)
+        load_migration("098_session_boundaries").upgrade(engine)
 
         ended = _as_dt(_session_row(engine, 1)["ended_at"])
         assert ended is not None
@@ -441,7 +431,7 @@ class TestOpenSessionPreflight:
             _add_session(conn, "dev1", 1, BASE)
             _add_session(conn, "dev1", 2, BASE + timedelta(hours=2))
 
-        _load("098_session_boundaries").upgrade(engine)
+        load_migration("098_session_boundaries").upgrade(engine)
 
         row = _session_row(engine, 1)
         assert _as_dt(row["ended_at"]) == _as_dt(row["started_at"])
@@ -458,7 +448,7 @@ class TestOpenSessionPreflight:
             _add_session(conn, "dev2", 3, BASE)
             _add_session(conn, "dev2", 4, BASE + timedelta(minutes=1))
 
-        _load("098_session_boundaries").upgrade(engine)
+        load_migration("098_session_boundaries").upgrade(engine)
 
         assert _open_sessions(engine, "dev1") == [1]
         assert _open_sessions(engine, "dev2") == [3]
@@ -473,7 +463,7 @@ class TestOpenSessionPreflight:
         with engine.begin() as conn:
             _add_session(conn, "ghost", 1, BASE)
 
-        _load("098_session_boundaries").upgrade(engine)
+        load_migration("098_session_boundaries").upgrade(engine)
 
         assert _session_row(engine, 1)["ended_at"] is not None
 
@@ -494,7 +484,7 @@ def test_running_twice_is_safe(engine_for_migration):
         _add_session(conn, "dev1", 1, BASE)
         _add_session(conn, "dev1", 2, BASE + timedelta(minutes=2))
 
-    mod = _load("098_session_boundaries")
+    mod = load_migration("098_session_boundaries")
     mod.upgrade(engine)
     first = _open_sessions(engine, "dev1")
     mod.upgrade(engine)
@@ -514,4 +504,4 @@ def test_it_is_not_fatal(engine_for_migration):
     database that cannot take it never starts again.
     """
     _dialect, _engine, _url = engine_for_migration
-    assert getattr(_load("098_session_boundaries"), "FATAL", False) is False
+    assert getattr(load_migration("098_session_boundaries"), "FATAL", False) is False

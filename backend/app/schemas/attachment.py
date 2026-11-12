@@ -9,8 +9,8 @@ class AttachmentBase(BaseModel):
     """Base attachment schema."""
 
     file_name: str = Field(..., description="Original filename")
-    file_type: str | None = Field(None, description="MIME type or file extension")
-    file_size: int | None = Field(None, description="File size in bytes", ge=0)
+    file_type: str | None = Field(default=None, description="MIME type or file extension")
+    file_size: int | None = Field(default=None, description="File size in bytes", ge=0)
 
 
 class AttachmentCreate(AttachmentBase):
@@ -41,7 +41,7 @@ class AttachmentResponse(AttachmentBase):
 
     # No input bound, so a stored size past today's rules still reads
     # instead of 500ing (test_response_contract).
-    file_size: int | None = Field(None, description="File size in bytes")
+    file_size: int | None = Field(default=None, description="File size in bytes")
     id: int
     record_type: str
     record_id: int

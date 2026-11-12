@@ -23,7 +23,7 @@ from app.utils.logging_utils import sanitize_for_log
 logger = logging.getLogger(__name__)
 
 
-def _select_warranties() -> Select[tuple[WarrantyRecordModel]]:
+def _select_warranties() -> Select[WarrantyRecordModel]:
     """Warranty records with the line items done under them and their visits.
 
     populate_existing so a copy the session already holds sees new links.

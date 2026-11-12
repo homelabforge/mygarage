@@ -4,24 +4,13 @@ The dispatcher read `notify_livelink_*`, which no screen wrote; it now reads
 `livelink_notify_*`. An old key switched off must stay off.
 """
 
-import importlib.util
-from pathlib import Path
-
 from sqlalchemy import inspect, text
 
-_MIG = (
-    Path(__file__).resolve().parents[2]
-    / "app"
-    / "migrations"
-    / "118_livelink_notify_switch_keys.py"
-)
+from tests.migrations._loader import load_migration
 
 
 def _load():
-    spec = importlib.util.spec_from_file_location("mig118", _MIG)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+    return load_migration("118_livelink_notify_switch_keys", "mig118")
 
 
 def _settings(engine, rows: dict[str, str | None]) -> None:

@@ -35,7 +35,7 @@ class PhotoListResponse(BaseModel):
 class PhotoUpdate(BaseModel):
     """Schema for updating photo"""
 
-    caption: str | None = Field(None, max_length=200)
+    caption: str | None = Field(default=None, max_length=200)
     is_main: bool | None = None
 
     # NOT NULL column: omitted leaves it alone, null is a 422.

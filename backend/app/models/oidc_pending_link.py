@@ -3,7 +3,6 @@ from __future__ import annotations
 """OIDC pending link model for password-confirmed account linking (email or username match)."""
 
 from datetime import datetime, timedelta
-from typing import Any
 
 from sqlalchemy import JSON, DateTime, Index, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
@@ -34,10 +33,11 @@ class OIDCPendingLink(Base):
 
     token: Mapped[str] = mapped_column(String(128), primary_key=True, index=True, nullable=False)
     username: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
-    oidc_claims: Mapped[dict[str, Any]] = mapped_column(
-        JSON, nullable=False
-    )  # Full ID token claims
-    userinfo_claims: Mapped[dict[str, Any] | None] = mapped_column(
+    # JSON columns, but linking.py stores json.dumps() text in them and
+    # json.loads() it back, so what comes out is a str. Rows already in flight
+    # read the same way, so no data change.
+    oidc_claims: Mapped[str] = mapped_column(JSON, nullable=False)  # Full ID token claims
+    userinfo_claims: Mapped[str | None] = mapped_column(
         JSON, nullable=True
     )  # Optional userinfo endpoint claims
     provider_name: Mapped[str] = mapped_column(String(100), nullable=False)  # Provider display name

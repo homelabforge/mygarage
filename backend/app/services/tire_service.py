@@ -907,7 +907,11 @@ def project_wear(
         # below already guards against.
         newest = with_tread[0] if with_tread else None
         dating_reading = (
-            newest if newest is not None and newest.tread_depth_mm <= min_tread else None
+            newest
+            if newest is not None
+            and newest.tread_depth_mm is not None
+            and newest.tread_depth_mm <= min_tread
+            else None
         )
         return WearResult(
             status=WearStatus.AT_OR_BELOW_MINIMUM,

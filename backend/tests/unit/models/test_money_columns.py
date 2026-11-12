@@ -50,6 +50,13 @@ def _stored_type(column: Column[Any]) -> TypeEngine[Any]:
     return kind.impl_instance if isinstance(kind, TypeDecorator) else kind
 
 
+def _numeric_type(column: Column[Any]) -> Numeric[Any] | Float[Any]:
+    """`_stored_type` for a column `_numeric_columns` found, narrowed to say so."""
+    kind = _stored_type(column)
+    assert isinstance(kind, (Numeric, Float)), column
+    return kind
+
+
 def _numeric_columns() -> dict[str, Column[Any]]:
     """table.column -> column, for every Numeric (and Float) column."""
     return {
@@ -79,7 +86,7 @@ def test_every_numeric_column_is_money_exactly_when_registered():
 def _money_shaped(column: Column[Any]) -> bool:
     """Money's decimal places, and no unit word in the name."""
     words = set(column.name.lower().split("_"))
-    return _stored_type(column).scale in MONEY_SCALES and not words & UNIT_WORDS
+    return _numeric_type(column).scale in MONEY_SCALES and not words & UNIT_WORDS
 
 
 def test_every_money_shaped_column_is_registered_or_excused():
@@ -109,7 +116,7 @@ def test_every_money_column_has_its_policy_type():
     missing = sorted(MONEY_COLUMNS.keys() - columns.keys())
     assert missing == [], "registered but not a Numeric column in the models"
     stored = {
-        qualified: _stored_type(column)
+        qualified: _numeric_type(column)
         for qualified, column in columns.items()
         if qualified in MONEY_COLUMNS
     }

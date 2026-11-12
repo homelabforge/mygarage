@@ -47,13 +47,13 @@ class ReminderCreate(BaseModel):
     title: str = Field(..., min_length=1, max_length=200)
     reminder_type: ReminderType | None = None
     due_date: date | None = None
-    due_mileage_km: Decimal | None = Field(None, gt=0, le=99999999.99)
+    due_mileage_km: Decimal | None = Field(default=None, gt=0, le=99999999.99)
     due_hours: Annotated[Decimal | None, AfterValidator(to_stored_positive_tenth)] = Field(
-        None, gt=0, le=999999999.9
+        default=None, gt=0, le=999999999.9
     )
     notes: str | None = None
     line_item_id: int | None = None
-    maintenance_type: str | None = Field(None, max_length=50)
+    maintenance_type: str | None = Field(default=None, max_length=50)
     recurrence: RecurrenceSpec | None = None
     anchor: AnchorSpec | None = None
 
@@ -103,15 +103,15 @@ class ReminderUpdate(BaseModel):
     rejected with 422 if sent.
     """
 
-    title: str | None = Field(None, min_length=1, max_length=200)
+    title: str | None = Field(default=None, min_length=1, max_length=200)
     reminder_type: ReminderType | None = None
     due_date: date | None = None
-    due_mileage_km: Decimal | None = Field(None, gt=0, le=99999999.99)
+    due_mileage_km: Decimal | None = Field(default=None, gt=0, le=99999999.99)
     due_hours: Annotated[Decimal | None, AfterValidator(to_stored_positive_tenth)] = Field(
-        None, gt=0, le=999999999.9
+        default=None, gt=0, le=999999999.9
     )
     notes: str | None = None
-    maintenance_type: str | None = Field(None, max_length=50)
+    maintenance_type: str | None = Field(default=None, max_length=50)
     recurrence: RecurrenceSpec | None = None
 
     # NOT NULL columns: omitted keeps the stored value, null is a 422.
