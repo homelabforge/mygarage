@@ -10,8 +10,8 @@
  * would CERTIFY it. So this file resolves against the real bundles on disk and
  * asserts what a reader actually sees.
  *
- * ★ THE BUNDLE LIST IS ENUMERATED FROM DISK, NEVER TYPED. There are seven
- * bundles (`src/locales/en` plus six under `public/locales`), and this task's
+ * ★ THE BUNDLE LIST IS ENUMERATED FROM DISK, NEVER TYPED. There are nine
+ * bundles (`src/locales/en` plus eight under `public/locales`), and this task's
  * own brief was handed six by a controller who had missed Polish, while
  * `CLAUDE.md` makes the same off-by-one with a different language. A hand-typed
  * list is a floor; a directory listing is not. The count is asserted, so a walk
@@ -244,16 +244,18 @@ describe('the fixed copy, across every locale bundle on disk', () => {
     // evidence about translated bundles.
     //
     // `de` and `fr` carry keys again because fix round 1 restored the ones whose
-    // meaning never changed; `pl`, `pt-BR`, `ru` and `uk` never translated any
-    // of these and carry none, which is stated here rather than hidden behind a
-    // total. `it` and `ms` were translated later and carry them too. If a
-    // restoration is ever removed, this list shrinks and the test fails before
-    // the emptiness below can go vacuous.
-    expect([...readsByBundle.keys()].sort()).toStrictEqual(['de', 'en', 'fr', 'it', 'ms'])
+    // meaning never changed; `it` and `ms` were translated later and carry them
+    // too; `ru` joined when its bundle reached full translation and names no
+    // unit in these keys either. `pl`, `pt-BR` and `uk` still carry none, which
+    // is stated here rather than hidden behind a total. If a restoration is ever
+    // removed, this list shrinks and the test fails before the emptiness below
+    // can go vacuous.
+    expect([...readsByBundle.keys()].sort()).toStrictEqual(['de', 'en', 'fr', 'it', 'ms', 'ru'])
     expect(readsByBundle.get('de')).toBeGreaterThan(0)
     expect(readsByBundle.get('fr')).toBeGreaterThan(0)
     expect(readsByBundle.get('it')).toBeGreaterThan(0)
     expect(readsByBundle.get('ms')).toBeGreaterThan(0)
+    expect(readsByBundle.get('ru')).toBeGreaterThan(0)
 
     expect(offenders).toStrictEqual([])
   })

@@ -123,6 +123,7 @@ export default function SettingsSystemTab() {
     'Europe/Berlin',
     'Europe/Rome',
     'Europe/Madrid',
+    'Europe/Moscow',
     'Asia/Tokyo',
     'Asia/Shanghai',
     'Asia/Dubai',
