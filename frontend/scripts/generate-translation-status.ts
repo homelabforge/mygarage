@@ -21,6 +21,7 @@ import {
   discoverNamespaces,
   flattenKeys,
   getNestedValue,
+  isTranslationInvariant,
   loadEnglishData,
   loadJson,
 } from './translation-utils'
@@ -67,7 +68,7 @@ const stats: LanguageStats[] = languages.map(lang => {
         const langVal = getNestedValue(langData, key)
         if (langVal === '' || langVal === null) {
           empty++
-        } else if (langVal !== enVal) {
+        } else if (langVal !== enVal || isTranslationInvariant(enVal)) {
           translated++
         }
       }

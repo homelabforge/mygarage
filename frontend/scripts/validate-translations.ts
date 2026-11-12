@@ -20,6 +20,7 @@ import {
   discoverNamespaces,
   flattenKeys,
   getNestedValue,
+  isTranslationInvariant,
   loadEnglishData,
   loadJson,
 } from './translation-utils'
@@ -113,7 +114,8 @@ for (const lang of languages) {
   const extra = langIssues.filter(i => i.type === 'extra')
   const interpolation = langIssues.filter(i => i.type === 'interpolation')
 
-  // Count actually translated keys (not same as English, not missing, not empty)
+  // Count translated keys: values that differ from English, plus values that
+  // are correctly identical because they contain nothing translatable.
   let actuallyTranslated = 0
   for (const ns of namespaces) {
     const enKeys = keysByNamespace.get(ns)!
@@ -124,7 +126,9 @@ for (const lang of languages) {
     for (const key of enKeys) {
       const enVal = enValues.get(key)
       const langVal = getNestedValue(langData, key)
-      if (langVal && langVal !== '' && langVal !== enVal) actuallyTranslated++
+      if (langVal && langVal !== '' && (langVal !== enVal || isTranslationInvariant(enVal))) {
+        actuallyTranslated++
+      }
     }
   }
 

@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The sign-in key file follows `MYGARAGE_DATA_DIR`; a key already at /data/secret.key is copied over, so nobody is signed out
 - Window sticker and document uploads follow `MYGARAGE_MAX_DOCUMENT_SIZE_MB` (25 MB by default) instead of a fixed 10 MB and 25 MB
 - Backend type checking: three pyright rules that were off are now errors, and the tests are checked in a standard-plus mode
+- Translation coverage now counts strings that are correctly identical in every language (brand and protocol names, abbreviations like `VIN`, and values made only of `{{placeholders}}`) as translated, so a complete locale reads 100% instead of 99%.
 
 ### Fixed
 - Equipment (Standard/Optional) shows on every vehicle but plain trailers, on phones too, not only after a window sticker.

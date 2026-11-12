@@ -158,10 +158,11 @@ The file is listed in `frontend/scripts/units.manifest.json`, so the Unit Manife
 
 ## Supported Languages
 
-See [TRANSLATIONS.md](TRANSLATIONS.md) for live per-language coverage. No language
-ever reads 100%, even when complete: shared terms like `VIN`, `MyGarage` and
-`Diesel` are correctly identical to English (see
-[Things NOT to Translate](#things-not-to-translate)) and count as untranslated.
+See [TRANSLATIONS.md](TRANSLATIONS.md) for live per-language coverage. A complete
+locale can read 100%: values that consist only of `{{placeholders}}`, numbers and
+terms from [Things NOT to Translate](#things-not-to-translate) are counted as
+translated when they match English. The allowlist lives in
+`frontend/scripts/translation-utils.ts` (`UNTRANSLATABLE_TOKENS`).
 
 | Code | Language |
 |------|----------|

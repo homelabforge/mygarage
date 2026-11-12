@@ -76,6 +76,34 @@ export function loadJson(path: string): Record<string, unknown> {
   return JSON.parse(readFileSync(path, 'utf-8'))
 }
 
+/**
+ * Tokens that are correctly identical in every language: product and protocol
+ * names, abbreviations, document field codes and unit abbreviations. See
+ * "Things NOT to Translate" in TRANSLATING.md.
+ */
+export const UNTRANSLATABLE_TOKENS = new Set([
+  // Abbreviations and document field codes.
+  'ABRP', 'API', 'CO', 'CSV', 'CV', 'DEF', 'DOT', 'DTC', 'E', 'ECU', 'HIN',
+  'ID', 'INV', 'JSON', 'NHTSA', 'OBD', 'OBD2', 'OIDC', 'PDF', 'PKCE', 'PO', 'V',
+  'VIN', 'WO',
+  // Product, protocol and brand names.
+  'AutoRef', 'CarComplaints', 'Drivvo', 'Euro', 'Fuelio', 'LiveLink', 'Matrix',
+  'Mirage', 'Mitsubishi', 'MyGarage', 'OpenAI', 'OpenRouter', 'RappelConso',
+  'Tesla',
+])
+
+/**
+ * Whether an English value contains nothing that should be translated: only
+ * {{placeholders}}, numbers, punctuation and allowlisted tokens. Such a value
+ * is already correct when a locale copies it verbatim, so it counts towards
+ * coverage instead of being reported as untranslated.
+ */
+export function isTranslationInvariant(value: unknown): boolean {
+  if (typeof value !== 'string' || value.trim() === '') return false
+  const tokens = value.replace(/\{\{\s*\w+\s*\}\}/g, ' ').match(/[A-Za-z][A-Za-z0-9]*/g) ?? []
+  return tokens.every(token => UNTRANSLATABLE_TOKENS.has(token))
+}
+
 /** Discover namespace names from English canonical files. */
 export function discoverNamespaces(): string[] {
   return readdirSync(EN_DIR)
