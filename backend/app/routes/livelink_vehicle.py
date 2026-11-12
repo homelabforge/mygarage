@@ -254,7 +254,7 @@ async def get_vehicle_livelink_status(
         # Follows `online`, so the two can't disagree on a multi-device vehicle.
         device_status="online" if online else "offline",
         online=online,
-        ecu_status=device.ecu_status if device else "unknown",
+        ecu_status=device.ecu_status if device else "unknown",  # pyright: ignore[reportArgumentType]  # lenient vocab reads the stored str
         # The vehicle's last contact, from whichever enabled device that was.
         last_seen=_enabled_first(devices)[0].last_seen if devices else None,
         battery_voltage=device.battery_voltage if device else None,
@@ -635,7 +635,7 @@ async def update_dtc(
         raise HTTPException(status_code=404, detail=f"DTC {dtc_id} not found for this vehicle")
 
     # Update
-    updated = await dtc_service.update_dtc(dtc_id, updates.model_dump(exclude_unset=True))
+    updated = await dtc_service.update_dtc(dtc, updates.model_dump(exclude_unset=True))
 
     enriched = await dtc_service.enrich_dtc_response(updated)
     return VehicleDTCResponse(**enriched)
@@ -668,16 +668,16 @@ async def clear_dtc(
         raise HTTPException(status_code=404, detail=f"DTC {dtc_id} not found for this vehicle")
 
     dtc_service = DTCService(db)
-    cleared = await dtc_service.clear_dtc(dtc_id, notes=request.notes)
+    cleared_at = await dtc_service.clear_dtc(dtc_id, notes=request.notes)
 
-    if not cleared:
+    if cleared_at is None:
         raise HTTPException(status_code=404, detail=f"DTC {dtc_id} not found")
 
     return DTCClearResponse(
         success=True,
         dtc_id=dtc_id,
-        code=cleared.code,
-        cleared_at=cleared.cleared_at,
+        code=dtc.code,
+        cleared_at=cleared_at,
     )
 
 
@@ -1078,7 +1078,7 @@ async def list_torque_sources(
             TorqueSourceResponse(
                 device_id=d.device_id,
                 label=d.label,
-                device_status=d.device_status,
+                device_status=d.device_status,  # pyright: ignore[reportArgumentType]  # lenient vocab reads the stored str
                 last_seen=d.last_seen,
                 created_at=d.created_at,
             )

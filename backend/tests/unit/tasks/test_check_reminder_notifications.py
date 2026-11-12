@@ -15,6 +15,7 @@ from collections.abc import AsyncGenerator, Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from decimal import Decimal
+from typing import Any
 
 import pytest
 import pytest_asyncio
@@ -656,7 +657,7 @@ class TestTheStamp:
         )
         real_execute = db_session.execute
 
-        async def _execute(statement: object, *args: object, **kwargs: object) -> Result[object]:
+        async def _execute(statement: Any, *args: Any, **kwargs: Any) -> Result[Any]:
             # The stamp, by its table and its `Reminder.id ==` bind. Any bound
             # value equal to the id (a due_hours of 7 for reminder 7) is not it.
             if (
@@ -665,7 +666,7 @@ class TestTheStamp:
                 and statement.compile().params.get("id_1") == failing
             ):
                 await real_execute(text("SELECT no_such_column FROM vehicle_reminders"))
-            return await real_execute(statement, *args, **kwargs)  # type: ignore[arg-type]
+            return await real_execute(statement, *args, **kwargs)
 
         monkeypatch.setattr(db_session, "execute", _execute)
 

@@ -72,14 +72,14 @@ def make_keyring_unavailable(
         blocker = tmp_path / "blocker"
         blocker.write_text("")
         settings.data_dir = blocker / "data"
-        settings_crypto._reset_keyring_for_tests()  # pyright: ignore[reportPrivateUsage]
+        settings_crypto._reset_keyring_for_tests()
         assert settings_crypto.current_kid() is None
 
     yield block
     # The environment comes back with monkeypatch's own teardown; the keyring
     # loads lazily, so the next use reads the restored key.
     settings.data_dir = original
-    settings_crypto._reset_keyring_for_tests()  # pyright: ignore[reportPrivateUsage]
+    settings_crypto._reset_keyring_for_tests()
 
 
 # ---------------------------------------------------------------- writers
@@ -251,7 +251,7 @@ async def test_a_key_pasted_into_the_file_variable_is_never_echoed(
     try:
         monkeypatch.delenv(settings_crypto.ENV_KEY, raising=False)
         monkeypatch.setenv(settings_crypto.ENV_KEY_FILE, pasted)
-        settings_crypto._reset_keyring_for_tests()  # pyright: ignore[reportPrivateUsage]
+        settings_crypto._reset_keyring_for_tests()
 
         with caplog.at_level(logging.DEBUG):
             response = await _put(client, auth_headers, key, PLAIN)
@@ -260,7 +260,7 @@ async def test_a_key_pasted_into_the_file_variable_is_never_echoed(
             kid = settings_crypto.current_kid()
     finally:
         settings.data_dir = original_data_dir
-        settings_crypto._reset_keyring_for_tests()  # pyright: ignore[reportPrivateUsage]
+        settings_crypto._reset_keyring_for_tests()
 
     assert response.status_code == 503, response.text
     exposed = {

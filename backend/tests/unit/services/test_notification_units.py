@@ -72,9 +72,16 @@ def dispatcher() -> NotificationDispatcher:
     return d
 
 
+def _dispatch_mock(dispatcher: NotificationDispatcher) -> AsyncMock:
+    """The fixture's mocked `dispatch`, typed as the mock it is."""
+    dispatch = dispatcher.dispatch
+    assert isinstance(dispatch, AsyncMock)
+    return dispatch
+
+
 def _message(dispatcher: NotificationDispatcher) -> str:
     """The `message` kwarg of the single dispatch this test triggered."""
-    return dispatcher.dispatch.call_args.kwargs["message"]
+    return _dispatch_mock(dispatcher).call_args.kwargs["message"]
 
 
 @pytest.mark.unit
@@ -135,7 +142,7 @@ class TestOdometerMilestoneUnits:
             vehicle_name="Metric Truck", canonical_km=Decimal("100000"), ctx=ctx
         )
 
-        kwargs = dispatcher.dispatch.call_args.kwargs
+        kwargs = _dispatch_mock(dispatcher).call_args.kwargs
         assert kwargs["event_type"] == "odometer_milestone"
         assert kwargs["title"] == "Milestone Reached: Metric Truck"
 

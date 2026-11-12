@@ -460,7 +460,7 @@ async def test_ntfy_needs_a_topic_of_its_own(
             AsyncMock(return_value=""),
         ),
     ):
-        services = await d._get_enabled_services()  # pyright: ignore[reportPrivateUsage]
+        services = await d._get_enabled_services()
 
     assert [s.service_name for s in services] == (["ntfy"] if sends else [])
     # A blank topic is said out loud, not skipped in silence (Fable F-6).
@@ -484,4 +484,4 @@ async def test_a_blank_event_switch_reads_its_seeded_value(event: str, on: bool)
             AsyncMock(return_value=blank),
         ),
     ):
-        assert await d._is_event_enabled(event) is on  # pyright: ignore[reportPrivateUsage]
+        assert await d._is_event_enabled(event) is on

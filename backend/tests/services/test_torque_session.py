@@ -86,13 +86,14 @@ async def test_replay_of_same_session_id_reuses_the_session(db_session: AsyncSes
     duplicate is created (R1-H2 find-or-create).
     """
     device = await _make_torque_device(db_session)
+    assert device.vin is not None
     t = datetime(2026, 1, 1, 10, 0, 0)
     service = SessionService(db_session)
 
     first = await service.resolve_torque_session(device, "S1", t)
     second = await service.resolve_torque_session(device, "S1", t + timedelta(seconds=5))
 
-    assert second is not None
+    assert first is not None and second is not None
     assert second.id == first.id
     assert await service.get_session_count(device.vin) == 1
 
@@ -129,6 +130,7 @@ async def test_replay_of_older_session_id_does_not_move_pointer_or_end_active(
     session (R1-H2 + R2-H1).
     """
     device = await _make_torque_device(db_session)
+    assert device.vin is not None
     t1 = datetime(2026, 1, 1, 10, 0, 0)
     t2 = datetime(2026, 1, 1, 10, 30, 0)
     service = SessionService(db_session)
@@ -157,6 +159,7 @@ async def test_none_session_id_returns_open_session_or_none_never_creates(
     session if any, else None. It must never create a session.
     """
     device = await _make_torque_device(db_session)
+    assert device.vin is not None
     service = SessionService(db_session)
 
     # No open session yet -> None, and no session created.
@@ -184,6 +187,7 @@ async def test_older_first_seen_session_does_not_finalize_active_trip(
     device's current-session pointer are left untouched (R3-H1).
     """
     device = await _make_torque_device(db_session)
+    assert device.vin is not None
     t0 = datetime(2026, 1, 1, 9, 0, 0)  # older straggler, arrives late
     t2 = datetime(2026, 1, 1, 10, 0, 0)  # active/newest
 
@@ -220,6 +224,7 @@ async def test_end_session_derives_distance_from_gps_when_no_odometer(
     ~2 km gets distance_km populated from the GPS breadcrumb (within 5% of 2.0).
     """
     device = await _make_torque_device(db_session)
+    assert device.vin is not None
     t0 = datetime(2026, 1, 1, 10, 0, 0)
     service = SessionService(db_session)
     location_service = LocationService(db_session)
@@ -270,6 +275,7 @@ async def test_end_session_odometer_distance_is_not_overridden_by_gps(
     before it opened.
     """
     device = await _make_torque_device(db_session)
+    assert device.vin is not None
     # The WiCAN path, so a WiCAN: only a WiCAN reads an undeclared `ODOMETER`
     # as its odometer (FW-A-r3).
     device.kind = "wican"
@@ -339,6 +345,7 @@ async def test_end_session_distance_stays_none_with_fewer_than_two_points(
     distance_km as None (no consecutive pair to measure).
     """
     device = await _make_torque_device(db_session)
+    assert device.vin is not None
     t0 = datetime(2026, 1, 1, 10, 0, 0)
     service = SessionService(db_session)
     location_service = LocationService(db_session)
@@ -367,6 +374,7 @@ async def test_torque_resolve_never_uses_colocated_wican_odometer(
     NOT the (possibly stale/foreign) WiCAN odometer reading.
     """
     device = await _make_torque_device(db_session)
+    assert device.vin is not None
     t0 = datetime(2026, 1, 1, 10, 0, 0)
 
     # Simulate a co-located WiCAN device's odometer telemetry for the same VIN.

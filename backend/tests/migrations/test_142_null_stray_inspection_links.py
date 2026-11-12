@@ -18,6 +18,7 @@ import app.migrations as _m
 from app.models.service_line_item import ServiceLineItem
 from app.models.service_visit import ServiceVisit
 from app.models.vehicle import Vehicle
+from tests.migrations._loader import load_migration
 
 pytestmark = pytest.mark.migrations
 
@@ -27,11 +28,7 @@ _VIN = "B10MIG14200000001"
 
 def _load():
     """Load the migration module by file, as the runner does."""
-    path = Path(_m.__file__).parent / f"{_NAME}.py"
-    spec = importlib.util.spec_from_file_location(_NAME, path)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
+    return load_migration(_NAME)
 
 
 def _metadata() -> MetaData:

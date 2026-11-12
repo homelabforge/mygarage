@@ -89,7 +89,7 @@ async def test_the_mqtt_subscriber_reads_a_stored_one_as_enabled(
     await seed_rows(db_session, keep_rows, MQTT)
 
     with patch("app.services.mqtt_subscriber.AsyncSessionLocal", test_sessionmaker):
-        config = await MQTTSubscriber()._get_config()  # pyright: ignore[reportPrivateUsage]
+        config = await MQTTSubscriber()._get_config()
 
     assert config is not None
     assert config["host"] == "mqtt.example.com"
@@ -107,7 +107,7 @@ async def test_the_mqtt_subscriber_reads_a_stored_one_as_tls(
     )
 
     with patch("app.services.mqtt_subscriber.AsyncSessionLocal", test_sessionmaker):
-        config = await MQTTSubscriber()._get_config()  # pyright: ignore[reportPrivateUsage]
+        config = await MQTTSubscriber()._get_config()
 
     assert config is not None
     assert config["use_tls"] is True
@@ -156,7 +156,7 @@ async def test_the_poi_registry_reads_a_stored_one_as_enabled(
 ) -> None:
     await seed_rows(db_session, keep_rows, _provider_rows(name))
 
-    configs = await POIProviderRegistry(db_session)._load_provider_configs()  # pyright: ignore[reportPrivateUsage]
+    configs = await POIProviderRegistry(db_session)._load_provider_configs()
 
     assert name in [c["name"] for c in configs]
 

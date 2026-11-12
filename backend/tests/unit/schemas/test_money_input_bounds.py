@@ -259,6 +259,7 @@ def _request_roots(routes: Sequence[BaseRoute] = app.routes) -> tuple[list[Any],
         for param in _dependant_params(route.dependant):
             roots.append(param.field_info.annotation)
             if _is_money(param.name, param.field_info):
+                assert route.methods is not None
                 bare.append(f"{sorted(route.methods)[0]} {ctx.path} {param.name}")
     return roots, bare
 

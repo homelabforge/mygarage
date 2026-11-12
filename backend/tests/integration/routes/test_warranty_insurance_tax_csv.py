@@ -27,7 +27,7 @@ from decimal import Decimal
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import select
+from sqlalchemy import Table, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.insurance import InsurancePolicy, InsurancePolicyVehicle
@@ -146,7 +146,9 @@ class TestWarrantyCsv:
         )
         assert exported.status_code == 200
 
-        await db_session.execute(WarrantyRecord.__table__.delete().where(WarrantyRecord.vin == vin))
+        table = WarrantyRecord.__table__
+        assert isinstance(table, Table)
+        await db_session.execute(table.delete().where(WarrantyRecord.vin == vin))
         await db_session.commit()
 
         r = await client.post(
@@ -238,7 +240,9 @@ class TestTaxCsv:
 
         exported = await client.get(f"/api/export/vehicles/{vin}/tax/csv", headers=auth_headers)
         assert exported.status_code == 200
-        await db_session.execute(TaxRecord.__table__.delete().where(TaxRecord.vin == vin))
+        table = TaxRecord.__table__
+        assert isinstance(table, Table)
+        await db_session.execute(table.delete().where(TaxRecord.vin == vin))
         await db_session.commit()
 
         r = await client.post(
@@ -301,9 +305,9 @@ class TestTaxCsv:
             "code tax csv": "co2_malus",
             "unknown tax csv": "other",
         }
-        await db_session.execute(
-            TaxRecord.__table__.delete().where(TaxRecord.notes.like("% tax csv"))
-        )
+        table = TaxRecord.__table__
+        assert isinstance(table, Table)
+        await db_session.execute(table.delete().where(TaxRecord.notes.like("% tax csv")))
         await db_session.commit()
 
 

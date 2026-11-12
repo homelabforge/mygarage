@@ -184,7 +184,12 @@ def _header_lists() -> dict[str, list[str]]:
                 and isinstance(stmt.value, ast.List)
                 and all(isinstance(e, ast.Constant) for e in stmt.value.elts)
             ):
-                found[node.name] = [e.value for e in stmt.value.elts]
+                headers: list[str] = []
+                for e in stmt.value.elts:
+                    # Headers are strings; a number in there is a bug worth failing on.
+                    assert isinstance(e, ast.Constant) and isinstance(e.value, str), ast.dump(e)
+                    headers.append(e.value)
+                found[node.name] = headers
     return found
 
 

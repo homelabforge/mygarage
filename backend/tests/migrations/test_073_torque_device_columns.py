@@ -5,20 +5,9 @@ Parameterized over SQLite *and* PostgreSQL via the ``engine_for_migration``
 fixture (PG runs skip when ``TEST_DATABASE_URL`` is unset).
 """
 
-import importlib.util
-from pathlib import Path
-
 from sqlalchemy import inspect, text
 
-import app.migrations as _m
-
-
-def _load(name):
-    path = Path(_m.__file__).parent / f"{name}.py"
-    spec = importlib.util.spec_from_file_location(name, path)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
+from tests.migrations._loader import load_migration
 
 
 def _make_tables(engine):
@@ -41,7 +30,7 @@ def test_073_adds_columns(engine_for_migration):
     _make_tables(engine)
     with engine.begin() as conn:
         conn.execute(text("INSERT INTO livelink_devices (device_id) VALUES ('abc123')"))
-    _load("073_torque_device_columns").upgrade(engine)
+    load_migration("073_torque_device_columns").upgrade(engine)
     insp = inspect(engine)
     dev_cols = {c["name"] for c in insp.get_columns("livelink_devices")}
     assert {"kind", "torque_device_id"} <= dev_cols
@@ -58,7 +47,7 @@ def test_073_adds_columns(engine_for_migration):
 def test_073_idempotent(engine_for_migration):
     _dialect, engine, _url = engine_for_migration
     _make_tables(engine)
-    mod = _load("073_torque_device_columns")
+    mod = load_migration("073_torque_device_columns")
     mod.upgrade(engine)
     mod.upgrade(engine)
     cols = [c["name"] for c in inspect(engine).get_columns("livelink_devices")]
@@ -67,4 +56,4 @@ def test_073_idempotent(engine_for_migration):
 
 def test_073_missing_table_skips(engine_for_migration):
     _dialect, engine, _url = engine_for_migration
-    _load("073_torque_device_columns").upgrade(engine)  # no tables → must not raise
+    load_migration("073_torque_device_columns").upgrade(engine)  # no tables → must not raise

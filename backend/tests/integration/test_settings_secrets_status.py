@@ -15,7 +15,7 @@ from app.models.settings import Setting
 from app.utils.settings_crypto import (
     CIPHERTEXT_PREFIX,
     ENV_KEY,
-    _reset_keyring_for_tests,  # pyright: ignore[reportPrivateUsage] - the suite's reset hook
+    _reset_keyring_for_tests,  # the suite's reset hook
     encrypt,
 )
 from tests.integration._secret_helpers import Keep, only_these_secret_rows, unreadable_ciphertext

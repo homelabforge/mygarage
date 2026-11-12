@@ -371,6 +371,7 @@ class TestBackfillTriggerAdmin:
         device = LiveLinkDevice(device_id="sdtest000009", vin=vin)
         db_session.add(device)
         row = await db_session.get(Setting, "livelink_enabled")
+        assert row is not None
         row.value = "false"  # the module's fixture put it on, and puts it back
         await db_session.commit()
 

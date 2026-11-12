@@ -175,23 +175,27 @@ class WindowStickerDataUpdate(BaseModel):
     msrp_options: OptionalMoney = None
     msrp_total: OptionalMoney = None
     destination_charge: OptionalMoney = None
-    fuel_economy_city_l_per_100km: Decimal | None = Field(None, ge=0, le=_FUEL_ECONOMY_MAX)
-    fuel_economy_highway_l_per_100km: Decimal | None = Field(None, ge=0, le=_FUEL_ECONOMY_MAX)
-    fuel_economy_combined_l_per_100km: Decimal | None = Field(None, ge=0, le=_FUEL_ECONOMY_MAX)
+    fuel_economy_city_l_per_100km: Decimal | None = Field(default=None, ge=0, le=_FUEL_ECONOMY_MAX)
+    fuel_economy_highway_l_per_100km: Decimal | None = Field(
+        default=None, ge=0, le=_FUEL_ECONOMY_MAX
+    )
+    fuel_economy_combined_l_per_100km: Decimal | None = Field(
+        default=None, ge=0, le=_FUEL_ECONOMY_MAX
+    )
     standard_equipment: dict[str, Any] | None = None
     optional_equipment: dict[str, Any] | None = None
-    assembly_location: str | None = Field(None, max_length=100)
-    exterior_color: str | None = Field(None, max_length=100)
-    interior_color: str | None = Field(None, max_length=100)
-    sticker_engine_description: str | None = Field(None, max_length=150)
-    sticker_transmission_description: str | None = Field(None, max_length=150)
-    sticker_drivetrain: str | None = Field(None, max_length=50)
-    wheel_specs: str | None = Field(None, max_length=100)
-    tire_specs: str | None = Field(None, max_length=100)
-    warranty_powertrain: str | None = Field(None, max_length=100)
-    warranty_basic: str | None = Field(None, max_length=100)
-    environmental_rating_ghg: str | None = Field(None, max_length=10)
-    environmental_rating_smog: str | None = Field(None, max_length=10)
+    assembly_location: str | None = Field(default=None, max_length=100)
+    exterior_color: str | None = Field(default=None, max_length=100)
+    interior_color: str | None = Field(default=None, max_length=100)
+    sticker_engine_description: str | None = Field(default=None, max_length=150)
+    sticker_transmission_description: str | None = Field(default=None, max_length=150)
+    sticker_drivetrain: str | None = Field(default=None, max_length=50)
+    wheel_specs: str | None = Field(default=None, max_length=100)
+    tire_specs: str | None = Field(default=None, max_length=100)
+    warranty_powertrain: str | None = Field(default=None, max_length=100)
+    warranty_basic: str | None = Field(default=None, max_length=100)
+    environmental_rating_ghg: str | None = Field(default=None, max_length=10)
+    environmental_rating_smog: str | None = Field(default=None, max_length=10)
 
 
 class WindowStickerResponse(BaseModel):
@@ -266,8 +270,12 @@ class OCRStatusResponse(BaseModel):
 ALLOWED_STICKER_MIMES = {"application/pdf", "image/jpeg", "image/png"}
 
 
-def validate_sticker_file(file: UploadFile) -> None:
-    """Validate uploaded window sticker file (extension, MIME, and magic bytes)."""
+def validate_sticker_file(file: UploadFile) -> str:
+    """Validate uploaded window sticker file (extension, MIME, and magic bytes).
+
+    Returns:
+        The file's extension, lowercased.
+    """
     if not file.filename:
         raise HTTPException(status_code=400, detail="No file selected")
 
@@ -296,6 +304,7 @@ def validate_sticker_file(file: UploadFile) -> None:
     file.file.seek(0)
     if not verify_file_content_type(header, file.content_type):
         raise HTTPException(status_code=400, detail="File content does not match its declared type")
+    return ext
 
 
 @router.get("/{vin}/window-sticker", response_model=WindowStickerResponse)
@@ -341,7 +350,7 @@ async def upload_window_sticker(
     ocr_skipped = not await _ocr_on(db)
 
     # Validate file
-    validate_sticker_file(file)
+    file_ext = validate_sticker_file(file)
 
     # Check file size
     file.file.seek(0, 2)  # Seek to end
@@ -355,7 +364,6 @@ async def upload_window_sticker(
         )
 
     # Generate unique filename
-    file_ext = Path(file.filename).suffix.lower()
     unique_filename = f"window_sticker_{uuid.uuid4()}{file_ext}"
 
     # Validate the key before using it in a path (prevent path traversal). A
@@ -470,7 +478,7 @@ async def test_window_sticker_extraction(
         raise HTTPException(status_code=409, detail=OCR_SWITCHED_OFF)
 
     # Validate file
-    validate_sticker_file(file)
+    file_ext = validate_sticker_file(file)
 
     # Check file size
     file.file.seek(0, 2)
@@ -484,7 +492,6 @@ async def test_window_sticker_extraction(
         )
 
     # Save to temp file
-    file_ext = Path(file.filename).suffix.lower()
     temp_filename = f"temp_test_{uuid.uuid4()}{file_ext}"
     temp_dir = STICKER_STORAGE_PATH / "temp"
     temp_dir.mkdir(parents=True, exist_ok=True)

@@ -60,6 +60,7 @@ class TestNextThresholds:
         assert got is not None
         assert got.due_date == date(2026, 12, 13)
         assert got.due_mileage_km == Decimal("155134.32")
+        assert got.due_mileage_km is not None
         # 96,396 mi, to the mile (each leg is rounded to 0.01 km on its own).
         assert (got.due_mileage_km / MILE).quantize(Decimal("1")) == Decimal("96396")
         assert got.due_hours is None

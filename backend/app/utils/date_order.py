@@ -7,7 +7,10 @@ whose own convention is day-first.
 """
 
 from datetime import date, datetime
-from typing import Literal, Protocol
+from typing import TYPE_CHECKING, Literal, Protocol
+
+if TYPE_CHECKING:
+    from app.models.user import User
 
 DateOrder = Literal["mdy", "dmy"]
 DateStyle = Literal["numeric", "short", "long"]
@@ -22,14 +25,20 @@ _FORMATS: dict[DateStyle, dict[DateOrder, str]] = {
 }
 
 
-class DateOrderSource(Protocol):
-    """The two account fields the order comes from; the ORM `User` fits."""
+class DateOrderShape(Protocol):
+    """The two account fields the order comes from."""
 
     @property
     def date_format(self) -> str: ...
 
     @property
     def language(self) -> str: ...
+
+
+# Pyright never applies a descriptor's __get__ when it matches a protocol, so an
+# ORM model fails a protocol on its Mapped columns. The model goes in the union
+# by name; it's a typing-only import, and the alias is only ever read by pyright.
+type DateOrderSource = User | DateOrderShape
 
 
 def resolve_date_order(requested: str | None, user: DateOrderSource | None) -> DateOrder:

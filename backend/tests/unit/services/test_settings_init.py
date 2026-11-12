@@ -35,14 +35,14 @@ class TestDefLowSettingsSeeds:
     def test_notify_def_low_default(self):
         """notify_def_low toggle defaults to enabled, matching sibling event toggles."""
         setting = DEFAULT_SETTINGS["notify_def_low"]
-        assert setting["value"] == "true"
+        assert setting.get("value") == "true"
         assert setting["category"] == "notifications"
         assert setting["encrypted"] is False
 
     def test_notify_def_low_threshold_percent_default(self):
         """Threshold defaults to 25% (see comment in settings_init.py for rationale)."""
         setting = DEFAULT_SETTINGS["notify_def_low_threshold_percent"]
-        assert setting["value"] == "25"
+        assert setting.get("value") == "25"
         assert setting["category"] == "notifications"
         assert setting["encrypted"] is False
 
@@ -210,4 +210,19 @@ class TestRetiredSeeds:
 def test_a_new_install_has_no_shared_ntfy_topic() -> None:
     """Anyone who knows a topic can read it on public ntfy.sh, so a new
     install starts blank rather than on a name every install shares."""
-    assert DEFAULT_SETTINGS["ntfy_topic"]["value"] == ""
+    assert DEFAULT_SETTINGS["ntfy_topic"].get("value") == ""
+
+
+@pytest.mark.asyncio
+async def test_a_seed_with_no_value_names_its_key(
+    fresh_db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Only default_unit_prefs may leave out `value`; any other seed doing it is
+    a bug, and the error should say which one."""
+    monkeypatch.setattr(
+        settings_init,
+        "DEFAULT_SETTINGS",
+        {"zz_valueless_seed": {"category": "general", "description": "x", "encrypted": False}},
+    )
+    with pytest.raises(KeyError, match="zz_valueless_seed"):
+        await initialize_default_settings(fresh_db)

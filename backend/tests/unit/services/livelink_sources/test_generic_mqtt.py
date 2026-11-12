@@ -110,6 +110,7 @@ async def test_scale_and_offset_are_applied(db_session):
     mod = GenericMqttModule()
     await mod.refresh(db_session)
     batch = await mod.parse(MqttEnvelope("t/f", b"212"))
+    assert batch is not None
     assert batch.readings[0].value == pytest.approx(100.0, abs=0.01)
 
 
@@ -122,6 +123,7 @@ async def test_a_json_payload_is_read_by_dotted_path(db_session):
     mod = GenericMqttModule()
     await mod.refresh(db_session)
     batch = await mod.parse(MqttEnvelope("t/j", b'{"battery": {"voltage": 12.7}}'))
+    assert batch is not None
     assert batch.readings[0].value == 12.7
 
 
@@ -146,6 +148,7 @@ async def test_a_status_role_sets_device_status_not_a_reading(db_session):
     mod = GenericMqttModule()
     await mod.refresh(db_session)
     batch = await mod.parse(MqttEnvelope("mygarage/rv/status", b"offline"))
+    assert batch is not None
     assert batch.device_status == "offline"
     assert batch.readings == []
 
@@ -201,6 +204,7 @@ async def test_one_topic_feeding_two_params_yields_two_readings(db_session):
     mod = GenericMqttModule()
     await mod.refresh(db_session)
     batch = await mod.parse(MqttEnvelope("t/j", b'{"a": 1, "b": 2}'))
+    assert batch is not None
     assert sorted(r.param_key for r in batch.readings) == ["A", "B"]
 
 
@@ -234,6 +238,7 @@ async def test_a_status_role_batch_says_its_status_came_from_the_wire(db_session
     mod = GenericMqttModule()
     await mod.refresh(db_session)
     batch = await mod.parse(MqttEnvelope("mygarage/rv/status", b"offline"))
+    assert batch is not None
     assert batch.status_from_wire is True
 
 

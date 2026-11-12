@@ -1,7 +1,5 @@
 """Authentication service for JWT token management."""
 
-# pyright: reportAssignmentType=false
-
 import math
 import secrets
 from datetime import UTC, datetime, timedelta

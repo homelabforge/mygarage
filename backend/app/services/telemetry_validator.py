@@ -6,6 +6,7 @@ Based on WiCAN Discussion #198 findings about partial ECU wakes producing garbag
 
 import logging
 from collections import OrderedDict
+from collections.abc import Mapping
 from datetime import datetime
 
 from sqlalchemy import select
@@ -192,7 +193,7 @@ class TelemetryValidator:
         self,
         vin: str,
         autopid_data: dict[str, float | int | str | None],
-        parameters_cache: dict[str, object],
+        parameters_cache: Mapping[str, object],
         *,
         device_id: str,
         sample_at: datetime,

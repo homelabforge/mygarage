@@ -130,7 +130,7 @@ class SupplyService:
             barcode=supply.barcode,
             category=supply.category,
             unit_type=supply.unit_type,
-            volume_unit=supply.volume_unit,
+            volume_unit=supply.volume_unit,  # pyright: ignore[reportArgumentType]  # lenient vocab reads the stored str
             vin=supply.vin,
             notes=supply.notes,
             is_active=supply.is_active,
@@ -403,7 +403,7 @@ class SupplyService:
             supply_id=usage.supply_id,
             supply_name=usage.supply.name,
             unit_type=usage.supply.unit_type,
-            volume_unit=usage.supply.volume_unit,
+            volume_unit=usage.supply.volume_unit,  # pyright: ignore[reportArgumentType]  # lenient vocab reads the stored str
             quantity=usage.quantity,
             unit_cost_snapshot=usage.unit_cost_snapshot,
             cost_snapshot=usage.cost_snapshot,
@@ -473,9 +473,9 @@ class SupplyService:
         # goes on the household clock first or a near-midnight adjustment
         # lands on the wrong day.
         zone = household_zone()
-        events: list[tuple[datetime, str, object]] = []
+        events: list[tuple[datetime, SupplyPurchase | SupplyUsage]] = []
         for p in purchases:
-            events.append((datetime.combine(p.date, time.min, tzinfo=zone), "purchase", p))
+            events.append((datetime.combine(p.date, time.min, tzinfo=zone), p))
         for u in usages:
             visit = u.line_item.visit if (u.line_item and u.line_item.visit) else None
             eff = (
@@ -483,16 +483,22 @@ class SupplyService:
                 if visit
                 else household_datetime(u.created_at)
             )
-            events.append((eff, "usage", u))
+            events.append((eff, u))
         # Sort on the real instant, not the wall clock. In the fall-back hour a
         # later adjustment has an earlier wall clock and would jump the queue.
         # Same instant → purchases first, then by id.
-        events.sort(key=lambda e: (e[0].astimezone(UTC), 0 if e[1] == "purchase" else 1, e[2].id))
+        events.sort(
+            key=lambda e: (
+                e[0].astimezone(UTC),
+                0 if isinstance(e[1], SupplyPurchase) else 1,
+                e[1].id,
+            )
+        )
 
         entries: list[SupplyLedgerEntry] = []
         balance = _ZERO
-        for at, kind, obj in events:
-            if kind == "purchase":
+        for at, obj in events:
+            if isinstance(obj, SupplyPurchase):
                 balance += obj.quantity
                 entries.append(
                     SupplyLedgerEntry(

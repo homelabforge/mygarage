@@ -53,7 +53,7 @@ class TestFuelHoursAutoSync:
         self, client: AsyncClient, auth_headers, test_user, db_session: AsyncSession
     ) -> None:
         vin = "FUELHOURS00000001"
-        await _make_vehicle(db_session, int(test_user["id"]), vin)  # type: ignore[arg-type]
+        await _make_vehicle(db_session, int(test_user["id"]), vin)
 
         resp = await client.post(
             f"/api/vehicles/{vin}/fuel",
@@ -95,7 +95,7 @@ class TestFuelHoursAutoSync:
         self, client: AsyncClient, auth_headers, test_user, db_session: AsyncSession
     ) -> None:
         vin = "FUELHOURS00000002"
-        await _make_vehicle(db_session, int(test_user["id"]), vin)  # type: ignore[arg-type]
+        await _make_vehicle(db_session, int(test_user["id"]), vin)
 
         created = (
             await client.post(
@@ -130,7 +130,7 @@ class TestFuelHoursAutoSync:
         self, client: AsyncClient, auth_headers, test_user, db_session: AsyncSession
     ) -> None:
         vin = "FUELHOURS00000003"
-        await _make_vehicle(db_session, int(test_user["id"]), vin)  # type: ignore[arg-type]
+        await _make_vehicle(db_session, int(test_user["id"]), vin)
 
         created = (
             await client.post(
@@ -163,7 +163,7 @@ class TestFuelHoursAutoSync:
         self, client: AsyncClient, auth_headers, test_user, db_session: AsyncSession
     ) -> None:
         vin = "FUELHOURS00000004"
-        await _make_vehicle(db_session, int(test_user["id"]), vin)  # type: ignore[arg-type]
+        await _make_vehicle(db_session, int(test_user["id"]), vin)
 
         resp = await client.post(
             f"/api/vehicles/{vin}/fuel",
@@ -235,7 +235,7 @@ class TestFuelHoursEconomyRoutes:
         self, client: AsyncClient, auth_headers, test_user, db_session: AsyncSession
     ) -> None:
         vin = "FUELHOURS00000005"
-        await _make_vehicle(db_session, int(test_user["id"]), vin)  # type: ignore[arg-type]
+        await _make_vehicle(db_session, int(test_user["id"]), vin)
         _, second_id = await self._seed_two_full_tanks(client, auth_headers, vin)
 
         resp = await client.get(f"/api/vehicles/{vin}/fuel/{second_id}", headers=auth_headers)
@@ -250,7 +250,7 @@ class TestFuelHoursEconomyRoutes:
         self, client: AsyncClient, auth_headers, test_user, db_session: AsyncSession
     ) -> None:
         vin = "FUELHOURS00000006"
-        await _make_vehicle(db_session, int(test_user["id"]), vin)  # type: ignore[arg-type]
+        await _make_vehicle(db_session, int(test_user["id"]), vin)
         await self._seed_two_full_tanks(client, auth_headers, vin)
 
         resp = await client.get(f"/api/vehicles/{vin}/fuel", headers=auth_headers)
@@ -264,7 +264,7 @@ class TestFuelHoursEconomyRoutes:
         self, client: AsyncClient, auth_headers, test_user, db_session: AsyncSession
     ) -> None:
         vin = "FUELHOURS00000007"
-        await _make_vehicle(db_session, int(test_user["id"]), vin)  # type: ignore[arg-type]
+        await _make_vehicle(db_session, int(test_user["id"]), vin)
         await client.post(
             f"/api/vehicles/{vin}/fuel",
             json={

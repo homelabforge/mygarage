@@ -268,6 +268,7 @@ class TestOwnershipStatistics:
     ):
         vin = await garage.vehicle()
         vehicle = await db_session.get(Vehicle, vin)
+        assert vehicle is not None
         vehicle.sold_price = Decimal("400.00")
         vehicle.sold_date = household_today() - timedelta(days=10)
         await db_session.commit()
@@ -464,6 +465,7 @@ class TestInsuranceAsPaid:
         self, client: AsyncClient, auth_headers, db_session: AsyncSession, stats_vehicle: str
     ):
         vehicle = await db_session.get(Vehicle, stats_vehicle)
+        assert vehicle is not None
         vehicle.sold_price = Decimal("400.00")
         vehicle.sold_date = household_today() - timedelta(days=10)
         await db_session.commit()

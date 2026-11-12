@@ -221,7 +221,7 @@ async def _units(db: AsyncSession, device_id: str) -> list[tuple[str, str | None
             LiveLinkDeviceUnit.param_key, LiveLinkDeviceUnit.unit, LiveLinkDeviceUnit.source
         ).where(LiveLinkDeviceUnit.device_id == device_id)
     )
-    return sorted(tuple(r) for r in rows.all())
+    return sorted((r.param_key, r.unit, r.source) for r in rows.all())
 
 
 async def test_a_device_that_reported_another_key_first_keeps_its_legacy_row(

@@ -6,7 +6,7 @@ import re
 import tomllib
 from ipaddress import IPv4Network, IPv6Network, ip_network
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
@@ -255,7 +255,19 @@ class Settings(BaseSettings):
     # JWT Cookie Settings (Security Enhancement v2.10.0)
     jwt_cookie_name: str = "mygarage_token"
     jwt_cookie_httponly: bool = True
-    jwt_cookie_samesite: str = "lax"  # Options: "lax", "strict", "none"
+    jwt_cookie_samesite: Literal["lax", "strict", "none"] = "lax"
+
+    @field_validator("jwt_cookie_samesite", mode="before")
+    @classmethod
+    def _lowercase_samesite(cls, v: object) -> object:
+        """Accept any case, so an existing ``Lax`` keeps working.
+
+        Starlette asserts this value inside set_cookie, so without the Literal a
+        typo only showed up as a 500 on the first login.
+        """
+        if isinstance(v, str):
+            return v.strip().lower()
+        return v
 
     @property
     def jwt_cookie_max_age(self) -> int:

@@ -163,6 +163,7 @@ async def test_ingest_then_session_converts_exactly_once(db_session):
     await db_session.flush()
 
     session = await SessionService(db_session).start_session(device, utc_now())
+    assert session.start_odometer is not None
 
     # 89984 mi -> 144815 km. Converting twice would give ~233,073.
     assert round(session.start_odometer) == 144815, "odometer was converted twice"

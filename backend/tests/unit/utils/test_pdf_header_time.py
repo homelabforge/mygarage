@@ -174,7 +174,7 @@ def test_report_generated_is_the_household_time(
         date_order="mdy",
     )
     document = pymupdf.open(stream=build(generator).read(), filetype="pdf")
-    text = " ".join(page.get_text() for page in document)  # type: ignore[operator]
+    text = " ".join(page.get_text() for page in document)  # pyright: ignore[reportArgumentType, reportCallIssue]  # get_text() with no option returns str
     document.close()
     assert "07/15/2026 10:30 PM" in text, text
     assert "07/16/2026" not in text, text
@@ -193,7 +193,7 @@ def test_report_dates_are_day_first_when_asked(
         date_order="dmy",
     )
     document = pymupdf.open(stream=build(generator).read(), filetype="pdf")
-    text = " ".join(page.get_text() for page in document)  # type: ignore[operator]
+    text = " ".join(page.get_text() for page in document)  # pyright: ignore[reportArgumentType, reportCallIssue]  # get_text() with no option returns str
     document.close()
     assert "15/07/2026 10:30 PM" in text, text
     assert "07/15/2026" not in text, text
@@ -218,7 +218,7 @@ def test_record_and_period_dates_are_day_first_when_asked() -> None:
         _VEHICLE, [record], date(2026, 1, 2), date(2026, 12, 3)
     )
     document = pymupdf.open(stream=pdf.read(), filetype="pdf")
-    text = " ".join(page.get_text() for page in document)  # type: ignore[operator]
+    text = " ".join(page.get_text() for page in document)  # pyright: ignore[reportArgumentType, reportCallIssue]  # get_text() with no option returns str
     document.close()
     assert "04/10/2026" in text, text
     assert "02/01/2026 - 03/12/2026" in text, text

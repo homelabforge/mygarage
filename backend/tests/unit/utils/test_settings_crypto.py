@@ -28,7 +28,7 @@ from app.utils.settings_crypto import (
     CIPHERTEXT_PREFIX,
     DecryptStatus,
     SettingsKeyUnavailable,
-    _reset_keyring_for_tests,  # pyright: ignore[reportPrivateUsage] - the suite's reset hook
+    _reset_keyring_for_tests,  # the suite's reset hook
     current_kid,
     decrypt,
     encrypt,
@@ -736,7 +736,7 @@ class TestKeyFileWriters:
         assert {r[1] for r in results} == {_kid_on_disk(path)}
         # Each child really loaded the data-dir file, not some other source.
         assert {r[2] for r in results} == {str(path)}
-        generated = [r[0] for r in results if any("Generated" in m for m in r[3])]
+        generated = [r[0] for r in results if any("Generated" in m for m in race_warnings([r]))]
         assert len(generated) == 1
         # A racer that found the file mid-create used to take it for an emptied one
         # and warn that secrets saved under an earlier key were lost.
@@ -760,7 +760,7 @@ class TestKeyFileWriters:
         def flock(fd: int, operation: int) -> None:
             if not loser:
                 loser["kid"] = None
-                result = settings_crypto._generate_key_file(str(path), path)  # pyright: ignore[reportPrivateUsage]
+                result = settings_crypto._generate_key_file(str(path), path)
                 loser["kid"] = getattr(result, "current_kid", None)
             real_flock(fd, operation)
 
@@ -786,7 +786,7 @@ class TestKeyFileWriters:
         def paused_fill(target: Path, content: str) -> str:
             if not other:
                 other["kid"] = None
-                result = settings_crypto._load()  # pyright: ignore[reportPrivateUsage]
+                result = settings_crypto._load()
                 other["kid"] = getattr(result, "current_kid", None)
             return real_fill(target, content)
 

@@ -131,10 +131,23 @@ async def test_sessionmaker(test_engine):
     )
 
 
+# Spelled out so the guard query can name `.id` and `.vin` on every one.
+type _GuardedModel = type[
+    DEFRecord
+    | FinancingRecord
+    | FuelRecord
+    | HoursRecord
+    | OdometerRecord
+    | Reminder
+    | ServiceVisit
+    | TaxRecord
+    | WarrantyRecord
+]
+
 #: Dated records the leak guard checks, each with the column that dates it. A
 #: row on any of these a year out lands in every later test's "latest reading",
 #: trend window, active warranty or due count.
-FAR_FUTURE_GUARDED: tuple[tuple[type[Base], str], ...] = (
+FAR_FUTURE_GUARDED: tuple[tuple[_GuardedModel, str], ...] = (
     (DEFRecord, "date"),
     (FinancingRecord, "date"),
     (FuelRecord, "date"),
@@ -550,7 +563,7 @@ async def client(db_session, test_data_dir: Path) -> AsyncGenerator[AsyncClient]
 
 
 @pytest_asyncio.fixture
-async def test_user(db_session: AsyncSession) -> dict[str, object]:
+async def test_user(db_session: AsyncSession) -> dict[str, Any]:
     """Create or get a test user. Returns dict for easy test access.
 
     Always resets the user to active state to ensure test isolation.

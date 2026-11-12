@@ -1,11 +1,5 @@
 """User schemas for authentication."""
 
-# pyright: reportArgumentType=error
-# Project-wide reportArgumentType is "none" (184 FastAPI Depends() hits,
-# see pyproject.toml). That suppression would also hide a broken
-# UnitPreferenceSource conformance at the resolve_units(self) call below,
-# so it is re-enabled for this one file, where that call site lives.
-
 from __future__ import annotations
 
 import re
@@ -99,7 +93,7 @@ class UserBase(BaseModel):
 
     username: str = Field(..., min_length=3, max_length=100)
     email: EmailStr = Field(..., max_length=255)
-    full_name: str | None = Field(None, max_length=255)
+    full_name: str | None = Field(default=None, max_length=255)
 
 
 def check_password_strength(v: Any) -> Any:
@@ -156,29 +150,29 @@ class UserSelfUpdate(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    email: EmailStr | None = Field(None, max_length=255)
-    full_name: str | None = Field(None, max_length=255)
+    email: EmailStr | None = Field(default=None, max_length=255)
+    full_name: str | None = Field(default=None, max_length=255)
     show_both_units: bool | None = None
-    time_format: str | None = Field(None, pattern="^(12h|24h)$")
-    date_format: str | None = Field(None, pattern="^(mdy|dmy)$")
+    time_format: str | None = Field(default=None, pattern="^(12h|24h)$")
+    date_format: str | None = Field(default=None, pattern="^(mdy|dmy)$")
     mobile_quick_entry_enabled: bool | None = None
     # i18n preferences
-    language: str | None = Field(None, max_length=10)
-    currency_code: str | None = Field(None, max_length=3)
+    language: str | None = Field(default=None, max_length=10)
+    currency_code: str | None = Field(default=None, max_length=3)
     # Country (ISO 3166-1 alpha-2); null clears it. Drives national defaults
     # (inspection cadence, pump names, tax types) for this person's vehicles.
-    country: str | None = Field(None, max_length=2)
+    country: str | None = Field(default=None, max_length=2)
     # Keep the periodic technical inspection reminder up to date automatically.
     inspection_auto_schedule: bool | None = None
     # UI theme accent
-    accent_color: str | None = Field(None, max_length=20)
+    accent_color: str | None = Field(default=None, max_length=20)
     # UI light/dark theme
-    theme: str | None = Field(None, max_length=10)
+    theme: str | None = Field(default=None, max_length=10)
     # The order the dashboard opens in
-    dashboard_sort: str | None = Field(None, max_length=16)
+    dashboard_sort: str | None = Field(default=None, max_length=16)
     # Fuel-tracking form defaults (issue #69)
-    default_payment_method: str | None = Field(None, max_length=20)
-    default_trip_type: str | None = Field(None, max_length=20)
+    default_payment_method: str | None = Field(default=None, max_length=20)
+    default_trip_type: str | None = Field(default=None, max_length=20)
 
     # NOT NULL columns: omitted keeps the stored value, null is a 422.
     _no_null = reject_null(
@@ -334,26 +328,26 @@ class AdminUserUpdate(BaseModel):
     rejection behaviour of every other admin field at the same time.
     """
 
-    email: EmailStr | None = Field(None, max_length=255)
-    full_name: str | None = Field(None, max_length=255)
+    email: EmailStr | None = Field(default=None, max_length=255)
+    full_name: str | None = Field(default=None, max_length=255)
     is_active: bool | None = None
     is_admin: bool | None = None
     show_both_units: bool | None = None
-    time_format: str | None = Field(None, pattern="^(12h|24h)$")
-    date_format: str | None = Field(None, pattern="^(mdy|dmy)$")
+    time_format: str | None = Field(default=None, pattern="^(12h|24h)$")
+    date_format: str | None = Field(default=None, pattern="^(mdy|dmy)$")
     mobile_quick_entry_enabled: bool | None = None
     # i18n preferences
-    language: str | None = Field(None, max_length=10)
-    currency_code: str | None = Field(None, max_length=3)
+    language: str | None = Field(default=None, max_length=10)
+    currency_code: str | None = Field(default=None, max_length=3)
     # UI theme accent
-    accent_color: str | None = Field(None, max_length=20)
+    accent_color: str | None = Field(default=None, max_length=20)
     # UI light/dark theme
-    theme: str | None = Field(None, max_length=10)
+    theme: str | None = Field(default=None, max_length=10)
     # Family/relationship fields
     relationship: RelationshipType = None
-    relationship_custom: str | None = Field(None, max_length=100)
+    relationship_custom: str | None = Field(default=None, max_length=100)
     show_on_family_dashboard: bool | None = None
-    family_dashboard_order: int | None = Field(None, ge=0)
+    family_dashboard_order: int | None = Field(default=None, ge=0)
 
     # NOT NULL columns: omitted keeps the stored value, null is a 422.
     _no_null = reject_null(
@@ -416,7 +410,7 @@ class AdminUserCreate(UserCreate):
     """Schema for admin creating a new user with additional fields."""
 
     relationship: RelationshipType = None
-    relationship_custom: str | None = Field(None, max_length=100)
+    relationship_custom: str | None = Field(default=None, max_length=100)
     show_on_family_dashboard: bool = False
 
     @model_validator(mode="after")
@@ -582,7 +576,7 @@ class UserResponse(UserBase):
         """
         return value if value in _UNIT_PREFERENCE_VALUES else "imperial"
 
-    @computed_field  # type: ignore[prop-decorator]
+    @computed_field
     @property
     def resolved_units(self) -> UnitSet:
         """The unit set that actually applies: preset base with overrides on top.
@@ -592,11 +586,8 @@ class UserResponse(UserBase):
         ever needs the database, this field has to move to the route.
 
         This call is the only place a `UserResponse` is checked against the
-        `UnitPreferenceSource` Protocol. That check only runs because of this
-        file's `reportArgumentType=error` pragma: the project-wide setting is
-        "none" (FastAPI `Depends()` noise), which would silently accept a
-        broken Protocol conformance here too. Do not remove the pragma without
-        another way to catch that.
+        `UnitPreferenceShape` Protocol, so pyright fails here if it stops
+        conforming.
         """
         return resolve_units(self)
 

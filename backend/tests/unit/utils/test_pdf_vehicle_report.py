@@ -11,6 +11,7 @@ from reportlab.platypus import SimpleDocTemplate
 
 from app.constants.units import IMPERIAL_PRESET, METRIC_PRESET
 from app.utils import pdf_vehicle_report
+from app.utils.date_order import DateOrder
 from app.utils.pdf_components import make_vehicle_banner
 from app.utils.pdf_styles import register_fonts
 from app.utils.pdf_vehicle_report import generate_vehicle_analytics_pdf
@@ -32,7 +33,7 @@ def _extract_text(pdf_bytes: bytes) -> str:
     doc = pymupdf.open(stream=pdf_bytes, filetype="pdf")
     text = ""
     for page in doc:
-        text += page.get_text()  # type: ignore[operator]
+        text += page.get_text()  # pyright: ignore[reportOperatorIssue]  # get_text() with no option returns str
     doc.close()
     return text
 
@@ -832,7 +833,7 @@ class TestRenderContextDrivesUnits:
         ],
     )
     def test_dates_follow_the_date_order(
-        self, date_order: str, expected: list[str], absent: str
+        self, date_order: DateOrder, expected: list[str], absent: str
     ) -> None:
         """#278: the hours card, hours history and reminder due dates."""
         text = _normalized_text(
@@ -840,7 +841,7 @@ class TestRenderContextDrivesUnits:
                 _make_unit_bearing_data(),
                 reminders_data=[_make_low_tread_reminder()],
                 render_context=METRIC_CTX,
-                date_order=date_order,  # type: ignore[arg-type]
+                date_order=date_order,
             ).read()
         )
 

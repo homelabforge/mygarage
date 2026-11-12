@@ -6,34 +6,23 @@ would pass before the migration ran. SQLite ignores VARCHAR length, so only
 the PG runs prove the widening; the index and the clean-up run on both.
 """
 
-import importlib.util
 from datetime import UTC, datetime
-from pathlib import Path
 
 import pytest
-from sqlalchemy import DateTime, Engine, bindparam, inspect, text
+from sqlalchemy import DateTime, Engine, String, bindparam, inspect, text
 from sqlalchemy.exc import IntegrityError, OperationalError
 
-import app.migrations as _m
 from app.database import Base
 from app.models.recall import Recall
 from app.models.vehicle_dtc import VehicleDTC
 from tests._engines import SyncEngine
 from tests._logged import CaplogOnly, problems
+from tests.migrations._loader import load_migration
 
 pytestmark = pytest.mark.migrations
 
 _NAME = "137_recall_component_and_active_dtcs"
 _INDEX = "uq_vehicle_dtcs_active_code"
-
-
-def _load(name: str):
-    """Load a migration module by file, as the runner does."""
-    path = Path(_m.__file__).parent / f"{name}.py"
-    spec = importlib.util.spec_from_file_location(name, path)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
 
 
 def _pk(engine) -> str:
@@ -121,13 +110,15 @@ _CLOSED = "Cleared: a second active copy of this code, closed on upgrade (migrat
 
 def test_the_model_takes_what_the_api_and_the_sync_take():
     # main: 100, while RecallCreate and the NHTSA sync allow 200
-    assert Recall.__table__.c.component.type.length == 200
+    column_type = Recall.__table__.c.component.type
+    assert isinstance(column_type, String)
+    assert column_type.length == 200
 
 
 def test_the_model_allows_one_active_row_per_code(sync_engine):
     """create_all builds the partial index, so the test database has it too."""
     engine = sync_engine("sqlite://")
-    Base.metadata.create_all(engine, tables=[VehicleDTC.__table__])
+    Base.metadata.create_all(engine, tables=[Base.metadata.tables[VehicleDTC.__tablename__]])
     seen = datetime(2026, 6, 1, 8, 0, 0)
     with engine.begin() as conn:
         _add_dtc(conn, _V1, "P0300", seen)
@@ -144,7 +135,7 @@ def test_the_migration_is_not_fatal():
     # A guard that passes once the file exists. It kills a 137 that copies
     # 110's FATAL = True, which would keep the app down over a cleanup it can live without.
     # If the migration fails at boot, the column stays at 100 and the duplicates stay, which is today.
-    assert not getattr(_load(_NAME), "FATAL", False)
+    assert not getattr(load_migration(_NAME), "FATAL", False)
 
 
 @pytest.mark.parametrize("engine_for_migration", ["sqlite", "pg"], indirect=True)
@@ -154,7 +145,7 @@ def test_the_column_is_widened_and_a_long_component_stores(engine_for_migration)
     if dialect == "pg":
         assert _component_length(engine) == 100, "fixture must start in the pre state"
 
-    _load(_NAME).upgrade(engine)
+    load_migration(_NAME).upgrade(engine)
 
     if dialect == "pg":
         assert _component_length(engine) == 200
@@ -193,7 +184,7 @@ def test_duplicate_active_dtcs_are_closed_newest_kept_then_indexed(engine_for_mi
         _add_dtc(conn, _V1, "P0300", datetime(2025, 1, 1), active=False)  # 7: history, untouched
 
     before = datetime.now(UTC).replace(tzinfo=None)
-    _load(_NAME).upgrade(engine)
+    load_migration(_NAME).upgrade(engine)
     after = datetime.now(UTC).replace(tzinfo=None)
 
     # main: FileNotFoundError, no migration 137
@@ -223,7 +214,7 @@ def test_a_second_run_changes_nothing(engine_for_migration):
     _make_pre_137_tables(engine)
     with engine.begin() as conn:
         _add_dtc(conn, _V1, "P0300", datetime(2026, 1, 1))
-    mod = _load(_NAME)
+    mod = load_migration(_NAME)
     mod.upgrade(engine)
     before = _dtcs(engine)
     mod.upgrade(engine)
@@ -241,7 +232,7 @@ def test_missing_tables_are_skipped(engine_for_migration):
     with engine.begin() as conn:
         conn.execute(text("DROP TABLE IF EXISTS recalls"))
         conn.execute(text("DROP TABLE IF EXISTS vehicle_dtcs"))
-    _load(_NAME).upgrade(engine)
+    load_migration(_NAME).upgrade(engine)
     assert not inspect(engine).has_table("recalls")
     assert not inspect(engine).has_table("vehicle_dtcs")
 
@@ -262,7 +253,7 @@ def test_a_failure_is_logged_not_raised(
     sync_engine: SyncEngine,
 ) -> None:
     """A non-FATAL failure that raises stops every migration after it, so 137 logs it instead."""
-    mod = _load(_NAME)
+    mod = load_migration(_NAME)
     ran: list[str] = []
 
     def boom(_engine: Engine) -> None:

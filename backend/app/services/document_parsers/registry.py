@@ -131,7 +131,7 @@ def get_parser_for_document(
     document_type: DocumentType,
     text: str,
     provider_hint: str | None = None,
-) -> BaseDocumentParser:
+) -> InsuranceDocumentParser:
     """
     Get the appropriate parser for a document.
 

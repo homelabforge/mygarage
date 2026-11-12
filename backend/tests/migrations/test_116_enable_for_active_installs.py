@@ -5,28 +5,19 @@ jobs; MQTT and Torque stored data with it off. It now gates everything, so an
 install receiving data with the switch off would silently stop on upgrade.
 """
 
-import importlib.util
+from collections.abc import Mapping
 from datetime import datetime
-from pathlib import Path
 
 from sqlalchemy import DateTime, bindparam, text
 
-_MIG = (
-    Path(__file__).resolve().parents[2]
-    / "app"
-    / "migrations"
-    / "116_livelink_enable_for_active_installs.py"
-)
+from tests.migrations._loader import load_migration
 
 
 def _load():
-    spec = importlib.util.spec_from_file_location("mig116", _MIG)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+    return load_migration("116_livelink_enable_for_active_installs", "mig116")
 
 
-def _engine(engine, settings: dict[str, str | None], devices: list[dict] | None = None):
+def _engine(engine, settings: Mapping[str, str | None], devices: list[dict] | None = None):
     """Seed the two tables the migration reads, in DDL both dialects accept."""
     with engine.begin() as conn:
         conn.execute(

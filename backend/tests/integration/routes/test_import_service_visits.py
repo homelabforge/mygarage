@@ -251,6 +251,7 @@ async def test_a_v8_service_csv_imports_each_visit_number_as_one_visit(
         Decimal("0.50"),
     )
     assert (first.insurance_claim_number, first.notes) == ("CLM-1", "visit note")
+    assert first.vendor is not None
     assert first.vendor.name == "B3 Svc Shop B"
     # 40 + 10 + 3 + 1.50 + 0.50
     assert first.total_cost == Decimal("55.00")
@@ -559,6 +560,7 @@ async def test_a_json_backup_round_trip_keeps_every_line_item(
         ),
     ]
     assert pads.triggered_by_inspection_id == found.id
+    assert restored.vendor is not None
     assert (
         restored.engine_hours,
         restored.tax_amount,
@@ -873,6 +875,7 @@ async def test_a_json_visit_at_a_vendor_past_100_characters_restores_with_it(
     # 30150423: a row error, "vendor_name must be at most 100 characters"
     assert (data["service_records"]["success_count"], data["errors"]) == (1, []), data
     (restored,) = await _visits(test_sessionmaker, target)
+    assert restored.vendor is not None
     assert (restored.vendor_id, restored.vendor.name) == (vendor_id, long_name)
 
 
@@ -1019,7 +1022,9 @@ async def _seed_taxed_visit(db_session: AsyncSession, vin: str, tax: str) -> Non
 
 
 async def _taxes(sessionmaker: Any, vin: str) -> list[Decimal | None]:
-    return sorted(v.tax_amount for v in await _visits(sessionmaker, vin))
+    # None sorts last so a missing tax shows up in the diff instead of a TypeError.
+    taxes = [v.tax_amount for v in await _visits(sessionmaker, vin)]
+    return sorted(taxes, key=lambda t: (t is None, t or Decimal(0)))
 
 
 async def test_a_json_visit_differing_only_in_tax_does_not_spend_another_visits_match(
@@ -1106,6 +1111,7 @@ async def test_a_formula_quoted_cell_round_trips_as_typed(
     data = await _post_csv(client, auth_headers, target, exported.text)
     assert data["success_count"] == 1, data
     (restored,) = await _visits(test_sessionmaker, target)
+    assert restored.vendor is not None
     # main: ("'=Brake fluid", "'-B3 Formula Garage", "'+ also checked the lights")
     assert (restored.line_items[0].description, restored.vendor.name, restored.notes) == (
         "=Brake fluid",

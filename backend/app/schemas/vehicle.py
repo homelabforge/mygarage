@@ -163,38 +163,28 @@ def _clean_identifier(v: Any) -> Any:
 class VehicleBase(BaseModel):
     """Base vehicle schema with common fields."""
 
-    nickname: str = Field(
-        ..., description="User-friendly display name", min_length=1, max_length=100
-    )
-    vehicle_type: VehicleType = Field(..., description="Type of vehicle")
-    usage_unit: UsageUnit = Field(
-        "distance",
-        description="Usage tracking dimension: 'distance' (odometer) or 'hours' (hour meter)",
-    )
     current_hours: Annotated[Decimal | None, AfterValidator(to_stored_tenth)] = Field(
-        None,
+        default=None,
         description="Current engine-hour reading (used when usage_unit == 'hours')",
         ge=0,
         le=999999999.9,
     )
-    secondary_usage_enabled: bool = Field(
-        False,
-        description="Also track the non-primary usage dimension (distance+hours dual tracking)",
-    )
     distance_unit: DistanceUnit | None = Field(
-        None,
+        default=None,
         description=(
             "The unit this vehicle's odometer reads (km or mi); null follows the "
             "viewer's account. Distances and speeds for this vehicle show and are "
             "entered in it (#172)."
         ),
     )
-    year: int | None = Field(None, description="Model year", ge=1900, le=2100)
-    make: str | None = Field(None, description="Manufacturer brand", max_length=50)
-    model: str | None = Field(None, description="Model name", max_length=50)
-    license_plate: str | None = Field(None, description="License plate number", max_length=20)
+    year: int | None = Field(default=None, description="Model year", ge=1900, le=2100)
+    make: str | None = Field(default=None, description="Manufacturer brand", max_length=50)
+    model: str | None = Field(default=None, description="Model name", max_length=50)
+    license_plate: str | None = Field(
+        default=None, description="License plate number", max_length=20
+    )
     registration_country: str | None = Field(
-        None,
+        default=None,
         description=(
             "Country the vehicle is registered in (ISO 3166-1 alpha-2) when it differs "
             "from the owner's; drives inspection cadence, fuel pump names and tax types"
@@ -203,11 +193,11 @@ class VehicleBase(BaseModel):
         max_length=2,
     )
     first_registration_date: date | None = Field(
-        None,
+        default=None,
         description="Date of first registration (field B of an EU registration certificate)",
     )
     inspection_due_date: date | None = Field(
-        None,
+        default=None,
         description=(
             "Next periodic inspection due by (field X.1 of an EU registration "
             "certificate); the reminder holds to it within the current cycle"
@@ -216,98 +206,122 @@ class VehicleBase(BaseModel):
     # The other EU registration-certificate fields (#211). Bounds are the
     # input's; the response reads what is stored.
     euro_emission_class: str | None = Field(
-        None,
+        default=None,
         description="Euro emission class, field V.9 of an EU registration certificate (Euro 6d-TEMP)",
         max_length=12,
     )
     fiscal_power: int | None = Field(
-        None, description="National fiscal power, field P.6 (French CV)", ge=0, le=200
+        default=None, description="National fiscal power, field P.6 (French CV)", ge=0, le=200
     )
-    co2_g_km: int | None = Field(None, description="CO₂ emissions in g/km, field V.7", ge=0, le=999)
+    co2_g_km: int | None = Field(
+        default=None, description="CO₂ emissions in g/km, field V.7", ge=0, le=999
+    )
     power_kw: int | None = Field(
-        None, description="Maximum net power in kW, field P.2", ge=0, le=2000
+        default=None, description="Maximum net power in kW, field P.2", ge=0, le=2000
     )
     eu_category: str | None = Field(
-        None, description="EU vehicle category, field J (M1, N1, L3e)", max_length=5
+        default=None, description="EU vehicle category, field J (M1, N1, L3e)", max_length=5
     )
     national_category: str | None = Field(
-        None, description="National vehicle kind, field J.1 (VP, CTTE, MTL)", max_length=10
+        default=None, description="National vehicle kind, field J.1 (VP, CTTE, MTL)", max_length=10
     )
     lez_class: str | None = Field(
-        None,
+        default=None,
         description=(
             "Low-emission-zone class set by hand (Crit'Air 0-5, Umweltplakette 2-4); "
             "overrides the class computed from the fuel and the Euro class"
         ),
         max_length=10,
     )
-    color: str | None = Field(None, description="Vehicle color", max_length=30)
-    purchase_date: date | None = Field(None, description="Date purchased")
-    purchase_price: OptionalMoney = Field(None, description="Purchase price")
-    sold_date: date | None = Field(None, description="Date sold")
-    sold_price: OptionalMoney = Field(None, description="Sale price")
+    color: str | None = Field(default=None, description="Vehicle color", max_length=30)
+    purchase_date: date | None = Field(default=None, description="Date purchased")
+    purchase_price: OptionalMoney = Field(default=None, description="Purchase price")
+    sold_date: date | None = Field(default=None, description="Date sold")
+    sold_price: OptionalMoney = Field(default=None, description="Sale price")
     # VIN decoded fields
-    trim: str | None = Field(None, description="Trim level", max_length=50)
-    body_class: str | None = Field(None, description="Body class", max_length=100)
+    trim: str | None = Field(default=None, description="Trim level", max_length=50)
+    body_class: str | None = Field(default=None, description="Body class", max_length=100)
     drive_type: str | None = Field(
-        None, description="Drive type (FWD, RWD, AWD, etc.)", max_length=30
+        default=None, description="Drive type (FWD, RWD, AWD, etc.)", max_length=30
     )
-    doors: int | None = Field(None, description="Number of doors")
-    gvwr_class: str | None = Field(None, description="GVWR class", max_length=50)
+    doors: int | None = Field(default=None, description="Number of doors")
+    gvwr_class: str | None = Field(default=None, description="GVWR class", max_length=50)
     displacement_l: str | None = Field(
-        None, description="Engine displacement in liters", max_length=20
+        default=None, description="Engine displacement in liters", max_length=20
     )
-    cylinders: int | None = Field(None, description="Number of cylinders")
-    fuel_type: str | None = Field(None, description="Fuel type (primary capability)", max_length=50)
+    cylinders: int | None = Field(default=None, description="Number of cylinders")
+    fuel_type: str | None = Field(
+        default=None, description="Fuel type (primary capability)", max_length=50
+    )
     fuel_type_secondary: str | None = Field(
-        None,
+        default=None,
         description=(
             "Secondary fuel capability for PHEV / flex / dual-fuel vehicles. "
             "Stored as a FuelTypeEnum value."
         ),
         max_length=20,
     )
-    transmission_type: str | None = Field(None, description="Transmission type", max_length=50)
-    transmission_speeds: str | None = Field(None, description="Transmission speeds", max_length=20)
+    transmission_type: str | None = Field(
+        default=None, description="Transmission type", max_length=50
+    )
+    transmission_speeds: str | None = Field(
+        default=None, description="Transmission speeds", max_length=20
+    )
     # DEF tracking
     def_tank_capacity_liters: Decimal | None = Field(
-        None, description="DEF tank capacity in liters", ge=0, le=9999.99
+        default=None, description="DEF tank capacity in liters", ge=0, le=9999.99
     )
     # Structured maintenance specs (oil / torque / fluids)
     oil_viscosity: str | None = Field(
-        None, description="Engine oil viscosity grade (e.g. 5W-30)", max_length=30
+        default=None, description="Engine oil viscosity grade (e.g. 5W-30)", max_length=30
     )
     oil_capacity_liters: Decimal | None = Field(
-        None, description="Engine oil capacity in liters (with filter)", ge=0, le=999.99
+        default=None, description="Engine oil capacity in liters (with filter)", ge=0, le=999.99
     )
     oil_filter_part_number: str | None = Field(
-        None, description="Oil filter part number", max_length=50
+        default=None, description="Oil filter part number", max_length=50
     )
     fuel_filter_part_number: str | None = Field(
-        None, description="Fuel filter part number", max_length=50
+        default=None, description="Fuel filter part number", max_length=50
     )
     lug_nut_torque_nm: Decimal | None = Field(
-        None, description="Wheel lug-nut torque in Newton-meters", ge=0, le=99999.9
+        default=None, description="Wheel lug-nut torque in Newton-meters", ge=0, le=99999.9
     )
-    coolant_type: str | None = Field(None, description="Coolant / antifreeze type", max_length=50)
+    coolant_type: str | None = Field(
+        default=None, description="Coolant / antifreeze type", max_length=50
+    )
     brake_fluid_type: str | None = Field(
-        None, description="Brake fluid type (e.g. DOT 4)", max_length=30
+        default=None, description="Brake fluid type (e.g. DOT 4)", max_length=30
     )
     transmission_fluid_type: str | None = Field(
-        None, description="Transmission fluid type", max_length=50
+        default=None, description="Transmission fluid type", max_length=50
     )
     maintenance_specs_notes: str | None = Field(
-        None, description="Freeform notes for other fluid/torque specs", max_length=500
+        default=None, description="Freeform notes for other fluid/torque specs", max_length=500
     )
     # Not in reject_null on the update: an explicit null is how you go back to automatic.
-    wheel_layout: WheelLayoutId | None = Field(None, description=_WHEEL_LAYOUT_DESCRIPTION)
+    wheel_layout: WheelLayoutId | None = Field(default=None, description=_WHEEL_LAYOUT_DESCRIPTION)
 
 
 class VehicleCreate(VehicleBase):
     """Schema for creating a new vehicle."""
 
+    # These four are not on VehicleBase: the update makes them optional and the
+    # response reads two of them leniently, and a subclass can't retype a field.
+    nickname: str = Field(
+        ..., description="User-friendly display name", min_length=1, max_length=100
+    )
+    vehicle_type: VehicleType = Field(..., description="Type of vehicle")
+    usage_unit: UsageUnit = Field(
+        default="distance",
+        description="Usage tracking dimension: 'distance' (odometer) or 'hours' (hour meter)",
+    )
+    secondary_usage_enabled: bool = Field(
+        default=False,
+        description="Also track the non-primary usage dimension (distance+hours dual tracking)",
+    )
     vin: str | None = Field(
-        None,
+        default=None,
         description=(
             "17-character Vehicle Identification Number. Required when identifier_type "
             "is 'vin'; omitted otherwise (the server generates the vehicle's key)."
@@ -316,14 +330,14 @@ class VehicleCreate(VehicleBase):
         max_length=17,
     )
     identifier_type: IdentifierType = Field(
-        "vin",
+        default="vin",
         description=(
             "What identifies this vehicle: its VIN, or for equipment and vehicles "
             "without one a serial number, HIN, chassis number, asset tag, or none (#226)"
         ),
     )
     identifier: str | None = Field(
-        None,
+        default=None,
         description="The serial / HIN / chassis number / asset tag (not used for 'vin' or 'none')",
         max_length=64,
     )
@@ -416,63 +430,70 @@ class VehicleUpdate(VehicleBase):
     """Schema for updating an existing vehicle."""
 
     nickname: str | None = Field(
-        None, description="User-friendly display name", min_length=1, max_length=100
+        default=None, description="User-friendly display name", min_length=1, max_length=100
     )
-    vehicle_type: VehicleType | None = Field(None, description="Type of vehicle")
+    vehicle_type: VehicleType | None = Field(default=None, description="Type of vehicle")
     # The key never changes; what identifies the vehicle can (#226). The rules
     # that need the stored key live in VehicleService.update_vehicle.
     identifier_type: IdentifierType | None = Field(
-        None, description="vin, serial, hin, chassis, asset_tag or none (omit to leave unchanged)"
+        default=None,
+        description="vin, serial, hin, chassis, asset_tag or none (omit to leave unchanged)",
     )
     identifier: str | None = Field(
-        None, description="Serial / HIN / chassis number / asset tag", max_length=64
+        default=None, description="Serial / HIN / chassis number / asset tag", max_length=64
     )
-    # Overridden as optional: VehicleBase gives these non-null defaults, which
-    # the generated OpenAPI otherwise marks REQUIRED, forcing every partial
-    # update (equipment/pricing sidecars) to resend them. exclude_unset makes an
+    # Optional here: with VehicleCreate's non-null defaults the generated
+    # OpenAPI would mark them REQUIRED, forcing every partial update
+    # (equipment/pricing sidecars) to resend them. exclude_unset makes an
     # omitted field a no-op, so callers editing unrelated fields can drop them.
     usage_unit: UsageUnit | None = Field(
-        None, description="Usage tracking dimension (omit to leave unchanged)"
+        default=None, description="Usage tracking dimension (omit to leave unchanged)"
     )
     secondary_usage_enabled: bool | None = Field(
-        None, description="Dual distance+hours tracking (omit to leave unchanged)"
+        default=None, description="Dual distance+hours tracking (omit to leave unchanged)"
     )
     # Equipment is editable from the vehicle-detail sidecar. Declared here (not
     # only on VehicleResponse) so partial PUTs actually persist it: Pydantic's
     # default extra='ignore' silently drops unknown keys otherwise.
     standard_equipment: dict[str, Any] | None = Field(
-        None, description="Standard equipment (category -> list of items)"
+        default=None, description="Standard equipment (category -> list of items)"
     )
     optional_equipment: dict[str, Any] | None = Field(
-        None, description="Optional equipment (category -> list of items)"
+        default=None, description="Optional equipment (category -> list of items)"
     )
     # MSRP is editable from the pricing sidecar. Like equipment, these live only
     # on VehicleResponse otherwise, so a PUT would silently drop them.
-    msrp_base: OptionalMoney = Field(None, description="MSRP base price")
-    msrp_options: OptionalMoney = Field(None, description="MSRP options total")
-    msrp_total: OptionalMoney = Field(None, description="MSRP total")
-    destination_charge: OptionalMoney = Field(None, description="Destination charge")
+    msrp_base: OptionalMoney = Field(default=None, description="MSRP base price")
+    msrp_options: OptionalMoney = Field(default=None, description="MSRP options total")
+    msrp_total: OptionalMoney = Field(default=None, description="MSRP total")
+    destination_charge: OptionalMoney = Field(default=None, description="Destination charge")
     # Window-sticker / VIN-decoded descriptive fields, editable from the
     # vehicle-detail card sidecars (Basic Information / Vehicle Details /
     # Powertrain / Warranty). Same rationale as equipment/MSRP: they live only
     # on VehicleResponse otherwise, so a partial PUT would silently drop them.
     # max_length mirrors the model columns (app/models/vehicle.py).
-    exterior_color: str | None = Field(None, description="Exterior color", max_length=100)
-    interior_color: str | None = Field(None, description="Interior color", max_length=100)
-    wheel_specs: str | None = Field(None, description="Wheel specifications", max_length=100)
-    tire_specs: str | None = Field(None, description="Tire specifications", max_length=100)
-    warranty_basic: str | None = Field(None, description="Basic warranty", max_length=100)
-    warranty_powertrain: str | None = Field(None, description="Powertrain warranty", max_length=100)
+    exterior_color: str | None = Field(default=None, description="Exterior color", max_length=100)
+    interior_color: str | None = Field(default=None, description="Interior color", max_length=100)
+    wheel_specs: str | None = Field(
+        default=None, description="Wheel specifications", max_length=100
+    )
+    tire_specs: str | None = Field(default=None, description="Tire specifications", max_length=100)
+    warranty_basic: str | None = Field(default=None, description="Basic warranty", max_length=100)
+    warranty_powertrain: str | None = Field(
+        default=None, description="Powertrain warranty", max_length=100
+    )
     sticker_engine_description: str | None = Field(
-        None, description="Engine description (window sticker)", max_length=150
+        default=None, description="Engine description (window sticker)", max_length=150
     )
     sticker_transmission_description: str | None = Field(
-        None, description="Transmission description (window sticker)", max_length=150
+        default=None, description="Transmission description (window sticker)", max_length=150
     )
     sticker_drivetrain: str | None = Field(
-        None, description="Drivetrain (window sticker)", max_length=50
+        default=None, description="Drivetrain (window sticker)", max_length=50
     )
-    assembly_location: str | None = Field(None, description="Assembly location", max_length=100)
+    assembly_location: str | None = Field(
+        default=None, description="Assembly location", max_length=100
+    )
 
     # NOT NULL columns: omitted keeps the stored value, null is a 422.
     _no_null = reject_null(
@@ -529,83 +550,91 @@ class VehicleResponse(VehicleBase):
     # (and logs once) instead of 500ing every page with this vehicle on it.
     vehicle_type: LenientVehicleType = Field(..., description="Type of vehicle")
     usage_unit: LenientUsageUnit = Field(
-        "distance",
+        default="distance",
         description="Usage tracking dimension: 'distance' (odometer) or 'hours' (hour meter)",
+    )
+    secondary_usage_enabled: bool = Field(
+        default=False,
+        description="Also track the non-primary usage dimension (distance+hours dual tracking)",
     )
     # Numbers without the input bounds, so a stored value past today's rules
     # (a legacy negative price, say) still reads (test_response_contract).
     current_hours: Decimal | None = Field(
-        None, description="Current engine-hour reading (used when usage_unit == 'hours')"
+        default=None, description="Current engine-hour reading (used when usage_unit == 'hours')"
     )
-    year: int | None = Field(None, description="Model year")
-    purchase_price: Decimal | None = Field(None, description="Purchase price")
-    sold_price: Decimal | None = Field(None, description="Sale price")
+    year: int | None = Field(default=None, description="Model year")
+    purchase_price: Decimal | None = Field(default=None, description="Purchase price")
+    sold_price: Decimal | None = Field(default=None, description="Sale price")
     def_tank_capacity_liters: Decimal | None = Field(
-        None, description="DEF tank capacity in liters"
+        default=None, description="DEF tank capacity in liters"
     )
     oil_capacity_liters: Decimal | None = Field(
-        None, description="Engine oil capacity in liters (with filter)"
+        default=None, description="Engine oil capacity in liters (with filter)"
     )
     lug_nut_torque_nm: Decimal | None = Field(
-        None, description="Wheel lug-nut torque in Newton-meters"
+        default=None, description="Wheel lug-nut torque in Newton-meters"
     )
     # Text without the input rules, so a stored string past today's limits (an
     # OCR'd colour too long for the form, say) still reads (test_response_contract).
     nickname: str = Field(..., description="User-friendly display name")
-    make: str | None = Field(None, description="Manufacturer brand")
-    model: str | None = Field(None, description="Model name")
-    license_plate: str | None = Field(None, description="License plate number")
+    make: str | None = Field(default=None, description="Manufacturer brand")
+    model: str | None = Field(default=None, description="Model name")
+    license_plate: str | None = Field(default=None, description="License plate number")
     registration_country: str | None = Field(
-        None,
+        default=None,
         description=(
             "Country the vehicle is registered in (ISO 3166-1 alpha-2) when it differs "
             "from the owner's; drives inspection cadence, fuel pump names and tax types"
         ),
     )
-    color: str | None = Field(None, description="Vehicle color")
+    color: str | None = Field(default=None, description="Vehicle color")
     euro_emission_class: str | None = Field(
-        None,
+        default=None,
         description="Euro emission class, field V.9 of an EU registration certificate (Euro 6d-TEMP)",
     )
     fiscal_power: int | None = Field(
-        None, description="National fiscal power, field P.6 (French CV)"
+        default=None, description="National fiscal power, field P.6 (French CV)"
     )
-    co2_g_km: int | None = Field(None, description="CO₂ emissions in g/km, field V.7")
-    power_kw: int | None = Field(None, description="Maximum net power in kW, field P.2")
-    eu_category: str | None = Field(None, description="EU vehicle category, field J (M1, N1, L3e)")
+    co2_g_km: int | None = Field(default=None, description="CO₂ emissions in g/km, field V.7")
+    power_kw: int | None = Field(default=None, description="Maximum net power in kW, field P.2")
+    eu_category: str | None = Field(
+        default=None, description="EU vehicle category, field J (M1, N1, L3e)"
+    )
     national_category: str | None = Field(
-        None, description="National vehicle kind, field J.1 (VP, CTTE, MTL)"
+        default=None, description="National vehicle kind, field J.1 (VP, CTTE, MTL)"
     )
     lez_class: str | None = Field(
-        None,
+        default=None,
         description=(
             "Low-emission-zone class set by hand (Crit'Air 0-5, Umweltplakette 2-4); "
             "overrides the class computed from the fuel and the Euro class"
         ),
     )
-    trim: str | None = Field(None, description="Trim level")
-    body_class: str | None = Field(None, description="Body class")
-    drive_type: str | None = Field(None, description="Drive type (FWD, RWD, AWD, etc.)")
-    gvwr_class: str | None = Field(None, description="GVWR class")
-    displacement_l: str | None = Field(None, description="Engine displacement in liters")
-    fuel_type: str | None = Field(None, description="Fuel type (primary capability)")
+    trim: str | None = Field(default=None, description="Trim level")
+    body_class: str | None = Field(default=None, description="Body class")
+    drive_type: str | None = Field(default=None, description="Drive type (FWD, RWD, AWD, etc.)")
+    gvwr_class: str | None = Field(default=None, description="GVWR class")
+    displacement_l: str | None = Field(default=None, description="Engine displacement in liters")
+    fuel_type: str | None = Field(default=None, description="Fuel type (primary capability)")
     fuel_type_secondary: str | None = Field(
-        None,
+        default=None,
         description=(
             "Secondary fuel capability for PHEV / flex / dual-fuel vehicles. "
             "Stored as a FuelTypeEnum value."
         ),
     )
-    transmission_type: str | None = Field(None, description="Transmission type")
-    transmission_speeds: str | None = Field(None, description="Transmission speeds")
-    oil_viscosity: str | None = Field(None, description="Engine oil viscosity grade (e.g. 5W-30)")
-    oil_filter_part_number: str | None = Field(None, description="Oil filter part number")
-    fuel_filter_part_number: str | None = Field(None, description="Fuel filter part number")
-    coolant_type: str | None = Field(None, description="Coolant / antifreeze type")
-    brake_fluid_type: str | None = Field(None, description="Brake fluid type (e.g. DOT 4)")
-    transmission_fluid_type: str | None = Field(None, description="Transmission fluid type")
+    transmission_type: str | None = Field(default=None, description="Transmission type")
+    transmission_speeds: str | None = Field(default=None, description="Transmission speeds")
+    oil_viscosity: str | None = Field(
+        default=None, description="Engine oil viscosity grade (e.g. 5W-30)"
+    )
+    oil_filter_part_number: str | None = Field(default=None, description="Oil filter part number")
+    fuel_filter_part_number: str | None = Field(default=None, description="Fuel filter part number")
+    coolant_type: str | None = Field(default=None, description="Coolant / antifreeze type")
+    brake_fluid_type: str | None = Field(default=None, description="Brake fluid type (e.g. DOT 4)")
+    transmission_fluid_type: str | None = Field(default=None, description="Transmission fluid type")
     maintenance_specs_notes: str | None = Field(
-        None, description="Freeform notes for other fluid/torque specs"
+        default=None, description="Freeform notes for other fluid/torque specs"
     )
     vin: str = Field(
         ...,
@@ -615,19 +644,21 @@ class VehicleResponse(VehicleBase):
         ),
     )
     identifier_type: LenientIdentifierType = Field(
-        "vin", description="What identifies this vehicle"
+        default="vin", description="What identifies this vehicle"
     )
-    identifier: str | None = Field(None, description="Serial / HIN / chassis number / asset tag")
+    identifier: str | None = Field(
+        default=None, description="Serial / HIN / chassis number / asset tag"
+    )
 
-    @computed_field  # type: ignore[prop-decorator]
+    @computed_field
     @property
     def has_vin(self) -> bool:
         """Whether `vin` is a real VIN (decode, recalls and VIN display apply)."""
         return self.identifier_type == "vin"
 
-    wheel_layout: LenientWheelLayout = Field(None, description=_WHEEL_LAYOUT_DESCRIPTION)
+    wheel_layout: LenientWheelLayout = Field(default=None, description=_WHEEL_LAYOUT_DESCRIPTION)
 
-    @computed_field  # type: ignore[prop-decorator]
+    @computed_field
     @property
     def effective_wheel_layout(self) -> WheelLayoutId:
         """The layout in force: the stored override, else the vehicle type's default (#272)."""
@@ -635,7 +666,7 @@ class VehicleResponse(VehicleBase):
             self.wheel_layout, self.vehicle_type, vin=self.vin
         ).id
 
-    @computed_field  # type: ignore[prop-decorator]
+    @computed_field
     @property
     def default_wheel_layout(self) -> WheelLayoutId:
         """The layout the vehicle type gets with no override, for the Automatic option (#272)."""
@@ -644,7 +675,7 @@ class VehicleResponse(VehicleBase):
     # Served, never refused: the column has no CHECK, and a strict Literal here
     # would turn one hand-edited row into a 500 for every response carrying it.
     distance_unit: LenientDistanceUnit = Field(
-        None,
+        default=None,
         description=(
             "The unit this vehicle's odometer reads (km or mi); null follows the "
             "viewer's account. Distances and speeds for this vehicle show and are "
@@ -750,15 +781,15 @@ class VehicleListResponse(BaseModel):
 class TrailerDetailsBase(BaseModel):
     """Base schema for trailer details."""
 
-    gvwr_kg: Decimal | None = Field(None, description="Gross Vehicle Weight Rating (kg)")
-    hitch_type: str | None = Field(None, description="Hitch type")
-    axle_count: int | None = Field(None, description="Number of axles", ge=1, le=10)
-    brake_type: str | None = Field(None, description="Brake type")
-    length_m: Decimal | None = Field(None, description="Length in meters")
-    width_m: Decimal | None = Field(None, description="Width in meters")
-    height_m: Decimal | None = Field(None, description="Height in meters")
+    gvwr_kg: Decimal | None = Field(default=None, description="Gross Vehicle Weight Rating (kg)")
+    hitch_type: str | None = Field(default=None, description="Hitch type")
+    axle_count: int | None = Field(default=None, description="Number of axles", ge=1, le=10)
+    brake_type: str | None = Field(default=None, description="Brake type")
+    length_m: Decimal | None = Field(default=None, description="Length in meters")
+    width_m: Decimal | None = Field(default=None, description="Width in meters")
+    height_m: Decimal | None = Field(default=None, description="Height in meters")
     tow_vehicle_vin: str | None = Field(
-        None, description="VIN of tow vehicle", min_length=17, max_length=17
+        default=None, description="VIN of tow vehicle", min_length=17, max_length=17
     )
 
     @field_validator("hitch_type")
@@ -801,10 +832,10 @@ class TrailerDetailsResponse(TrailerDetailsBase):
 
     # No input bounds, so a stored count past today's rules still reads
     # instead of 500ing (test_response_contract).
-    axle_count: int | None = Field(None, description="Number of axles")
+    axle_count: int | None = Field(default=None, description="Number of axles")
     # Text without the input rules, so a stored string past today's limits
     # still reads instead of 500ing (test_response_contract).
-    tow_vehicle_vin: str | None = Field(None, description="VIN of tow vehicle")
+    tow_vehicle_vin: str | None = Field(default=None, description="VIN of tow vehicle")
     vin: str
 
     model_config = {"from_attributes": True}
@@ -818,12 +849,14 @@ class VehicleArchiveRequest(BaseModel):
         description="Reason for archiving (Sold, Totaled, Gifted, Trade-in, Other)",
         max_length=50,
     )
-    sale_price: OptionalMoney = Field(None, description="Sale price (if applicable)")
-    sale_date: date | None = Field(None, description="Sale/disposal date")
+    sale_price: OptionalMoney = Field(default=None, description="Sale price (if applicable)")
+    sale_date: date | None = Field(default=None, description="Sale/disposal date")
     notes: str | None = Field(
-        None, description="Additional notes about the archive", max_length=1000
+        default=None, description="Additional notes about the archive", max_length=1000
     )
-    visible: bool = Field(True, description="Whether to show vehicle in main list with watermark")
+    visible: bool = Field(
+        default=True, description="Whether to show vehicle in main list with watermark"
+    )
 
     @field_validator("reason")
     @classmethod
@@ -856,7 +889,7 @@ class VehicleBulkArchiveRequest(BaseModel):
     reason: str = Field(..., max_length=50)
     sale_price: OptionalMoney = None
     sale_date: date | None = None
-    notes: str | None = Field(None, max_length=1000)
+    notes: str | None = Field(default=None, max_length=1000)
     visible: bool = True
 
     @field_validator("reason")

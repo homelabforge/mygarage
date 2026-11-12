@@ -13,7 +13,7 @@ database, that computed field has to change with it.
 from __future__ import annotations
 
 import logging
-from typing import Annotated, Final, Protocol, cast
+from typing import TYPE_CHECKING, Annotated, Final, Protocol, cast
 
 from pydantic import BeforeValidator, ValidationError, ValidationInfo
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -31,18 +31,22 @@ from app.utils.default_unit_prefs import load_default_unit_prefs
 from app.utils.lenient_vocab import LenientVocab
 from app.utils.logging_utils import sanitize_for_log
 
+if TYPE_CHECKING:
+    from app.models.user import User
+
 logger = logging.getLogger(__name__)
 
 
-class UnitPreferenceSource(Protocol):
+class UnitPreferenceShape(Protocol):
     """The twelve attributes `resolve_units` reads.
 
     A Protocol rather than the ORM `User`, for two reasons. `UserResponse` calls
     `resolve_units(self)` from a computed field and is not a `User`, so a
     concrete model annotation would be a type error at that call site. And
     importing `app.models.user` here while `app.schemas.user` imports this
-    module is a cycle waiting to happen. Both the ORM model and the response
-    schema satisfy this structurally, with no import in either direction.
+    module is a cycle waiting to happen. The response schema satisfies this
+    structurally; the ORM model needs the `UnitPreferenceSource` union below,
+    because pyright won't read its Mapped columns as these properties.
 
     Read-only properties, not mutable attributes: a mutable protocol member is
     invariant, which would reject `UserResponse`'s narrower `Literal` fields.
@@ -72,6 +76,12 @@ class UnitPreferenceSource(Protocol):
     def unit_tread(self) -> str | None: ...
     @property
     def secondary_gallon(self) -> str | None: ...
+
+
+# Pyright never applies a descriptor's __get__ when it matches a protocol, so an
+# ORM model fails a protocol on its Mapped columns. The model goes in the union
+# by name; it's a typing-only import, and the alias is only ever read by pyright.
+type UnitPreferenceSource = User | UnitPreferenceShape
 
 
 _PRESETS: dict[str, UnitSet] = {

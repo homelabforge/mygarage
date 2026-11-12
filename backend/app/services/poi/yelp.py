@@ -176,12 +176,14 @@ class YelpProvider(BasePOIProvider):
                 logger.error("Yelp API error for category %s: %s", category.value, str(e))
                 raise
 
-    def normalize_result(self, raw_result: dict, category: POICategory = None) -> dict[str, Any]:
+    def normalize_result(
+        self, raw_result: dict, category: POICategory | None = None
+    ) -> dict[str, Any]:
         """Normalize Yelp result to common format.
 
         Args:
             raw_result: Raw Yelp Fusion API response
-            category: POI category (required)
+            category: POI category; None leaves poi_category empty
 
         Returns:
             Normalized POI result dictionary

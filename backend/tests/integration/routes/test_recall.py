@@ -904,6 +904,39 @@ class TestRecallSources:
         )
         assert response.status_code in (403, 404)
 
+    async def test_check_works_with_auth_off(
+        self,
+        client: AsyncClient,
+        test_vehicle: dict[str, object],
+        set_auth_mode: Callable[[str], Awaitable[None]],
+    ) -> None:
+        """auth_mode 'none' has no user at all, and the check still stores what's new."""
+        from app.services.recalls.base import RecallHit
+
+        vin = test_vehicle["vin"]
+        url = f"/api/vehicles/{vin}/recalls/check"
+        assert (await client.post(url)).status_code == 401
+        campaign = "24V" + uuid_tail()
+        hit = RecallHit(
+            source="nhtsa",
+            external_id=campaign,
+            external_url=f"https://www.nhtsa.gov/recalls?nhtsaId={campaign}",
+            component="SERVICE BRAKES",
+            summary="Caliper",
+        )
+        await set_auth_mode("none")
+        with patch(
+            "app.services.recalls.nhtsa.NHTSARecallProvider.fetch",
+            new=AsyncMock(return_value=[hit]),
+        ):
+            response = await client.post(url)
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert body["new_count"] == 1
+        assert [r["external_id"] for r in body["recalls"] if r["external_id"] == campaign] == [
+            campaign
+        ]
+
 
 def uuid_tail() -> str:
     """Six VIN-safe characters."""

@@ -627,7 +627,7 @@ async def ok(a: User | None = Depends(actor)): ...
     def test_wrapper_that_drops_the_none_is_flagged_and_so_are_its_consumers(self) -> None:
         src = """
 async def actor(u: User | None = Depends(require_auth)) -> User:
-    return u  # type: ignore[return-value]
+    return u
 async def route(a: User = Depends(actor)): ...
 """
         assert _lies(src) == {("actor", "return"), ("route", "a")}

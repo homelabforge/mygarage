@@ -485,6 +485,7 @@ async def test_an_upload_while_livelink_is_off_answers_ok_and_stores_nothing(
 
     vin, _device, token = await _make_torque_source(db_session)
     row = await db_session.get(Setting, "livelink_enabled")
+    assert row is not None
     row.value = "false"  # the module's fixture put it on, and puts it back
     await db_session.commit()
 

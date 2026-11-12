@@ -9,7 +9,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from sqlalchemy import Engine, create_engine, inspect, text
+from sqlalchemy import Engine, Inspector, create_engine, inspect, text
 
 FATAL = True
 
@@ -22,7 +22,7 @@ def _get_fallback_engine():
     return create_engine(f"sqlite:///{data_dir / 'mygarage.db'}")
 
 
-def _has_column(inspector, table: str, column: str) -> bool:
+def _has_column(inspector: Inspector, table: str, column: str) -> bool:
     if table not in inspector.get_table_names():
         return False
     return any(c["name"] == column for c in inspector.get_columns(table))

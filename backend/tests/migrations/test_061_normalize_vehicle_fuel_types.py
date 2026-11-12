@@ -10,21 +10,9 @@ This migration normalizes those in place via the same
 Runs on SQLite and PostgreSQL via ``engine_for_migration``.
 """
 
-import importlib.util
-from pathlib import Path
-
 from sqlalchemy import text
 
-import app.migrations as _m
-
-
-def _load(name):
-    path = Path(_m.__file__).parent / f"{name}.py"
-    spec = importlib.util.spec_from_file_location(name, path)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
-
+from tests.migrations._loader import load_migration
 
 MIGRATION = "061_normalize_vehicle_fuel_types"
 
@@ -75,7 +63,7 @@ def test_normalizes_mixed_case_and_aliases(engine_for_migration):
     _create_vehicles_table(engine)
     _seed_vehicles(engine)
 
-    _load(MIGRATION).upgrade(engine=engine)
+    load_migration(MIGRATION).upgrade(engine=engine)
 
     result = _fetch(engine)
     assert result["VIN0000000000001"] == ("diesel", "gasoline")
@@ -86,7 +74,7 @@ def test_unrecognized_values_left_untouched(engine_for_migration):
     _create_vehicles_table(engine)
     _seed_vehicles(engine)
 
-    _load(MIGRATION).upgrade(engine=engine)
+    load_migration(MIGRATION).upgrade(engine=engine)
 
     result = _fetch(engine)
     assert result["VIN0000000000002"] == ("unknown-slime", "unknown-slime")
@@ -97,7 +85,7 @@ def test_null_values_left_untouched(engine_for_migration):
     _create_vehicles_table(engine)
     _seed_vehicles(engine)
 
-    _load(MIGRATION).upgrade(engine=engine)
+    load_migration(MIGRATION).upgrade(engine=engine)
 
     result = _fetch(engine)
     assert result["VIN0000000000003"] == (None, None)
@@ -108,7 +96,7 @@ def test_already_canonical_values_left_untouched(engine_for_migration):
     _create_vehicles_table(engine)
     _seed_vehicles(engine)
 
-    _load(MIGRATION).upgrade(engine=engine)
+    load_migration(MIGRATION).upgrade(engine=engine)
 
     result = _fetch(engine)
     assert result["VIN0000000000004"] == ("gasoline", "diesel")
@@ -119,7 +107,7 @@ def test_empty_string_left_untouched(engine_for_migration):
     _create_vehicles_table(engine)
     _seed_vehicles(engine)
 
-    _load(MIGRATION).upgrade(engine=engine)
+    load_migration(MIGRATION).upgrade(engine=engine)
 
     result = _fetch(engine)
     assert result["VIN0000000000005"] == ("", "")
@@ -129,7 +117,7 @@ def test_idempotent_on_double_run(engine_for_migration):
     _dialect, engine, _url = engine_for_migration
     _create_vehicles_table(engine)
     _seed_vehicles(engine)
-    migration = _load(MIGRATION)
+    migration = load_migration(MIGRATION)
 
     migration.upgrade(engine=engine)
     first_pass = _fetch(engine)
@@ -143,4 +131,4 @@ def test_noop_when_vehicles_table_absent(engine_for_migration):
     """A fresh test DB with no `vehicles` table yet must not raise."""
     _dialect, engine, _url = engine_for_migration
 
-    _load(MIGRATION).upgrade(engine=engine)  # must not raise
+    load_migration(MIGRATION).upgrade(engine=engine)  # must not raise

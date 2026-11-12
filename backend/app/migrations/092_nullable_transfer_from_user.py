@@ -82,7 +82,7 @@ def upgrade(engine: Engine | None = None) -> None:
     print("✓ vehicle_transfers.from_user_id nullable migration completed")
 
 
-def _run_sqlite(engine) -> None:
+def _run_sqlite(engine: Engine) -> None:
     """SQLite: rebuild vehicle_transfers with nullable from_user_id."""
     raw = engine.raw_connection()
     try:

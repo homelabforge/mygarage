@@ -288,7 +288,8 @@ class TestExternalVisionConsent:
                 content_type="application/pdf",
             )
         assert exc.value.status_code == 409
-        assert exc.value.detail["code"] == "vision_consent_required"
+        # FastAPI takes a dict detail, starlette types the attribute as str.
+        assert exc.value.detail["code"] == "vision_consent_required"  # pyright: ignore[reportArgumentType]  # dict detail, typed str
         assert calls == []
 
     async def test_consent_lets_the_document_through(self, external_endpoint, vision_answer):

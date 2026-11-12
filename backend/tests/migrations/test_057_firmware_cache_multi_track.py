@@ -1,20 +1,13 @@
 """Migration 057: track column + unique index, idempotent, both dialects."""
 
-import importlib.util
-from pathlib import Path
-
 from sqlalchemy import inspect, text
 
-import app.migrations as _m
 from app.migrations import runner  # noqa: F401  (ensures package import path)
+from tests.migrations._loader import load_migration
 
 
 def _load_057():
-    path = Path(_m.__file__).parent / "057_firmware_cache_multi_track.py"
-    spec = importlib.util.spec_from_file_location("m057", path)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
+    return load_migration("057_firmware_cache_multi_track", "m057")
 
 
 def _make_legacy_cache(engine):

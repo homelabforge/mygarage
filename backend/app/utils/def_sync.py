@@ -103,7 +103,7 @@ async def delete_def_for_fuel_record(
     result = await db.execute(
         delete(DEFRecord).where(DEFRecord.origin_fuel_record_id == fuel_record_id)
     )
-    count: int = result.rowcount  # type: ignore[attr-defined]  # CursorResult has rowcount at runtime
+    count: int = result.rowcount  # pyright: ignore[reportAttributeAccessIssue]  # DML execute returns CursorResult
     if count:
         logger.info(
             "Deleted %d auto-synced DEF record(s) for fuel record %d", count, fuel_record_id

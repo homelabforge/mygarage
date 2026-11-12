@@ -219,4 +219,4 @@ async def test_a_broker_that_refuses_is_502_with_its_message(
     # The guard is released, so the next run isn't refused as "in progress".
     from app.services.mqtt_subscriber import mqtt_subscriber
 
-    assert mqtt_subscriber._discovering is False  # pyright: ignore[reportPrivateUsage]
+    assert mqtt_subscriber._discovering is False

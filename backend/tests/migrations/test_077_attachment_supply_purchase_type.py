@@ -1,18 +1,8 @@
-import importlib.util
-from pathlib import Path
-
 import pytest
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 
-MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "app" / "migrations"
-
-
-def _load(name: str):
-    spec = importlib.util.spec_from_file_location(name, MIGRATIONS_DIR / f"{name}.py")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+from tests.migrations._loader import load_migration
 
 
 def _make_attachments(engine):
@@ -52,7 +42,7 @@ def test_077_allows_supply_purchase(engine_for_migration):
                     "VALUES ('supply_purchase', 1, 'x')"
                 )
             )
-    _load("077_attachment_supply_purchase_type").upgrade(engine)
+    load_migration("077_attachment_supply_purchase_type").upgrade(engine)
     # After: accepted, and the old types still work.
     with engine.begin() as conn:
         conn.execute(
@@ -72,7 +62,7 @@ def test_077_allows_supply_purchase(engine_for_migration):
 def test_077_idempotent(engine_for_migration):
     _dialect, engine, _url = engine_for_migration
     _make_attachments(engine)
-    mod = _load("077_attachment_supply_purchase_type")
+    mod = load_migration("077_attachment_supply_purchase_type")
     mod.upgrade(engine)
     mod.upgrade(engine)  # must not raise
 
@@ -83,7 +73,7 @@ def test_077_widens_file_type_for_mime(engine_for_migration):
 
     _dialect, engine, _url = engine_for_migration
     _make_attachments(engine)  # starts at VARCHAR(10)
-    _load("077_attachment_supply_purchase_type").upgrade(engine)
+    load_migration("077_attachment_supply_purchase_type").upgrade(engine)
     with engine.begin() as conn:
         conn.execute(
             text(
@@ -102,7 +92,7 @@ def test_077_one_receipt_per_purchase(engine_for_migration):
     but still allows a different record_type to reuse the same record_id."""
     _dialect, engine, _url = engine_for_migration
     _make_attachments(engine)
-    _load("077_attachment_supply_purchase_type").upgrade(engine)
+    load_migration("077_attachment_supply_purchase_type").upgrade(engine)
     with engine.begin() as conn:
         conn.execute(
             text(

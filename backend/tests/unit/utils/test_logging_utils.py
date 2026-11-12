@@ -130,7 +130,7 @@ class TestMaskVin:
 
     def test_mask_none_vin(self):
         """Test masking None VIN."""
-        assert mask_vin(None) == "***"
+        assert mask_vin(None) == "***"  # pyright: ignore[reportArgumentType]  # deliberately invalid
 
     def test_mask_short_vin(self):
         """Test masking a short VIN (4 or fewer chars)."""
@@ -161,7 +161,7 @@ class TestMaskEmail:
 
     def test_mask_none_email(self):
         """Test masking None email."""
-        assert mask_email(None) == "***@***.***"
+        assert mask_email(None) == "***@***.***"  # pyright: ignore[reportArgumentType]  # deliberately invalid
 
     def test_mask_email_no_at_sign(self):
         """Test masking invalid email without @ sign."""
@@ -197,7 +197,7 @@ class TestMaskCreditCard:
 
     def test_mask_none_card(self):
         """Test masking None card number."""
-        assert mask_credit_card(None) == "****-****-****-****"
+        assert mask_credit_card(None) == "****-****-****-****"  # pyright: ignore[reportArgumentType]  # deliberately invalid
 
     def test_mask_short_card(self):
         """Test masking a card number that's too short."""
@@ -238,7 +238,7 @@ class TestMaskPhone:
 
     def test_mask_none_phone(self):
         """Test masking None phone number."""
-        assert mask_phone(None) == "***-***-****"
+        assert mask_phone(None) == "***-***-****"  # pyright: ignore[reportArgumentType]  # deliberately invalid
 
     def test_mask_short_phone(self):
         """Test masking a phone number that's too short."""
@@ -267,7 +267,7 @@ class TestMaskLicensePlate:
 
     def test_mask_none_plate(self):
         """Test masking None plate."""
-        assert mask_license_plate(None) == "***"
+        assert mask_license_plate(None) == "***"  # pyright: ignore[reportArgumentType]  # deliberately invalid
 
     def test_mask_3_char_plate(self):
         """Test masking a 3-character plate shows first and last."""
@@ -328,22 +328,22 @@ class TestMaskCoordinates:
 
     def test_mask_string_coordinates(self):
         """Test masking string coordinates (should still work)."""
-        result = mask_coordinates("37.7749", "-122.4194")
+        result = mask_coordinates("37.7749", "-122.4194")  # pyright: ignore[reportArgumentType]  # deliberately invalid
         assert result == "~37.77, ~-122.42"
 
     def test_mask_invalid_latitude(self):
         """Test masking with invalid latitude."""
-        result = mask_coordinates("invalid", -122.42)
+        result = mask_coordinates("invalid", -122.42)  # pyright: ignore[reportArgumentType]  # deliberately invalid
         assert result == "~?.??, ~?.??"
 
     def test_mask_invalid_longitude(self):
         """Test masking with invalid longitude."""
-        result = mask_coordinates(37.77, "invalid")
+        result = mask_coordinates(37.77, "invalid")  # pyright: ignore[reportArgumentType]  # deliberately invalid
         assert result == "~?.??, ~?.??"
 
     def test_mask_none_coordinates(self):
         """Test masking None coordinates."""
-        result = mask_coordinates(None, None)
+        result = mask_coordinates(None, None)  # pyright: ignore[reportArgumentType]  # deliberately invalid
         assert result == "~?.??, ~?.??"
 
     def test_mask_zero_coordinates(self):
@@ -371,7 +371,7 @@ class TestMaskApiKey:
 
     def test_mask_none_api_key(self):
         """Test masking None API key."""
-        assert mask_api_key(None) == "****"
+        assert mask_api_key(None) == "****"  # pyright: ignore[reportArgumentType]  # deliberately invalid
 
     def test_mask_5_char_api_key(self):
         """Test masking a 5-character key shows first 4."""

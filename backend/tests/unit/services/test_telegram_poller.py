@@ -599,12 +599,12 @@ async def test_a_failing_skip_is_retried_not_rehandled(
         for _ in range(3):
             await _round(poller, fake)
         real_commit = poller._commit_offset
-        poller._commit_offset = AsyncMock(  # type: ignore[method-assign]
+        poller._commit_offset = AsyncMock(
             side_effect=[sa_exc.OperationalError("UPDATE", {}, Exception("locked"))]
         )
         await _round(poller, fake)
         assert poller.status["error_code"] == "database_error"
-        poller._commit_offset = real_commit  # type: ignore[method-assign]
+        poller._commit_offset = real_commit
         await _round(poller, fake)
 
     assert broken.await_count == 3  # the fourth and fifth rounds skipped, they did not re-handle

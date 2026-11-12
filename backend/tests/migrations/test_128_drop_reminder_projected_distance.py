@@ -4,15 +4,13 @@ The table is the real one from `create_all`, CHECKs and indexes included, with
 the old column put back, so SQLite's DROP COLUMN runs against what prod has.
 """
 
-import importlib.util
 from decimal import Decimal
-from pathlib import Path
 
 from sqlalchemy import inspect, text
 
-import app.migrations as _m
 import app.models  # noqa: F401  (registers the tables create_all needs)
 from app.database import Base
+from tests.migrations._loader import load_migration
 
 _NAME = "128_drop_reminder_projected_distance"
 _VIN = "VINPROJDIST000001"
@@ -20,11 +18,7 @@ _COLUMN = "projected_distance_km"
 
 
 def _load():
-    path = Path(_m.__file__).parent / f"{_NAME}.py"
-    spec = importlib.util.spec_from_file_location(_NAME, path)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
+    return load_migration(_NAME)
 
 
 def _seed(engine) -> int:

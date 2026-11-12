@@ -231,7 +231,9 @@ class PDFReportGenerator:
                 textColor=colors.whitesmoke,
                 alignment=TA_CENTER,
             )
-            table_data = [[Paragraph(h, header_style) for h in headers]]
+            table_data: list[list[Paragraph | str]] = [
+                [Paragraph(h, header_style) for h in headers]
+            ]
 
             # Table rows
             total_cost = Decimal("0")
@@ -353,7 +355,7 @@ class PDFReportGenerator:
         if service_records:
             story.append(Paragraph("Service History", self.styles["CustomSubtitle"]))
             story.append(Spacer(1, 0.1 * inch))
-            table_data = [["Date", self._odometer_header(), "Service"]]
+            table_data: list[list[Paragraph | str]] = [["Date", self._odometer_header(), "Service"]]
             for record in service_records:
                 desc = record.get("service_type") or record.get("description") or "Service"
                 table_data.append(
@@ -420,7 +422,7 @@ class PDFReportGenerator:
         story.append(Spacer(1, 0.1 * inch))
 
         # Summary table
-        table_data = [["Category", "Count", "Total Cost", "Average"]]
+        table_data: list[list[Paragraph | str]] = [["Category", "Count", "Total Cost", "Average"]]
 
         is_motorized = vehicle_info.get("vehicle_type") not in NON_MOTORIZED_VEHICLE_TYPES
 
@@ -575,7 +577,9 @@ class PDFReportGenerator:
         story.append(Spacer(1, 0.1 * inch))
 
         if deductible_records:
-            table_data = [["Date", "Category", "Description", "Amount"]]
+            table_data: list[list[Paragraph | str]] = [
+                ["Date", "Category", "Description", "Amount"]
+            ]
 
             total_deductible = Decimal("0")
             for record in deductible_records:

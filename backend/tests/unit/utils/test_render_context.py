@@ -317,4 +317,4 @@ def test_render_context_is_frozen() -> None:
     tampered with mid-render; frozen makes that a `FrozenInstanceError`."""
     ctx = RenderContext(units=METRIC_PRESET, show_both=False)
     with pytest.raises(Exception):  # noqa: B017 -- FrozenInstanceError, dataclasses-internal
-        ctx.show_both = True  # type: ignore[misc]
+        ctx.show_both = True  # pyright: ignore[reportAttributeAccessIssue]  # deliberately invalid: it's frozen

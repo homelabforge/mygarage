@@ -18,7 +18,7 @@ from app.models.settings import Setting
 from app.utils.settings_crypto import (
     ENV_KEY,
     ENV_KEY_FILE,
-    _reset_keyring_for_tests,  # pyright: ignore[reportPrivateUsage] - the suite's reset hook
+    _reset_keyring_for_tests,  # the suite's reset hook
     current_kid,
 )
 from tests.integration._secret_helpers import Keep, UseKeys

@@ -62,7 +62,7 @@ class TestServiceVisitHoursAutoSync:
         self, client: AsyncClient, auth_headers, test_user, db_session: AsyncSession
     ) -> None:
         vin = "SVCHOURS000000001"
-        await _make_vehicle(db_session, int(test_user["id"]), vin)  # type: ignore[arg-type]
+        await _make_vehicle(db_session, int(test_user["id"]), vin)
 
         resp = await client.post(
             f"/api/vehicles/{vin}/service-visits",
@@ -98,7 +98,7 @@ class TestServiceVisitHoursAutoSync:
         self, client: AsyncClient, auth_headers, test_user, db_session: AsyncSession
     ) -> None:
         vin = "SVCHOURS000000002"
-        await _make_vehicle(db_session, int(test_user["id"]), vin)  # type: ignore[arg-type]
+        await _make_vehicle(db_session, int(test_user["id"]), vin)
 
         created = (
             await client.post(
@@ -130,7 +130,7 @@ class TestServiceVisitHoursAutoSync:
         self, client: AsyncClient, auth_headers, test_user, db_session: AsyncSession
     ) -> None:
         vin = "SVCHOURS000000003"
-        await _make_vehicle(db_session, int(test_user["id"]), vin)  # type: ignore[arg-type]
+        await _make_vehicle(db_session, int(test_user["id"]), vin)
 
         created = (
             await client.post(
@@ -160,7 +160,7 @@ class TestServiceVisitHoursAutoSync:
         self, client: AsyncClient, auth_headers, test_user, db_session: AsyncSession
     ) -> None:
         vin = "SVCHOURS000000004"
-        await _make_vehicle(db_session, int(test_user["id"]), vin)  # type: ignore[arg-type]
+        await _make_vehicle(db_session, int(test_user["id"]), vin)
 
         resp = await client.post(
             f"/api/vehicles/{vin}/service-visits",
@@ -190,7 +190,7 @@ class TestServiceVisitDeleteCleansUpSyncedRecords:
         self, client: AsyncClient, auth_headers, test_user, db_session: AsyncSession
     ) -> None:
         vin = "SVCHOURS000000005"
-        await _make_vehicle(db_session, int(test_user["id"]), vin)  # type: ignore[arg-type]
+        await _make_vehicle(db_session, int(test_user["id"]), vin)
         visit_date = date(2026, 3, 5)
 
         created = (
@@ -292,7 +292,7 @@ class TestServiceVisitDeleteCleansUpSyncedRecords:
         era left in the wild (migration 106 repairs stocks, this guards the
         path), so a legacy duplicate is seeded directly."""
         vin = "SVCHOURS000000007"
-        await _make_vehicle(db_session, int(test_user["id"]), vin)  # type: ignore[arg-type]
+        await _make_vehicle(db_session, int(test_user["id"]), vin)
         old_date = date(2026, 3, 5)
         new_date = date(2026, 4, 10)
 
@@ -383,7 +383,7 @@ class TestServiceVisitDeleteCleansUpSyncedRecords:
         """A visit with no odometer_km never synced a row -- delete must be a no-op
         against any manual odometer rows for the vehicle."""
         vin = "SVCHOURS000000006"
-        await _make_vehicle(db_session, int(test_user["id"]), vin)  # type: ignore[arg-type]
+        await _make_vehicle(db_session, int(test_user["id"]), vin)
 
         db_session.add(
             OdometerRecord(

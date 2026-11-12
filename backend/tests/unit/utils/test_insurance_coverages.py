@@ -45,7 +45,7 @@ Rental Reimbursement $50.00 each day/30 maximum days
 Roadside Assistance"""
 
 
-def parsed(text: str) -> dict[str, object]:
+def parsed(text: str) -> dict[str, ParsedCoverage]:
     """The parse keyed by coverage, for assertions that name one coverage."""
     return {item.key: item for item in parse_coverage_lines(text).coverages}
 

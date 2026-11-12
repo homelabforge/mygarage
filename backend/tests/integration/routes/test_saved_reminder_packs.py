@@ -12,7 +12,7 @@ from decimal import Decimal
 
 import pytest
 import pytest_asyncio
-from httpx import AsyncClient
+from httpx import AsyncClient, Response
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -64,7 +64,7 @@ async def _rule(client: AsyncClient, headers, vin: str, **over) -> dict:
     return response.json()
 
 
-async def _save(client: AsyncClient, headers, vin: str, rule_ids: list[int], **over) -> dict:
+async def _save(client: AsyncClient, headers, vin: str, rule_ids: list[int], **over) -> Response:
     body = {"vin": vin, "name": "Truck Standard", "rule_ids": rule_ids} | over
     return await client.post(PACKS, json=body, headers=headers)
 

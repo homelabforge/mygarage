@@ -315,6 +315,7 @@ async def test_an_older_replayed_sample_leaves_movement_ended_at_where_it_was(
     t0 = datetime(2026, 9, 3, 8, 0, 0)
 
     service = SessionService(db_session)
+    session = None
     for i, at in enumerate((t0, t0 + timedelta(seconds=10), t0 + timedelta(seconds=20))):
         session = await service.observe_telemetry(
             device, {"SPEED": 50.0, "ODOMETER": 1000.0 + 0.1 * i}, at, live=True
@@ -1513,7 +1514,7 @@ async def test_a_replay_never_opens_a_pointed_session_even_if_it_reaches_the_pro
     nothing and drops the evidence it was handed, since it was a replay's. Red
     on 177e04d9 (it opened a pointed session)."""
     await _pin_session_settings(db_session, keep_rows)
-    _vin, device = await make_livelink_vehicle("t4prm9", "1")
+    vin, device = await make_livelink_vehicle("t4prm9", "1")
     service = SessionService(db_session)
     now = _now()
     device.movement_candidate_at = now - timedelta(seconds=30)
@@ -1521,7 +1522,7 @@ async def test_a_replay_never_opens_a_pointed_session_even_if_it_reaches_the_pro
     await db_session.flush()
 
     result = await service._promote_to_driving(  # noqa: SLF001 - the guard under test
-        device, extract_signals({"SPEED": 50.0}), now, GAP, live=False
+        device, vin, extract_signals({"SPEED": 50.0}), now, GAP, live=False
     )
 
     assert result is None

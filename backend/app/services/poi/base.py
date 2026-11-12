@@ -66,14 +66,15 @@ class BasePOIProvider(ABC):
         pass
 
     @abstractmethod
-    def normalize_result(self, raw_result: dict) -> dict[str, Any]:
+    def normalize_result(self, raw_result: dict) -> dict[str, Any] | None:
         """Normalize provider-specific result to common format.
 
         Args:
             raw_result: Raw API response from the provider
 
         Returns:
-            Normalized result dictionary matching the format described in search()
+            Normalized result dictionary matching the format described in search(),
+            or None for a result the provider can't use
         """
         pass
 

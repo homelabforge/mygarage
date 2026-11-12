@@ -7,25 +7,13 @@ own docstring). A SQLite-only run proves nothing here at all: SQLite does not
 enforce VARCHAR length, which is the entire reason this migration exists.
 """
 
-import importlib.util
-from pathlib import Path
-
 import pytest
-from sqlalchemy import inspect, text
+from sqlalchemy import String, inspect, text
 
-import app.migrations as _m
 from app.models.livelink_device import LiveLinkDevice
+from tests.migrations._loader import load_migration
 
 pytestmark = pytest.mark.migrations
-
-
-def _load(name: str):
-    """Load a migration module by number-name, as test_098 does."""
-    path = Path(_m.__file__).parent / f"{name}.py"
-    spec = importlib.util.spec_from_file_location(name, path)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
 
 
 def _make_pre_110_kind_column(engine) -> None:
@@ -53,6 +41,8 @@ def _make_pre_110_kind_column(engine) -> None:
 
 def test_model_declares_a_column_wide_enough_for_generic_mqtt():
     col = LiveLinkDevice.__table__.c.kind
+    assert isinstance(col.type, String)
+    assert col.type.length is not None
     assert col.type.length >= len("generic_mqtt")
 
 
@@ -66,7 +56,7 @@ def test_the_column_is_actually_widened(engine_for_migration):
     if dialect == "pg":
         assert before["kind"]["type"].length == 10, "fixture must start in the PRE state"
 
-    _load("110_widen_livelink_device_kind").upgrade(engine)
+    load_migration("110_widen_livelink_device_kind").upgrade(engine)
 
     after = {c["name"]: c for c in inspect(engine).get_columns("livelink_devices")}
     if dialect == "pg":
@@ -78,7 +68,7 @@ def test_an_existing_generic_mqtt_insert_succeeds_after_upgrade(engine_for_migra
     """The user-visible symptom: PG rejects the insert until this migration runs."""
     _dialect, engine, _url = engine_for_migration
     _make_pre_110_kind_column(engine)
-    _load("110_widen_livelink_device_kind").upgrade(engine)
+    load_migration("110_widen_livelink_device_kind").upgrade(engine)
     with engine.begin() as conn:
         conn.execute(
             text("INSERT INTO livelink_devices (device_id, kind) VALUES ('gw01', 'generic_mqtt')")
@@ -93,7 +83,7 @@ def test_an_existing_generic_mqtt_insert_succeeds_after_upgrade(engine_for_migra
 def test_migration_is_idempotent(engine_for_migration):
     _dialect, engine, _url = engine_for_migration
     _make_pre_110_kind_column(engine)
-    mod = _load("110_widen_livelink_device_kind")
+    mod = load_migration("110_widen_livelink_device_kind")
     mod.upgrade(engine)
     mod.upgrade(engine)
     cols = {c["name"] for c in inspect(engine).get_columns("livelink_devices")}

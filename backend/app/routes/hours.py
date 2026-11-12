@@ -67,7 +67,7 @@ async def list_hours_records(
         count_result = await db.execute(
             select(func.count()).select_from(HoursRecord).where(HoursRecord.vin == vin)
         )
-        total = count_result.scalar()
+        total = count_result.scalar_one()
 
         # Canonical latest reading -- the ONE shared helper, never re-derived.
         latest_engine_hours, _latest_date = await latest_engine_hours_and_date(db, vin)

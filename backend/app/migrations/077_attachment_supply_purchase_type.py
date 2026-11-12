@@ -62,7 +62,7 @@ def upgrade(engine: Engine | None = None):
         )
 
 
-def _upgrade_pg(engine):
+def _upgrade_pg(engine: Engine) -> None:
     with engine.begin() as conn:
         # (2) Widen file_type so MIME strings fit. Idempotent — skip if already wide.
         width = conn.execute(
@@ -96,7 +96,7 @@ def _upgrade_pg(engine):
         )
 
 
-def _upgrade_sqlite(engine):
+def _upgrade_sqlite(engine: Engine) -> None:
     with engine.begin() as conn:
         ddl = conn.execute(
             text("SELECT sql FROM sqlite_master WHERE type='table' AND name='attachments'")

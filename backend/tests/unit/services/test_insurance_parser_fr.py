@@ -85,9 +85,9 @@ class TestCanParse:
         assert DocumentParserRegistry.detect_insurance_parser(PROGRESSIVE).PARSER_NAME == (
             "Progressive"
         )
-        assert DocumentParserRegistry.get_insurance_parser("french").PARSER_NAME == (
-            "FrenchInsurance"
-        )
+        french = DocumentParserRegistry.get_insurance_parser("french")
+        assert french is not None
+        assert french.PARSER_NAME == "FrenchInsurance"
 
 
 @pytest.mark.unit

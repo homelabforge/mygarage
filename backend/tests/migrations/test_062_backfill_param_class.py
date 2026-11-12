@@ -15,21 +15,9 @@ migration's frozen ``_infer()`` snapshot against the runtime
 ``infer_param_class`` over the Task 10 fixture keys at this point in time.
 """
 
-import importlib.util
-from pathlib import Path
-
 from sqlalchemy import text
 
-import app.migrations as _m
-
-
-def _load(name):
-    path = Path(_m.__file__).parent / f"{name}.py"
-    spec = importlib.util.spec_from_file_location(name, path)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
-
+from tests.migrations._loader import load_migration
 
 # Seed rows: (param_key, param_class, category, show_on_dashboard, archive_only, display_order)
 _SEED_ROWS = [
@@ -97,7 +85,7 @@ def _fetch_rows(engine):
 def test_062_backfills_null_class_rows(engine_for_migration):
     _dialect, engine, _url = engine_for_migration
     _make_livelink_parameters(engine)
-    _load("062_backfill_param_class").upgrade(engine)
+    load_migration("062_backfill_param_class").upgrade(engine)
 
     rows = _fetch_rows(engine)
 
@@ -126,7 +114,7 @@ def test_062_never_touches_display_state(engine_for_migration):
     """show_on_dashboard / archive_only / display_order are user dashboard state."""
     _dialect, engine, _url = engine_for_migration
     _make_livelink_parameters(engine)
-    _load("062_backfill_param_class").upgrade(engine)
+    load_migration("062_backfill_param_class").upgrade(engine)
 
     rows = _fetch_rows(engine)
     for key, _pclass, _category, show, archive, order in _SEED_ROWS:
@@ -139,7 +127,7 @@ def test_062_idempotent(engine_for_migration):
     """Second run is a no-op — identical end state, no raise."""
     _dialect, engine, _url = engine_for_migration
     _make_livelink_parameters(engine)
-    mod = _load("062_backfill_param_class")
+    mod = load_migration("062_backfill_param_class")
     mod.upgrade(engine)
     first = _fetch_rows(engine)
     mod.upgrade(engine)
@@ -149,7 +137,7 @@ def test_062_idempotent(engine_for_migration):
 def test_062_missing_table_skips(engine_for_migration):
     """Fresh DB without livelink_parameters → migration must skip, not raise."""
     _dialect, engine, _url = engine_for_migration
-    _load("062_backfill_param_class").upgrade(engine)  # no table created
+    load_migration("062_backfill_param_class").upgrade(engine)  # no table created
 
 
 def test_062_snapshot_matches_runtime_catalog():
@@ -166,7 +154,7 @@ def test_062_snapshot_matches_runtime_catalog():
     from app.utils.autopid_normalizer import infer_param_class
     from tests.unit.utils.test_param_class_inference import FIXTURE_TABLE
 
-    mod = _load("062_backfill_param_class")
+    mod = load_migration("062_backfill_param_class")
     for param_key, _expected in FIXTURE_TABLE:
         assert mod._infer(param_key) == infer_param_class(param_key), (
             f"snapshot drift for {param_key!r}: migration froze "

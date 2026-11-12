@@ -1,5 +1,8 @@
 """Unit tests for Settings configuration and derivation."""
 
+import pytest
+from pydantic import ValidationError
+
 
 class TestSettingsDefaults:
     """Test default Settings values."""
@@ -115,3 +118,30 @@ class TestServiceLinkPort:
 
         s = Settings()
         assert s.port == 8686
+
+
+class TestCookieSameSite:
+    """MYGARAGE_JWT_COOKIE_SAMESITE is checked at startup, not at the first login.
+
+    Starlette asserts the value inside set_cookie, so a typo used to 500 the
+    login route instead of stopping the app.
+    """
+
+    def test_any_case_works_and_default_is_lax(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Lax, STRICT and none all load lowercased; unset stays lax."""
+        from app.config import Settings
+
+        monkeypatch.delenv("MYGARAGE_JWT_COOKIE_SAMESITE", raising=False)
+        assert Settings().jwt_cookie_samesite == "lax"
+
+        for raw, expected in (("Lax", "lax"), ("STRICT", "strict"), ("none", "none")):
+            monkeypatch.setenv("MYGARAGE_JWT_COOKIE_SAMESITE", raw)
+            assert Settings().jwt_cookie_samesite == expected
+
+    def test_a_typo_fails_at_startup(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """An unknown value is a validation error naming the field."""
+        from app.config import Settings
+
+        monkeypatch.setenv("MYGARAGE_JWT_COOKIE_SAMESITE", "bogus")
+        with pytest.raises(ValidationError, match="jwt_cookie_samesite"):
+            Settings()

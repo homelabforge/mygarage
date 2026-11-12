@@ -11,11 +11,11 @@ from app.schemas._nullability import reject_null
 class SettingBase(BaseModel):
     """Base setting schema."""
 
-    value: str | None = Field(None, description="Setting value")
-    category: str = Field("general", description="Setting category")
-    description: str | None = Field(None, description="Setting description")
+    value: str | None = Field(default=None, description="Setting value")
+    category: str = Field(default="general", description="Setting category")
+    description: str | None = Field(default=None, description="Setting description")
     encrypted: bool = Field(
-        False,
+        default=False,
         description=(
             "Whether the value is a secret: encrypted at rest and masked as "
             "'********' in API responses."
@@ -32,11 +32,11 @@ class SettingCreate(SettingBase):
 class SettingUpdate(BaseModel):
     """Schema for updating a setting."""
 
-    value: str | None = Field(None, description="Setting value")
-    category: str | None = Field(None, description="Setting category")
-    description: str | None = Field(None, description="Setting description")
+    value: str | None = Field(default=None, description="Setting value")
+    category: str | None = Field(default=None, description="Setting category")
+    description: str | None = Field(default=None, description="Setting description")
     encrypted: bool | None = Field(
-        None, description="Whether the value is sensitive (masked in API responses)"
+        default=None, description="Whether the value is sensitive (masked in API responses)"
     )
 
     # NOT NULL columns: omitted keeps the stored value, null is a 422.
@@ -48,7 +48,7 @@ class SettingResponse(SettingBase):
 
     key: str
     unreadable: bool = Field(
-        False,
+        default=False,
         description=(
             "True for a secret that is configured but can't be decrypted with the "
             "current settings key. Its value shows as '********'; saving that "

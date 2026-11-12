@@ -76,12 +76,20 @@ ignore = ["E501"]
 "tests/*" = ["S101"]
 
 [tool.pyright]
-# Pyright strict type checking configuration for MyGarage backend
-# Version: 1.1.407
+# Pyright strict type checking for the MyGarage backend.
+# Version: 1.1.414
 # Reference: https://microsoft.github.io/pyright/#/configuration
+#
+# Suppressions: `# pyright: ignore[rule]  # reason` on the offending line only.
+# `# type: ignore` is inert (enableTypeIgnoreComments = false), an ignore that
+# suppresses nothing is an error, and file-level pragmas may only relax the
+# style rules (reportPrivateUsage, reportUnusedFunction, reportUnusedClass).
+# tests/unit/test_pyright_config.py enforces all of that and catches a
+# misspelled key here, which pyright itself would only print and skip.
 
 # Project Structure
-# Tests and the one-off tools get the same strict pass as app/.
+# app/, tools/, scripts/ and migrations/ get the root (strict) settings;
+# tests/ gets the executionEnvironments entry at the bottom.
 include = ["app", "tests", "tools", "scripts", "migrations", "unlink_oidc_wrapper.py"]
 exclude = [
     "**/__pycache__",
@@ -92,77 +100,96 @@ exclude = [
 pythonVersion = "3.15"
 pythonPlatform = "Linux"
 
-# Type Checking Mode: Strict
-# This enables the most rigorous type checking for production code quality
 typeCheckingMode = "strict"
+enableTypeIgnoreComments = false
+reportUnnecessaryTypeIgnoreComment = "error"
 
-# Strict Mode Enables These Checks by Default:
-# - reportMissingTypeStubs: warning
-# - reportUnknownArgumentType: warning
-# - reportUnknownMemberType: warning
-# - reportUnknownParameterType: warning
-# - reportUnknownVariableType: warning
-# - reportUntypedFunctionDecorator: warning
-# - reportUntypedClassDecorator: warning
-# - reportUntypedBaseClass: warning
-# - reportUntypedNamedTuple: warning
-
-# Diagnostic Overrides
-# Phase 9 cleanup: reduced "none" suppressions from 13 to 7.
-# History: /srv/raid0/docker/documents/history/mygarage/2025-12-31-*.md
-
-# === Remaining suppressions: third-party library gaps ===
-reportMissingImports = "none"  # pytesseract, python-magic — no stubs exist
+# === Third-party library gaps ===
 reportUntypedFunctionDecorator = "none"  # FastAPI @app.get(), SlowAPI @limiter.limit()
 reportUnknownLambdaType = "none"  # Lambda types inferred from context
 reportMissingTypeArgument = "none"  # Complex generic structures (SQLAlchemy/FastAPI)
 
-# === Remaining suppressions: ecosystem pattern limitations ===
-reportAttributeAccessIssue = "none"  # SQLAlchemy ORM class-level descriptor access (47 hits)
-reportArgumentType = "none"  # FastAPI Depends() injection patterns (184 hits)
-reportCallIssue = "none"  # Function overload resolution (31 hits)
-
-# === Promoted from "none" (zero hits or code-fixed) ===
-reportMissingModuleSource = "warning"  # Was "none" — 0 hits
-reportGeneralTypeIssues = "warning"  # Was "none" — 0 hits
-reportIndexIssue = "warning"  # Was "none" — 0 hits
-reportIncompatibleMethodOverride = "warning"  # Fixed: insurance parsers match base signature
-reportConstantRedefinition = "warning"  # Fixed: declare-before-try pattern
-reportMissingParameterType = "warning"  # Fixed: added explicit type annotations
-
-# === Tightened: fixable with code changes (Phase 9) ===
-reportReturnType = "warning"  # Fixed by Mapped[T] migration + explicit None handling
-reportOptionalMemberAccess = "warning"  # Fixed with None guards / assertions
-reportOptionalOperand = "warning"  # Fixed with `or 0` / None checks
-reportPossiblyUnboundVariable = "warning"  # Fixed by restructuring import guards
-reportOptionalSubscript = "warning"  # Fixed with None checks
-reportUnnecessaryComparison = "warning"  # Defensive checks — warnings acceptable
-
-# === Low Priority (code quality) ===
-reportUnusedImport = "warning"  # Ruff handles via F401
-reportUnusedVariable = "warning"  # Ruff handles via F841
-reportUnusedFunction = "warning"  # Helper functions, utilities
-reportUnusedClass = "warning"  # Base classes, mix-ins
-
-# === Type Stub Quality ===
-reportMissingTypeStubs = "warning"  # Many Python libraries lack stubs
-reportUnknownArgumentType = "warning"  # Due to missing stubs
-reportUnknownMemberType = "warning"  # Due to missing stubs
-reportUnknownParameterType = "warning"  # Due to missing stubs
-reportUnknownVariableType = "warning"  # Due to missing stubs
-
-# === Decorator Type Safety ===
-reportUntypedClassDecorator = "warning"  # SQLAlchemy declarative base
-reportUntypedBaseClass = "warning"  # Base classes from libraries without stubs
-
-# === Strict Checks ===
+# === Errors ===
+# These three used to be off, blamed on Depends() and ORM descriptors. The real
+# causes were pyright skipping a descriptor's __get__ in protocol matching (ORM
+# models now pass as `Model | Shape` aliases) and positional Field(None, ...)
+# defaults it can't see (now Field(default=...)).
+reportArgumentType = "error"
+reportAttributeAccessIssue = "error"
+reportCallIssue = "error"
+reportMissingImports = "error"  # the optional paddleocr imports carry scoped ignores
+reportGeneralTypeIssues = "error"
+reportReturnType = "error"
+reportOptionalMemberAccess = "error"
+reportOptionalOperand = "error"
+reportOptionalSubscript = "error"
+reportPossiblyUnboundVariable = "error"
+reportIndexIssue = "error"
+reportIncompatibleMethodOverride = "error"
+reportIncompatibleVariableOverride = "error"
+reportConstantRedefinition = "error"
+reportDeprecated = "error"
 reportInvalidTypeForm = "error"
 reportDuplicateImport = "error"
 reportWildcardImportFromLibrary = "error"
-reportPrivateUsage = "warning"
-reportIncompatibleVariableOverride = "warning"
 reportInconsistentConstructor = "error"
 reportOverlappingOverload = "error"
-reportUninitializedInstanceVariable = "warning"
 reportInvalidStringEscapeSequence = "error"
-reportDeprecated = "warning"
+reportMissingParameterType = "error"
+reportUnusedImport = "error"  # ruff F401 too; pyright also sees TYPE_CHECKING blocks
+reportUnusedVariable = "error"  # ruff F841 too; pyright also sees tuple unpacking
+
+# === Warnings ===
+reportMissingModuleSource = "warning"
+reportUnnecessaryComparison = "warning"  # Defensive checks, kept on purpose
+reportUnusedFunction = "warning"  # Helper functions, utilities
+reportUnusedClass = "warning"  # Base classes, mix-ins
+reportPrivateUsage = "warning"
+reportUninitializedInstanceVariable = "warning"
+reportMissingTypeStubs = "warning"  # Many Python libraries lack stubs
+reportUnknownArgumentType = "warning"
+reportUnknownMemberType = "warning"
+reportUnknownParameterType = "warning"
+reportUnknownVariableType = "warning"
+reportUntypedClassDecorator = "warning"
+reportUntypedBaseClass = "warning"
+
+# Tests: "standard-plus". executionEnvironments ignores typeCheckingMode but
+# honours per-rule overrides, so strict-only rules are set to their standard
+# value by hand. Everything else inherits the root.
+[[tool.pyright.executionEnvironments]]
+root = "tests"
+extraPaths = ["."]
+reportMissingImports = "error"  # without this a broken import would pass silently
+strictListInference = false
+strictDictionaryInference = false
+strictSetInference = false
+# strict-only rules at their standard value
+reportMissingParameterType = "none"
+reportMissingTypeArgument = "none"
+reportUnknownArgumentType = "none"
+reportUnknownLambdaType = "none"
+reportUnknownMemberType = "none"
+reportUnknownParameterType = "none"
+reportUnknownVariableType = "none"
+reportPrivateUsage = "none"
+reportUnusedImport = "none"  # ruff F401 covers tests
+reportUnusedVariable = "none"  # ruff F841 covers tests
+reportUnusedFunction = "none"
+reportUnusedClass = "none"
+reportMissingTypeStubs = "none"
+reportUntypedBaseClass = "none"
+reportUntypedClassDecorator = "none"
+reportUntypedFunctionDecorator = "none"
+reportUntypedNamedTuple = "none"
+reportConstantRedefinition = "none"
+reportDeprecated = "none"
+reportTypeCommentUsage = "none"
+reportInconsistentConstructor = "none"
+reportMatchNotExhaustive = "none"
+reportUnnecessaryCast = "none"
+reportInvalidTypeVarUse = "warning"
+reportUnsupportedDunderAll = "warning"
+# kept from strict on purpose: flags a comparison that can never be true or
+# false (`if some_int == "1":`), so a dead branch in a test or helper shows up
+reportUnnecessaryComparison = "error"

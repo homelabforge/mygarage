@@ -44,7 +44,8 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import Connection, Engine, create_engine, inspect, text
+from sqlalchemy.engine.interfaces import DBAPICursor
 
 FATAL = True
 
@@ -90,7 +91,7 @@ def _get_fallback_engine():
 # ============================================================================
 
 
-def _preflight_vin_mismatches(cur) -> None:
+def _preflight_vin_mismatches(cur: DBAPICursor) -> None:
     """P1. Repair children whose `vin` disagrees with their tire's.
 
     The composite FK `(tire_id, vin) -> tires(id, vin)` exists to make that
@@ -119,7 +120,7 @@ def _preflight_vin_mismatches(cur) -> None:
         )
 
 
-def _preflight_reminder_checks(cur) -> list[tuple[str, str]]:
+def _preflight_reminder_checks(cur: DBAPICursor) -> list[tuple[str, str]]:
     """P2. Which CHECKs the data can actually take.
 
     Returns the (name, expression) pairs to include in the rebuilt table. A
@@ -141,7 +142,7 @@ def _preflight_reminder_checks(cur) -> list[tuple[str, str]]:
     return keep
 
 
-def _preflight_backup_marker(engine) -> None:
+def _preflight_backup_marker(engine: Engine) -> None:
     """P3. Warn loudly if there is no recent full backup.
 
     This release cannot be downgraded: step 3 drops `tires.installed_date`, and
@@ -165,7 +166,7 @@ def _preflight_backup_marker(engine) -> None:
 # ============================================================================
 
 
-def _rebuild_tires(cur) -> None:
+def _rebuild_tires(cur: DBAPICursor) -> None:
     """Step 3. `position` nullable, `set_id` + `retired_on` added,
     `installed_date` dropped, `UNIQUE (id, vin)` added.
 
@@ -217,7 +218,7 @@ def _rebuild_tires(cur) -> None:
     cur.execute("CREATE INDEX idx_tires_vin ON tires (vin)")
 
 
-def _rebuild_tire_readings(cur) -> None:
+def _rebuild_tire_readings(cur: DBAPICursor) -> None:
     """Step 6. Add `mount_period_id`, drop `position`'s NOT NULL, move to the
     composite `(tire_id, vin) -> tires(id, vin)`.
 
@@ -263,7 +264,7 @@ def _rebuild_tire_readings(cur) -> None:
     cur.execute("CREATE INDEX idx_tire_readings_mount_period ON tire_readings (mount_period_id)")
 
 
-def _rebuild_vehicle_reminders(cur, checks: list[tuple[str, str]]) -> None:
+def _rebuild_vehicle_reminders(cur: DBAPICursor, checks: list[tuple[str, str]]) -> None:
     """Step 7. Add `tire_id`, `source`, and the three low-tread columns.
 
     The composite FK carries **no `ON DELETE` action**. A referential action
@@ -320,7 +321,7 @@ def _rebuild_vehicle_reminders(cur, checks: list[tuple[str, str]]) -> None:
     cur.execute("CREATE INDEX ix_reminders_due_mileage_km ON vehicle_reminders (due_mileage_km)")
 
 
-def _ensure_new_tables(cur) -> None:
+def _ensure_new_tables(cur: DBAPICursor) -> None:
     """Step 4. `tire_sets` and `tire_mount_periods`.
 
     On an upgraded instance `create_all()` has already made these from the ORM
@@ -369,7 +370,7 @@ def _ensure_new_tables(cur) -> None:
     )
 
 
-def _backfill_periods(cur) -> int:
+def _backfill_periods(cur: DBAPICursor) -> int:
     """Step 5. One assumed open period per existing tire.
 
     `mounted_on` comes from the staged `installed_date` and is usually NULL --
@@ -396,7 +397,7 @@ def _backfill_periods(cur) -> int:
     return cur.rowcount
 
 
-def _link_readings_to_periods(cur) -> int:
+def _link_readings_to_periods(cur: DBAPICursor) -> int:
     """Attach existing readings to the assumed period for their tire.
 
     Every reading predates the migration, and each tire has exactly one period
@@ -416,7 +417,7 @@ def _link_readings_to_periods(cur) -> int:
     return cur.rowcount
 
 
-def _run_sqlite(engine) -> None:
+def _run_sqlite(engine: Engine) -> None:
     """The whole migration, on one raw connection, in one transaction.
 
     `engine.raw_connection()` yields the DB-API connection without SQLAlchemy's
@@ -500,7 +501,7 @@ def _run_sqlite(engine) -> None:
 # ============================================================================
 
 
-def _run_postgres(engine) -> None:
+def _run_postgres(engine: Engine) -> None:
     """PostgreSQL has real ALTER TABLE, so nothing is rebuilt.
 
     That difference matters for the CHECKs: on SQLite an omitted constraint
@@ -625,7 +626,7 @@ def _run_postgres(engine) -> None:
         print(f"  → 097: {result.rowcount} assumed mount period(s) created")
 
 
-def _pg_preflight_vin_mismatches(conn) -> None:
+def _pg_preflight_vin_mismatches(conn: Connection) -> None:
     """P1 on PostgreSQL. Same repair, expressed as an UPDATE ... FROM."""
     for table in ("tire_readings", "vehicle_reminders"):
         has_tire_id = conn.execute(
@@ -662,7 +663,7 @@ def _pg_preflight_vin_mismatches(conn) -> None:
 # ============================================================================
 
 
-def upgrade(engine=None) -> None:
+def upgrade(engine: Engine | None = None) -> None:
     """Run the migration, or return cleanly if it has already been applied.
 
     RE-ENTRANCY. With steps 1-7 in one transaction the observable states

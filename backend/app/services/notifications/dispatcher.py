@@ -144,7 +144,7 @@ class NotificationDispatcher:
         # A missing or blank switch reads as its seeded value, the one the
         # Settings screen shows, so milestones stay off (B5-3).
         seed = DEFAULT_SETTINGS.get(event_key)
-        default = parse_bool(seed["value"], True) if seed else True
+        default = parse_bool(seed.get("value"), True) if seed else True
         return await self._get_setting_bool(event_key, default=default)
 
     async def _has_any_service_enabled(self) -> bool:

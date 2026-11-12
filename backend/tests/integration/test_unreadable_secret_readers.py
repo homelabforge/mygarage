@@ -17,6 +17,7 @@ well-formed and fails only on the associated data.
 """
 
 import logging
+from collections.abc import Sequence
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -80,7 +81,7 @@ async def test_the_dispatcher_skips_ntfy_with_an_unreadable_token(
         patch("app.services.notifications.dispatcher.NtfyNotificationService") as ntfy,
         caplog.at_level(logging.ERROR),
     ):
-        await dispatcher._get_enabled_services()  # pyright: ignore[reportPrivateUsage]
+        await dispatcher._get_enabled_services()
         ntfy.assert_not_called()
         # The same wording as everywhere else, from the one helper.
         assert any(
@@ -92,7 +93,7 @@ async def test_the_dispatcher_skips_ntfy_with_an_unreadable_token(
 
         # Configured without a token: still sends, without auth.
         await _set_raw(db_session, "ntfy_token", "")
-        await dispatcher._get_enabled_services()  # pyright: ignore[reportPrivateUsage]
+        await dispatcher._get_enabled_services()
         ntfy.assert_called_once()
         assert not ntfy.call_args.args[2]
 
@@ -178,7 +179,7 @@ async def test_the_mqtt_subscriber_stops_on_an_unreadable_password(
         patch("app.services.mqtt_subscriber.AsyncSessionLocal", test_sessionmaker),
         caplog.at_level(logging.ERROR),
     ):
-        assert await subscriber._get_config() is None  # pyright: ignore[reportPrivateUsage]
+        assert await subscriber._get_config() is None
         assert any(
             r.levelno == logging.ERROR
             and reenter_message("livelink_mqtt_password") in r.getMessage()
@@ -188,7 +189,7 @@ async def test_the_mqtt_subscriber_stops_on_an_unreadable_password(
 
         # Configured without a password: connects anonymously.
         await _set_raw(db_session, "livelink_mqtt_password", "")
-        config = await subscriber._get_config()  # pyright: ignore[reportPrivateUsage]
+        config = await subscriber._get_config()
         assert config is not None
         assert config["host"] == "mqtt.example.com"
         assert config["password"] is None
@@ -265,14 +266,14 @@ async def test_the_dispatcher_builds_no_service_on_an_unreadable_required_secret
     dispatcher = NotificationDispatcher(db_session)
     prefix = switch.removesuffix("_enabled")
 
-    def ours(built: list[object]) -> list[object]:
+    def ours(built: Sequence[object]) -> list[object]:
         return [s for s in built if type(s).__module__.endswith(f".{prefix}")]
 
-    assert not ours(await dispatcher._get_enabled_services())  # pyright: ignore[reportPrivateUsage]
+    assert not ours(await dispatcher._get_enabled_services())
 
     # Positive control: readable, the same seed builds the service.
     await _set_raw(db_session, secret, encrypt(secret, "readable-secret"))
-    assert len(ours(await dispatcher._get_enabled_services())) == 1  # pyright: ignore[reportPrivateUsage]
+    assert len(ours(await dispatcher._get_enabled_services())) == 1
 
 
 POI = {
@@ -292,14 +293,14 @@ async def test_the_poi_registry_configures_no_provider_on_an_unreadable_key(
 
     registry = POIProviderRegistry(db_session)
 
-    configs = await registry._load_provider_configs()  # pyright: ignore[reportPrivateUsage]
+    configs = await registry._load_provider_configs()
     assert [c["name"] for c in configs] == ["osm"]
 
     # Positive control: readable, the same seed configures every provider,
     # and each one gets the decrypted key, not the ciphertext.
     for key in POI.values():
         await _set_raw(db_session, key, encrypt(key, f"readable-{key}"))
-    configs = await registry._load_provider_configs()  # pyright: ignore[reportPrivateUsage]
+    configs = await registry._load_provider_configs()
     assert [c["name"] for c in configs] == [*POI, "osm"]
     assert [c["api_key"] for c in configs[:-1]] == [f"readable-{key}" for key in POI.values()]
 

@@ -23,9 +23,9 @@ class TripSummary(BaseModel):
 
     session_id: int = Field(..., description="Drive session ID")
     started_at: datetime = Field(..., description="Trip start time")
-    ended_at: datetime | None = Field(None, description="Trip end time")
-    duration_seconds: int | None = Field(None, description="Trip duration in seconds")
-    distance_km: float | None = Field(None, description="Distance traveled (km)")
+    ended_at: datetime | None = Field(default=None, description="Trip end time")
+    duration_seconds: int | None = Field(default=None, description="Trip duration in seconds")
+    distance_km: float | None = Field(default=None, description="Distance traveled (km)")
     point_count: int = Field(..., description="Number of GPS points recorded for this trip")
 
 
@@ -47,9 +47,9 @@ class LocationPointOut(BaseModel):
     timestamp: datetime = Field(..., description="When the point was recorded")
     latitude: float = Field(..., description="Latitude (decimal degrees)")
     longitude: float = Field(..., description="Longitude (decimal degrees)")
-    speed: float | None = Field(None, description="Speed (km/h)")
-    heading: float | None = Field(None, description="Heading (degrees)")
-    altitude: float | None = Field(None, description="Altitude (metres)")
+    speed: float | None = Field(default=None, description="Speed (km/h)")
+    heading: float | None = Field(default=None, description="Heading (degrees)")
+    altitude: float | None = Field(default=None, description="Altitude (metres)")
 
 
 class TripPointsResponse(BaseModel):
@@ -67,10 +67,12 @@ class LastLocationResponse(BaseModel):
     latitude: float = Field(..., description="Latitude (decimal degrees)")
     longitude: float = Field(..., description="Longitude (decimal degrees)")
     timestamp: datetime = Field(..., description="When the point was recorded")
-    speed: float | None = Field(None, description="Speed (km/h)")
-    heading: float | None = Field(None, description="Heading (degrees)")
-    altitude: float | None = Field(None, description="Altitude (metres)")
-    drive_session_id: int | None = Field(None, description="Trip this point belongs to, if any")
+    speed: float | None = Field(default=None, description="Speed (km/h)")
+    heading: float | None = Field(default=None, description="Heading (degrees)")
+    altitude: float | None = Field(default=None, description="Altitude (metres)")
+    drive_session_id: int | None = Field(
+        default=None, description="Trip this point belongs to, if any"
+    )
 
 
 # =============================================================================
@@ -100,7 +102,7 @@ class LocationTrackingResponse(BaseModel):
 class TorqueSourceCreate(BaseModel):
     """Request body for POST .../livelink/torque-sources."""
 
-    label: str | None = Field(None, description="Optional friendly name for this source")
+    label: str | None = Field(default=None, description="Optional friendly name for this source")
 
 
 class TorqueSourceCreateResponse(BaseModel):
@@ -111,7 +113,7 @@ class TorqueSourceCreateResponse(BaseModel):
     """
 
     device_id: str = Field(..., description="Newly created torque-kind device id")
-    label: str | None = Field(None, description="Friendly name for this source")
+    label: str | None = Field(default=None, description="Friendly name for this source")
     upload_url: str = Field(..., description="Paste this into Torque Pro's 'Upload URL' setting")
     token: str = Field(..., description="One-time device token (shown once, save it now)")
 
@@ -120,9 +122,11 @@ class TorqueSourceResponse(BaseModel):
     """One entry in the torque-sources list -- no token."""
 
     device_id: str = Field(..., description="Torque device id")
-    label: str | None = Field(None, description="Friendly name for this source")
+    label: str | None = Field(default=None, description="Friendly name for this source")
     device_status: LenientDeviceStatus = Field(..., description="online / offline / unknown")
-    last_seen: datetime | None = Field(None, description="Last time this source uploaded data")
+    last_seen: datetime | None = Field(
+        default=None, description="Last time this source uploaded data"
+    )
     created_at: datetime = Field(..., description="When this source was registered")
 
 

@@ -1,19 +1,13 @@
 """Migration 117: a critical line and a notify-once state on each parameter,
 and the default tank and battery lines for Mopeka sensors added before them."""
 
-import importlib.util
-from pathlib import Path
-
 from sqlalchemy import inspect, text
 
-_MIG = Path(__file__).resolve().parents[2] / "app" / "migrations" / "117_livelink_alert_lines.py"
+from tests.migrations._loader import load_migration
 
 
 def _load():
-    spec = importlib.util.spec_from_file_location("mig117", _MIG)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+    return load_migration("117_livelink_alert_lines", "mig117")
 
 
 def _schema(engine, rows: list[tuple[str, float | None]] | None = None) -> None:

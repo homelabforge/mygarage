@@ -208,9 +208,9 @@ def _user_unit_columns(units: UnitSet) -> dict[str, str]:
 async def metric_instance_default(db_session: AsyncSession):
     """Pin `default_unit_prefs` to METRIC, the opposite of the owner's set."""
     row = await db_session.get(Setting, DEFAULT_UNIT_PREFS_KEY)
-    original: dict[str, str | None] | None = None
+    original: tuple[str | None, str] | None = None
     if row is not None:
-        original = {"value": row.value, "category": row.category}
+        original = (row.value, row.category)
         row.value = json.dumps(METRIC_PRESET.model_dump())
     else:
         db_session.add(
@@ -227,10 +227,9 @@ async def metric_instance_default(db_session: AsyncSession):
         if saved is not None:
             await db_session.delete(saved)
     elif saved is not None:
-        saved.value = original["value"]
-        saved.category = original["category"]
+        saved.value, saved.category = original
     else:
-        db_session.add(Setting(key=DEFAULT_UNIT_PREFS_KEY, **original))
+        db_session.add(Setting(key=DEFAULT_UNIT_PREFS_KEY, value=original[0], category=original[1]))
     await db_session.commit()
 
 

@@ -742,10 +742,11 @@ async def update_reminder(reminder: Reminder, data: ReminderUpdate, db: AsyncSes
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
 
-    if "title" in set_fields:
-        reminder.title = data.title  # type: ignore[assignment]
+    # reject_null keeps an explicit null title out, so this only narrows.
+    if "title" in set_fields and data.title is not None:
+        reminder.title = data.title
     if "reminder_type" in set_fields:
-        reminder.reminder_type = final_type  # type: ignore[assignment]
+        reminder.reminder_type = final_type
     if "due_date" in set_fields:
         reminder.due_date = final_date
     if "due_mileage_km" in set_fields:
@@ -874,9 +875,10 @@ async def list_reminders(
     return order_reminders(await enrich_reminders(reminders, db))
 
 
-class ReminderMessageSource(Protocol):
-    """What `_build_reminder_message` reads. The ORM `Reminder` satisfies it,
-    and so does the sweep's plain-value `_DueNotification`."""
+class ReminderMessageShape(Protocol):
+    """What `_build_reminder_message` reads. The sweep's plain-value
+    `_DueNotification` fits it; the ORM `Reminder` goes through the
+    `ReminderMessageSource` union below."""
 
     @property
     def title(self) -> str: ...
@@ -892,6 +894,12 @@ class ReminderMessageSource(Protocol):
     def tread_depth_mm(self) -> Decimal | None: ...
     @property
     def tread_threshold_mm(self) -> Decimal | None: ...
+
+
+# Pyright never applies a descriptor's __get__ when it matches a protocol, so an
+# ORM model fails a protocol on its Mapped columns. The model goes in the union
+# by name; the alias is only ever read by pyright.
+type ReminderMessageSource = Reminder | ReminderMessageShape
 
 
 #: The two events the sweep sends, each behind its own switch in Settings.

@@ -2,6 +2,7 @@
 
 import json
 import logging
+from typing import NotRequired, TypedDict
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,8 +14,18 @@ from app.utils.secret_setting_keys import SECRET_SETTING_KEYS
 
 logger = logging.getLogger(__name__)
 
+
+class SettingSeed(TypedDict):
+    """One default setting. `value` is missing only where it's derived at seed time."""
+
+    value: NotRequired[str]
+    category: str
+    description: str
+    encrypted: bool
+
+
 # Default settings with categories
-DEFAULT_SETTINGS = {
+DEFAULT_SETTINGS: dict[str, SettingSeed] = {
     # Application settings
     "app_version": {
         "value": app_settings.app_version,
@@ -721,8 +732,10 @@ async def initialize_default_settings(db: AsyncSession) -> None:
                 # to imperial_gallon_standard).
                 unit_set = await default_unit_prefs_for_instance(db)
                 value = json.dumps(unit_set.model_dump(), sort_keys=True)
-            else:
+            elif "value" in config:
                 value = config["value"]
+            else:
+                raise KeyError(key)
             setting = Setting(
                 key=key,
                 value=value,

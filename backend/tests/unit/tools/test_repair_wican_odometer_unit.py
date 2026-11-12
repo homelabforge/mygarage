@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import os
 import uuid
-from collections.abc import Generator
+from collections.abc import Collection, Generator
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 from typing import TypedDict
@@ -252,18 +252,39 @@ def _snapshot(engine: Engine, device_id: str, vin: str) -> _Snapshot:
     }
 
 
-def _plan(engine: Engine, device_id: str, to: str, key: str = "ODOMETER", **kw: object):
+def _plan(
+    engine: Engine,
+    device_id: str,
+    to: str,
+    key: str = "ODOMETER",
+    *,
+    switch_at: datetime | None = None,
+    ignore_devices: Collection[str] = (),
+):
     from tools.repair_wican_odometer_unit import plan_repair
 
     with engine.connect() as conn:
-        return plan_repair(conn, device_id, key, to, **kw)
+        return plan_repair(
+            conn, device_id, key, to, switch_at=switch_at, ignore_devices=ignore_devices
+        )
 
 
-def _apply(engine: Engine, device_id: str, to: str, key: str = "ODOMETER", **kw: object) -> None:
+def _apply(
+    engine: Engine,
+    device_id: str,
+    to: str,
+    key: str = "ODOMETER",
+    *,
+    switch_at: datetime | None = None,
+    ignore_devices: Collection[str] = (),
+) -> None:
     from tools.repair_wican_odometer_unit import apply_repair, plan_repair
 
     with engine.begin() as conn:
-        apply_repair(conn, plan_repair(conn, device_id, key, to, **kw))
+        plan = plan_repair(
+            conn, device_id, key, to, switch_at=switch_at, ignore_devices=ignore_devices
+        )
+        apply_repair(conn, plan)
 
 
 MILES = Decimal("1.609344")
@@ -1689,10 +1710,11 @@ def test_an_open_session_across_the_switch_heals_when_it_closes(engine):
     assert [c.id for c in asyncio.run(close())] == [session_id]
     with Session(engine) as s:
         healed = s.get(DriveSession, session_id)
+        assert healed is not None
         assert healed.ended_at == last_seen
-        assert float(healed.start_odometer) == pytest.approx(57000.0)
-        assert float(healed.end_odometer) == pytest.approx(57040.0)
-        assert float(healed.distance_km) == pytest.approx(40.0)
+        assert healed.start_odometer == pytest.approx(57000.0)
+        assert healed.end_odometer == pytest.approx(57040.0)
+        assert healed.distance_km == pytest.approx(40.0)
 
 
 def test_torque_refuses_with_no_surviving_rows(engine):

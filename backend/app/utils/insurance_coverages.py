@@ -591,12 +591,13 @@ def _read_amounts(remainder: str, parsed: ParsedCoverage) -> None:
         value = _to_decimal(match.group(1))
         if value is None:
             continue
-        claimed = None
+        claim: tuple[str, int] | None = None
         if index not in taken and (name := _slot_ending(gaps[index])):
-            claimed, gap = name, index
+            claim = name, index
         elif index + 1 not in taken and (name := _slot_starting(gaps[index + 1])):
-            claimed, gap = name, index + 1
-        if claimed:
+            claim = name, index + 1
+        if claim:
+            claimed, gap = claim
             setattr(parsed, claimed, value)
             taken.add(gap)
         else:

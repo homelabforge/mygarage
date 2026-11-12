@@ -5,24 +5,12 @@ not here: `engine_for_migration` drops the PostgreSQL public schema, which
 destroys the tables create_all built for any db_session test in this package.
 """
 
-import importlib.util
-from pathlib import Path
-
 import pytest
 from sqlalchemy import inspect, text
 
-import app.migrations as _m
+from tests.migrations._loader import load_migration
 
 pytestmark = pytest.mark.migrations
-
-
-def _load(name: str):
-    """Load a migration module by number-name, as test_098 does."""
-    path = Path(_m.__file__).parent / f"{name}.py"
-    spec = importlib.util.spec_from_file_location(name, path)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
 
 
 def _make_pre_112_table(engine) -> None:
@@ -47,7 +35,7 @@ def test_the_column_is_added_to_an_existing_table(engine_for_migration):
         c["name"] for c in inspect(engine).get_columns("livelink_devices")
     }, "fixture must start WITHOUT the column"
 
-    mod = _load("112_device_odometer_param_key")
+    mod = load_migration("112_device_odometer_param_key")
     assert mod.FATAL is True, "an add-column migration must halt startup on failure"
     mod.upgrade(engine)
     mod.upgrade(engine)  # idempotent
@@ -64,7 +52,7 @@ def test_existing_rows_get_null_not_a_backfill(engine_for_migration):
     _make_pre_112_table(engine)
     with engine.begin() as conn:
         conn.execute(text("INSERT INTO livelink_devices (device_id) VALUES ('legacy')"))
-    _load("112_device_odometer_param_key").upgrade(engine)
+    load_migration("112_device_odometer_param_key").upgrade(engine)
     with engine.connect() as conn:
         got = conn.execute(
             text("SELECT odometer_param_key FROM livelink_devices WHERE device_id = 'legacy'")

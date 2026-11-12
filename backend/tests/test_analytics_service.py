@@ -7,10 +7,11 @@ from types import SimpleNamespace
 import pandas as pd
 import pytest
 
+from app.models import DEFRecord, FinancingRecord, FuelRecord, ServiceLineItem, ServiceVisit
 from app.services import analytics_service
 
 
-def _make_fuel_record(**kwargs):
+def _make_fuel_record(**kwargs) -> FuelRecord:
     """Create a mock FuelRecord-like object with sensible defaults.
 
     Metric-canonical: ``odometer_km`` and ``liters``. The kwargs aliases
@@ -60,7 +61,7 @@ def _make_fuel_record(**kwargs):
         "notes": None,
     }
     defaults.update(kwargs)
-    return SimpleNamespace(**defaults)
+    return SimpleNamespace(**defaults)  # pyright: ignore[reportReturnType]  # duck-typed fake
 
 
 @pytest.mark.unit
@@ -959,7 +960,7 @@ class TestCalculatePropaneCosts:
         assert freq["max_days"] == 30  # Jan 15 → Feb 14
 
     @staticmethod
-    def _bottle(id: int, on: date, cost: Decimal | None) -> SimpleNamespace:
+    def _bottle(id: int, on: date, cost: Decimal | None) -> FuelRecord:
         return _make_fuel_record(
             id=id,
             date=on,
@@ -1041,7 +1042,7 @@ class TestCalculatePropaneCosts:
         assert result["tank_timeline"] == []
 
 
-def _make_line_item(**kwargs):
+def _make_line_item(**kwargs) -> ServiceLineItem:
     """Create a mock ServiceLineItem-like object with sensible defaults."""
     defaults = {
         "id": 1,
@@ -1054,10 +1055,10 @@ def _make_line_item(**kwargs):
         "inspection_severity": None,
     }
     defaults.update(kwargs)
-    return SimpleNamespace(**defaults)
+    return SimpleNamespace(**defaults)  # pyright: ignore[reportReturnType]  # duck-typed fake
 
 
-def _make_service_visit(**kwargs):
+def _make_service_visit(**kwargs) -> ServiceVisit:
     """Create a mock ServiceVisit-like object with computed calculated_total_cost."""
     if "mileage" in kwargs:
         miles = kwargs.pop("mileage")
@@ -1092,10 +1093,10 @@ def _make_service_visit(**kwargs):
         total += visit.misc_fees
     visit.calculated_total_cost = total
 
-    return visit
+    return visit  # pyright: ignore[reportReturnType]  # duck-typed fake
 
 
-def _make_def_record(**kwargs):
+def _make_def_record(**kwargs) -> DEFRecord:
     """Create a mock DEFRecord-like object."""
     if "mileage" in kwargs:
         miles = kwargs.pop("mileage")
@@ -1121,10 +1122,10 @@ def _make_def_record(**kwargs):
         "notes": None,
     }
     defaults.update(kwargs)
-    return SimpleNamespace(**defaults)
+    return SimpleNamespace(**defaults)  # pyright: ignore[reportReturnType]  # duck-typed fake
 
 
-def _make_financing_record(**kwargs):
+def _make_financing_record(**kwargs) -> FinancingRecord:
     """Create a mock FinancingRecord-like object."""
     defaults = {
         "id": 1,
@@ -1135,7 +1136,7 @@ def _make_financing_record(**kwargs):
         "notes": None,
     }
     defaults.update(kwargs)
-    return SimpleNamespace(**defaults)
+    return SimpleNamespace(**defaults)  # pyright: ignore[reportReturnType]  # duck-typed fake
 
 
 @pytest.mark.unit

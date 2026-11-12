@@ -23,7 +23,7 @@ from decimal import Decimal
 from typing import Any
 
 from fastapi import HTTPException
-from sqlalchemy import func, or_, select
+from sqlalchemy import ColumnElement, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.maintenance_rule import MaintenanceRule
@@ -362,7 +362,7 @@ async def typed_history(
     work that completed it) is left out: a service one rule owns is never
     another rule's anchor.
     """
-    other_rule = [Reminder.rule_id.isnot(None)]
+    other_rule: list[ColumnElement[bool]] = [Reminder.rule_id.isnot(None)]
     if for_rule_id is not None:
         other_rule.append(Reminder.rule_id != for_rule_id)
     # A reference only OWNS the line item while the two still agree on the
@@ -567,7 +567,7 @@ def anchor_of(reminder: Reminder) -> Anchor | None:
     if reminder.anchor_kind is None or reminder.anchor_date is None:
         return None
     return Anchor(
-        reminder.anchor_kind,  # type: ignore[arg-type]
+        reminder.anchor_kind,
         reminder.anchor_date,
         reminder.anchor_odometer_km,
         reminder.anchor_hours,
@@ -1418,13 +1418,14 @@ async def _plan_item(
     branch all depend on them, so overriding afterwards would preview one thing
     and do another.
     """
-    assert item.key is not None
+    key = item.key  # the override's copy keeps it
+    assert key is not None
     if override is not None:
         item = _overridden(item, override)
-    maintenance_type = resolve_type(item.maintenance_type, item.title) or item.key
+    maintenance_type = resolve_type(item.maintenance_type, item.title) or key
     intervals: HasIntervals = item
     plan = PackItemPlan(
-        key=item.key,
+        key=key,
         maintenance_type=maintenance_type,
         title=item.title,
         interval_km=item.interval_km,
@@ -1548,12 +1549,12 @@ async def _plan_item(
         if resolved.odometer_km != effective.odometer_km or resolved.hours != effective.hours:
             note = (note + "; " if note else "") + "a reading was taken from the nearest record"
         plan.anchor = AnchorProposal(
-            kind=resolved.kind,
+            kind=resolved.kind,  # pyright: ignore[reportArgumentType]  # lenient vocab reads the stored str
             date=resolved.date,
             odometer_km=resolved.odometer_km,
             hours=resolved.hours,
             line_item_id=resolved.line_item_id,
-            origin=origin,  # type: ignore[arg-type]
+            origin=origin,
             note=note,
         )
         thresholds = next_thresholds(intervals, resolved)

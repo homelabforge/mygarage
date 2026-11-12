@@ -389,7 +389,7 @@ def test_a_borrowed_field_bound_names_the_files_key():
     with pytest.raises(TypeError):
         _within_field_bounds(ReminderCreate, "notes", notes=None)
     with pytest.raises(TypeError):
-        _within_api_bounds(ReminderCreate, notes="x")
+        _within_api_bounds(ReminderCreate, notes=None)
 
 
 # -- D-9: one boolean reader for every 3b section --------------------------------

@@ -198,7 +198,7 @@ def suggested_tax_records(data: RegistrationData) -> list[dict[str, Any]]:
 
 @dataclass
 class RegistrationParseResult:
-    source: str
+    source: document_reader_service.Source
     data: RegistrationData
     vehicle_patch: dict[str, Any] = field(default_factory=dict)
     inspection_due_date: date | None = None
@@ -397,7 +397,7 @@ async def apply_to_vehicle(
     result: RegistrationParseResult,
     *,
     overwrite: bool,
-    current_user: User,
+    current_user: User | None,
 ) -> ApplyOutcome:
     """Write the patch onto the vehicle and keep X.1 as its inspection deadline.
 

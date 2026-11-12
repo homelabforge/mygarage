@@ -121,7 +121,7 @@ class DocumentOCRService:
         Returns:
             Dictionary with extraction results and debug info
         """
-        result = {
+        result: dict[str, Any] = {
             "success": False,
             "parser_name": None,
             "provider_detected": None,
@@ -250,7 +250,7 @@ class DocumentOCRService:
 
             text_content = []
             with pymupdf.open(file_path) as doc:
-                for _page_num, page in enumerate(doc):
+                for page in doc:
                     pix = page.get_pixmap(matrix=pymupdf.Matrix(2, 2))
                     img_data = pix.tobytes("png")
                     text = await self._ocr_image_bytes(img_data)
@@ -333,7 +333,7 @@ class DocumentOCRService:
         """Extract text using PaddleOCR."""
         try:
             if self._paddleocr is None:
-                from paddleocr import PaddleOCR
+                from paddleocr import PaddleOCR  # pyright: ignore[reportMissingImports]  # optional dep
 
                 self._paddleocr = PaddleOCR(use_angle_cls=True, lang="en", show_log=False)
 
@@ -365,7 +365,7 @@ class DocumentOCRService:
             from PIL import Image
 
             if self._paddleocr is None:
-                from paddleocr import PaddleOCR
+                from paddleocr import PaddleOCR  # pyright: ignore[reportMissingImports]  # optional dep
 
                 self._paddleocr = PaddleOCR(use_angle_cls=True, lang="en", show_log=False)
 
@@ -404,7 +404,7 @@ class DocumentOCRService:
         }
 
         try:
-            import pymupdf  # noqa: F401  # type: ignore[reportUnusedImport]
+            import pymupdf  # noqa: F401  # pyright: ignore[reportUnusedImport]  # availability probe
 
             status["pymupdf_available"] = True
         except ImportError:
@@ -415,14 +415,14 @@ class DocumentOCRService:
 
             # The wrapper imports fine without the engine, so ask the binary.
             # cached=True reuses a good answer; a failed probe is not cached.
-            pytesseract.get_tesseract_version(cached=True)
+            pytesseract.get_tesseract_version(cached=True)  # pyright: ignore[reportCallIssue]  # the run_once wrapper takes cached
             status["tesseract_available"] = True
         except ImportError, OSError, subprocess.CalledProcessError:
             pass  # No pytesseract, or no working tesseract binary on PATH
 
         if PADDLEOCR_ENABLED:
             try:
-                from paddleocr import PaddleOCR  # noqa: F401  # type: ignore[reportUnusedImport]
+                from paddleocr import PaddleOCR  # noqa: F401  # pyright: ignore[reportMissingImports, reportUnusedImport]  # optional dep, availability probe
 
                 status["paddleocr_available"] = True
             except ImportError:

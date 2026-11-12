@@ -38,8 +38,8 @@ class TollTagBase(BaseModel):
 
     toll_system: str = Field(..., description="Toll system name", min_length=1, max_length=50)
     tag_number: str = Field(..., description="Transponder/tag number", min_length=1, max_length=50)
-    status: str = Field("active", description="Tag status")
-    notes: str | None = Field(None, description="Additional notes")
+    status: str = Field(default="active", description="Tag status")
+    notes: str | None = Field(default=None, description="Additional notes")
 
     @field_validator("toll_system")
     @classmethod
@@ -91,13 +91,13 @@ class TollTagUpdate(BaseModel):
     """Schema for updating an existing toll tag."""
 
     toll_system: str | None = Field(
-        None, description="Toll system name", min_length=1, max_length=50
+        default=None, description="Toll system name", min_length=1, max_length=50
     )
     tag_number: str | None = Field(
-        None, description="Transponder/tag number", min_length=1, max_length=50
+        default=None, description="Transponder/tag number", min_length=1, max_length=50
     )
-    status: str | None = Field(None, description="Tag status")
-    notes: str | None = Field(None, description="Additional notes")
+    status: str | None = Field(default=None, description="Tag status")
+    notes: str | None = Field(default=None, description="Additional notes")
 
     # NOT NULL columns: omitted keeps the stored value, null is a 422.
     _no_null = reject_null("tag_number", "toll_system", "status")
@@ -192,8 +192,8 @@ class TollTransactionBase(BaseModel):
     transaction_date: dt.date = Field(..., description="Transaction date")
     amount: Money = Field(..., description="Toll amount")
     location: str = Field(..., description="Toll location/plaza", min_length=1, max_length=200)
-    toll_tag_id: int | None = Field(None, description="Associated toll tag ID")
-    notes: str | None = Field(None, description="Additional notes")
+    toll_tag_id: int | None = Field(default=None, description="Associated toll tag ID")
+    notes: str | None = Field(default=None, description="Additional notes")
 
 
 class TollTransactionCreate(TollTransactionBase):
@@ -220,13 +220,13 @@ class TollTransactionCreate(TollTransactionBase):
 class TollTransactionUpdate(BaseModel):
     """Schema for updating an existing toll transaction."""
 
-    transaction_date: dt.date | None = Field(None, description="Transaction date")
-    amount: OptionalMoney = Field(None, description="Toll amount")
+    transaction_date: dt.date | None = Field(default=None, description="Transaction date")
+    amount: OptionalMoney = Field(default=None, description="Toll amount")
     location: str | None = Field(
-        None, description="Toll location/plaza", min_length=1, max_length=200
+        default=None, description="Toll location/plaza", min_length=1, max_length=200
     )
-    toll_tag_id: int | None = Field(None, description="Associated toll tag ID")
-    notes: str | None = Field(None, description="Additional notes")
+    toll_tag_id: int | None = Field(default=None, description="Associated toll tag ID")
+    notes: str | None = Field(default=None, description="Additional notes")
 
     # NOT NULL columns: omitted keeps the stored value, null is a 422.
     _no_null = reject_null("transaction_date", "amount", "location")
@@ -240,8 +240,8 @@ class TollTransactionResponse(BaseModel):
     transaction_date: dt.date = Field(..., alias="date", description="Transaction date")
     amount: Decimal = Field(..., description="Toll amount")
     location: str = Field(..., description="Toll location/plaza")
-    toll_tag_id: int | None = Field(None, description="Associated toll tag ID")
-    notes: str | None = Field(None, description="Additional notes")
+    toll_tag_id: int | None = Field(default=None, description="Associated toll tag ID")
+    notes: str | None = Field(default=None, description="Additional notes")
     created_at: dt.datetime
 
     model_config = {

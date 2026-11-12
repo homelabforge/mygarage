@@ -20,21 +20,10 @@ create_all baseline would start in the post-state and "column exists" would be
 true before the migration ever ran.
 """
 
-import importlib.util
-from pathlib import Path
-
 import pytest
 from sqlalchemy import inspect, text
 
-import app.migrations as _m
-
-
-def _load(name):
-    path = Path(_m.__file__).parent / f"{name}.py"
-    spec = importlib.util.spec_from_file_location(name, path)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
+from tests.migrations._loader import load_migration
 
 
 def _make_pre_096_schema(engine) -> None:
@@ -132,7 +121,7 @@ class TestMigration096:
         before = {c["name"] for c in inspect(engine).get_columns("livelink_devices")}
         assert "odometer_unit" not in before, "pre-096 baseline is already in the post-state"
 
-        _load("096_add_device_odometer_unit").upgrade(engine)
+        load_migration("096_add_device_odometer_unit").upgrade(engine)
 
         after = {c["name"] for c in inspect(engine).get_columns("livelink_devices")}
         assert "odometer_unit" in after
@@ -145,7 +134,7 @@ class TestMigration096:
             _add_device(conn, "devmetric")
             _add_telemetry(conn, "devmetric", "A6-ODOMETER")
 
-        _load("096_add_device_odometer_unit").upgrade(engine)
+        load_migration("096_add_device_odometer_unit").upgrade(engine)
 
         assert _unit_of(engine, "devmetric") == "km"
 
@@ -157,7 +146,7 @@ class TestMigration096:
             _add_device(conn, "devmiles")
             _add_telemetry(conn, "devmiles", "ODOMETER")
 
-        _load("096_add_device_odometer_unit").upgrade(engine)
+        load_migration("096_add_device_odometer_unit").upgrade(engine)
 
         assert _unit_of(engine, "devmiles") == "mi"
 
@@ -169,7 +158,7 @@ class TestMigration096:
             _add_device(conn, "devquiet")
             _add_telemetry(conn, "devquiet", "0C-ENGINERPM")
 
-        _load("096_add_device_odometer_unit").upgrade(engine)
+        load_migration("096_add_device_odometer_unit").upgrade(engine)
 
         assert _unit_of(engine, "devquiet") is None
 
@@ -193,7 +182,7 @@ class TestMigration096:
             _add_telemetry(conn, "devmixed", "A6-ODOMETER")
             _add_telemetry(conn, "devmixed", "ODOMETER")
 
-        _load("096_add_device_odometer_unit").upgrade(engine)
+        load_migration("096_add_device_odometer_unit").upgrade(engine)
 
         assert _unit_of(engine, "devmixed") is None, (
             "a device publishing both key shapes was given one device-wide unit"
@@ -212,7 +201,7 @@ class TestMigration096:
             _add_device(conn, "devfixed")
             _add_telemetry(conn, "devfixed", "ODOMETER")
 
-        migration = _load("096_add_device_odometer_unit")
+        migration = load_migration("096_add_device_odometer_unit")
         migration.upgrade(engine)
         assert _unit_of(engine, "devfixed") == "mi"
 

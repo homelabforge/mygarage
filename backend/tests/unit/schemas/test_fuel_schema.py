@@ -27,26 +27,29 @@ def _base_kwargs() -> dict[str, object]:
 
 
 def test_create_with_odometer_and_liters_succeeds():
-    record = FuelRecordCreate(**_base_kwargs(), odometer_km=12345.6, liters=40.0)
+    record = FuelRecordCreate.model_validate(
+        {**_base_kwargs(), "odometer_km": 12345.6, "liters": 40.0}
+    )
     assert record.liters == 40.0
 
 
 def test_create_with_odometer_and_kwh_succeeds():
-    record = FuelRecordCreate(**_base_kwargs(), odometer_km=12345.6, kwh=55.5)
+    record = FuelRecordCreate.model_validate(
+        {**_base_kwargs(), "odometer_km": 12345.6, "kwh": 55.5}
+    )
     assert record.kwh == 55.5
 
 
 def test_create_with_odometer_and_propane_succeeds():
-    record = FuelRecordCreate(**_base_kwargs(), odometer_km=12345.6, propane_liters=20.0)
+    record = FuelRecordCreate.model_validate(
+        {**_base_kwargs(), "odometer_km": 12345.6, "propane_liters": 20.0}
+    )
     assert record.propane_liters == 20.0
 
 
 def test_create_with_odometer_and_propane_tank_pair_succeeds():
-    record = FuelRecordCreate(
-        **_base_kwargs(),
-        odometer_km=12345.6,
-        tank_size_kg=18.0,
-        tank_quantity=2,
+    record = FuelRecordCreate.model_validate(
+        {**_base_kwargs(), "odometer_km": 12345.6, "tank_size_kg": 18.0, "tank_quantity": 2}
     )
     assert record.tank_size_kg == 18.0
 
@@ -60,14 +63,16 @@ def test_propane_tank_refill_without_odometer_succeeds():
     motorhome's reading is meaningless for a grill bottle). Requiring one
     422'd every propane record the UI could produce.
     """
-    record = FuelRecordCreate(**_base_kwargs(), propane_liters=8.5)
+    record = FuelRecordCreate.model_validate({**_base_kwargs(), "propane_liters": 8.5})
     assert record.propane_liters == 8.5
     assert record.odometer_km is None
 
 
 def test_propane_tank_pair_without_odometer_succeeds():
     """The tank-size form of the same refill (service derives the liters)."""
-    record = FuelRecordCreate(**_base_kwargs(), tank_size_kg=14.97, tank_quantity=1)
+    record = FuelRecordCreate.model_validate(
+        {**_base_kwargs(), "tank_size_kg": 14.97, "tank_quantity": 1}
+    )
     assert record.tank_quantity == 1
     assert record.odometer_km is None
 
@@ -75,66 +80,68 @@ def test_propane_tank_pair_without_odometer_succeeds():
 def test_propane_with_liters_still_requires_odometer():
     """Propane alongside liquid fuel is a vehicle fill-up, not a tank refill."""
     with pytest.raises(ValidationError) as excinfo:
-        FuelRecordCreate(**_base_kwargs(), propane_liters=8.5, liters=40.0)
+        FuelRecordCreate.model_validate({**_base_kwargs(), "propane_liters": 8.5, "liters": 40.0})
     assert "odometer_km is required" in str(excinfo.value)
 
 
 def test_propane_with_missed_fillup_still_requires_odometer():
     """missed_fillup means "I have the odometer but not the amount"."""
     with pytest.raises(ValidationError) as excinfo:
-        FuelRecordCreate(**_base_kwargs(), propane_liters=8.5, missed_fillup=True)
+        FuelRecordCreate.model_validate(
+            {**_base_kwargs(), "propane_liters": 8.5, "missed_fillup": True}
+        )
     assert "odometer_km is required" in str(excinfo.value)
 
 
 def test_kwh_without_odometer_fails():
     """The propane exemption must not leak to charge sessions."""
     with pytest.raises(ValidationError) as excinfo:
-        FuelRecordCreate(**_base_kwargs(), kwh=55.5)
+        FuelRecordCreate.model_validate({**_base_kwargs(), "kwh": 55.5})
     assert "odometer_km is required" in str(excinfo.value)
 
 
 def test_create_without_odometer_fails():
     with pytest.raises(ValidationError) as excinfo:
-        FuelRecordCreate(**_base_kwargs(), liters=40.0)
+        FuelRecordCreate.model_validate({**_base_kwargs(), "liters": 40.0})
     assert "odometer_km is required" in str(excinfo.value)
 
 
 def test_hours_only_fill_up_without_odometer_succeeds():
     """A vehicle tracked by engine hours (a boat, a tractor) has no odometer to
     give: the fuel form hides Mileage for it, so its hours reading stands in."""
-    record = FuelRecordCreate(**_base_kwargs(), engine_hours=120.5, liters=40.0)
+    record = FuelRecordCreate.model_validate(
+        {**_base_kwargs(), "engine_hours": 120.5, "liters": 40.0}
+    )
     assert record.odometer_km is None
     assert record.engine_hours == 120.5
 
 
 def test_hours_only_missed_fillup_succeeds():
     """The missed-fill-up escape hatch works on the hours reading too."""
-    record = FuelRecordCreate(**_base_kwargs(), engine_hours=120.5, missed_fillup=True)
+    record = FuelRecordCreate.model_validate(
+        {**_base_kwargs(), "engine_hours": 120.5, "missed_fillup": True}
+    )
     assert record.missed_fillup is True
 
 
 def test_create_without_any_fuel_amount_fails():
     with pytest.raises(ValidationError) as excinfo:
-        FuelRecordCreate(**_base_kwargs(), odometer_km=12345.6)
+        FuelRecordCreate.model_validate({**_base_kwargs(), "odometer_km": 12345.6})
     assert "fuel record must include at least one of" in str(excinfo.value)
 
 
 def test_create_with_only_tank_size_no_quantity_fails():
     """tank_size_kg without tank_quantity is also "no fuel amount"."""
     with pytest.raises(ValidationError):
-        FuelRecordCreate(
-            **_base_kwargs(),
-            odometer_km=12345.6,
-            tank_size_kg=18.0,
+        FuelRecordCreate.model_validate(
+            {**_base_kwargs(), "odometer_km": 12345.6, "tank_size_kg": 18.0}
         )
 
 
 def test_missed_fillup_only_needs_odometer():
     """The explicit escape hatch for partial historical entries."""
-    record = FuelRecordCreate(
-        **_base_kwargs(),
-        odometer_km=12345.6,
-        missed_fillup=True,
+    record = FuelRecordCreate.model_validate(
+        {**_base_kwargs(), "odometer_km": 12345.6, "missed_fillup": True}
     )
     assert record.missed_fillup is True
     assert record.liters is None
@@ -142,7 +149,7 @@ def test_missed_fillup_only_needs_odometer():
 
 def test_missed_fillup_still_requires_odometer():
     with pytest.raises(ValidationError) as excinfo:
-        FuelRecordCreate(**_base_kwargs(), missed_fillup=True)
+        FuelRecordCreate.model_validate({**_base_kwargs(), "missed_fillup": True})
     assert "odometer_km is required" in str(excinfo.value)
 
 
@@ -166,11 +173,8 @@ def test_missed_fillup_still_requires_odometer():
     ],
 )
 def test_obc_trip_duration_accepts_int_and_hhmm(raw, expected):
-    record = FuelRecordCreate(
-        **_base_kwargs(),
-        odometer_km=12345.6,
-        liters=40.0,
-        obc_trip_duration_s=raw,
+    record = FuelRecordCreate.model_validate(
+        {**_base_kwargs(), "odometer_km": 12345.6, "liters": 40.0, "obc_trip_duration_s": raw}
     )
     assert record.obc_trip_duration_s == expected
 
@@ -187,11 +191,8 @@ def test_obc_trip_duration_accepts_int_and_hhmm(raw, expected):
 )
 def test_obc_trip_duration_rejects_malformed(raw):
     with pytest.raises(ValidationError):
-        FuelRecordCreate(
-            **_base_kwargs(),
-            odometer_km=12345.6,
-            liters=40.0,
-            obc_trip_duration_s=raw,
+        FuelRecordCreate.model_validate(
+            {**_base_kwargs(), "odometer_km": 12345.6, "liters": 40.0, "obc_trip_duration_s": raw}
         )
 
 
@@ -223,7 +224,9 @@ def test_obc_trip_duration_update_rejects_malformed(raw):
 
 
 def _create(**fields: object) -> FuelRecordCreate:
-    return FuelRecordCreate(**_base_kwargs(), odometer_km=12345.6, kwh=40.0, **fields)
+    return FuelRecordCreate.model_validate(
+        {**_base_kwargs(), "odometer_km": 12345.6, "kwh": 40.0, **fields}
+    )
 
 
 @pytest.mark.parametrize("build", [_create, FuelRecordUpdate])

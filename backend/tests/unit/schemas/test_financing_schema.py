@@ -26,11 +26,13 @@ def test_financing_record_create_accepts_valid_category():
 
 def test_financing_record_create_rejects_invalid_category():
     with pytest.raises(ValidationError):
-        FinancingRecordCreate(
-            vin="1HGBH41JXMN109186",
-            date=dt.date(2026, 1, 1),
-            amount=Decimal("450.00"),
-            category="not_a_real_category",
+        FinancingRecordCreate.model_validate(
+            {
+                "vin": "1HGBH41JXMN109186",
+                "date": dt.date(2026, 1, 1),
+                "amount": Decimal("450.00"),
+                "category": "not_a_real_category",
+            }
         )
 
 

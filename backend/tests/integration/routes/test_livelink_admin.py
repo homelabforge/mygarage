@@ -14,6 +14,9 @@ from pydantic import ValidationError
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.settings import Setting
+from tests._keep_rows import Keep
+
 
 @pytest.mark.integration
 @pytest.mark.asyncio
@@ -441,6 +444,27 @@ class TestLiveLinkMQTT:
         assert "broker_port" in data
         assert "topic_prefix" in data
         assert "use_tls" in data
+
+    async def test_a_null_broker_host_or_username_reads_as_blank(
+        self,
+        client: AsyncClient,
+        auth_headers: dict[str, str],
+        db_session: AsyncSession,
+        keep_rows: Keep,
+    ) -> None:
+        # Setting.value stores None as is (a restore can bring one back).
+        keys = ["livelink_mqtt_broker_host", "livelink_mqtt_username"]
+        await keep_rows(*keys)
+        await db_session.execute(delete(Setting).where(Setting.key.in_(keys)))
+        for key in keys:
+            db_session.add(Setting(key=key, value=None))
+        await db_session.commit()
+
+        response = await client.get("/api/livelink/mqtt/settings", headers=auth_headers)
+
+        assert response.status_code == 200, response.text
+        assert response.json()["broker_host"] == ""
+        assert response.json()["username"] == ""
 
     async def test_update_mqtt_settings(self, client: AsyncClient, auth_headers):
         """Test updating MQTT settings."""

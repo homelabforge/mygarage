@@ -78,9 +78,9 @@ async def upload_document(
     vin: str,
     file: Annotated[UploadFile, File(...)],
     title: Annotated[str, Form()],
+    db: Annotated[AsyncSession, Depends(get_db)],
     document_type: Annotated[str | None, Form()] = None,
     description: Annotated[str | None, Form()] = None,
-    db: Annotated[AsyncSession, Depends(get_db)] = None,
     current_user: User | None = Depends(require_auth),
 ) -> DocumentResponse:
     """Upload a new document for a vehicle."""
@@ -105,9 +105,9 @@ async def upload_document(
     document = Document(
         vin=vin,
         file_path=str(upload_result.file_path),
-        file_name=file.filename,
+        file_name=upload_result.original_filename,
         file_size=upload_result.file_size,
-        mime_type=get_mime_type(file.filename),
+        mime_type=get_mime_type(upload_result.original_filename),
         document_type=document_type,
         title=title,
         description=description,

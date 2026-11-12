@@ -55,7 +55,7 @@ import json
 import os
 from pathlib import Path
 
-from sqlalchemy import Engine, create_engine, inspect, text
+from sqlalchemy import Connection, Engine, create_engine, inspect, text
 
 from app.constants.units import (
     IMPERIAL_PRESET,
@@ -93,7 +93,7 @@ def _get_fallback_engine():
     return create_engine(f"sqlite:///{data_dir / 'mygarage.db'}")
 
 
-def _read_gallon_standard(conn, has_settings: bool) -> str:
+def _read_gallon_standard(conn: Connection, has_settings: bool) -> str:
     """Return 'uk' or 'us'. Absent row, empty value, or typo all mean 'us'."""
     if not has_settings:
         return "us"
@@ -153,7 +153,7 @@ def upgrade(engine: Engine | None = None) -> None:
     print("✓ Unit preference migration completed")
 
 
-def _materialise_uk_imperial_users(conn) -> None:
+def _materialise_uk_imperial_users(conn: Connection) -> None:
     """Turn imperial users into fully-materialised custom users on a UK instance.
 
     Guarded on ``unit_volume IS NULL`` so a re-run, or a user who has since set
@@ -173,7 +173,7 @@ def _materialise_uk_imperial_users(conn) -> None:
     print(f"  ✓ Materialised {updated} imperial user(s) to custom UK units")
 
 
-def _seed_default_unit_prefs(conn, flavour: str) -> None:
+def _seed_default_unit_prefs(conn: Connection, flavour: str) -> None:
     """Create the public default unit set for anonymous and auth-none clients.
 
     Replaces the retiring public ``imperial_gallon_standard`` row (D5). An

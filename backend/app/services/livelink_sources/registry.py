@@ -108,7 +108,7 @@ class SourceRegistry:
                 keys |= module.own_param_keys
         return keys
 
-    async def mqtt_subscriptions(self, db: AsyncSession | None) -> dict[str, BaseSourceModule]:
+    async def mqtt_subscriptions(self, db: AsyncSession) -> dict[str, BaseSourceModule]:
         """Exact topic to owning module, across all registered modules.
 
         Raises if two modules claim the same topic: that is a configuration

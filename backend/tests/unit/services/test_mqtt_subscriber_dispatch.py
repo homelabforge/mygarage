@@ -6,7 +6,12 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from app.services.livelink_sources.base import BaseSourceModule, Capability, IngestBatch
+from app.services.livelink_sources.base import (
+    BaseSourceModule,
+    Capability,
+    IngestBatch,
+    MqttEnvelope,
+)
 from app.services.mqtt_subscriber import MQTTSubscriber
 
 # LiveLink's master switch gates the ingest pipeline and SD backfill, and it is
@@ -26,6 +31,7 @@ class _Spy(BaseSourceModule):
         return ["spy/one"]
 
     async def parse(self, env):
+        assert isinstance(env, MqttEnvelope)
         self.seen.append(env.topic)
         return IngestBatch(device_key="x")
 
@@ -63,6 +69,7 @@ async def test_a_message_is_dispatched_to_its_owning_module(db_session):
     ):
         await sub._process_message("spy/one", b"42")
         ing.assert_awaited_once()
+        assert ing.await_args is not None
         assert ing.await_args.args[0] is spy
 
 

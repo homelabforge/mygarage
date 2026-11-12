@@ -9,6 +9,7 @@ fail here until it's added to that list.
 import ast
 import importlib
 from pathlib import Path
+from typing import TypeGuard
 
 import pytest
 
@@ -64,7 +65,7 @@ def _limiter_names(tree: ast.Module) -> set[str]:
     return names
 
 
-def _is_limiter_call(node: ast.AST, names: set[str]) -> bool:
+def _is_limiter_call(node: ast.AST, names: set[str]) -> TypeGuard[ast.Call]:
     return isinstance(node, ast.Call) and _dotted(node.func) in names
 
 
@@ -77,10 +78,15 @@ def _scan_source(source: str, module: str, filename: str) -> tuple[set[str], lis
     found: set[str] = set()
     module_level: set[int] = set()
     for stmt in tree.body:
-        value = stmt.value if isinstance(stmt, ast.Assign | ast.AnnAssign) else None
+        if isinstance(stmt, ast.Assign):
+            targets = stmt.targets
+        elif isinstance(stmt, ast.AnnAssign):
+            targets = [stmt.target]
+        else:
+            continue
+        value = stmt.value
         if value is None or not _is_limiter_call(value, names):
             continue
-        targets = stmt.targets if isinstance(stmt, ast.Assign) else [stmt.target]
         for target in targets:
             assert isinstance(target, ast.Name), f"{filename}:{stmt.lineno} unpacks a Limiter"
             found.add(f"{module}.{target.id}")

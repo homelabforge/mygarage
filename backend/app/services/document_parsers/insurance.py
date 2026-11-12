@@ -471,7 +471,7 @@ class ProgressiveInsuranceParser(InsuranceDocumentParser):
 
         return data
 
-    def _extract_policy_period(self, text: str) -> dict[str, Any] | None:
+    def _extract_policy_period(self, text: str) -> dict[str, str] | None:
         """Extract policy period dates."""
         for pattern in self.PATTERNS["policy_period"]:
             match = re.search(pattern, text, re.IGNORECASE | re.DOTALL)

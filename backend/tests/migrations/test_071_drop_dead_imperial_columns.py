@@ -10,21 +10,9 @@ Guarded (R1-H1): a column holding non-NULL values is preserved, not dropped.
 Runs on SQLite and PostgreSQL via ``engine_for_migration``.
 """
 
-import importlib.util
-from pathlib import Path
-
 from sqlalchemy import inspect, text
 
-import app.migrations as _m
-
-
-def _load(name):
-    path = Path(_m.__file__).parent / f"{name}.py"
-    spec = importlib.util.spec_from_file_location(name, path)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
-
+from tests.migrations._loader import load_migration
 
 MIGRATION = "071_drop_dead_imperial_columns"
 
@@ -76,7 +64,7 @@ def test_drops_empty_dead_columns(engine_for_migration):
             )
         )
 
-    _load(MIGRATION).upgrade(engine=engine)
+    load_migration(MIGRATION).upgrade(engine=engine)
 
     fuel_cols = _columns(engine, "fuel_records")
     vehicle_cols = _columns(engine, "vehicles")
@@ -112,7 +100,7 @@ def test_populated_column_is_preserved(engine_for_migration):
             )
         )
 
-    _load(MIGRATION).upgrade(engine=engine)
+    load_migration(MIGRATION).upgrade(engine=engine)
 
     fuel_cols = _columns(engine, "fuel_records")
     vehicle_cols = _columns(engine, "vehicles")
@@ -130,7 +118,7 @@ def test_idempotent_second_run(engine_for_migration):
     """(c) Second run is a no-op — no error, no change."""
     _dialect, engine, _url = engine_for_migration
     _create_tables(engine)
-    migration = _load(MIGRATION)
+    migration = load_migration(MIGRATION)
 
     migration.upgrade(engine=engine)
     migration.upgrade(engine=engine)  # must not raise
@@ -166,7 +154,7 @@ def test_columns_already_absent_is_noop(engine_for_migration):
             """)
         )
 
-    _load(MIGRATION).upgrade(engine=engine)  # must not raise
+    load_migration(MIGRATION).upgrade(engine=engine)  # must not raise
 
     assert _columns(engine, "fuel_records") == {"id", "vin", "liters"}
     assert _columns(engine, "vehicles") == {"vin", "nickname", "fuel_economy_city_l_per_100km"}
@@ -175,6 +163,6 @@ def test_columns_already_absent_is_noop(engine_for_migration):
 def test_missing_table_is_noop(engine_for_migration):
     """(c) Neither table exists at all — must not raise."""
     _dialect, engine, _url = engine_for_migration
-    _load(MIGRATION).upgrade(engine=engine)  # must not raise
+    load_migration(MIGRATION).upgrade(engine=engine)  # must not raise
     assert not inspect(engine).has_table("fuel_records")
     assert not inspect(engine).has_table("vehicles")

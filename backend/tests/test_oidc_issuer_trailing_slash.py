@@ -79,7 +79,7 @@ def _make_id_token(key: RSAKey, issuer: str) -> str:
 
 
 async def _verify(key: RSAKey, token_issuer: str, metadata: dict, config: dict) -> dict | None:
-    jwks = KeySet([key]).as_dict(private=False)
+    jwks = dict(KeySet([key]).as_dict(private=False))
     with (
         patch("app.services.oidc.tokens.validate_oidc_url", side_effect=urlparse),
         patch(

@@ -9,6 +9,7 @@ from decimal import Decimal
 from typing import Any
 
 import pytest
+from sqlalchemy import Numeric
 from sqlalchemy.dialects import postgresql, sqlite
 
 from app.models._types import ScaledNumeric
@@ -86,7 +87,9 @@ def test_a_comparison_bind_takes_the_column_type():
     # So `WHERE odometer_km > :x` binds the number both dialects store.
     right = (FuelRecord.odometer_km > Decimal("19867.35168")).right
     assert isinstance(right.type, ScaledNumeric)
-    assert right.type.impl.scale == 2
+    impl = right.type.impl_instance
+    assert isinstance(impl, Numeric)
+    assert impl.scale == 2
 
 
 def test_the_cache_key_carries_precision_and_scale():

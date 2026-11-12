@@ -43,6 +43,7 @@ import re
 from pathlib import Path
 
 from sqlalchemy import Engine, create_engine, inspect, text
+from sqlalchemy.engine.interfaces import DBAPICursor
 
 FATAL = True
 
@@ -89,7 +90,7 @@ def upgrade(engine: Engine | None = None) -> None:
 # ============================================================================
 
 
-def _create_hours_records(engine, is_pg) -> None:
+def _create_hours_records(engine: Engine, is_pg: bool) -> None:
     """Create ``hours_records`` + its indexes (skip if it already exists).
 
     In production ``create_all`` builds this table before the runner, so this is
@@ -140,7 +141,7 @@ def _create_hours_records(engine, is_pg) -> None:
 # ============================================================================
 
 
-def _add_columns(engine, is_pg) -> None:
+def _add_columns(engine: Engine, is_pg: bool) -> None:
     """Add the four hours columns, each guarded by column-existence."""
     # vehicles.secondary_usage_enabled — NOT NULL with a constant default, so a
     # plain ADD COLUMN is accepted on SQLite without a rebuild (A5).
@@ -185,7 +186,7 @@ def _add_columns(engine, is_pg) -> None:
 # ============================================================================
 
 
-def _widen_reminder_type_check(engine, is_pg) -> None:
+def _widen_reminder_type_check(engine: Engine, is_pg: bool) -> None:
     """Widen the ``reminder_type`` CHECK to accept ``'hours'`` when a legacy
     CHECK is present. A no-op on schemas that carry no such CHECK (fresh
     ``create_all``) or one that already includes ``'hours'``."""
@@ -197,7 +198,7 @@ def _widen_reminder_type_check(engine, is_pg) -> None:
         _widen_reminder_type_check_sqlite(engine)
 
 
-def _widen_reminder_type_check_pg(engine) -> None:
+def _widen_reminder_type_check_pg(engine: Engine) -> None:
     """PostgreSQL: discover any reminder_type CHECK, drop it, add the widened one."""
     with engine.begin() as conn:
         rows = conn.execute(
@@ -226,7 +227,7 @@ def _widen_reminder_type_check_pg(engine) -> None:
     print("  ✓ Widened vehicle_reminders.reminder_type CHECK (PG)")
 
 
-def _sqlite_vehicle_reminders_sql(engine) -> str:
+def _sqlite_vehicle_reminders_sql(engine: Engine) -> str:
     """Return the CREATE TABLE SQL for vehicle_reminders (SQLite)."""
     with engine.connect() as conn:
         sql = conn.execute(
@@ -243,7 +244,7 @@ def _reminder_check_needs_widening(table_sql: str) -> bool:
     return "'hours'" not in match.group(1).lower()
 
 
-def _widen_reminder_type_check_sqlite(engine) -> None:
+def _widen_reminder_type_check_sqlite(engine: Engine) -> None:
     """SQLite: full FK-safe rebuild widening the CHECK (migration 070 pattern)."""
     if not _reminder_check_needs_widening(_sqlite_vehicle_reminders_sql(engine)):
         return
@@ -292,7 +293,7 @@ def _widen_reminder_type_check_sqlite(engine) -> None:
     print("  ✓ Widened vehicle_reminders.reminder_type CHECK (SQLite rebuild)")
 
 
-def _rebuild_vehicle_reminders(cur) -> None:
+def _rebuild_vehicle_reminders(cur: DBAPICursor) -> None:
     """Rebuild vehicle_reminders with the widened CHECK, preserving all columns,
     the vin CASCADE FK, and the three model indexes. ``due_hours`` was added by
     ``_add_columns`` before this runs, so the old table already carries it."""
@@ -341,7 +342,7 @@ def _rebuild_vehicle_reminders(cur) -> None:
 # ============================================================================
 
 
-def _backfill_current_hours(engine) -> None:
+def _backfill_current_hours(engine: Engine) -> None:
     """Seed one manual ``hours_records`` row from each vehicle's legacy
     ``current_hours`` (only when it is set and the vehicle has no hours rows)."""
     inspector = inspect(engine)
@@ -377,7 +378,7 @@ def _backfill_current_hours(engine) -> None:
         print(f"  ✓ Backfilled {len(rows)} current_hours seed row(s)")
 
 
-def downgrade(engine=None) -> None:  # pragma: no cover
+def downgrade(engine: Engine | None = None) -> None:  # pragma: no cover
     """Forward-only. Restore from the pre-migration backup instead."""
     raise NotImplementedError(
         "Migration 083 is forward-only. Restore from the pre-migration backup instead."

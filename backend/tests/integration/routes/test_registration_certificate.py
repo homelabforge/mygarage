@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import io
 import uuid
+from collections.abc import Awaitable, Callable
 from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
@@ -181,6 +182,7 @@ class TestParse:
         assert body["warnings"] == []
         assert body["model"] is None
         read.assert_awaited_once()
+        assert read.await_args is not None
         assert read.await_args.kwargs["kind"] == "registration_certificate"
 
     async def test_photo_read_by_the_model(self, client: AsyncClient, auth_headers):
@@ -398,6 +400,25 @@ class TestImport:
         assert again.json()["applied"] == []
         assert again.json()["inspection_due_recorded"] is False
         assert await _pending_inspection_due(client, auth_headers, vin) == deadline.isoformat()
+
+    async def test_auth_off_still_fills_the_vehicle(
+        self,
+        client: AsyncClient,
+        auth_headers: dict[str, str],
+        set_auth_mode: Callable[[str], Awaitable[None]],
+    ) -> None:
+        """auth_mode 'none' has no user at all, and the import still writes the vehicle."""
+        vin = await _create_vehicle(client, auth_headers)
+        text = _certificate_text(vin, first_registration="12/03/2023", inspection_due=None)
+        url = f"/api/vehicles/{vin}/registration-certificate"
+        assert (await client.post(url, files=_upload(_text_pdf(text)))).status_code == 401
+        await set_auth_mode("none")
+        with patch(READ_DOCUMENT, new=AsyncMock(return_value=_text_read(text))):
+            r = await client.post(url, files=_upload(_text_pdf(text)))
+        assert r.status_code == 201, r.text
+        assert "license_plate" in r.json()["applied"]
+        vehicle = await client.get(f"/api/vehicles/{vin}")
+        assert vehicle.json()["license_plate"] == "AB-123-CD"
 
     async def test_a_deadline_later_than_the_cadence_changes_nothing(
         self, client: AsyncClient, auth_headers

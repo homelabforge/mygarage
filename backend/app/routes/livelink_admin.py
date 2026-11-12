@@ -899,9 +899,9 @@ async def get_mqtt_settings(
 
     return MQTTSettingsResponse(
         enabled=enabled,
-        broker_host=broker_host.value if broker_host else "",
+        broker_host=(broker_host.value if broker_host else None) or "",
         broker_port=int(broker_port.value) if broker_port and broker_port.value else 1883,
-        username=username.value if username else "",
+        username=(username.value if username else None) or "",
         # From the stored form, not the decrypted value: a password that can't
         # be decrypted reads as None but is still configured (D3a).
         has_password=bool(password and password.stored_value),
@@ -1660,7 +1660,7 @@ async def update_topic_map(
     }
     merged.update(body.model_dump(exclude_unset=True))
     try:
-        validated = TopicMapCreate(**merged)
+        validated = TopicMapCreate.model_validate(merged)
     except ValidationError as exc:
         raise RequestValidationError(exc.errors()) from exc
 

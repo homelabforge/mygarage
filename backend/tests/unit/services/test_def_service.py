@@ -246,4 +246,4 @@ class TestDEFSchemaValidation:
         from app.schemas.def_record import DEFRecordCreate
 
         with pytest.raises(ValidationError):
-            DEFRecordCreate()  # type: ignore[call-arg]
+            DEFRecordCreate()  # pyright: ignore[reportCallIssue]  # deliberately invalid

@@ -49,7 +49,7 @@ def _autoref(answer: Any = None, error: Exception | None = None) -> MagicMock:
 
 @pytest.mark.unit
 class TestPreferredProvider:
-    BOTH = ["nhtsa", "autoref"]
+    BOTH: list[vin_decoder.Provider] = ["nhtsa", "autoref"]
 
     @pytest.mark.parametrize("country", ["FR", "DE", "IT", "GB", "CH", "NO", "IS", "LI"])
     def test_europe_puts_autoref_first(self, country):

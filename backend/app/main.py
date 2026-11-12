@@ -9,10 +9,12 @@ from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
 from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
+from starlette.types import Scope
 
 from app.config import settings
 from app.database import init_db
@@ -293,8 +295,9 @@ app = FastAPI(
 limiter = Limiter(key_func=get_remote_address, default_limits=[settings.rate_limit_default])
 app.state.limiter = limiter
 from app.routes.oidc import rate_limit_exceeded_handler
+from app.utils.error_handlers import register_exception_handler
 
-app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)  # type: ignore[arg-type]
+register_exception_handler(app, RateLimitExceeded, rate_limit_exceeded_handler)
 
 # Add security middleware.
 #
@@ -584,7 +587,7 @@ if static_dir.exists():
     # or revalidating these on every navigation, which is where most of the
     # post-deploy reload latency comes from.
     class ImmutableStaticFiles(StaticFiles):
-        async def get_response(self, path, scope):
+        async def get_response(self, path: str, scope: Scope) -> Response:
             response = await super().get_response(path, scope)
             if response.status_code == 200:
                 response.headers["Cache-Control"] = "public, max-age=31536000, immutable"

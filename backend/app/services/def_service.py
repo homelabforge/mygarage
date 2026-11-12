@@ -343,16 +343,19 @@ class DEFRecordService:
 
         # Consumption rate: liters per 1000 km
         # Requires minimum 3 records with odometer_km, and span > ~800 km
+        # (record, its odometer) pairs, so the reading is never None below.
         odometer_records = [
-            r for r in records if r.odometer_km is not None and r.liters is not None
+            (r, r.odometer_km)
+            for r in records
+            if r.odometer_km is not None and r.liters is not None
         ]
         liters_per_1000_km: Decimal | None = None
         data_confidence = "insufficient"
 
         if len(odometer_records) >= 3:
-            by_odometer = sorted(odometer_records, key=lambda r: r.odometer_km)
-            min_km = by_odometer[0].odometer_km
-            max_km = by_odometer[-1].odometer_km
+            by_odometer = sorted(odometer_records, key=lambda pair: pair[1])
+            min_km = by_odometer[0][1]
+            max_km = by_odometer[-1][1]
             km_span = max_km - min_km
 
             if km_span >= Decimal("800"):
@@ -362,11 +365,7 @@ class DEFRecordService:
                 # purchases logged at the same final odometer are BOTH
                 # unconsumed. Including them overstates the rate by ~N/(N-1).
                 consumed_liters = sum(
-                    (
-                        r.liters
-                        for r in by_odometer
-                        if r.odometer_km != max_km and r.liters is not None
-                    ),
+                    (r.liters for r, km in by_odometer if km != max_km and r.liters is not None),
                     Decimal("0"),
                 )
                 if consumed_liters > 0:
@@ -379,7 +378,7 @@ class DEFRecordService:
 
         # Estimated remaining liters (requires fill_level and tank capacity)
         estimated_remaining_liters: Decimal | None = None
-        estimated_km_remaining: int | None = None
+        estimated_km_remaining: Decimal | None = None
         estimated_days_remaining: int | None = None
 
         if last_fill_level is not None:
@@ -395,15 +394,15 @@ class DEFRecordService:
                 # Estimated km remaining
                 if liters_per_1000_km is not None and liters_per_1000_km > 0:
                     km_remaining = estimated_remaining_liters / (liters_per_1000_km / 1000)
-                    estimated_km_remaining = int(km_remaining)
+                    estimated_km_remaining = Decimal(int(km_remaining))
 
                     # Estimated days remaining (from average daily km)
                     if len(odometer_records) >= 2:
-                        odometers_sorted = sorted(odometer_records, key=lambda r: r.date)
-                        total_km = (
-                            odometers_sorted[-1].odometer_km - odometers_sorted[0].odometer_km  # type: ignore[operator]
-                        )
-                        total_days = (odometers_sorted[-1].date - odometers_sorted[0].date).days
+                        odometers_sorted = sorted(odometer_records, key=lambda pair: pair[0].date)
+                        total_km = odometers_sorted[-1][1] - odometers_sorted[0][1]
+                        total_days = (
+                            odometers_sorted[-1][0].date - odometers_sorted[0][0].date
+                        ).days
                         if total_days > 0 and total_km > 0:
                             avg_daily_km = Decimal(str(total_km)) / Decimal(str(total_days))
                             if avg_daily_km > 0:

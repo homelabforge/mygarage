@@ -1,13 +1,10 @@
 """Migration 159: stored makes and models in Title Case (#219 takeover)."""
 
-import importlib.util
-from pathlib import Path
-
 import pytest
 from sqlalchemy import Engine, text
 
-import app.migrations as _m
 from tests._logged import problems
+from tests.migrations._loader import load_migration
 
 pytestmark = pytest.mark.migrations
 
@@ -15,11 +12,7 @@ _NAME = "159_title_case_vehicle_names"
 
 
 def _load():
-    path = Path(_m.__file__).parent / f"{_NAME}.py"
-    spec = importlib.util.spec_from_file_location(_NAME, path)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
+    return load_migration(_NAME)
 
 
 def _upgrade(engine: Engine) -> None:

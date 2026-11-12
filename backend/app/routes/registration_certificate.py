@@ -100,7 +100,7 @@ def _to_response(
     result: certificates.RegistrationParseResult, *, parse_token: str | None = None
 ) -> RegistrationParseResponse:
     return RegistrationParseResponse(
-        source=result.source,  # type: ignore[arg-type]  # "text" | "llm" from the reader
+        source=result.source,
         country=result.data.country,
         confidence=result.confidence,
         fields=result.fields(),

@@ -285,6 +285,8 @@ class InsuranceService:
         )
         starts: dict[int, date] = {}
         for previous_id, start in rows.all():
+            if previous_id is None:  # the query already skips these
+                continue
             if previous_id not in starts or start < starts[previous_id]:
                 starts[previous_id] = start
         return starts

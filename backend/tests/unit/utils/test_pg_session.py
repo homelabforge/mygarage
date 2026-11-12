@@ -55,7 +55,7 @@ async def _driver_kwargs(engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch) -
 
 
 def _pin_count(engine: Engine) -> int:
-    return list(engine.pool.dispatch.connect).count(pg_session._set_session_utc)  # pyright: ignore[reportPrivateUsage]
+    return list(engine.pool.dispatch.connect).count(pg_session._set_session_utc)
 
 
 def test_asyncpg_connect_args_merges_into_existing_server_settings() -> None:

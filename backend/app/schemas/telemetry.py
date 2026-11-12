@@ -17,23 +17,23 @@ class TelemetryLatestValue(BaseModel):
 
     param_key: str = Field(..., description="Parameter key")
     value: float = Field(..., description="Current value")
-    unit: str | None = Field(None, description="Unit of measurement")
-    display_name: str | None = Field(None, description="User-friendly name")
+    unit: str | None = Field(default=None, description="Unit of measurement")
+    display_name: str | None = Field(default=None, description="User-friendly name")
     timestamp: datetime = Field(..., description="When value was recorded")
 
     # Display metadata
-    warning_min: float | None = Field(None, description="Low warning threshold")
-    warning_max: float | None = Field(None, description="High warning threshold")
-    in_warning: bool = Field(False, description="Whether value is outside thresholds")
+    warning_min: float | None = Field(default=None, description="Low warning threshold")
+    warning_max: float | None = Field(default=None, description="High warning threshold")
+    in_warning: bool = Field(default=False, description="Whether value is outside thresholds")
     alert_band: Literal["low", "critical", "high"] | None = Field(
-        None,
+        default=None,
         description=(
             "Which alert line the value is past: below low, below critical (a "
             "tank's red line, under low), or above high. None inside its lines."
         ),
     )
     show_on_dashboard: bool = Field(
-        True,
+        default=True,
         description=(
             "Whether the Live tab draws a gauge for this reading. Every value is "
             "still returned: the vehicle widget looks keys up by name and must "
@@ -47,12 +47,14 @@ class LiveSensorReading(BaseModel):
 
     param_key: str
     format: Literal["value", "boolean", "count", "of_max"] = Field(
-        "value",
+        default="value",
         description=(
             "Through the unit adapter, as Yes/No, as a whole number, or as 'n of max_value'"
         ),
     )
-    max_value: int | None = Field(None, description="The top of the scale for an 'of_max' reading")
+    max_value: int | None = Field(
+        default=None, description="The top of the scale for an 'of_max' reading"
+    )
 
 
 class LiveSensor(BaseModel):
@@ -69,7 +71,7 @@ class LiveSensor(BaseModel):
     online: bool = Field(description="Reporting now, by the integrations card's rule")
     last_seen: datetime | None = None
     fill_key: str | None = Field(
-        None, description="The reading drawn as the tank's fill (its level), when mapped"
+        default=None, description="The reading drawn as the tank's fill (its level), when mapped"
     )
     readings: list[LiveSensorReading] = Field(
         default_factory=list,
@@ -81,9 +83,9 @@ class VehicleLiveLinkStatus(BaseModel):
     """Schema for vehicle LiveLink status response (live dashboard)."""
 
     vin: str
-    device_id: str | None = Field(None, description="Linked device ID")
+    device_id: str | None = Field(default=None, description="Linked device ID")
     kind: str | None = Field(
-        None,
+        default=None,
         description=(
             "Source kind of the device this status describes: the most recently "
             "seen one that drives sessions, else the most recently seen of any "
@@ -102,10 +104,10 @@ class VehicleLiveLinkStatus(BaseModel):
     #: Strict on purpose: it's computed from `online`, never read from the
     #: stored column, so nothing outside the vocabulary can reach it.
     device_status: DeviceStatusType = Field(
-        "offline", description="'online' when `online` is true, else 'offline'"
+        default="offline", description="'online' when `online` is true, else 'offline'"
     )
     online: bool = Field(
-        False,
+        default=False,
         description=(
             "Whether any device linked to this vehicle is reporting now, each by "
             "the integrations card's rule: a device whose device_status is "
@@ -115,15 +117,19 @@ class VehicleLiveLinkStatus(BaseModel):
             "device is never online."
         ),
     )
-    ecu_status: LenientECUStatus = Field("unknown", description="ECU: online/offline/unknown")
-    last_seen: datetime | None = Field(None, description="Last data received")
-    battery_voltage: float | None = Field(None, description="Vehicle battery (V)")
-    rssi: int | None = Field(None, description="WiFi signal (dBm)")
+    ecu_status: LenientECUStatus = Field(
+        default="unknown", description="ECU: online/offline/unknown"
+    )
+    last_seen: datetime | None = Field(default=None, description="Last data received")
+    battery_voltage: float | None = Field(default=None, description="Vehicle battery (V)")
+    rssi: int | None = Field(default=None, description="WiFi signal (dBm)")
 
     # Current session info
-    current_session_id: int | None = Field(None, description="Active session ID")
-    session_started_at: datetime | None = Field(None, description="Current session start")
-    session_duration_seconds: int | None = Field(None, description="Session duration so far")
+    current_session_id: int | None = Field(default=None, description="Active session ID")
+    session_started_at: datetime | None = Field(default=None, description="Current session start")
+    session_duration_seconds: int | None = Field(
+        default=None, description="Session duration so far"
+    )
 
     # Latest parameter values
     latest_values: list[TelemetryLatestValue] = Field(
@@ -158,9 +164,9 @@ class TelemetrySeriesResponse(BaseModel):
     display_name: str | None
     unit: str | None
     data: list[TelemetryDataPoint]
-    min_value: float | None = Field(None, description="Minimum value in range")
-    max_value: float | None = Field(None, description="Maximum value in range")
-    avg_value: float | None = Field(None, description="Average value in range")
+    min_value: float | None = Field(default=None, description="Minimum value in range")
+    max_value: float | None = Field(default=None, description="Maximum value in range")
+    avg_value: float | None = Field(default=None, description="Average value in range")
 
 
 class TelemetryQueryParams(BaseModel):
@@ -168,9 +174,15 @@ class TelemetryQueryParams(BaseModel):
 
     start: datetime = Field(..., description="Start of time range")
     end: datetime = Field(..., description="End of time range")
-    param_keys: list[str] | None = Field(None, description="Parameters to query (None = all)")
-    interval_seconds: int | None = Field(None, description="Optional downsampling interval", ge=1)
-    limit: int = Field(10000, description="Maximum data points per parameter", ge=1, le=100000)
+    param_keys: list[str] | None = Field(
+        default=None, description="Parameters to query (None = all)"
+    )
+    interval_seconds: int | None = Field(
+        default=None, description="Optional downsampling interval", ge=1
+    )
+    limit: int = Field(
+        default=10000, description="Maximum data points per parameter", ge=1, le=100000
+    )
 
 
 class TelemetryQueryResponse(BaseModel):
@@ -180,7 +192,7 @@ class TelemetryQueryResponse(BaseModel):
     start: datetime
     end: datetime
     series: list[TelemetrySeriesResponse]
-    total_points: int = Field(0, description="Total data points returned")
+    total_points: int = Field(default=0, description="Total data points returned")
 
 
 # =============================================================================
@@ -217,7 +229,11 @@ class TelemetryExportParams(BaseModel):
 
     start: datetime = Field(..., description="Start of export range")
     end: datetime = Field(..., description="End of export range")
-    param_keys: list[str] | None = Field(None, description="Parameters to export (None = all)")
-    format: str = Field("csv", description="Export format: csv or json")
-    include_session_markers: bool = Field(True, description="Include session boundaries")
-    downsample_seconds: int | None = Field(None, description="Optional downsampling interval", ge=1)
+    param_keys: list[str] | None = Field(
+        default=None, description="Parameters to export (None = all)"
+    )
+    format: str = Field(default="csv", description="Export format: csv or json")
+    include_session_markers: bool = Field(default=True, description="Include session boundaries")
+    downsample_seconds: int | None = Field(
+        default=None, description="Optional downsampling interval", ge=1
+    )

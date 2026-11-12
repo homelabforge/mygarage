@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date as date_type
 from datetime import datetime
 from decimal import Decimal
-from typing import Annotated, Literal
+from typing import Annotated
 
 from pydantic import (
     AfterValidator,
@@ -16,6 +16,7 @@ from pydantic import (
     model_validator,
 )
 
+from app.constants.service_vocab import InspectionResult, InspectionSeverity, ServiceCategory
 from app.schemas._figures import to_stored_tenth
 from app.schemas._money import OptionalMoney
 from app.schemas._nullability import reject_null
@@ -24,17 +25,11 @@ from app.schemas.reminder import ReminderCreate  # noqa: F401 (used in type anno
 from app.schemas.supply import SupplyUsageInput, SupplyUsageResponse
 from app.utils.lenient_vocab import LenientVocab, lenient_reader
 
-# Service category type (same as existing)
-ServiceCategory = Literal["Maintenance", "Inspection", "Collision", "Upgrades", "Detailing"]
 # A line item's category has no CHECK (the visit's does), so its response reads
 # an unknown one as null instead of 500ing the visit.
 LenientServiceCategory = Annotated[
     ServiceCategory | None, BeforeValidator(lenient_reader(ServiceCategory)), LenientVocab(None)
 ]
-
-# Inspection result types
-InspectionResult = Literal["passed", "failed", "needs_attention"]
-InspectionSeverity = Literal["green", "yellow", "red"]
 
 #: The visit's free-text paperwork refs.
 _REF_FIELDS = ("insurance_claim_number", "invoice_number", "po_number", "work_order_number")
@@ -82,9 +77,9 @@ class LinkedRecall(BaseModel):
 
     id: int
     campaign: str | None = Field(
-        None, description="NHTSA campaign number, else the provider's own identifier"
+        default=None, description="NHTSA campaign number, else the provider's own identifier"
     )
-    component: str | None = Field(None, description="Component the recall covers")
+    component: str | None = Field(default=None, description="Component the recall covers")
 
 
 class LinkedWarranty(BaseModel):
@@ -92,40 +87,41 @@ class LinkedWarranty(BaseModel):
 
     id: int
     warranty_type: str = Field(..., description="Type of warranty coverage")
-    provider: str | None = Field(None, description="Warranty provider name")
+    provider: str | None = Field(default=None, description="Warranty provider name")
 
 
 class ServiceLineItemBase(BaseModel):
     """Base service line item schema."""
 
     description: str = Field(..., description="Service description", min_length=1, max_length=200)
-    category: ServiceCategory | None = Field(None, description="Service category")
+    category: ServiceCategory | None = Field(default=None, description="Service category")
     maintenance_type: str | None = Field(
-        None,
+        default=None,
         description=(
             "Canonical maintenance type code; classified from the description when omitted"
         ),
         max_length=50,
     )
-    cost: OptionalMoney = Field(None, description="Cost for this line item")
-    notes: str | None = Field(None, description="Additional notes", max_length=5000)
+    cost: OptionalMoney = Field(default=None, description="Cost for this line item")
+    notes: str | None = Field(default=None, description="Additional notes", max_length=5000)
     is_inspection: bool = Field(default=False, description="Is this an inspection item")
     inspection_result: InspectionResult | None = Field(
-        None, description="Inspection result (if inspection)"
+        default=None, description="Inspection result (if inspection)"
     )
     inspection_severity: InspectionSeverity | None = Field(
-        None, description="Inspection severity (if inspection)"
+        default=None, description="Inspection severity (if inspection)"
     )
     triggered_by_inspection_id: int | None = Field(
-        None, description="ID of inspection that triggered this repair"
+        default=None, description="ID of inspection that triggered this repair"
     )
     is_recall: bool = Field(default=False, description="Is this recall work")
     recall_id: int | None = Field(
-        None, description="The recall this item fixed, when it's in MyGarage (needs is_recall)"
+        default=None,
+        description="The recall this item fixed, when it's in MyGarage (needs is_recall)",
     )
     is_warranty: bool = Field(default=False, description="Is this warranty work")
     warranty_id: int | None = Field(
-        None, description="The warranty that covered this item, if any (needs is_warranty)"
+        default=None, description="The warranty that covered this item, if any (needs is_warranty)"
     )
 
     @field_validator("inspection_result")
@@ -155,9 +151,11 @@ class ServiceLineItemCreate(ServiceLineItemBase):
     """Schema for creating a service line item."""
 
     reminder: ReminderCreate | None = Field(
-        None, description="Optional reminder to create after flush"
+        default=None, description="Optional reminder to create after flush"
     )
-    temp_id: int | None = Field(None, description="Transient client temp ID; not persisted to DB")
+    temp_id: int | None = Field(
+        default=None, description="Transient client temp ID; not persisted to DB"
+    )
     supplies_used: list[SupplyUsageInput] = Field(
         default_factory=list, description="Supplies consumed by this line item"
     )
@@ -214,13 +212,15 @@ class ServiceLineItemUpdate(BaseModel):
     can reference them via triggered_by_inspection_id before flush.
     """
 
-    id: int | None = Field(None, description="Existing item id; omit for new items")
-    temp_id: int | None = Field(None, description="Client temp ID; must be negative; not persisted")
+    id: int | None = Field(default=None, description="Existing item id; omit for new items")
+    temp_id: int | None = Field(
+        default=None, description="Client temp ID; must be negative; not persisted"
+    )
     description: str = Field(..., min_length=1, max_length=200)
     category: ServiceCategory | None = None
-    maintenance_type: str | None = Field(None, max_length=50)
+    maintenance_type: str | None = Field(default=None, max_length=50)
     cost: OptionalMoney = None
-    notes: str | None = Field(None, max_length=5000)
+    notes: str | None = Field(default=None, max_length=5000)
     is_inspection: bool = False
     inspection_result: InspectionResult | None = None
     inspection_severity: InspectionSeverity | None = None
@@ -269,19 +269,19 @@ class ServiceLineItemResponse(ServiceLineItemBase):
 
     # Money without the input bounds, so a stored amount past today's rules
     # still reads instead of 500ing (test_response_contract).
-    cost: Decimal | None = Field(None, description="Cost for this line item")
+    cost: Decimal | None = Field(default=None, description="Cost for this line item")
     # Text without the input rules, so a stored string past today's limits
     # still reads instead of 500ing (test_response_contract).
     description: str = Field(..., description="Service description")
     maintenance_type: str | None = Field(
-        None,
+        default=None,
         description=(
             "Canonical maintenance type code; classified from the description when omitted"
         ),
     )
-    notes: str | None = Field(None, description="Additional notes")
+    notes: str | None = Field(default=None, description="Additional notes")
     # A category we don't know reads as null instead of 500ing the visit.
-    category: LenientServiceCategory = Field(None, description="Service category")
+    category: LenientServiceCategory = Field(default=None, description="Service category")
     id: int
     visit_id: int
     created_at: datetime
@@ -294,8 +294,12 @@ class ServiceLineItemResponse(ServiceLineItemBase):
     supply_usages: list[SupplyUsageResponse] = Field(default_factory=list)
     # Named apart from the ORM's `recall` / `warranty`, so from_attributes
     # never reaches for an unloaded relationship.
-    recall_summary: LinkedRecall | None = Field(None, description="The linked recall, if any")
-    warranty_summary: LinkedWarranty | None = Field(None, description="The linked warranty, if any")
+    recall_summary: LinkedRecall | None = Field(
+        default=None, description="The linked recall, if any"
+    )
+    warranty_summary: LinkedWarranty | None = Field(
+        default=None, description="The linked warranty, if any"
+    )
 
     model_config = {
         "from_attributes": True,
@@ -326,10 +330,10 @@ class ServiceVisitBase(BaseModel):
 
     date: date_type = Field(..., description="Visit date")
     odometer_km: Decimal | None = Field(
-        None, description="Odometer reading in kilometers", ge=0, le=99999999.99
+        default=None, description="Odometer reading in kilometers", ge=0, le=99999999.99
     )
     engine_hours: Annotated[Decimal | None, AfterValidator(to_stored_tenth)] = Field(
-        None,
+        default=None,
         description=(
             "Engine-hours reading at this service visit (hour-metered vehicles). "
             "Dimensionless, no unit conversion. Auto-syncs to hours history."
@@ -337,18 +341,28 @@ class ServiceVisitBase(BaseModel):
         ge=0,
         le=9999999.9,
     )
-    notes: str | None = Field(None, description="Visit notes", max_length=5000)
-    service_category: ServiceCategory | None = Field(None, description="Primary service category")
-    insurance_claim_number: str | None = Field(
-        None, description="Insurance claim number", max_length=50
+    notes: str | None = Field(default=None, description="Visit notes", max_length=5000)
+    service_category: ServiceCategory | None = Field(
+        default=None, description="Primary service category"
     )
-    invoice_number: str | None = Field(None, description="Shop invoice number", max_length=50)
-    po_number: str | None = Field(None, description="Purchase order number", max_length=50)
-    work_order_number: str | None = Field(None, description="Work order number", max_length=50)
-    vendor_id: int | None = Field(None, description="Vendor ID")
-    tax_amount: OptionalMoney = Field(None, description="Sales tax")
-    shop_supplies: OptionalMoney = Field(None, description="Shop supplies/environmental fee")
-    misc_fees: OptionalMoney = Field(None, description="Miscellaneous fees (disposal, etc.)")
+    insurance_claim_number: str | None = Field(
+        default=None, description="Insurance claim number", max_length=50
+    )
+    invoice_number: str | None = Field(
+        default=None, description="Shop invoice number", max_length=50
+    )
+    po_number: str | None = Field(default=None, description="Purchase order number", max_length=50)
+    work_order_number: str | None = Field(
+        default=None, description="Work order number", max_length=50
+    )
+    vendor_id: int | None = Field(default=None, description="Vendor ID")
+    tax_amount: OptionalMoney = Field(default=None, description="Sales tax")
+    shop_supplies: OptionalMoney = Field(
+        default=None, description="Shop supplies/environmental fee"
+    )
+    misc_fees: OptionalMoney = Field(
+        default=None, description="Miscellaneous fees (disposal, etc.)"
+    )
 
     @field_validator("service_category")
     @classmethod
@@ -375,7 +389,7 @@ class ServiceVisitCreate(ServiceVisitBase):
         ..., description="Services performed during this visit", min_length=1
     )
     total_cost: OptionalMoney = Field(
-        None,
+        default=None,
         description="Ignored: the server always computes the total from line items, "
         "supplies, tax and fees. Accepted so existing clients don't 422.",
     )
@@ -431,35 +445,45 @@ class ServiceVisitCreate(ServiceVisitBase):
 class ServiceVisitUpdate(BaseModel):
     """Schema for updating an existing service visit."""
 
-    date: date_type | None = Field(None, description="Visit date")
+    date: date_type | None = Field(default=None, description="Visit date")
     odometer_km: Decimal | None = Field(
-        None, description="Odometer reading in kilometers", ge=0, le=99999999.99
+        default=None, description="Odometer reading in kilometers", ge=0, le=99999999.99
     )
     engine_hours: Annotated[Decimal | None, AfterValidator(to_stored_tenth)] = Field(
-        None,
+        default=None,
         description="Engine-hours reading at this service visit (hour-metered vehicles)",
         ge=0,
         le=9999999.9,
     )
-    notes: str | None = Field(None, description="Visit notes", max_length=5000)
-    service_category: ServiceCategory | None = Field(None, description="Primary service category")
-    insurance_claim_number: str | None = Field(
-        None, description="Insurance claim number", max_length=50
+    notes: str | None = Field(default=None, description="Visit notes", max_length=5000)
+    service_category: ServiceCategory | None = Field(
+        default=None, description="Primary service category"
     )
-    invoice_number: str | None = Field(None, description="Shop invoice number", max_length=50)
-    po_number: str | None = Field(None, description="Purchase order number", max_length=50)
-    work_order_number: str | None = Field(None, description="Work order number", max_length=50)
-    vendor_id: int | None = Field(None, description="Vendor ID")
+    insurance_claim_number: str | None = Field(
+        default=None, description="Insurance claim number", max_length=50
+    )
+    invoice_number: str | None = Field(
+        default=None, description="Shop invoice number", max_length=50
+    )
+    po_number: str | None = Field(default=None, description="Purchase order number", max_length=50)
+    work_order_number: str | None = Field(
+        default=None, description="Work order number", max_length=50
+    )
+    vendor_id: int | None = Field(default=None, description="Vendor ID")
     total_cost: OptionalMoney = Field(
-        None,
+        default=None,
         description="Ignored: the server always computes the total from line items, "
         "supplies, tax and fees. Accepted so existing clients don't 422.",
     )
-    tax_amount: OptionalMoney = Field(None, description="Sales tax")
-    shop_supplies: OptionalMoney = Field(None, description="Shop supplies/environmental fee")
-    misc_fees: OptionalMoney = Field(None, description="Miscellaneous fees (disposal, etc.)")
+    tax_amount: OptionalMoney = Field(default=None, description="Sales tax")
+    shop_supplies: OptionalMoney = Field(
+        default=None, description="Shop supplies/environmental fee"
+    )
+    misc_fees: OptionalMoney = Field(
+        default=None, description="Miscellaneous fees (disposal, etc.)"
+    )
     line_items: list[ServiceLineItemUpdate] | None = Field(
-        None, description="Diff-based line items (if provided)"
+        default=None, description="Diff-based line items (if provided)"
     )
 
     # NOT NULL column: omitted keeps the stored value, null is a 422.
@@ -517,24 +541,28 @@ class ServiceVisitResponse(ServiceVisitBase):
 
     # Numbers without the input bounds, so a stored value past today's rules
     # still reads instead of 500ing (test_response_contract).
-    odometer_km: Decimal | None = Field(None, description="Odometer reading in kilometers")
+    odometer_km: Decimal | None = Field(default=None, description="Odometer reading in kilometers")
     engine_hours: Decimal | None = Field(
-        None,
+        default=None,
         description=(
             "Engine-hours reading at this service visit (hour-metered vehicles). "
             "Dimensionless, no unit conversion. Auto-syncs to hours history."
         ),
     )
-    tax_amount: Decimal | None = Field(None, description="Sales tax")
-    shop_supplies: Decimal | None = Field(None, description="Shop supplies/environmental fee")
-    misc_fees: Decimal | None = Field(None, description="Miscellaneous fees (disposal, etc.)")
+    tax_amount: Decimal | None = Field(default=None, description="Sales tax")
+    shop_supplies: Decimal | None = Field(
+        default=None, description="Shop supplies/environmental fee"
+    )
+    misc_fees: Decimal | None = Field(
+        default=None, description="Miscellaneous fees (disposal, etc.)"
+    )
     # Text without the input rules, so a stored string past today's limits
     # still reads instead of 500ing (test_response_contract).
-    notes: str | None = Field(None, description="Visit notes")
-    insurance_claim_number: str | None = Field(None, description="Insurance claim number")
-    invoice_number: str | None = Field(None, description="Shop invoice number")
-    po_number: str | None = Field(None, description="Purchase order number")
-    work_order_number: str | None = Field(None, description="Work order number")
+    notes: str | None = Field(default=None, description="Visit notes")
+    insurance_claim_number: str | None = Field(default=None, description="Insurance claim number")
+    invoice_number: str | None = Field(default=None, description="Shop invoice number")
+    po_number: str | None = Field(default=None, description="Purchase order number")
+    work_order_number: str | None = Field(default=None, description="Work order number")
     id: int
     vin: str
     total_cost: Decimal | None = None

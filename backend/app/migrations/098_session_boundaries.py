@@ -53,7 +53,16 @@ import os
 from datetime import datetime
 from pathlib import Path
 
-from sqlalchemy import DateTime, Engine, bindparam, create_engine, inspect, text
+from sqlalchemy import (
+    Connection,
+    DateTime,
+    Engine,
+    Inspector,
+    bindparam,
+    create_engine,
+    inspect,
+    text,
+)
 
 FATAL = False
 
@@ -84,7 +93,7 @@ def _get_fallback_engine():
     return create_engine(f"sqlite:///{data_dir / 'mygarage.db'}")
 
 
-def _add_missing_columns(conn, inspector) -> int:
+def _add_missing_columns(conn: Connection, inspector: Inspector) -> int:
     """``ALTER TABLE ADD COLUMN`` for each absent column. Identical on both dialects.
 
     ``NOT NULL DEFAULT 0`` on ADD COLUMN is accepted by SQLite (3.32+) and
@@ -104,7 +113,7 @@ def _add_missing_columns(conn, inspector) -> int:
     return added
 
 
-def _last_telemetry_by_device(conn) -> dict[str, datetime]:
+def _last_telemetry_by_device(conn: Connection) -> dict[str, datetime]:
     """The newest telemetry timestamp per device, for closing orphans honestly.
 
     One grouped query rather than one per orphan: a database with a few hundred
@@ -123,13 +132,13 @@ def _last_telemetry_by_device(conn) -> dict[str, datetime]:
     return out
 
 
-def _coerce(value) -> datetime | None:
+def _coerce(value: object) -> datetime | None:
     if value is None or isinstance(value, datetime):
         return value
     return datetime.fromisoformat(str(value))
 
 
-def _preflight_open_sessions(conn, inspector) -> tuple[int, int]:
+def _preflight_open_sessions(conn: Connection, inspector: Inspector) -> tuple[int, int]:
     """Reconcile every open session so the partial unique index can be created.
 
     Returns ``(sessions_closed, pointers_repaired)``.
@@ -224,7 +233,7 @@ def _preflight_open_sessions(conn, inspector) -> tuple[int, int]:
     return closed, repaired
 
 
-def _create_indexes(conn, inspector) -> None:
+def _create_indexes(conn: Connection, inspector: Inspector) -> None:
     """The movement index and the partial unique index.
 
     ``CREATE UNIQUE INDEX ... WHERE`` is supported by SQLite and PostgreSQL in

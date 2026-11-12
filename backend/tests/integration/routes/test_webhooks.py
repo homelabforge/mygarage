@@ -452,10 +452,13 @@ class TestWebhookCsrfExemption:
     """
 
     def test_webhook_routes_match_an_exempt_prefix(self):
+        from fastapi.routing import APIRoute
+
         from app.middleware import CSRFProtectionMiddleware
         from app.routes.webhooks import router
 
         for route in router.routes:
+            assert isinstance(route, APIRoute), route
             assert any(route.path.startswith(p) for p in CSRFProtectionMiddleware.EXEMPT_PATHS), (
                 f"{route.path} is not covered by any CSRF exempt prefix"
             )

@@ -96,7 +96,7 @@ def _fuel(conn: Any, **values: Any) -> int:
     ).scalar_one()
 
 
-def _raw(engine: Engine, table: str, column: str, row_id: int, key: str = "id") -> Any:
+def _raw(engine: Engine, table: str, column: str, row_id: int | str, key: str = "id") -> Any:
     with engine.connect() as conn:
         value = conn.execute(
             text(f"SELECT {column} FROM {table} WHERE {key} = :id"), {"id": row_id}

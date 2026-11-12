@@ -8,6 +8,7 @@ import logging
 
 import pytest
 import pytest_asyncio
+from fastapi import HTTPException
 from sqlalchemy import delete, select
 
 from app.models.user import User
@@ -227,7 +228,7 @@ class TestTransferVehicle:
             to_user_id=recipient_user.id,
         )
 
-        with pytest.raises(Exception) as exc_info:
+        with pytest.raises(HTTPException) as exc_info:
             await service.transfer_vehicle(
                 vin=transfer_vehicle.vin,
                 transfer_request=request,
@@ -245,7 +246,7 @@ class TestTransferVehicle:
             to_user_id=admin_user.id,
         )
 
-        with pytest.raises(Exception) as exc_info:
+        with pytest.raises(HTTPException) as exc_info:
             await service.transfer_vehicle(
                 vin=transfer_vehicle.vin,
                 transfer_request=request,
@@ -265,7 +266,7 @@ class TestTransferVehicle:
             to_user_id=disabled_user.id,
         )
 
-        with pytest.raises(Exception) as exc_info:
+        with pytest.raises(HTTPException) as exc_info:
             await service.transfer_vehicle(
                 vin=transfer_vehicle.vin,
                 transfer_request=request,
@@ -285,7 +286,7 @@ class TestTransferVehicle:
             to_user_id=99999,
         )
 
-        with pytest.raises(Exception) as exc_info:
+        with pytest.raises(HTTPException) as exc_info:
             await service.transfer_vehicle(
                 vin=transfer_vehicle.vin,
                 transfer_request=request,
@@ -305,7 +306,7 @@ class TestTransferVehicle:
             to_user_id=recipient_user.id,
         )
 
-        with pytest.raises(Exception) as exc_info:
+        with pytest.raises(HTTPException) as exc_info:
             await service.transfer_vehicle(
                 vin="NONEXISTENT1234567",
                 transfer_request=request,
@@ -467,7 +468,7 @@ class TestEligibleRecipients:
         """Test that non-admin cannot get eligible recipients."""
         service = TransferService(db_session)
 
-        with pytest.raises(Exception) as exc_info:
+        with pytest.raises(HTTPException) as exc_info:
             await service.get_eligible_recipients(
                 vin=transfer_vehicle.vin,
                 current_user=regular_user,

@@ -1,7 +1,5 @@
 """Vehicle sharing service for granting vehicle access to other users."""
 
-# pyright: reportOptionalOperand=false, reportReturnType=false
-
 from __future__ import annotations
 
 import logging
@@ -16,6 +14,7 @@ from app.models.vehicle import Vehicle
 from app.models.vehicle_share import VehicleShare
 from app.schemas.family import (
     ShareableUser,
+    UserMinimal,
     VehicleShareCreate,
     VehicleShareResponse,
     VehicleShareUpdate,
@@ -143,9 +142,9 @@ class SharingService:
             return VehicleShareResponse(
                 id=share.id,
                 vehicle_vin=share.vehicle_vin,
-                user=recipient,
+                user=UserMinimal.model_validate(recipient),
                 permission=share.permission,
-                shared_by=current_user,
+                shared_by=UserMinimal.model_validate(current_user),
                 shared_at=share.shared_at,
             )
 
@@ -214,11 +213,12 @@ class SharingService:
             await self.db.refresh(share)
 
             # Get user details for response
+            # Both are NOT NULL foreign keys, so the users are there.
             result = await self.db.execute(select(User).where(User.id == share.user_id))
-            shared_user = result.scalar_one_or_none()
+            shared_user = result.scalar_one()
 
             result = await self.db.execute(select(User).where(User.id == share.shared_by))
-            shared_by_user = result.scalar_one_or_none()
+            shared_by_user = result.scalar_one()
 
             logger.info(
                 "Share %s permission updated to %s by user %s",
@@ -230,9 +230,9 @@ class SharingService:
             return VehicleShareResponse(
                 id=share.id,
                 vehicle_vin=share.vehicle_vin,
-                user=shared_user,
+                user=UserMinimal.model_validate(shared_user),
                 permission=share.permission,
-                shared_by=shared_by_user,
+                shared_by=UserMinimal.model_validate(shared_by_user),
                 shared_at=share.shared_at,
             )
 
@@ -352,19 +352,20 @@ class SharingService:
             # Build responses with user details
             responses = []
             for share in shares:
+                # Both are NOT NULL foreign keys, so the users are there.
                 result = await self.db.execute(select(User).where(User.id == share.user_id))
-                shared_user = result.scalar_one_or_none()
+                shared_user = result.scalar_one()
 
                 result = await self.db.execute(select(User).where(User.id == share.shared_by))
-                shared_by_user = result.scalar_one_or_none()
+                shared_by_user = result.scalar_one()
 
                 responses.append(
                     VehicleShareResponse(
                         id=share.id,
                         vehicle_vin=share.vehicle_vin,
-                        user=shared_user,
+                        user=UserMinimal.model_validate(shared_user),
                         permission=share.permission,
-                        shared_by=shared_by_user,
+                        shared_by=UserMinimal.model_validate(shared_by_user),
                         shared_at=share.shared_at,
                     )
                 )

@@ -6,21 +6,10 @@ matter here: the migration issues a DROP COLUMN, which SQLite only accepts
 under conditions this table happens to meet.
 """
 
-import importlib.util
-from pathlib import Path
-
 import pytest
 from sqlalchemy import inspect, text
 
-import app.migrations as _m
-
-
-def _load(name):
-    path = Path(_m.__file__).parent / f"{name}.py"
-    spec = importlib.util.spec_from_file_location(name, path)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
+from tests.migrations._loader import load_migration
 
 
 def _make_table(engine, *, with_legacy: bool = True):
@@ -85,7 +74,7 @@ def test_089_backfills_from_legacy_then_drops_the_column(engine_for_migration):
             """)
         )
 
-    _load("089_drop_legacy_fuel_type").upgrade(engine)
+    load_migration("089_drop_legacy_fuel_type").upgrade(engine)
 
     assert "fuel_type" not in _columns(engine)
     assert "fuel_type_used" in _columns(engine)
@@ -110,7 +99,7 @@ def test_089_is_idempotent(engine_for_migration):
             )
         )
 
-    migration = _load("089_drop_legacy_fuel_type")
+    migration = load_migration("089_drop_legacy_fuel_type")
     migration.upgrade(engine)
     migration.upgrade(engine)
 
@@ -129,7 +118,7 @@ def test_089_refuses_when_fuel_type_used_is_missing(engine_for_migration):
         )
 
     with pytest.raises(RuntimeError, match="migration 054"):
-        _load("089_drop_legacy_fuel_type").upgrade(engine)
+        load_migration("089_drop_legacy_fuel_type").upgrade(engine)
 
     assert "fuel_type" in _columns(engine)
 
@@ -138,6 +127,6 @@ def test_089_skips_a_table_that_never_had_the_column(engine_for_migration):
     _dialect, engine, _url = engine_for_migration
     _make_table(engine, with_legacy=False)
 
-    _load("089_drop_legacy_fuel_type").upgrade(engine)
+    load_migration("089_drop_legacy_fuel_type").upgrade(engine)
 
     assert _columns(engine) == {"id", "vin", "liters", "price_basis", "fuel_type_used"}

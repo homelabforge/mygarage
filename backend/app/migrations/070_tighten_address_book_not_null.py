@@ -40,6 +40,7 @@ import os
 from pathlib import Path
 
 from sqlalchemy import Engine, create_engine, inspect, text
+from sqlalchemy.engine.interfaces import DBAPICursor
 
 # The four historically under-constrained columns this migration tightens.
 _TARGET_COLUMNS = ("source", "usage_count", "created_at", "updated_at")
@@ -96,7 +97,7 @@ def upgrade(engine: Engine | None = None) -> None:
 # ============================================================================
 
 
-def _run_postgres(engine) -> None:
+def _run_postgres(engine: Engine) -> None:
     """Postgres: one transaction, backfill NULLs, then SET NOT NULL per column."""
     with engine.begin() as conn:
         conn.execute(text("UPDATE address_book SET source = 'manual' WHERE source IS NULL"))
@@ -117,7 +118,7 @@ def _run_postgres(engine) -> None:
 # ============================================================================
 
 
-def _run_sqlite(engine) -> None:
+def _run_sqlite(engine: Engine) -> None:
     """SQLite path using the raw DBAPI connection (mirrors migration 053).
 
     ``engine.raw_connection()`` yields the DB-API connection without
@@ -169,7 +170,7 @@ def _run_sqlite(engine) -> None:
         raw.close()
 
 
-def _rebuild_address_book(cur) -> None:
+def _rebuild_address_book(cur: DBAPICursor) -> None:
     """Rebuild address_book with the four targets NOT NULL.
 
     Reproduces the model's exact full 24-column set (app/models/address_book.py),
@@ -227,7 +228,7 @@ def _rebuild_address_book(cur) -> None:
         cur.execute(stmt)
 
 
-def downgrade(engine=None) -> None:
+def downgrade(engine: Engine | None = None) -> None:
     """Forward-only. Rollback is a pre-migration backup restore, not a downgrade."""
     raise NotImplementedError(
         "Migration 070 is forward-only. Restore from the pre-migration backup instead."

@@ -480,7 +480,7 @@ def test_is_fatal_and_atomic(engine_for_migration, monkeypatch: pytest.MonkeyPat
                     )
                     raise RuntimeError("injected after the pin")
 
-                mod._remap_vehicle = remap_then_boom
+                monkeypatch.setattr(mod, "_remap_vehicle", remap_then_boom)
             return mod
 
         monkeypatch.setattr(MigrationRunner, "_load_module", loading)

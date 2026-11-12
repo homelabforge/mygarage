@@ -379,6 +379,6 @@ def get_or_create_secret_key(key_file: Path = DEFAULT_KEY_FILE) -> str:
         JWT key; the settings encryption key never does this.
     """
     global KEY_SOURCE, KEY_FILE
-    KEY_FILE = key_file  # pyright: ignore[reportConstantRedefinition]
-    key, KEY_SOURCE = _resolve_secret_key(key_file)  # pyright: ignore[reportConstantRedefinition]
+    KEY_FILE = key_file  # pyright: ignore[reportConstantRedefinition]  # set once, at startup
+    key, KEY_SOURCE = _resolve_secret_key(key_file)  # pyright: ignore[reportConstantRedefinition]  # set once, at startup
     return key

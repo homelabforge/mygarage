@@ -15,6 +15,7 @@ import pytest
 from pydantic import BaseModel
 from sqlalchemy import Column
 
+from app.models._types import ScaledNumeric
 from app.models.fuel import FuelRecord
 from app.models.vehicle import Vehicle
 from app.routes.window_sticker import WindowStickerDataUpdate
@@ -22,7 +23,8 @@ from app.schemas.fuel import FuelRecordCreate, FuelRecordUpdate
 
 
 def _column_max(column: Column[Any]) -> Decimal:
-    numeric = column.type.impl_instance
+    assert isinstance(column.type, ScaledNumeric), column.type
+    numeric = column.type
     return Decimal(10) ** (numeric.precision - numeric.scale) - Decimal(10) ** -numeric.scale
 
 
