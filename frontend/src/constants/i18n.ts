@@ -32,6 +32,7 @@ export const SUPPORTED_CURRENCIES: SupportedCurrency[] = [
   { code: 'GBP', name: 'British Pound' },
   { code: 'PLN', name: 'Polish Zloty' },
   { code: 'UAH', name: 'Ukrainian Hryvnia' },
+  { code: 'RUB', name: 'Russian Ruble' },
   { code: 'CAD', name: 'Canadian Dollar' },
   { code: 'AUD', name: 'Australian Dollar' },
   { code: 'JPY', name: 'Japanese Yen' },

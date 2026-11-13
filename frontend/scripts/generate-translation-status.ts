@@ -21,6 +21,7 @@ import {
   discoverNamespaces,
   flattenKeys,
   getNestedValue,
+  isTranslationInvariant,
   loadEnglishData,
   loadJson,
 } from './translation-utils'
@@ -67,7 +68,7 @@ const stats: LanguageStats[] = languages.map(lang => {
         const langVal = getNestedValue(langData, key)
         if (langVal === '' || langVal === null) {
           empty++
-        } else if (langVal !== enVal) {
+        } else if (langVal !== enVal || isTranslationInvariant(enVal)) {
           translated++
         }
       }
@@ -159,6 +160,7 @@ Thank you to everyone who has contributed translations!
 | [Antonio (f0rZzZ)](https://github.com/f0rZzZ) | 🇵🇱 Polish, 🇷🇺 Russian, 🇺🇦 Ukrainian |
 | [FabioCastilho](https://github.com/FabioCastilho) | 🇧🇷 Brazilian Portuguese |
 | [Faizi2k](https://github.com/Faizi2k) | 🇲🇾 Malay |
+| [Konstantin Grachev (grachevko)](https://github.com/grachevko) | 🇷🇺 Russian |
 | [marcomatrella](https://github.com/marcomatrella) | 🇮🇹 Italian |
 | [roondar](https://github.com/roondar) | 🇫🇷 French |
 | [SCDT95](https://github.com/SCDT95) | 🇩🇪 German |
