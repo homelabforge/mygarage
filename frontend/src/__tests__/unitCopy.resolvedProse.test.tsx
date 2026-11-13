@@ -10,8 +10,8 @@
  * would CERTIFY it. So this file resolves against the real bundles on disk and
  * asserts what a reader actually sees.
  *
- * ★ THE BUNDLE LIST IS ENUMERATED FROM DISK, NEVER TYPED. There are seven
- * bundles (`src/locales/en` plus six under `public/locales`), and this task's
+ * ★ THE BUNDLE LIST IS ENUMERATED FROM DISK, NEVER TYPED. There are nine
+ * bundles (`src/locales/en` plus eight under `public/locales`), and this task's
  * own brief was handed six by a controller who had missed Polish, while
  * `CLAUDE.md` makes the same off-by-one with a different language. A hand-typed
  * list is a floor; a directory listing is not. The count is asserted, so a walk
@@ -198,9 +198,15 @@ const NAMES_A_UNIT_DELIBERATELY: readonly { ns: string; key: string }[] = [
  * false positive that forced case-SENSITIVE matching in
  * `scripts/enumerate-unit-copy.ts` comes from its bare `L` and `m` adapter
  * labels, which this vocabulary does not carry.
+ *
+ * ★ The edges are letter lookarounds, not `\b`. JS `\b` is ASCII-only even
+ * with `u`, so `\bмиль\b` can never match and a Cyrillic alternative behind it
+ * would be dead the same way `meilen?` was without `i`. The Russian and
+ * Ukrainian stems take any ending because both languages decline the noun
+ * (миля / мили / миль / милях).
  */
 const UNIT_NAMES =
-  /\b(MPG|GPH|PSI|kWh\/100mi|miles?|milhas?|meilen?|milles?|gallons?|gallonen?|galões?|imperial|metric)\b/iu
+  /(?<!\p{L})(MPG|GPH|PSI|kWh\/100mi|miles?|milhas?|meilen?|milles?|gallons?|gallonen?|galões?|imperial|metric|мил[яиьеюі]\p{L}*|галл?он\p{L}*|имперск\p{L}*|імперськ\p{L}*|метрическ\p{L}*|метричн\p{L}*)(?!\p{L})/iu
 
 beforeEach(() => {
   langMock.code = 'en'
@@ -244,16 +250,18 @@ describe('the fixed copy, across every locale bundle on disk', () => {
     // evidence about translated bundles.
     //
     // `de` and `fr` carry keys again because fix round 1 restored the ones whose
-    // meaning never changed; `pl`, `pt-BR`, `ru` and `uk` never translated any
-    // of these and carry none, which is stated here rather than hidden behind a
-    // total. `it` and `ms` were translated later and carry them too. If a
-    // restoration is ever removed, this list shrinks and the test fails before
-    // the emptiness below can go vacuous.
-    expect([...readsByBundle.keys()].sort()).toStrictEqual(['de', 'en', 'fr', 'it', 'ms'])
+    // meaning never changed; `it` and `ms` were translated later and carry them
+    // too; `ru` joined when its bundle reached full translation and names no
+    // unit in these keys either. `pl`, `pt-BR` and `uk` still carry none, which
+    // is stated here rather than hidden behind a total. If a restoration is ever
+    // removed, this list shrinks and the test fails before the emptiness below
+    // can go vacuous.
+    expect([...readsByBundle.keys()].sort()).toStrictEqual(['de', 'en', 'fr', 'it', 'ms', 'ru'])
     expect(readsByBundle.get('de')).toBeGreaterThan(0)
     expect(readsByBundle.get('fr')).toBeGreaterThan(0)
     expect(readsByBundle.get('it')).toBeGreaterThan(0)
     expect(readsByBundle.get('ms')).toBeGreaterThan(0)
+    expect(readsByBundle.get('ru')).toBeGreaterThan(0)
 
     expect(offenders).toStrictEqual([])
   })

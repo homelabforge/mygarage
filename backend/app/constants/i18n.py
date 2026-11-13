@@ -12,6 +12,7 @@ SUPPORTED_CURRENCIES: set[str] = {
     "GBP",
     "PLN",
     "UAH",
+    "RUB",
     "CAD",
     "AUD",
     "JPY",

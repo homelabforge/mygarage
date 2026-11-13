@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Russian translation of the whole interface (#294, thanks @grachevko)
+- Russian ruble (RUB) in the currency picker (#294, thanks @grachevko)
+- Europe/Moscow in the household timezone picker (#294, thanks @grachevko)
 - European VIN decoding with AutoRef (your own key; the free Test plan has 50 requests a month), set up in Settings > Integrations. Automatic asks AutoRef first for European countries and falls back to NHTSA, and the VIN step can pick the decoder (#219, thanks @marcomatrella)
 - When a VIN matches several versions, AutoRef lists them to pick from instead of filling the most common one
 - Make and model pickers with brand logos in Add Vehicle and the reference vehicle form (#219, thanks @marcomatrella)
@@ -24,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The sign-in key file follows `MYGARAGE_DATA_DIR`; a key already at /data/secret.key is copied over, so nobody is signed out
 - Window sticker and document uploads follow `MYGARAGE_MAX_DOCUMENT_SIZE_MB` (25 MB by default) instead of a fixed 10 MB and 25 MB
 - Backend type checking: three pyright rules that were off are now errors, and the tests are checked in a standard-plus mode
+- Translation progress counts strings that stay the same in every language (brand names, abbreviations like VIN, placeholder-only values) as translated, so a finished language reads 100% (#294, thanks @grachevko)
 
 ### Fixed
 - Equipment (Standard/Optional) shows on every vehicle but plain trailers, on phones too, not only after a window sticker.
