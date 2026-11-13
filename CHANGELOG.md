@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - **BREAKING (API):** the legacy `/api/shop-discovery` routes are gone; use `/api/poi`
+- New garage app icon for the browser tab, the home screen and the installed app (#293, thanks @dpruddel)
 - Engine hours round to one decimal everywhere, like tires and brakes
 - A vehicle's current hours are capped at 999,999,999.9; a bigger value used to be stored and then broke its reminders
 - CSRF tokens and pending SSO links are stored hashed; you may need to sign in again after the upgrade if you're mid-link
