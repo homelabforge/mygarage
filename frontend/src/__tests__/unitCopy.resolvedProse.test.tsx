@@ -198,9 +198,15 @@ const NAMES_A_UNIT_DELIBERATELY: readonly { ns: string; key: string }[] = [
  * false positive that forced case-SENSITIVE matching in
  * `scripts/enumerate-unit-copy.ts` comes from its bare `L` and `m` adapter
  * labels, which this vocabulary does not carry.
+ *
+ * ★ The edges are letter lookarounds, not `\b`. JS `\b` is ASCII-only even
+ * with `u`, so `\bмиль\b` can never match and a Cyrillic alternative behind it
+ * would be dead the same way `meilen?` was without `i`. The Russian and
+ * Ukrainian stems take any ending because both languages decline the noun
+ * (миля / мили / миль / милях).
  */
 const UNIT_NAMES =
-  /\b(MPG|GPH|PSI|kWh\/100mi|miles?|milhas?|meilen?|milles?|gallons?|gallonen?|galões?|imperial|metric)\b/iu
+  /(?<!\p{L})(MPG|GPH|PSI|kWh\/100mi|miles?|milhas?|meilen?|milles?|gallons?|gallonen?|galões?|imperial|metric|мил[яиьеюі]\p{L}*|галл?он\p{L}*|имперск\p{L}*|імперськ\p{L}*|метрическ\p{L}*|метричн\p{L}*)(?!\p{L})/iu
 
 beforeEach(() => {
   langMock.code = 'en'

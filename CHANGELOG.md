@@ -8,8 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Europe/Moscow in the household timezone picker, so the household calendar day no longer depends on the zone the container happens to run in
-- Russian ruble (RUB) in the currency picker, so costs can be recorded in ₽ instead of a foreign code: the symbol was already in the PDF stack and only the allowlist refused it
+- Russian translation of the whole interface (#294, thanks @grachevko)
+- Russian ruble (RUB) in the currency picker (#294, thanks @grachevko)
+- Europe/Moscow in the household timezone picker (#294, thanks @grachevko)
 - European VIN decoding with AutoRef (your own key; the free Test plan has 50 requests a month), set up in Settings > Integrations. Automatic asks AutoRef first for European countries and falls back to NHTSA, and the VIN step can pick the decoder (#219, thanks @marcomatrella)
 - When a VIN matches several versions, AutoRef lists them to pick from instead of filling the most common one
 - Make and model pickers with brand logos in Add Vehicle and the reference vehicle form (#219, thanks @marcomatrella)
@@ -25,7 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The sign-in key file follows `MYGARAGE_DATA_DIR`; a key already at /data/secret.key is copied over, so nobody is signed out
 - Window sticker and document uploads follow `MYGARAGE_MAX_DOCUMENT_SIZE_MB` (25 MB by default) instead of a fixed 10 MB and 25 MB
 - Backend type checking: three pyright rules that were off are now errors, and the tests are checked in a standard-plus mode
-- Translation coverage now counts strings that are correctly identical in every language (brand and protocol names, abbreviations like `VIN`, and values made only of `{{placeholders}}`) as translated, so a complete locale reads 100% instead of 99%.
+- Translation progress counts strings that stay the same in every language (brand names, abbreviations like VIN, placeholder-only values) as translated, so a finished language reads 100% (#294, thanks @grachevko)
 
 ### Fixed
 - Equipment (Standard/Optional) shows on every vehicle but plain trailers, on phones too, not only after a window sticker.
@@ -1271,7 +1272,7 @@ odometer per tire, on its mount, restores the estimate.
 ## [2.31.0] - 2026-07-15
 
 ### Added
-- Fuel: optional **Rebate** field (points, discounts, cash back) next to Total Cost; Total Cost then stores the net paid (price x volume - rebate), so all cost surfaces and CSV/JSON export/import reflect it (migration 067).
+- Fuel: optional **Rebate** field (points, discounts, cash back) next to Total Cost; Total Cost then stores the net paid (price × volume − rebate), so all cost surfaces and CSV/JSON export/import reflect it (migration 067).
 - Settings: Brazilian timezones in the System timezone dropdown — 12 IANA zones covering Brazil's UTC-2/-3/-4/-5 offsets; thanks [@sigrist](https://github.com/sigrist) (#112).
 - OIDC: `MYGARAGE_TRUSTED_HOSTS` allow-lists a self-hosted issuer that resolves to a private/LAN IP (split-horizon DNS), relaxing the SSRF private-IP block for those hosts only.
 - Address Book: mark/unmark a contact as a gas station in the editor (checkbox); previously only fuel-record quick-add could set it.
@@ -1483,7 +1484,7 @@ odometer per tire, on its mount, restores the estimate.
 - Deleting a fuel record left an orphan synced entry on the mileage timeline. Migration 055 adds a proper FK with cascade and cleans up existing orphans.
 - "Per volume" / "per weight" labels, the outside-temperature label (°C / °F), and the POI search radius now respect the user's unit preference. Imperial users type Fahrenheit; canonical Celsius storage is unchanged.
 - Service worker no longer pins to a hardcoded cache name — caches are namespaced by `APP_VERSION` so stale shells are evicted on activate.
-- Service worker asset fetches retry 3x with exponential backoff before surfacing the error, covering the backend cold-start window.
+- Service worker asset fetches retry 3× with exponential backoff before surfacing the error, covering the backend cold-start window.
 - Service worker no longer precaches `/` or `/index.html` (stale references to old chunk hashes after deploys).
 - Service worker no longer caches photo/attachment/document/backup/realtime responses — `response.clone()` was stalling user fetches behind the CacheStorage write.
 - Custom middleware (`SecurityHeaders`, `RequestID`, `CSRFProtection`) rewritten as pure ASGI so streaming responses no longer buffer through `BaseHTTPMiddleware`'s asyncio queue.
@@ -1807,7 +1808,7 @@ odometer per tire, on its mount, restores the estimate.
 - Odometer read/write endpoints now enforce vehicle ownership and share permissions for all five operations
 
 ### Changed
-- Vehicle detail page mobile UI overhaul — primary tabs replaced with a 3x2 icon grid (no horizontal scrolling), header resized for narrow screens with VIN overflow protection, Share and Transfer added to mobile action menu, overview section switched from CSS columns to grid, LiveLink charts use CSS-driven responsive height
+- Vehicle detail page mobile UI overhaul — primary tabs replaced with a 3×2 icon grid (no horizontal scrolling), header resized for narrow screens with VIN overflow protection, Share and Transfer added to mobile action menu, overview section switched from CSS columns to grid, LiveLink charts use CSS-driven responsive height
 - Service tab mobile improvements — visit cards flex-wrap on narrow screens, search bar full-width on mobile, modal padding reduced, Maintenance Schedule form inputs stack on small screens, action sheet capped at 70vh for landscape usability
 
 ### Removed
@@ -2460,8 +2461,8 @@ odometer per tire, on its mount, restores the estimate.
 - **Propane Tank Size Tracking**
   - New tank size selection dropdown (20lb, 33lb, 100lb, 420lb) in propane entry form
   - Number of tanks input field
-  - Auto-calculation of propane gallons based on tank size x quantity
-  - Conversion formula: gallons = (pounds ÷ 4.24) x quantity
+  - Auto-calculation of propane gallons based on tank size × quantity
+  - Conversion formula: gallons = (pounds ÷ 4.24) × quantity
   - Manual override always available for precise measurements
   - Tank fields optional (backwards compatible with existing records)
   - Can edit existing records to add tank data
