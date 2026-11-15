@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+- Bump dnspython to 2.9.2 in the backend lock (CVE-2026-128089 / GHSA-vvf4-9x63-8xvv, CPU and memory blowup parsing WKS records in zone files). MyGarage only gets dnspython through email-validator, never parses zone files and never imports it at runtime, so this clears the alert rather than closing a reachable hole
+
 ### Fixed
 - Save and Cancel no longer slide off-screen in the tire reading drawer on phones; the page headers that were wider than the screen now wrap (#298, thanks @professionaltart)
 - iPhone no longer zooms in when you tap a form field, and date fields fit their box
