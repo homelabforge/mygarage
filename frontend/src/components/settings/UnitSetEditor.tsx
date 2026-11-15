@@ -234,7 +234,7 @@ export default function UnitSetEditor({
       >
         {t('units.label')}
       </label>
-      <div className={compact ? 'flex gap-2' : 'flex gap-3'}>
+      <div className={compact ? 'flex gap-2' : 'flex flex-col gap-3 @md:flex-row'}>
         {PRESETS.map((preset) =>
           segment(isChosen(preset.value), t(preset.labelKey), () => setPendingPreset(preset))
         )}

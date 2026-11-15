@@ -65,7 +65,7 @@ export default function TollTagList({ vin, onAddClick, onEditClick }: TollTagLis
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex flex-wrap justify-between items-center gap-3 mb-6">
         <div>
           <h2 className="text-2xl font-bold text-text">{t('tollTagList.title')}</h2>
           <p className="text-sm text-text-mute">{t('tollTagList.tagCount', { count: tollTags.length })}</p>

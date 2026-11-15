@@ -287,7 +287,7 @@ export default function GarageAnalytics() {
   return (
     <div className="container mx-auto px-4 py-8">
       {/* Header */}
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-8">
         <div>
           <h1 className="text-3xl font-bold mb-2 text-garage-text">{t('garage.title')}</h1>
           <p className="text-garage-text-muted">
@@ -308,7 +308,10 @@ export default function GarageAnalytics() {
 
       {/* Total Cost Summary Cards. Garage value, Maintenance and Fuel always show;
           DEF, Financing, Insurance and Taxes only once there's money in them. */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
+      {/* As many tiles across as fit at 15rem each, the width a six-figure
+          total takes in a long currency format ("275 963,84 $US"). Fixed
+          column counts overlapped the figures on phones and at six across. */}
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(15rem,1fr))] gap-4 mb-8">
         <div className="bg-garage-surface border border-garage-border rounded-lg p-6">
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-sm font-medium text-garage-text-muted">{t('garage.cards.garageValue')}</h3>

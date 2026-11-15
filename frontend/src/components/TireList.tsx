@@ -1077,12 +1077,14 @@ export default function TireList({ vin, onLogBrakes }: TireListProps) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
+      {/* Stacks and wraps on a phone. A header wider than the screen widens the
+          whole page, and then a drawer's footer lands off-screen (#298). */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="text-lg font-semibold flex items-center gap-2">
           <Gauge className="h-5 w-5" />
           {t('tireList.title')}
         </h2>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Toggle
             id="show-retired"
             label={t('tireList.showRetired')}

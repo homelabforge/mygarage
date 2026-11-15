@@ -162,7 +162,7 @@ export default function SpotRentalList({ vin }: SpotRentalListProps) {
         />
       )}
 
-      <div className="flex justify-between items-center mb-4">
+      <div className="flex flex-wrap justify-between items-center gap-3 mb-4">
         <div>
           <h3 className="text-lg font-semibold text-text">{t('spotRentalList.title')}</h3>
           {rentals.length > 0 && (
@@ -259,7 +259,7 @@ export default function SpotRentalList({ vin }: SpotRentalListProps) {
                 {/* Billing Summary */}
                 {rental.monthly_rate && Number(rental.monthly_rate) > 0 ? (
                   <div className="bg-surface-2 rounded-lg p-3 mb-3">
-                    <div className="flex items-center justify-between mb-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
                       <h5 className="text-sm font-semibold text-text flex items-center gap-1">
                         <DollarSign aria-hidden="true" className="w-4 h-4" />{t('spotRentalList.billingSummary')}</h5>
                       <Button variant="accentTint" size="sm" onClick={() => handleAddBilling(rental.id)}>

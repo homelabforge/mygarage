@@ -201,13 +201,14 @@ export default function OdometerRecordList({ vin, onAddClick, onEditClick }: Odo
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
+      {/* Stacks and wraps on a phone, so the page never widens (#298). */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2">
           <Gauge aria-hidden="true" className="w-5 h-5 text-text-mute" />
           <h3 className="text-lg font-semibold text-text">{t('odometerList.title')}</h3>
           <span className="text-sm text-text-mute">({t('odometerList.recordCount', { count: records.length })})</span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <input ref={fileInputRef} type="file" accept=".csv" onChange={handleImportCSV} className="hidden" />
           <Button variant="secondary" icon={Upload} onClick={handleImportClick} loading={importMutation.isPending} title={t('odometerList.importFromCSV')}>
             {importMutation.isPending ? t('odometerList.importing') : t('odometerList.importCSV')}

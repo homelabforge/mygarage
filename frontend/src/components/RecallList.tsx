@@ -209,7 +209,7 @@ export default function RecallList({ vin, onAddClick, onEditClick, onRefresh }: 
           icon={AlertTriangle}
           title={t('recallList.noRecords')}
           action={
-            <div className="flex gap-2 justify-center">
+            <div className="flex flex-wrap gap-2 justify-center">
               <Button variant="secondary" icon={RefreshCw} onClick={handleCheck} loading={checkMutation.isPending}>
                 {checkMutation.isPending ? t('recallList.checking') : t('recallList.checkAll')}
               </Button>
@@ -229,12 +229,12 @@ export default function RecallList({ vin, onAddClick, onEditClick, onRefresh }: 
                 key={recall.id}
                 className={`rounded-card border bg-surface p-6 ${recall.is_resolved ? 'border-border opacity-75' : 'border-danger/50'}`}
               >
-                <div className="flex justify-between items-start mb-4">
-                  <div className="flex items-start gap-3 flex-1">
+                <div className="flex justify-between items-start gap-3 mb-4">
+                  <div className="flex items-start gap-3 flex-1 min-w-0">
                     {recall.is_resolved
                       ? <CheckCircle aria-hidden="true" className="text-success mt-1 flex-shrink-0" size={24} />
                       : <AlertTriangle aria-hidden="true" className="text-danger mt-1 flex-shrink-0" size={24} />}
-                    <div className="flex-1">
+                    <div className="flex-1 min-w-0">
                       <div className="flex flex-wrap items-center gap-2 mb-1">
                         <h3 className="text-lg font-semibold text-text">{recall.component || t('recallList.unnamed')}</h3>
                         {recall.nhtsa_campaign_number && (

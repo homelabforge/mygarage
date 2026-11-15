@@ -492,7 +492,7 @@ export default function Analytics() {
           <ArrowLeft className="w-4 h-4" />
           <span>{t('vehicle.backToVehicle')}</span>
         </Link>
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-3xl font-bold text-garage-text mb-2">
               {t('vehicle.title')}
@@ -695,7 +695,7 @@ export default function Analytics() {
       </div>
 
       {/* Summary Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <div className="bg-garage-surface border border-garage-border rounded-lg p-6">
           <div className="mb-2">
             <h3 className="text-sm font-medium text-garage-text-muted">{t('vehicle.totalCost')}</h3>
@@ -984,8 +984,8 @@ export default function Analytics() {
                 key={idx}
                 className="flex items-center justify-between p-4 bg-garage-bg border border-garage-border rounded-lg"
               >
-                <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-2">
+                <div className="flex-1 min-w-0">
+                  <div className="flex flex-wrap items-center gap-3 mb-2">
                     <h3 className="font-semibold text-garage-text text-lg">{prediction.service_type}</h3>
                     {getConfidenceBadge(prediction.confidence)}
                     {prediction.has_schedule_item && (
@@ -996,7 +996,7 @@ export default function Analytics() {
                   </div>
                   <div className="space-y-2">
                     {/* AI Prediction */}
-                    <div className="flex items-center gap-4 text-sm">
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
                       <span className="font-medium text-blue-600 dark:text-blue-400">{t('vehicle.aiPredicts')}</span>
                       {prediction.predicted_date && (
                         <span className="text-garage-text-muted">{formatDate(prediction.predicted_date)}</span>
@@ -1007,7 +1007,7 @@ export default function Analytics() {
                     </div>
                     {/* Scheduled Maintenance if exists */}
                     {prediction.has_schedule_item && (
-                      <div className="flex items-center gap-4 text-sm">
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
                         <span className="font-medium text-purple-600 dark:text-purple-400">{t('vehicle.scheduled')}</span>
                         {prediction.schedule_item_next_date && (
                           <span className="text-garage-text-muted">{formatDate(prediction.schedule_item_next_date)}</span>
@@ -1677,7 +1677,7 @@ export default function Analytics() {
             <Droplets className="w-5 h-5 text-teal-500" />
             <h2 className="text-xl font-bold text-garage-text">{t('vehicle.defAnalysis')}</h2>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
             <div className="text-center p-4 bg-garage-bg rounded-lg">
               <p className="text-sm text-garage-text-muted mb-1">{t('vehicle.totalSpent')}</p>
               <p className="text-2xl font-bold text-garage-text">
@@ -1720,8 +1720,8 @@ export default function Analytics() {
           <div className="space-y-3">
             {service_history.slice(0, 10).map((item, idx) => (
               <div key={idx} className="flex items-start justify-between p-4 bg-garage-bg border border-garage-border rounded-lg">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
+                <div className="flex-1 min-w-0">
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mb-1">
                     <h3 className="font-semibold text-garage-text">{item.service_type}</h3>
                     <span className="text-xs text-garage-text-muted">
                       {formatDate(item.date)}
@@ -1730,7 +1730,7 @@ export default function Analytics() {
                   {item.description && (
                     <p className="text-sm text-garage-text-muted mb-2">{item.description}</p>
                   )}
-                  <div className="flex items-center gap-4 text-xs text-garage-text-muted">
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-garage-text-muted">
                     {item.odometer_km && <span>{u.distance.formatPrimary(parseFloat(item.odometer_km))}</span>}
                     {item.vendor_name && <span>{item.vendor_name}</span>}
                     {item.days_since_last && (
@@ -1844,9 +1844,9 @@ export default function Analytics() {
           <div className="space-y-3">
             {vendorAnalytics.vendors.map((vendor, idx) => (
               <div key={idx} className="flex items-center justify-between p-4 bg-garage-bg border border-garage-border rounded-lg">
-                <div className="flex-1">
+                <div className="flex-1 min-w-0">
                   <h3 className="font-semibold text-garage-text mb-1">{vendor.vendor_name}</h3>
-                  <div className="flex items-center gap-4 text-sm text-garage-text-muted">
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-garage-text-muted">
                     <span>{t('vehicle.servicesCount', { count: vendor.service_count })}</span>
                     <span>{t('vehicle.avgValue', { value: formatCurrency(vendor.average_cost, { currencyCode, locale }) })}</span>
                     {vendor.last_service_date && (
@@ -2025,7 +2025,7 @@ export default function Analytics() {
 
       {/* Period Comparison */}
       <div className="bg-garage-surface border border-garage-border rounded-lg p-6 mb-8">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           <div className="flex items-center gap-2">
             <Calendar className="w-5 h-5 text-garage-text-muted" />
             <h2 className="text-xl font-bold text-garage-text">{t('vehicle.periodComparison')}</h2>
