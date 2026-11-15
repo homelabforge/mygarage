@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Save and Cancel no longer slide off-screen in the tire reading drawer on phones; the page headers that were wider than the screen now wrap (#298, thanks @professionaltart)
+- iPhone no longer zooms in when you tap a form field, and date fields fit their box
 - Analytics totals no longer overlap the next tile on phones, tablets, or at six tiles across
 
 ## [3.11.0] - 2026-11-12
