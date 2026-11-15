@@ -497,3 +497,27 @@
   text-transform: uppercase;
   color: var(--color-text-faint);
 }
+
+/* iOS only (-webkit-touch-callout is WebKit-on-iOS). Two fixes for #298:
+   - iOS zooms the page in when you tap a field under 16px, which pushed a
+     drawer's Save button off-screen. Unlayered, so it beats text-sm/text-xs.
+   - An iOS date or time field ignores width:100% and pokes out of its box. */
+@supports (-webkit-touch-callout: none) {
+  input:not([type='checkbox'], [type='radio'], [type='range'], [type='file']),
+  select,
+  textarea {
+    font-size: 16px;
+  }
+
+  input[type='date'],
+  input[type='time'],
+  input[type='datetime-local'] {
+    -webkit-appearance: none;
+    appearance: none;
+    min-width: 0;
+  }
+
+  input::-webkit-date-and-time-value {
+    text-align: left;
+  }
+}

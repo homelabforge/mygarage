@@ -376,7 +376,14 @@ export default function POIFinder() {
 
           {/* Location Request Card */}
           <div className="bg-garage-surface border border-garage-border rounded-lg p-6 space-y-4">
-            <Button variant="primary" icon={Navigation} onClick={handleRequestLocation}>
+            {/* Wraps instead of running off a phone: the Russian and Ukrainian
+                labels are wider than this card at 360px (#298). */}
+            <Button
+              variant="primary"
+              icon={Navigation}
+              onClick={handleRequestLocation}
+              className="max-w-full h-auto! min-h-(--height-btn-md) py-2 whitespace-normal! text-center"
+            >
               {t('poiFinder.useMyLocation')}
             </Button>
 
@@ -403,7 +410,7 @@ export default function POIFinder() {
                   }
                 }}
                 placeholder={t('poiFinder.addressPlaceholder')}
-                className="flex-1 px-3 py-2 bg-garage-bg border border-garage-border rounded-lg text-garage-text focus:outline-none focus:ring-2 focus:ring-primary"
+                className="flex-1 min-w-0 px-3 py-2 bg-garage-bg border border-garage-border rounded-lg text-garage-text focus:outline-none focus:ring-2 focus:ring-primary"
               />
               <button
                 type="button"

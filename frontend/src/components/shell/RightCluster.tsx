@@ -46,8 +46,10 @@ export default function RightCluster() {
         (isAuthenticated && user ? (
           <div className="flex items-center gap-2 border-l border-border pl-2">
             <Avatar name={user.username} size="sm" />
+            {/* Desktop only, like logout: on a phone the badge pushed the bar
+                past the screen edge, worst in Russian (#298). */}
             {isAdmin ? (
-              <span aria-hidden="true">
+              <span aria-hidden="true" className="max-md:hidden">
                 <Badge tone="danger">{t('admin')}</Badge>
               </span>
             ) : null}

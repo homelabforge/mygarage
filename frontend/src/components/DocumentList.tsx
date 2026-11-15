@@ -139,7 +139,7 @@ export default function DocumentList({ vin, onAddClick }: DocumentListProps) {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap justify-between items-center gap-3">
         <div className="flex items-center gap-2">
           <FileText aria-hidden="true" className="w-5 h-5 text-text-mute" />
           <h3 className="text-lg font-semibold text-text">{t('documentList.title')}</h3>

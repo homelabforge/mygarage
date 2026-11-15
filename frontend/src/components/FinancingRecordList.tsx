@@ -119,7 +119,7 @@ export default function FinancingRecordList({ vin }: FinancingRecordListProps) {
         />
       )}
 
-      <div className="flex justify-between items-center mb-4">
+      <div className="flex flex-wrap justify-between items-center gap-3 mb-4">
         <div>
           <h3 className="text-lg font-semibold text-text">{t('financingList.title')}</h3>
           {records.length > 0 && (
