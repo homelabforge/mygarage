@@ -2,7 +2,6 @@
 
 import logging
 from collections.abc import Mapping, Sequence
-from decimal import ROUND_HALF_UP, Decimal
 
 from fastapi import HTTPException
 from sqlalchemy import delete, func, select
@@ -30,7 +29,12 @@ from app.schemas.service_visit import (
 from app.schemas.supply import SupplyUsageInput
 from app.services import maintenance_service, recall_links
 from app.services.attachment_cleanup import purge_record_attachments, remove_attachment_files
-from app.services.supply_service import SupplyService, usage_cost_subject
+from app.services.supply_service import (
+    SupplyService,
+    price_unpriced_usage,
+    usage_cost,
+    usage_cost_subject,
+)
 from app.services.vehicle_lock import lock_vehicle_for_write
 from app.utils.hours_sync import remove_synced_hours, sync_hours_from_record
 from app.utils.logging_utils import sanitize_for_log
@@ -429,6 +433,12 @@ class ServiceVisitService:
         """Public name for the denormalised total recompute (no commit)."""
         return await self._recompute_visit_total(visit_id)
 
+    async def price_and_recompute_visit_total(self, visit_id: int) -> ServiceVisit:
+        """What every visit write ends with: price its supplies that had no cost
+        yet (#301), then recompute the total. Vehicle lock held, no commit."""
+        await self.price_unpriced_on_visit(visit_id)
+        return await self._recompute_visit_total(visit_id)
+
     async def update_service_visit(
         self,
         vin: str,
@@ -627,7 +637,7 @@ class ServiceVisitService:
 
             # Always recompute total_cost from line items + supplies + fees (denormalized cache)
             await self.db.flush()
-            await self._recompute_visit_total(visit_id)
+            await self.price_and_recompute_visit_total(visit_id)
 
             # Odometer + engine-hours sync, then the reminder reconcile, in the
             # same transaction as the edit (G5a-07). Hours sync runs even when
@@ -894,7 +904,7 @@ class ServiceVisitService:
                 await self._sync_line_item_supplies(line_item, item_data.supplies_used, vin)
 
             # Recompute total_cost (denormalized cache)
-            await self._recompute_visit_total(visit.id)
+            await self.price_and_recompute_visit_total(visit.id)
 
             # Same commit as the item (G5a-07).
             await maintenance_service.reconcile_vehicle_unlocked(self.db, vin)
@@ -984,7 +994,7 @@ class ServiceVisitService:
             await self.db.flush()
 
             # Recompute total_cost (denormalized cache)
-            await self._recompute_visit_total(visit_id)
+            await self.price_and_recompute_visit_total(visit_id)
 
             # Same commit as the delete (G5a-07).
             await maintenance_service.reconcile_vehicle_unlocked(self.db, vin)
@@ -1007,6 +1017,46 @@ class ServiceVisitService:
                 sanitize_for_log(e),
             )
             raise HTTPException(status_code=503, detail="Database temporarily unavailable")
+
+    async def price_unpriced_on_visit(self, visit_id: int) -> None:
+        """Price the visit's usages that have no cost yet, if their supply has one now (#301).
+
+        Called by every visit write after its edits are flushed and before the
+        total recompute, with the vehicle lock held. The pricing runs in a
+        savepoint: if it would push the total past the money column, only the
+        pricing rolls back and the edit still saves (the caller's own recompute
+        then judges the edit alone). A priced usage is never touched.
+        """
+        # Sessions don't autoflush; the edits must be in before the select, and
+        # outside the savepoint so its rollback can't take them.
+        await self.db.flush()
+        usages = (
+            (
+                await self.db.execute(
+                    select(SupplyUsage)
+                    .join(ServiceLineItem, SupplyUsage.service_line_item_id == ServiceLineItem.id)
+                    .where(
+                        ServiceLineItem.visit_id == visit_id, SupplyUsage.cost_snapshot.is_(None)
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        if not usages:
+            return
+        avgs = await SupplyService(self.db).avg_unit_costs(sorted({u.supply_id for u in usages}))
+        try:
+            async with self.db.begin_nested():
+                priced = [u for u in usages if price_unpriced_usage(u, avgs.get(u.supply_id))]
+                if priced:
+                    await self._recompute_visit_total(visit_id)
+        except HTTPException as e:
+            if e.status_code != 422:
+                raise
+            logger.info(
+                "Left visit %s's supplies unpriced: %s", visit_id, sanitize_for_log(e.detail)
+            )
 
     async def _reload_visit_full(self, visit_id: int) -> ServiceVisit:
         """Reload a visit with line_items → supply_usages eager-loaded — just
@@ -1103,9 +1153,7 @@ class ServiceVisitService:
                 # Unchanged association: keep frozen unit cost; recompute cost only if qty moved.
                 if prior.quantity != u.quantity:
                     cost = (
-                        (prior.unit_cost_snapshot * u.quantity).quantize(
-                            Decimal("0.01"), rounding=ROUND_HALF_UP
-                        )
+                        usage_cost(prior.unit_cost_snapshot, u.quantity)
                         if prior.unit_cost_snapshot is not None
                         else None
                     )

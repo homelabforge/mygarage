@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.supply import Supply, SupplyPurchase, SupplyUsage
 from app.models.user import User
-from app.schemas._money import UNIT_COST_MAX
+from app.schemas._money import MONEY_MAX, UNIT_COST_MAX
 from app.schemas.supply import (
     SupplyAdjustmentCreate,
     SupplyCreate,
@@ -51,6 +51,46 @@ def ledger_balance(value: Decimal) -> Decimal:
 def usage_cost_subject(supply_id: int) -> str:
     """How a usage's cost snapshot reads in a refusal, wherever it is computed."""
     return f"The cost of this much of supply {supply_id}"
+
+
+def usage_cost(unit_cost: Decimal, quantity: Decimal) -> Decimal:
+    """A usage's cost: unit cost times quantity, to the cent, half up. The one rounding
+    every server path stores, and the one the editor's estimate mirrors."""
+    return (unit_cost * quantity).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+
+def usage_price(
+    unit_cost_snapshot: Decimal | None, quantity: Decimal, avg: Decimal | None
+) -> tuple[Decimal, Decimal] | None:
+    """The (unit cost, cost) an unpriced usage takes, or None if it can't be priced.
+
+    Its own frozen unit cost wins over the average: an imported row can carry a
+    unit cost and no cost, and that unit was the price at the time (#301). None
+    when there's no unit to use, or the unit or cost won't fit its column.
+    """
+    unit = unit_cost_snapshot if unit_cost_snapshot is not None else avg
+    if unit is None or unit > UNIT_COST_MAX:
+        return None
+    cost = usage_cost(unit, quantity)
+    if cost > MONEY_MAX:
+        return None
+    return unit, cost
+
+
+def price_unpriced_usage(usage: SupplyUsage, avg: Decimal | None) -> bool:
+    """Price a usage that has no cost yet; leave a priced one alone. True if priced.
+
+    A NULL cost means the cost was unknown when it was logged (its supply had no
+    costed purchase yet), not that it was free: a free purchase prices at 0.00.
+    A priced usage stays frozen, whatever the average does later.
+    """
+    if usage.cost_snapshot is not None:
+        return False
+    price = usage_price(usage.unit_cost_snapshot, usage.quantity, avg)
+    if price is None:
+        return False
+    usage.unit_cost_snapshot, usage.cost_snapshot = price
+    return True
 
 
 class SupplyService:
@@ -119,6 +159,11 @@ class SupplyService:
     async def compute_avg_unit_cost(self, supply_id: int) -> Decimal | None:
         """Current weighted average unit cost for a single supply (for snapshots)."""
         return (await self._compute_balances([supply_id]))[supply_id][1]
+
+    async def avg_unit_costs(self, supply_ids: list[int]) -> dict[int, Decimal | None]:
+        """Current weighted average unit cost for each of several supplies."""
+        balances = await self._compute_balances(supply_ids)
+        return {sid: avg for sid, (_on_hand, avg) in balances.items()}
 
     def _to_supply_response(
         self, supply: Supply, on_hand: Decimal, avg: Decimal | None
@@ -254,6 +299,9 @@ class SupplyService:
         self, supply_id: int, data: SupplyPurchaseCreate, current_user: User | None
     ) -> SupplyPurchase:
         await self.get_supply(supply_id)  # 404 if missing
+        # Waits out any usage of it being logged (create_usage_snapshot), so the
+        # pricing after this commit sees that usage, or the usage sees this cost.
+        await self._lock_supply(supply_id, exclusive=True)
         purchase = SupplyPurchase(
             supply_id=supply_id,
             date=data.date,
@@ -329,13 +377,29 @@ class SupplyService:
         Both are computed, so both are checked against their columns here: a
         huge purchase over a tiny quantity makes a unit cost no column holds.
         """
+        # Held to commit: a purchase landing between this read and the usage's
+        # commit would price before the usage exists and leave it unpriced (#301).
+        await self._lock_supply(supply_id, exclusive=False)
         avg = await self.compute_avg_unit_cost(supply_id)
         if avg is None:
             return None, None
         ensure_fits(avg, f"The unit cost of supply {supply_id}", UNIT_COST_MAX)
-        cost = (avg * quantity).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        cost = usage_cost(avg, quantity)
         ensure_fits(cost, usage_cost_subject(supply_id))
         return avg, cost
+
+    async def _lock_supply(self, supply_id: int, *, exclusive: bool) -> None:
+        """Lock the supply's row to commit: shared for a usage, exclusive for a purchase.
+
+        PostgreSQL only; SQLite renders no FOR clause and already runs one
+        writer at a time. Exclusive is FOR NO KEY UPDATE, so it doesn't block
+        the key-share locks that inserting a purchase or usage row takes.
+        """
+        await self.db.execute(
+            select(Supply.id)
+            .where(Supply.id == supply_id)
+            .with_for_update(read=not exclusive, key_share=exclusive)
+        )
 
     async def add_adjustment(
         self, supply_id: int, data: SupplyAdjustmentCreate, current_user: User | None

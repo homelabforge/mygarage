@@ -801,6 +801,7 @@
     "lineItemCostTooLarge": "Line item {{number}}: cost too large",
     "miscFees": "Misc Fees",
     "partsSupplies": "Parts/Supplies",
+    "partsUnpriced": "Some supplies have no purchase cost yet, so they aren't in the total.",
     "refs": {
       "toggleLabel": "Reference Numbers:",
       "insuranceClaim": "Insurance",

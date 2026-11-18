@@ -387,6 +387,15 @@ async def _place_used_elsewhere(db: AsyncSession, pinned: PinnedSupply, use: Use
         ServiceLineItem.description == use.description,
         *([_same_figure(ServiceLineItem.cost, use.item_cost)] if use.has_item_cost else []),
     ]
+    # A use exported with no cost may be priced since (#301): any price.
+    at_its_price = (
+        [
+            _same_figure(SupplyUsage.unit_cost_snapshot, use.unit_cost_snapshot),
+            _same_figure(SupplyUsage.cost_snapshot, use.cost_snapshot),
+        ]
+        if use.cost_snapshot is not None
+        else []
+    )
     # Shared only: nothing else is pinned here yet, and a supply pinned to
     # another vehicle is a different supply (K12). A moved one leaves the pool.
     usage_id = (
@@ -400,8 +409,7 @@ async def _place_used_elsewhere(db: AsyncSession, pinned: PinnedSupply, use: Use
                 *_key_matches(pinned.key),
                 Supply.vin.is_(None),
                 _same_figure(SupplyUsage.quantity, use.quantity),
-                _same_figure(SupplyUsage.unit_cost_snapshot, use.unit_cost_snapshot),
-                _same_figure(SupplyUsage.cost_snapshot, use.cost_snapshot),
+                *at_its_price,
             )
             .order_by(SupplyUsage.id)
             .limit(1)
@@ -410,7 +418,7 @@ async def _place_used_elsewhere(db: AsyncSession, pinned: PinnedSupply, use: Use
     if usage_id is not None:
         # The shared one stays, empty or not. Nothing says it was only a
         # placeholder, and a real catalog item's details would go with it.
-        # Same item and cost snapshot, so the visit's total doesn't move.
+        # Only the supply it points at changes, so the visit's total doesn't move.
         await db.execute(
             update(SupplyUsage).where(SupplyUsage.id == usage_id).values(supply_id=pinned.supply.id)
         )

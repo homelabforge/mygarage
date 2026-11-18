@@ -23,6 +23,30 @@ function invalidateSupplies(queryClient: QueryClient, supplyId?: number): void {
   }
 }
 
+/**
+ * What a visit write moves on the supply side: stock (the list and ledgers) and,
+ * since it prices usages that had no cost yet (#301), that vehicle's usage tab.
+ * No vin: every vehicle's.
+ */
+export function invalidateSupplyLedgers(queryClient: QueryClient, vin?: string): void {
+  void queryClient.invalidateQueries({ queryKey: ['supplies'] })
+  void queryClient.invalidateQueries({ queryKey: ['supply-history'] })
+  void queryClient.invalidateQueries({
+    queryKey: vin === undefined ? ['vehicle-supply-usages'] : ['vehicle-supply-usages', vin],
+  })
+}
+
+/**
+ * What a costed purchase moves: it prices the supply's usages logged before it
+ * had a cost (#301), on any vehicle, with every other supply on those visits.
+ * So every ledger and usage tab, visit totals and stats.
+ */
+function invalidatePricedVisits(queryClient: QueryClient): void {
+  invalidateSupplyLedgers(queryClient)
+  void queryClient.invalidateQueries({ queryKey: ['serviceVisits'] })
+  void queryClient.invalidateQueries({ queryKey: ['vehicleDetailStats'] })
+}
+
 export function useSupplies(includeArchived?: boolean, vin?: string) {
   return useQuery({
     queryKey: ['supplies', { includeArchived, vin }],
@@ -98,7 +122,11 @@ export function useAddPurchase(supplyId: number) {
       )
       return data
     },
-    onSuccess: () => invalidateSupplies(queryClient, supplyId),
+    onSuccess: (_data, payload) => {
+      // A costed one refreshes every ledger, this supply's with them.
+      if (payload.total_cost != null) invalidatePricedVisits(queryClient)
+      else invalidateSupplies(queryClient, supplyId)
+    },
   })
 }
 

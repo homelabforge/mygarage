@@ -46468,7 +46468,7 @@
     },
     "/api/supplies/{supply_id}/purchases": {
       "post": {
-        "description": "Record a stock-in purchase for a supply.",
+        "description": "Record a stock-in purchase for a supply.\n\nA costed purchase also prices the supply's usages that were logged before\nit had a cost (#301), on the vehicles this user can write.",
         "operationId": "add_purchase_api_supplies__supply_id__purchases_post",
         "parameters": [
           {

@@ -27,6 +27,7 @@ import { canonicalFromTypedUnitField, seedUnitField, type UnitFieldOrigin } from
 import { readTypedNumber } from '../utils/decimalInput'
 import { readNumber } from '../utils/decimalSafe'
 import { supplyDisplayUnit, toCanonical, toDisplay, type SupplyUnit } from '../utils/supplyUnits'
+import { estimateUsageCost } from '../utils/supplyUsageCost'
 import { getUsageTracking } from '../utils/usageTracking'
 import api from '../services/api'
 import { actionErrorMessage } from '../utils/httpErrorHandler'
@@ -372,34 +373,53 @@ function ServiceVisitForm({
     return formData.line_items.reduce((sum, item) => sum + (item.cost || 0), 0)
   }, [formData.line_items])
 
-  // Informational estimate only — the authoritative cost snapshot (frozen at
-  // each usage's unit_cost_snapshot) is computed server-side.
-  const partsByLineItem = useMemo(() => {
-    return formData.line_items.map((item) => {
-      let total = 0
+  // What each item's supplies will cost once saved, priced the way the server
+  // prices them: a saved usage keeps its stored cost, and only one with no
+  // cost yet takes the current average (#301). Backfills are kept apart: the
+  // server drops them all when they'd take the total past the money column.
+  const partsEstimate = useMemo(() => {
+    let unpriced = false
+    let hasBackfill = false
+    const items = formData.line_items.map((item) => {
+      const saved = item.id != null
+        ? visit?.line_items.find((li) => li.id === item.id)?.supply_usages ?? []
+        : []
+      let edit = 0
+      let backfill = 0
       // Same conversion as submit, so the estimate prices exactly what gets sent.
       for (const usage of convertSupplyUsages(item.supplies_used ?? [], unitsBySupplyId, toCanonical)) {
-        const avgCost = suppliesById.get(usage.supply_id)?.avg_unit_cost
-        total += (avgCost != null ? Number(avgCost) : 0) * usage.quantity
+        const estimate = estimateUsageCost(
+          usage.quantity,
+          saved.find((u) => u.supply_id === usage.supply_id),
+          suppliesById.get(usage.supply_id)?.avg_unit_cost,
+        )
+        if (estimate.backfill) {
+          backfill += estimate.cost
+          hasBackfill = true
+        } else {
+          edit += estimate.cost
+        }
+        unpriced ||= estimate.unpriced
       }
-      return total
+      return { edit, backfill }
     })
-  }, [formData.line_items, suppliesById, unitsBySupplyId])
+    return { items, unpriced, hasBackfill }
+  }, [formData.line_items, suppliesById, unitsBySupplyId, visit])
 
-  const partsSupplies = useMemo(
-    () => partsByLineItem.reduce((sum, cost) => sum + cost, 0),
-    [partsByLineItem],
-  )
-
-  const totalCost = useMemo(() => {
-    return (
-      subtotal +
-      (formData.tax_amount || 0) +
-      (formData.shop_supplies || 0) +
-      (formData.misc_fees || 0) +
-      partsSupplies
-    )
-  }, [subtotal, formData.tax_amount, formData.shop_supplies, formData.misc_fees, partsSupplies])
+  const { partsByItem, partsSupplies, partsUnpriced, totalCost } = useMemo(() => {
+    const fees = (formData.tax_amount || 0) + (formData.shop_supplies || 0) + (formData.misc_fees || 0)
+    const edited = subtotal + fees + partsEstimate.items.reduce((sum, i) => sum + i.edit, 0)
+    const backfills = partsEstimate.items.reduce((sum, i) => sum + i.backfill, 0)
+    // Past the column the save keeps the edit and leaves every backfill unpriced.
+    const fits = edited + backfills <= MONEY_MAX
+    const partsByItem = partsEstimate.items.map((i) => i.edit + (fits ? i.backfill : 0))
+    return {
+      partsByItem,
+      partsSupplies: partsByItem.reduce((sum, cost) => sum + cost, 0),
+      partsUnpriced: partsEstimate.unpriced || (!fits && partsEstimate.hasBackfill),
+      totalCost: edited + (fits ? backfills : 0),
+    }
+  }, [subtotal, formData.tax_amount, formData.shop_supplies, formData.misc_fees, partsEstimate])
 
   // Get failed inspections from current line items (for linking repairs)
   // Use tempId or id as the identifier — NOT array index
@@ -1025,7 +1045,7 @@ function ServiceVisitForm({
                     vin={vin}
                     supplies={supplies}
                     unitsBySupplyId={unitsBySupplyId}
-                    partsCost={partsByLineItem[index] ?? 0}
+                    partsCost={partsByItem[index] ?? 0}
                     failedInspections={failedInspections.filter((fi) => fi.refId !== (item.id ?? item.tempId ?? 0))}
                     onChange={handleLineItemChange}
                     onRemove={handleRemoveLineItem}
@@ -1125,6 +1145,9 @@ function ServiceVisitForm({
               <span className="text-sm text-text-mute">{t('common:totalCost')}:</span>
               <Mono size="lg" weight="bold">{formatCurrencyZero(totalCost, { currencyCode, locale })}</Mono>
             </div>
+            {partsUnpriced && (
+              <p className="text-right text-xs text-text-mute">{t('service.partsUnpriced')}</p>
+            )}
           </div>
 
           {/* Attachments (only in edit mode) */}

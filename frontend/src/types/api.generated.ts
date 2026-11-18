@@ -4161,6 +4161,9 @@ export interface paths {
         /**
          * Add Purchase
          * @description Record a stock-in purchase for a supply.
+         *
+         *     A costed purchase also prices the supply's usages that were logged before
+         *     it had a cost (#301), on the vehicles this user can write.
          */
         post: operations["add_purchase_api_supplies__supply_id__purchases_post"];
         delete?: never;

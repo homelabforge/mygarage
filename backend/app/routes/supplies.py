@@ -42,6 +42,7 @@ from app.schemas.supply import (
 )
 from app.services.auth import require_auth
 from app.services.file_upload_service import ATTACHMENT_UPLOAD_CONFIG, FileUploadService
+from app.services.supply_pricing import price_after_purchase
 from app.services.supply_service import SupplyService
 
 router = APIRouter(prefix="/api/supplies", tags=["supplies"])
@@ -130,8 +131,18 @@ async def add_purchase(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[User | None, Depends(require_auth)],
 ) -> SupplyPurchaseResponse:
-    """Record a stock-in purchase for a supply."""
+    """Record a stock-in purchase for a supply.
+
+    A costed purchase also prices the supply's usages that were logged before
+    it had a cost (#301), on the vehicles this user can write.
+    """
     purchase = await SupplyService(db).add_purchase(supply_id, data, current_user)
+    if data.total_cost is not None:
+        user_id = current_user.id if current_user is not None else None
+        # Ends the refresh's read, so this request gives its connection back
+        # before pricing takes one: never two at once from the pool.
+        await db.commit()
+        await price_after_purchase(db, supply_id, user_id)
     return SupplyPurchaseResponse.model_validate(purchase)
 
 

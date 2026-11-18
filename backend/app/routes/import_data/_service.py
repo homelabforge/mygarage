@@ -437,6 +437,66 @@ def usage_counts(
     return frozenset(counts.items())
 
 
+#: A usage key's cost snapshot, and the fields before it that name the usage:
+#: name, part number, unit type, quantity.
+_USAGE_COST = 5
+_USAGE_NAMED_BY = 4
+
+
+def _usages_match(
+    file: frozenset[tuple[tuple[Any, ...], int]], stored: frozenset[tuple[tuple[Any, ...], int]]
+) -> bool:
+    """Whether a stored item's usages are the file's, where the file's has no cost, at any price.
+
+    A usage exported before its supply had a cost gets priced once it has one
+    (#301: migration 161, or the import's own pass), so the stored row reads
+    priced while the file still says unpriced. A priced file usage needs its
+    exact match; an unpriced one takes any usage of its supply and quantity left.
+    """
+    left = Counter(dict(stored))
+    unpriced: Counter[tuple[Any, ...]] = Counter()
+    for key, count in file:
+        if key[_USAGE_COST] is None:
+            unpriced[key[:_USAGE_NAMED_BY]] += count
+        elif left[key] < count:
+            return False
+        else:
+            left[key] -= count
+    rest: Counter[tuple[Any, ...]] = Counter()
+    for key, count in left.items():
+        rest[key[:_USAGE_NAMED_BY]] += count
+    return +rest == unpriced
+
+
+def _items_match(file: Counter[tuple[Any, ...]], stored: Counter[tuple[Any, ...]]) -> bool:
+    """File and stored item keys, each ending in its usages, paired one to one by `_usages_match`."""
+    wanted = list(file.elements())
+    have = list(stored.elements())
+    if len(wanted) != len(have):
+        return False
+    # Which stored items each file item could be, worked out once.
+    options = [
+        [j for j, s in enumerate(have) if f[:-1] == s[:-1] and _usages_match(f[-1], s[-1])]
+        for f in wanted
+    ]
+    holder: list[int | None] = [None] * len(have)
+
+    def place(i: int, seen: set[int]) -> bool:
+        # Augmenting paths: an item may take a stored one another holds if that
+        # one can move. A visit has a handful of items.
+        for j in options[i]:
+            if j in seen:
+                continue
+            seen.add(j)
+            current = holder[j]
+            if current is None or place(current, seen):
+                holder[j] = i
+                return True
+        return False
+
+    return all(place(i, set()) for i in range(len(wanted)))
+
+
 def _row_item_counts(group: list[_ServiceCsvRow]) -> Counter[tuple[Any, ...]]:
     """The line items a group of rows writes, as `_write_service_csv_visit` names them."""
     return _item_counts(
@@ -473,7 +533,7 @@ def _same_visit(
         )
         for i in visit.line_items
     )
-    return stored == items
+    return stored == items or (compare_usages and _items_match(items, stored))
 
 
 def _stored_usage_counts(item: ServiceLineItem) -> frozenset[tuple[tuple[Any, ...], int]]:

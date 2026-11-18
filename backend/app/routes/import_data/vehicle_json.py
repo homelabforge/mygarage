@@ -153,6 +153,7 @@ from app.services.brake_service import BrakeService
 from app.services.insurance_service import InsuranceService
 from app.services.reminder_service import start_readings
 from app.services.service_visit_service import drop_stray_links
+from app.services.supply_pricing import price_after_import
 from app.services.vehicle_lock import lock_vehicle_for_write
 from app.utils.csv_units import (
     DISTANCE,
@@ -527,6 +528,9 @@ async def import_vehicle_json(
     await db.commit()
     # Imported services may be the newest of a rule's type: reconcile once.
     await maintenance_service.reconcile_vehicle(db, vin)
+    # A file from before #301 can carry usages with no cost; price them now. By
+    # id, read up top: a failed reconcile rolls back, which expires the user.
+    await price_after_import(db, vin, user_id)
 
     for key in _JSON_RESULT_BUCKETS:
         bucket = results[key]

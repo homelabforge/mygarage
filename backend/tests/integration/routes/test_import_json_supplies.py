@@ -1884,3 +1884,122 @@ async def test_quantities_past_a_float_keep_every_digit_on_postgresql(
     assert data["errors"] == []
     [copy] = await _pinned(db_session, target)
     assert sorted(p["quantity"] for p in copy["purchases"]) == [fine, SUPPLY_QUANTITY_MAX]
+
+
+# -- #301: a file from before the fix carries usages with no cost ----------------
+
+
+async def _legacy_backup(
+    client: AsyncClient, auth_headers, db_session: AsyncSession, source: str
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """An export from 3.11.1 or earlier: the visit's usages saved before the
+    supplies had a cost, so no snapshots, though the oil has a costed purchase now."""
+    ids = await _seed(db_session, source, _tag())
+    await db_session.execute(
+        update(SupplyUsage)
+        .where(SupplyUsage.service_line_item_id.is_not(None))
+        .where(SupplyUsage.supply_id.in_((ids["oil"], ids["shared"])))
+        .values(unit_cost_snapshot=None, cost_snapshot=None)
+    )
+    await db_session.commit()
+    return await export_json(client, auth_headers, source), ids
+
+
+async def _imported_usages(
+    db_session: AsyncSession, target: str
+) -> tuple[int, ServiceVisit, dict[int, tuple[Decimal | None, Decimal | None]]]:
+    """The target's pinned oil copy, its one visit, and that visit's snapshots by supply."""
+    [copy_id] = (
+        (await db_session.execute(select(Supply.id).where(Supply.vin == target))).scalars().all()
+    )
+    visit = await _visit(db_session, target)
+    [item] = visit.line_items
+    return (
+        copy_id,
+        visit,
+        {u.supply_id: (u.unit_cost_snapshot, u.cost_snapshot) for u in item.supply_usages},
+    )
+
+
+async def test_an_imported_usage_with_no_cost_is_priced_when_its_supply_has_one(
+    client: AsyncClient, auth_headers, db_session: AsyncSession, new_vehicle
+):
+    source = await new_vehicle()
+    target = await new_vehicle()
+    backup, ids = await _legacy_backup(client, auth_headers, db_session, source)
+
+    data = await import_json(client, auth_headers, target, backup)
+
+    assert data["errors"] == []
+    copy_id, visit, by_supply = await _imported_usages(db_session, target)
+    # 30.00 over the one costed 4.7317647 L: 6.3401 a litre, 27.90 for 4.4.
+    assert by_supply[copy_id] == (Decimal("6.3401"), Decimal("27.90"))
+    # The filter was never bought with a cost: nothing to price it with.
+    assert by_supply[ids["shared"]] == (None, None)
+    # The item, the oil and the tax.
+    assert visit.total_cost == Decimal("49.90")
+
+    # The same file again is the same visit, though the oil reads priced now.
+    # main of this branch: the file's unpriced oil missed it, a second visit.
+    used = await _usages_of(db_session, copy_id)
+    again = await import_json(client, auth_headers, target, backup)
+    assert (
+        again["service_records"]["success_count"],
+        again["service_records"]["skipped_count"],
+    ) == (0, 1)
+    assert await _usages_of(db_session, copy_id) == used
+    await _visit(db_session, target)  # still one
+
+
+async def test_a_failed_reconcile_still_prices_the_import(
+    client: AsyncClient,
+    auth_headers,
+    db_session: AsyncSession,
+    new_vehicle,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    # The reconcile's rollback expires the user; pricing reads its id from
+    # before. main of this branch: user.id after the rollback, a 500.
+    from app.services import maintenance_service
+
+    source = await new_vehicle()
+    target = await new_vehicle()
+    backup, _ids = await _legacy_backup(client, auth_headers, db_session, source)
+
+    async def broken(*_args: Any, **_kwargs: Any) -> None:
+        raise RuntimeError("reconcile blew up")
+
+    monkeypatch.setattr(maintenance_service, "reconcile_vehicle_unlocked", broken)
+    data = await import_json(client, auth_headers, target, backup)
+
+    assert data["errors"] == []
+    copy_id, _visit_row, by_supply = await _imported_usages(db_session, target)
+    assert by_supply[copy_id] == (Decimal("6.3401"), Decimal("27.90"))
+
+
+async def test_an_imported_adjustment_with_no_cost_is_priced_too(
+    client: AsyncClient, auth_headers, db_session: AsyncSession, new_vehicle
+):
+    # Only the pinned oil's spill has no cost: no visit leads to it.
+    tag = _tag()
+    source = await new_vehicle()
+    target = await new_vehicle()
+    ids = await _seed(db_session, source, tag)
+    await db_session.execute(
+        update(SupplyUsage)
+        .where(SupplyUsage.supply_id == ids["oil"], SupplyUsage.service_line_item_id.is_(None))
+        .values(unit_cost_snapshot=None, cost_snapshot=None)
+    )
+    await db_session.commit()
+    backup = await export_json(client, auth_headers, source)
+
+    data = await import_json(client, auth_headers, target, backup)
+
+    assert data["errors"] == []
+    [oil] = await _pinned(db_session, target)
+    [spill] = oil["adjustments"]
+    # 0.25 L at 6.3401.
+    assert (spill["unit_cost_snapshot"], spill["cost_snapshot"]) == (
+        Decimal("6.3401"),
+        Decimal("1.59"),
+    )

@@ -1,16 +1,20 @@
 import { useInfiniteQuery, useQuery, useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import api from '@/services/api'
 import { invalidateMaintenanceQueries } from '@/hooks/useReminders'
+import { invalidateSupplyLedgers } from './useSupplies'
 import type { ServiceVisit, ServiceVisitListResponse, ServiceVisitCreate, ServiceVisitUpdate } from '@/types/serviceVisit'
 
 /**
  * A visit write can link, unlink or drop a recall or warranty, and the Recalls
  * and Warranties tabs both show the visit that used them, so they go stale too.
+ * It also moves supply stock, and can price usages logged before their supply
+ * had a cost (#301), so the supply list, ledgers and usage tab go too.
  */
 function invalidateVisitWrite(queryClient: QueryClient, vin: string): void {
   invalidateMaintenanceQueries(queryClient, vin)
   void queryClient.invalidateQueries({ queryKey: ['recalls', vin] })
   void queryClient.invalidateQueries({ queryKey: ['warranties', vin] })
+  invalidateSupplyLedgers(queryClient, vin)
 }
 
 export function useServiceVisits(vin: string) {
