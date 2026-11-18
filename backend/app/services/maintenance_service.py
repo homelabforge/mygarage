@@ -1244,7 +1244,7 @@ async def complete_reminder(
             )
             db.add(existing_item)
             await db.flush()
-            await service.recompute_visit_total(visit.id)
+            await service.price_and_recompute_visit_total(visit.id)
         line_item_id = existing_item.id
 
     odometer, hours = await _fill_readings(

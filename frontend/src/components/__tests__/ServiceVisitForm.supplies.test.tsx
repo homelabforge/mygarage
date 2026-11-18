@@ -7,6 +7,7 @@ import { toCanonical, toDisplay } from '../../utils/supplyUnits'
 import { formatCurrency } from '../../utils/formatUtils'
 import type { Supply } from '../../types/supplies'
 import type { ServiceVisit } from '../../types/serviceVisit'
+import { MONEY_MAX } from '../../schemas/shared'
 
 const drawerForm = (): HTMLFormElement =>
   screen.getByRole('dialog').querySelector('form') as HTMLFormElement
@@ -345,6 +346,63 @@ describe('ServiceVisitForm — supplies used (Task 17)', () => {
       }
       const lineItem = body.line_items.find((li) => li.id === 501)
       expect(lineItem?.supplies_used.map((u) => u.supply_id)).toContain(2)
+    })
+
+    // #301: the estimate is what the save will store, not today's average.
+    const visitWithUsage = (usage: { quantity: string; cost_snapshot: string | null; unit_cost_snapshot: string | null }): ServiceVisit => ({
+      ...MOCK_VISIT,
+      line_items: [
+        {
+          ...MOCK_VISIT.line_items[0],
+          supply_usages: [{ ...MOCK_VISIT.line_items[0].supply_usages![0], ...usage }],
+        },
+      ],
+    })
+    const partsRow = (): HTMLElement | null =>
+      screen.queryByText('service.partsSupplies:')?.closest('div') ?? null
+    const usd = (n: number): string => formatCurrency(n, { currencyCode: 'USD', locale: 'en-US' })
+
+    it('shows a saved usage at its stored cost even when the average has moved', async () => {
+      // Stored at 7.00 a litre; the supply averages 10.00 now.
+      render(<ServiceVisitForm {...DEFAULT_PROPS} visit={visitWithUsage({ quantity: '1', cost_snapshot: '7.00', unit_cost_snapshot: '7.0000' })} />)
+      await waitFor(() => expect(partsRow()).toHaveTextContent(usd(7)))
+      expect(partsRow()).not.toHaveTextContent(usd(10))
+      expect(screen.queryByText('service.partsUnpriced')).not.toBeInTheDocument()
+    })
+
+    it('reprices an edited quantity at the frozen unit cost', async () => {
+      render(<ServiceVisitForm {...DEFAULT_PROPS} visit={visitWithUsage({ quantity: '1', cost_snapshot: '7.00', unit_cost_snapshot: '7.0000' })} />)
+      const quantityInput = await screen.findByRole('textbox', { name: 'service.suppliesQuantityOf' })
+      fireEvent.change(quantityInput, { target: { value: '2' } })
+      const litres = toCanonical(2, 'qt_us')
+      await waitFor(() => expect(partsRow()).toHaveTextContent(usd(Math.round(7 * litres * 100) / 100)))
+    })
+
+    it('prices a usage saved with no cost at the average, which the save will store', async () => {
+      render(<ServiceVisitForm {...DEFAULT_PROPS} visit={visitWithUsage({ quantity: '1', cost_snapshot: null, unit_cost_snapshot: null })} />)
+      await waitFor(() => expect(partsRow()).toHaveTextContent(usd(10)))
+    })
+
+    it('leaves a backfill out when the server would, past the money column', async () => {
+      // Labour 5.00 short of the cap: the usage's 10.00 would overflow, so the
+      // save keeps the edit and leaves the usage unpriced.
+      const nearCap = visitWithUsage({ quantity: '1', cost_snapshot: null, unit_cost_snapshot: null })
+      nearCap.line_items[0].cost = String(MONEY_MAX - 5)
+      render(<ServiceVisitForm {...DEFAULT_PROPS} visit={nearCap} />)
+      expect(await screen.findByText('service.partsUnpriced')).toBeInTheDocument()
+      expect(partsRow()).toBeNull()
+    })
+
+    it('says so when a supply has nothing to price it with yet', async () => {
+      vi.mocked(useSupplies).mockReturnValue({
+        data: { supplies: [{ ...MOCK_SUPPLY, avg_unit_cost: null }], total: 1 },
+        isSuccess: true,
+        isLoading: false,
+        isError: false,
+      } as unknown as ReturnType<typeof useSupplies>)
+      render(<ServiceVisitForm {...DEFAULT_PROPS} visit={visitWithUsage({ quantity: '1', cost_snapshot: null, unit_cost_snapshot: null })} />)
+      expect(await screen.findByText('service.partsUnpriced')).toBeInTheDocument()
+      expect(partsRow()).toBeNull()
     })
   })
 })

@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Supplies logged on a service visit before their purchase cost was entered now count in the visit total, and the editor shows what the save will store (#301, thanks @RazzStudio)
+
 ## [3.11.1] - 2026-11-15
 
 ### Security

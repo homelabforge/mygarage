@@ -170,3 +170,4 @@ migrations must swallow their own operational errors.
 | `158_line_item_recall_warranty` | **FATAL**: Recall and warranty flags and links on service_line_items, and recalls.resolved_via. |
 | `159_title_case_vehicle_names` | Stored makes and models in Title Case (#219 takeover). |
 | `160_settings_hygiene` | Tidy stored switches, drop the dead map keys and empty the token tables. |
+| `161_price_unpriced_supply_usages` | Price the supply usages that were logged before their supply had a cost (#301). |

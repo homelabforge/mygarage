@@ -19,6 +19,7 @@ import type {
   ReminderUpdate,
   SavePackBody,
 } from '../types/reminder'
+import { invalidateSupplyLedgers } from './queries/useSupplies'
 
 /** Every query a maintenance write can move. */
 export function invalidateMaintenanceQueries(queryClient: QueryClient, vin: string): void {
@@ -126,7 +127,11 @@ export function useCompleteReminder(vin: string) {
   return useMutation({
     mutationFn: ({ id, ...payload }: ReminderCompleteRequest & { id: number }) =>
       reminderService.complete(vin, id, payload),
-    onSuccess: () => invalidateMaintenanceQueries(queryClient, vin),
+    onSuccess: () => {
+      invalidateMaintenanceQueries(queryClient, vin)
+      // Linking a visit prices its supplies that had no cost yet (#301).
+      invalidateSupplyLedgers(queryClient, vin)
+    },
   })
 }
 
