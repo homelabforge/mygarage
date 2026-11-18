@@ -7,8 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.11.2] - 2026-11-18
+
 ### Fixed
 - Supplies logged on a service visit before their purchase cost was entered now count in the visit total, and the editor shows what the save will store (#301, thanks @RazzStudio)
+- Upgrading runs migration 161, which prices the supply usages already logged this way and corrects their stored visit totals, so some past visit totals will go up
 
 ## [3.11.1] - 2026-11-15
 
