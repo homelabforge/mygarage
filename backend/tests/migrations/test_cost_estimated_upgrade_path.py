@@ -279,6 +279,8 @@ async def test_a_failed_161_on_an_old_schema_stops_startup(
         await boot()
 
     assert _161 in str(raised.value)
+    # Any migration before 162 can be the one that failed, not only 161.
+    assert "a migration before 162 failed" in str(raised.value)
     # The refusal is init_db's own, not the migration error passed through.
     assert "injected 161 failure" not in str(raised.value)
     assert _COLUMN not in _columns(engine)

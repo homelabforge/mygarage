@@ -274,6 +274,7 @@ async def require_supply_usage_flag() -> None:
         raise RuntimeError(
             "supply_usages.cost_estimated is missing, so startup stops. Migration "
             "162_add_supply_usage_cost_estimated adds it, and the runner stops at the "
-            "first failure: most likely 161_price_unpriced_supply_usages failed. Fix "
-            "the migration error logged above and restart."
+            "first failure: a migration before 162 failed, most likely "
+            "161_price_unpriced_supply_usages. Fix the migration error logged above "
+            "and restart."
         )
