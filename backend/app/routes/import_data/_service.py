@@ -435,7 +435,7 @@ class UsageCounts:
     """
 
     counts: frozenset[tuple[tuple[Any, ...], int]]
-    estimated: frozenset[tuple[tuple[Any, ...], int]] = frozenset()
+    estimated: frozenset[tuple[tuple[Any, ...], int]]
 
 
 def usage_counts(entries: Iterable[UsageEntry]) -> UsageCounts:
