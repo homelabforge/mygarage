@@ -19,7 +19,7 @@ from sqlalchemy import (
     Text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy.sql import func, true
+from sqlalchemy.sql import false, func, true
 
 from app.constants.supply_vocab import SupplyUnitType
 from app.database import Base
@@ -108,6 +108,11 @@ class SupplyUsage(Base):
     quantity: Mapped[Decimal] = mapped_column(ScaledNumeric(25, 13), nullable=False)
     unit_cost_snapshot: Mapped[Decimal | None] = mapped_column(ScaledNumeric(15, 4))
     cost_snapshot: Mapped[Decimal | None] = mapped_column(ScaledNumeric(12, 2))
+    # True when no costed purchase on or before the visit existed, so the price
+    # is the all-time average (#307, migration 162).
+    cost_estimated: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=false()
+    )
     service_line_item_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("service_line_items.id", ondelete="CASCADE")
     )  # NULL = standalone adjustment

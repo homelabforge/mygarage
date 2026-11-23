@@ -57,6 +57,8 @@ def test_076_create_all_matches_migration(engine_for_migration, sync_engine):
     load_migration("076_supply_inventory_tables").upgrade(mig_engine)
     # 124 adds supplies.volume_unit on top of 076, and the model carries it.
     load_migration("124_supply_volume_unit").upgrade(mig_engine)
+    # 162 adds supply_usages.cost_estimated the same way.
+    load_migration("162_add_supply_usage_cost_estimated").upgrade(mig_engine)
     mig = inspect(mig_engine)
 
     model_engine = sync_engine("sqlite://")
