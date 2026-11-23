@@ -3572,15 +3572,11 @@ export interface paths {
          * List Quick Entry Vehicles
          * @description Return writable, non-archived vehicles for the Quick Entry page.
          *
-         *     Returns vehicles the current user:
-         *     - Owns (user_id matches), OR
-         *     - Has write-share access to
-         *
-         *     Excludes archived vehicles in both cases.
-         *
-         *     When auth is disabled (``auth_mode='none'`` — ``require_auth`` returns
-         *     ``None``), there is no user to scope to, so all non-archived vehicles are
-         *     returned, matching ``VehicleService.list_vehicles``.
+         *     Quick Entry only writes, so the rule is `writable_vehicles_filter`: an admin
+         *     (and `auth_mode='none'`, where ``require_auth`` returns ``None``) gets every
+         *     vehicle, anyone else what they own plus what is write-shared to them.
+         *     Archived vehicles are left out either way. Sorted like the garage page
+         *     (`VehicleService.list_vehicles`) so the picker reads the same.
          */
         get: operations["list_quick_entry_vehicles_api_quick_entry_vehicles_get"];
         put?: never;
@@ -4185,6 +4181,9 @@ export interface paths {
         /**
          * Delete Purchase
          * @description Delete a purchase (and its receipt, if any) from the ledger.
+         *
+         *     A costed one also re-runs the fallback for the supply's estimated usages
+         *     (#307), on the vehicles this user can write.
          */
         delete: operations["delete_purchase_api_supplies__supply_id__purchases__purchase_id__delete"];
         options?: never;
@@ -17446,6 +17445,12 @@ export interface components {
              */
             cost?: string | null;
             /**
+             * Cost Estimated
+             * @description A usage whose cost is an estimate (see SupplyUsageResponse)
+             * @default false
+             */
+            cost_estimated: boolean;
+            /**
              * Entry Type
              * @enum {string}
              */
@@ -17646,6 +17651,11 @@ export interface components {
         };
         /** SupplyUsageResponse */
         SupplyUsageResponse: {
+            /**
+             * Cost Estimated
+             * @description The cost is the supply's all-time average because no costed purchase on or before the visit existed; it settles once one does (#307)
+             */
+            cost_estimated: boolean;
             /** Cost Snapshot */
             cost_snapshot?: string | null;
             /**
