@@ -263,4 +263,28 @@ test.describe('iOS safe-area insets (#305, #308)', () => {
     expect(await box.boundingBox()).toMatchObject({ y: inset.top, height: viewport.height - inset.top - inset.bottom })
   })
 
+  for (const { name, button, heading } of [
+    { name: 'photo upload', button: 'Upload Photo', heading: 'Upload Photo' },
+    { name: 'document upload', button: 'Upload Document', heading: 'Upload Document' },
+  ]) {
+    test(`the ${name} overlay adds the insets to its p-4`, async ({ page }) => {
+      await page.setViewportSize(DESKTOP)
+      await page.goto(`/vehicles/${TEST_VEHICLE.vin}`)
+      await expect(page.getByRole('heading', { name: TEST_VEHICLE.nickname })).toBeVisible({ timeout: 15000 })
+      await page.getByRole('tab', { name: 'Media' }).click()
+      if (name === 'document upload') await page.getByRole('tab', { name: 'Documents' }).click()
+      await page.getByRole('button', { name: button, exact: true }).first().click()
+
+      const overlay = page
+        .locator('div.fixed.inset-0')
+        .filter({ has: page.getByRole('heading', { name: heading, exact: true }) })
+      await expect(overlay).toBeVisible()
+
+      const base = { top: 16, right: 16, bottom: 16, left: 16 }
+      expect(await padding(overlay)).toEqual(base)
+
+      await injectInsets(page)
+      expect(await padding(overlay)).toEqual(grown(base, ['top', 'right', 'bottom', 'left']))
+    })
+  }
 })

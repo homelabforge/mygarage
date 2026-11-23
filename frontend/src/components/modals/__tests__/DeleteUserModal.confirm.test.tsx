@@ -58,3 +58,12 @@ describe('DeleteUserModal confirmation', () => {
     expect(confirmButton).toBeEnabled()
   })
 })
+
+describe('DeleteUserModal overlay', () => {
+  it('pads the overlay with the safe-area insets on top of its p-4 (#305)', () => {
+    renderModal()
+    const overlay = screen.getByPlaceholderText('DELETE').closest('.fixed.inset-0')
+    expect(overlay).toHaveClass('modal-safe-pad')
+    expect(overlay).not.toHaveClass('p-4')
+  })
+})

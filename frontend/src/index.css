@@ -444,6 +444,13 @@
     calc(1rem + var(--spacing-safe-bottom)) calc(1rem + var(--spacing-safe-left));
 }
 
+/* Same thing for an overlay that had no padding: just the insets, so desktop
+   and Android (inset 0) don't move. */
+@utility modal-safe-inset {
+  padding: var(--spacing-safe-top) var(--spacing-safe-right) var(--spacing-safe-bottom)
+    var(--spacing-safe-left);
+}
+
 /* A right-anchored drawer's share of the left inset: only the part the panel
    overlaps. It starts 100vw - --drawer-w (Drawer.tsx WIDTH) from the left edge,
    so a landscape iPhone's ~47px notch inset pads an xl (97vw) drawer by ~22px
