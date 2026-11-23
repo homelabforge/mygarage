@@ -74,16 +74,16 @@ describe('AppToaster against real sonner', () => {
     expect(list()!.getAttribute('data-y-position')).toBe('top')
   })
 
-  it('only the bottom offsets carry the tab-bar lift', () => {
+  it('the bottom offsets carry the tab-bar lift, the top ones the status-bar inset', () => {
     render(ui(false))
     act(() => { toast.success('saved') })
     settle(100)
     const s = list()!.style
     expect(s.getPropertyValue('--offset-bottom')).toBe('calc(24px + var(--toast-lift))')
-    expect(s.getPropertyValue('--offset-top')).toBe('24px')
+    expect(s.getPropertyValue('--offset-top')).toBe('calc(24px + var(--spacing-safe-top))')
     expect(s.getPropertyValue('--offset-left')).toBe('24px')
     expect(s.getPropertyValue('--mobile-offset-bottom')).toBe('calc(16px + var(--toast-lift))')
-    expect(s.getPropertyValue('--mobile-offset-top')).toBe('16px')
+    expect(s.getPropertyValue('--mobile-offset-top')).toBe('calc(16px + var(--spacing-safe-top))')
   })
 
   it('a description keeps its line breaks', () => {
