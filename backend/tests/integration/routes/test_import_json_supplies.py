@@ -1140,7 +1140,22 @@ async def test_a_use_elsewhere_takes_the_stored_usage_with_its_own_figures(
     assert await _balance(db_session, copy_id) == Decimal("8")
 
 
-async def test_a_use_elsewhere_takes_its_exact_twin_over_a_lower_id_estimate(
+_TWIN_ESTIMATE = (Decimal("2"), Decimal("2.2500"), Decimal("4.50"), True)
+_TWIN_FROZEN = (*_TARGET, False)
+
+
+@pytest.mark.parametrize(
+    ("theirs", "ours"),
+    [
+        # 92e50f06's case: the file use is frozen, the decoy an estimate.
+        pytest.param(_TWIN_ESTIMATE, _TWIN_FROZEN, id="frozen-use-over-estimate"),
+        # N-1, the mirror: the file use is the estimate, the decoy frozen.
+        pytest.param(_TWIN_FROZEN, _TWIN_ESTIMATE, id="estimated-use-over-frozen"),
+    ],
+)
+async def test_a_use_elsewhere_takes_its_exact_twin_over_a_lower_id_decoy(
+    theirs: tuple[Decimal, Decimal, Decimal, bool],
+    ours: tuple[Decimal, Decimal, Decimal, bool],
     client: AsyncClient,
     auth_headers,
     db_session: AsyncSession,
@@ -1148,12 +1163,13 @@ async def test_a_use_elsewhere_takes_its_exact_twin_over_a_lower_id_estimate(
 ):
     name = f"Jug {_tag()}"
     a, b = await new_vehicle(), await new_vehicle()
-    # Same day, description and quantity. The shared jug's use is an estimate
-    # and comes first, so it gets the lower id when B is restored.
+    # Same day, description and quantity. The shared jug's use comes first,
+    # so it gets the lower id when B is restored, and only one of the two
+    # carries the figures A's file names.
     shared = Supply(name=name, unit_type="count")
-    ours = Supply(name=name, unit_type="count", vin=a)
+    pinned = Supply(name=name, unit_type="count", vin=a)
     job = ServiceVisit(vin=b, date=date(2026, 3, 1), service_category="Maintenance")
-    db_session.add_all([shared, ours, job])
+    db_session.add_all([shared, pinned, job])
     await db_session.flush()
     items = [ServiceLineItem(visit_id=job.id, description="Job") for _ in range(2)]
     db_session.add_all(items)
@@ -1161,14 +1177,12 @@ async def test_a_use_elsewhere_takes_its_exact_twin_over_a_lower_id_estimate(
     db_session.add_all(
         [
             SupplyPurchase(supply_id=shared.id, date=date(2026, 2, 1), quantity=Decimal("5")),
-            SupplyPurchase(supply_id=ours.id, date=date(2026, 2, 1), quantity=Decimal("10")),
+            SupplyPurchase(supply_id=pinned.id, date=date(2026, 2, 1), quantity=Decimal("10")),
         ]
     )
-    estimate = (Decimal("2"), Decimal("2.2500"), Decimal("4.50"), True)
-    exact = (*_TARGET, False)
     for item, supply, (quantity, unit_cost, cost, estimated) in (
-        (items[0], shared, estimate),
-        (items[1], ours, exact),
+        (items[0], shared, theirs),
+        (items[1], pinned, ours),
     ):
         db_session.add(
             SupplyUsage(
@@ -1198,13 +1212,14 @@ async def test_a_use_elsewhere_takes_its_exact_twin_over_a_lower_id_estimate(
         SupplyUsage.cost_snapshot,
         SupplyUsage.cost_estimated,
     )
-    # dbed8dd2: the lower-id estimate moved to A's jug and the exact twin stayed.
+    # dbed8dd2 (frozen use) and 92e50f06 (estimated use): the lower-id decoy
+    # moved to A's jug and the exact twin stayed on the shared one.
     assert (
         await db_session.execute(select(*figures).where(SupplyUsage.supply_id == copy_id))
-    ).all() == [exact]
+    ).all() == [ours]
     assert (
         await db_session.execute(select(*figures).where(SupplyUsage.supply_id == shared_id))
-    ).all() == [estimate]
+    ).all() == [theirs]
     assert await _balance(db_session, copy_id) == Decimal("8")
     assert await _balance(db_session, shared_id) == Decimal("3")
 

@@ -416,9 +416,10 @@ async def _place_used_elsewhere(db: AsyncSession, pinned: PinnedSupply, use: Use
         _same_figure(SupplyUsage.cost_snapshot, use.cost_snapshot),
     )
     at_its_price = [or_(SupplyUsage.cost_estimated.is_(True), exact)] if priced else []
-    # An exact twin beats an estimate on the same item, or a lower-id estimate
-    # would take the move and strand the real match on the shared supply.
-    exact_first = [case((exact, 0), else_=1)] if priced else []
+    # The twin with the file's own figures goes first, whatever the file says
+    # about pricing. Otherwise a lower-id decoy on a twin item takes the move
+    # and the two items swap snapshots. A None figure matches a stored NULL.
+    exact_first = case((exact, 0), else_=1)
     # Shared only: nothing else is pinned here yet, and a supply pinned to
     # another vehicle is a different supply (K12). A moved one leaves the pool.
     usage_id = (
@@ -434,7 +435,7 @@ async def _place_used_elsewhere(db: AsyncSession, pinned: PinnedSupply, use: Use
                 _same_figure(SupplyUsage.quantity, use.quantity),
                 *at_its_price,
             )
-            .order_by(*exact_first, SupplyUsage.id)
+            .order_by(exact_first, SupplyUsage.id)
             .limit(1)
         )
     ).scalar_one_or_none()
