@@ -336,8 +336,9 @@ describe('ServiceVisitList: a service line shows what it cost and opens its deta
     expect(detailOpen()).toBe(true)
   })
 
-  it('the cost breakdown lists the parts, so its rows add up to the total', () => {
-    // Subtotal is labor only; without a parts row, $40 + $3 tax reads as $52.52.
+  it('the cost breakdown lists the supplies, so its rows add up to the total', () => {
+    // The subtotal is the line costs (parts + labor) without supplies. Without
+    // a supplies row, $40 + $3 tax reads as $52.52.
     useServiceVisitsMock.mockReturnValue({
       data: { visits: [{ ...partsVisit, tax_amount: '3.00', parts_supplies_cost: '9.52', calculated_total_cost: '52.52' }] },
       isLoading: false,
