@@ -32,14 +32,14 @@ const PHONE = { width: 390, height: 844 }
 const DESKTOP = { width: 1280, height: 800 }
 
 /** Fake the device insets. Inline on <html> beats Tailwind's :root theme layer. */
-async function injectInsets(page: Page): Promise<void> {
+async function injectInsets(page: Page, insets: Sides = INSET): Promise<void> {
   await page.evaluate((inset) => {
     const root = document.documentElement.style
     root.setProperty('--spacing-safe-top', `${inset.top}px`)
     root.setProperty('--spacing-safe-right', `${inset.right}px`)
     root.setProperty('--spacing-safe-bottom', `${inset.bottom}px`)
     root.setProperty('--spacing-safe-left', `${inset.left}px`)
-  }, INSET)
+  }, insets)
 }
 
 async function padding(el: Locator): Promise<Sides> {
@@ -61,12 +61,42 @@ function grown(base: Sides, sides: (keyof Sides)[]): Sides {
   return out
 }
 
+/**
+ * A right-anchored drawer only reaches the left inset when it starts inside it,
+ * so its extra left padding is just the overlap: the inset minus the gap
+ * between the screen's left edge and the panel.
+ */
+/**
+ * The slide-in class flips at once and the panel takes a moment to land
+ * (Tailwind v4 animates `translate`, not `transform`). Settled means no
+ * animation left and the right edge on the viewport's.
+ */
+async function settled(drawer: Locator): Promise<void> {
+  await expect(drawer).toHaveClass(/translate-x-0/)
+  await expect
+    .poll(() =>
+      drawer.evaluate((el) => ({
+        running: el.getAnimations().length,
+        gap: Math.round(document.documentElement.clientWidth - el.getBoundingClientRect().right),
+      })),
+    )
+    .toEqual({ running: 0, gap: 0 })
+}
+
+async function expectLeftOverlapOnly(drawer: Locator, inset: number): Promise<number> {
+  const box = await drawer.boundingBox()
+  expect(box).not.toBeNull()
+  const overlap = Math.max(0, inset - (box?.x ?? 0))
+  expect((await padding(drawer)).left).toBeCloseTo(overlap, 1)
+  return overlap
+}
+
 async function openQuickEntryServiceDrawer(page: Page): Promise<Locator> {
   await page.goto(`/quick-entry?action=service&vin=${TEST_VEHICLE.vin}`)
   const drawer = page.getByTestId('drawer')
   await expect(drawer).toBeVisible({ timeout: 15000 })
   // Wait out the slide-in so boxes are measured where they land.
-  await expect(drawer).toHaveClass(/translate-x-0/)
+  await settled(drawer)
   return drawer
 }
 
@@ -124,10 +154,43 @@ test.describe('iOS safe-area insets (#305, #308)', () => {
     const closeBefore = await closeOffset()
 
     await injectInsets(page)
-    expect(await padding(drawer)).toEqual({ top: INSET.top, right: INSET.right, bottom: 0, left: INSET.left })
+    const panel = await padding(drawer)
+    expect({ top: panel.top, right: panel.right, bottom: panel.bottom }).toEqual({
+      top: INSET.top,
+      right: INSET.right,
+      bottom: 0,
+    })
+    // lg is 96vw here, so the panel starts 15.6px in and only 4.4px of the 20px inset is under it.
+    expect(await expectLeftOverlapOnly(drawer, INSET.left)).toBeCloseTo(4.4, 1)
     expect(await padding(footer)).toEqual(grown(footerBase, ['bottom']))
     expect(await padding(body)).toEqual(bodyBase)
     expect(await closeOffset()).toBe(closeBefore + INSET.top)
+  })
+
+  test('landscape: a drawer takes only the part of the left inset it overlaps', async ({ page }) => {
+    // Landscape iPhone: the notch side's inset is ~47px and the drawer is anchored right.
+    await page.setViewportSize({ width: 844, height: 390 })
+    const landscape = { top: 0, right: 47, bottom: 21, left: 47 }
+
+    // md is min(600px, 96vw): it starts 244px in, well clear of the inset.
+    await page.goto('/supplies')
+    await page.getByRole('button', { name: 'Add Supply' }).first().click()
+    const md = page.getByRole('dialog', { name: 'Add Supply' })
+    await settled(md)
+    expect((await padding(md)).left).toBe(0)
+    await injectInsets(page, landscape)
+    expect(await expectLeftOverlapOnly(md, landscape.left)).toBe(0)
+
+    // xl is min(820px, 97vw): it starts 25.3px in, so 21.7px of the inset is under it.
+    await page.goto(`/vehicles/${TEST_VEHICLE.vin}`)
+    await expect(page.getByRole('heading', { name: TEST_VEHICLE.nickname })).toBeVisible({ timeout: 15000 })
+    await page.getByRole('button', { name: 'Edit', exact: true }).click()
+    await page.getByRole('button', { name: 'Upload Window Sticker' }).click()
+    const xl = page.getByRole('dialog', { name: 'Upload Window Sticker' })
+    await settled(xl)
+    expect((await padding(xl)).left).toBe(0)
+    await injectInsets(page, landscape)
+    expect(await expectLeftOverlapOnly(xl, landscape.left)).toBeCloseTo(47 - 844 * 0.03, 1)
   })
 
   test('a drawer without a footer pads its body clear of the home indicator', async ({ page }) => {
@@ -135,7 +198,7 @@ test.describe('iOS safe-area insets (#305, #308)', () => {
     await page.goto('/supplies')
     await page.getByRole('button', { name: 'Quick settings' }).click()
     const drawer = page.getByTestId('drawer')
-    await expect(drawer).toHaveClass(/translate-x-0/)
+    await settled(drawer)
     await expect(drawer.locator('> footer')).toHaveCount(0)
     const body = drawer.locator('> div')
 

@@ -8,13 +8,15 @@ import { markDrawerClosed, markDrawerOpen } from './openDrawers'
  *  widen the equipment drawer by 40px and loosen its clamp. */
 export type DrawerWidth = '2xs' | 'xs' | 'sm' | 'md' | 'lg' | 'xl'
 
+// Set as --drawer-w, which the panel's width and pl-drawer-safe (index.css)
+// both read: the left inset only matters where the panel actually reaches it.
 const WIDTH: Record<DrawerWidth, string> = {
-  '2xs': 'w-[min(400px,92vw)]',
-  xs: 'w-[min(440px,96vw)]',
-  sm: 'w-[min(540px,96vw)]',
-  md: 'w-[min(600px,96vw)]',
-  lg: 'w-[min(720px,96vw)]',
-  xl: 'w-[min(820px,97vw)]',
+  '2xs': '[--drawer-w:min(400px,92vw)]',
+  xs: '[--drawer-w:min(440px,96vw)]',
+  sm: '[--drawer-w:min(540px,96vw)]',
+  md: '[--drawer-w:min(600px,96vw)]',
+  lg: '[--drawer-w:min(720px,96vw)]',
+  xl: '[--drawer-w:min(820px,97vw)]',
 }
 
 /**
@@ -333,7 +335,7 @@ export default function Drawer({
         aria-label={title}
         data-testid="drawer"
         tabIndex={-1}
-        className={`fixed right-0 top-0 ${panelZ} flex h-full flex-col border-l border-border bg-surface pt-safe-top pr-safe-right pl-safe-left shadow-drawer transition-transform duration-(--duration-drawer) ease-standard motion-reduce:transition-none ${
+        className={`fixed right-0 top-0 ${panelZ} flex h-full w-(--drawer-w) flex-col border-l border-border bg-surface pt-safe-top pr-safe-right pl-drawer-safe shadow-drawer transition-transform duration-(--duration-drawer) ease-standard motion-reduce:transition-none ${
           entered ? 'translate-x-0' : 'translate-x-full'
         } ${WIDTH[width]}`}
       >

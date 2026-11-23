@@ -17,7 +17,7 @@ describe('FormModalWrapper (Drawer-backed)', () => {
       </FormModalWrapper>
     )
     const dialog = screen.getByRole('dialog', { name: 'Edit thing' })
-    expect(dialog).toHaveClass('w-[min(540px,96vw)]')
+    expect(dialog).toHaveClass('[--drawer-w:min(540px,96vw)]')
     expect(screen.getByLabelText('common:close')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument()
   })

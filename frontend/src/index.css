@@ -242,6 +242,12 @@
     --affix-end:   1rem;
   }
 
+  /* A drawer panel's width, md (the Drawer default) until the panel sets its
+   * own from Drawer.tsx WIDTH. w-(--drawer-w) and pl-drawer-safe read it. */
+  :root {
+    --drawer-w: min(600px, 96vw);
+  }
+
   /* Light theme — overrides the semantic tokens on documentElement, which is
    * the same element AccentContext writes the accent vars to. Nothing may
    * declare these on a descendant: an inline custom property on a child beats
@@ -435,6 +441,14 @@
 @utility modal-safe-pad {
   padding: calc(1rem + var(--spacing-safe-top)) calc(1rem + var(--spacing-safe-right))
     calc(1rem + var(--spacing-safe-bottom)) calc(1rem + var(--spacing-safe-left));
+}
+
+/* A right-anchored drawer's share of the left inset: only the part the panel
+   overlaps. It starts 100vw - --drawer-w (Drawer.tsx WIDTH) from the left edge,
+   so a landscape iPhone's ~47px notch inset pads an xl (97vw) drawer by ~22px
+   and an md one, which starts hundreds of px in, by nothing. */
+@utility pl-drawer-safe {
+  padding-left: max(0px, calc(var(--spacing-safe-left) - (100vw - var(--drawer-w))));
 }
 
 @utility ui-disabled {
