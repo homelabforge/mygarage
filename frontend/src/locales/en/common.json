@@ -181,6 +181,7 @@
     "avgUnitCost": "Avg. Unit Cost",
     "avgCostPerUnit": "Avg. Cost/{{unit}}",
     "avgCostValuePerUnit": "{{value}}/{{unit}}",
+    "estimated": "Estimated",
     "negativeWarning": "Logged usage exceeds recorded purchases",
     "activeToggle": "Active (uncheck to archive)",
     "viewHistory": "View history",

@@ -800,6 +800,7 @@
     "lineItemCostNegative": "Line item {{number}}: cost cannot be negative",
     "lineItemCostTooLarge": "Line item {{number}}: cost too large",
     "miscFees": "Misc Fees",
+    "partsEstimated": "Supply costs marked Estimated are priced as of the visit date when you save, so they may change.",
     "partsSupplies": "Parts/Supplies",
     "partsUnpriced": "Some supplies have no purchase cost yet, so they aren't in the total.",
     "refs": {

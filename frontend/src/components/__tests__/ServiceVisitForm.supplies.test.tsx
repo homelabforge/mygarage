@@ -159,6 +159,17 @@ describe('ServiceVisitForm — supplies used (Task 17)', () => {
     expect(body.line_items[0].supplies_used[0].quantity).not.toBeCloseTo(2, 3)
   })
 
+  it('marks a new usage estimated: the server prices it as of the visit date (#307)', async () => {
+    render(<ServiceVisitForm {...DEFAULT_PROPS} />)
+    fillRequiredDescription()
+    fireEvent.click(screen.getByRole('button', { name: /suppliesAddRow/ }))
+    fireEvent.change(screen.getByRole('textbox', { name: 'service.suppliesQuantityOf' }), { target: { value: '2' } })
+
+    const partsSuppliesRow = screen.getByText('service.partsSupplies:').closest('div') as HTMLElement
+    expect(within(partsSuppliesRow).getByText('common:supplies.estimated')).toBeInTheDocument()
+    expect(screen.getByText('service.partsEstimated')).toBeInTheDocument()
+  })
+
   it('removes a supply usage row and sends an empty supplies_used array', async () => {
     render(<ServiceVisitForm {...DEFAULT_PROPS} />)
 
@@ -351,7 +362,7 @@ describe('ServiceVisitForm — supplies used (Task 17)', () => {
     })
 
     // #301: the estimate is what the save will store, not today's average.
-    const visitWithUsage = (usage: { quantity: string; cost_snapshot: string | null; unit_cost_snapshot: string | null }): ServiceVisit => ({
+    const visitWithUsage = (usage: { quantity: string; cost_snapshot: string | null; unit_cost_snapshot: string | null; cost_estimated?: boolean }): ServiceVisit => ({
       ...MOCK_VISIT,
       line_items: [
         {
@@ -393,6 +404,80 @@ describe('ServiceVisitForm — supplies used (Task 17)', () => {
       render(<ServiceVisitForm {...DEFAULT_PROPS} visit={nearCap} />)
       expect(await screen.findByText('service.partsUnpriced')).toBeInTheDocument()
       expect(partsRow()).toBeNull()
+    })
+
+    // #307: the server prices as of the visit date, so the editor labels what it can't promise.
+    const estimatedMark = (el: HTMLElement | null): boolean =>
+      el != null && within(el).queryByText('common:supplies.estimated') != null
+    const lineParts = (): HTMLElement | null =>
+      screen.queryByText('lineItemEditor.partsCost')?.closest('p') ?? null
+    const settled = { quantity: '1', cost_snapshot: '7.00', unit_cost_snapshot: '7.0000' }
+
+    it('leaves a settled usage unmarked (regression control)', async () => {
+      render(<ServiceVisitForm {...DEFAULT_PROPS} visit={visitWithUsage(settled)} />)
+      await waitFor(() => expect(partsRow()).toHaveTextContent(usd(7)))
+      expect(estimatedMark(partsRow())).toBe(false)
+      expect(estimatedMark(lineParts())).toBe(false)
+      expect(screen.queryByText('service.partsEstimated')).not.toBeInTheDocument()
+    })
+
+    it('marks a saved estimate estimated, in the total and on its line, and says why', async () => {
+      render(<ServiceVisitForm {...DEFAULT_PROPS} visit={visitWithUsage({ ...settled, cost_estimated: true })} />)
+      await waitFor(() => expect(partsRow()).toHaveTextContent(usd(7)))
+      expect(estimatedMark(partsRow())).toBe(true)
+      expect(estimatedMark(lineParts())).toBe(true)
+      expect(screen.getByText('service.partsEstimated')).toBeInTheDocument()
+    })
+
+    it('marks every saved usage estimated while the date is changed, and drops it when changed back', async () => {
+      render(<ServiceVisitForm {...DEFAULT_PROPS} visit={visitWithUsage(settled)} />)
+      await waitFor(() => expect(partsRow()).toHaveTextContent(usd(7)))
+      const date = screen.getByLabelText(/common:date/) as HTMLInputElement
+
+      fireEvent.change(date, { target: { value: '2025-07-01' } })
+      await waitFor(() => expect(estimatedMark(partsRow())).toBe(true))
+      // Still the stored cost: the preview can't know the as-of price, only that it may move.
+      expect(partsRow()).toHaveTextContent(usd(7))
+      expect(screen.getByText('service.partsEstimated')).toBeInTheDocument()
+
+      fireEvent.change(date, { target: { value: '2026-07-01' } })
+      await waitFor(() => expect(estimatedMark(partsRow())).toBe(false))
+      expect(screen.queryByText('service.partsEstimated')).not.toBeInTheDocument()
+    })
+
+    it('drops a saved estimate with the backfills past the money column', async () => {
+      // The pricer may re-price an estimate inside its savepoint, so it's a
+      // backfill, not part of the edit (Fable F-11).
+      const nearCap = visitWithUsage({ quantity: '1', cost_snapshot: '10.00', unit_cost_snapshot: '10.0000', cost_estimated: true })
+      nearCap.line_items[0].cost = String(MONEY_MAX - 5)
+      render(<ServiceVisitForm {...DEFAULT_PROPS} visit={nearCap} />)
+      expect(await screen.findByText('service.partsUnpriced')).toBeInTheDocument()
+      expect(partsRow()).toBeNull()
+      expect(screen.queryByText('service.partsEstimated')).not.toBeInTheDocument()
+    })
+
+    it('does not mark what stays in the total when the dropped backfill was the estimate', async () => {
+      // A settled 7.00 and an estimated 10.00 on one line, 8.00 short of the cap:
+      // the estimate drops, so the 7.00 left in the total is no estimate.
+      vi.mocked(useSupplies).mockReturnValue({
+        data: { supplies: [MOCK_SUPPLY, { ...MOCK_SUPPLY, id: 2, name: 'Coolant' }], total: 2 },
+        isSuccess: true,
+        isLoading: false,
+        isError: false,
+      } as unknown as ReturnType<typeof useSupplies>)
+      const visit = visitWithUsage(settled)
+      const [kept] = visit.line_items[0].supply_usages!
+      visit.line_items[0].supply_usages = [
+        kept,
+        { ...kept, id: 2, supply_id: 2, supply_name: 'Coolant', cost_snapshot: '10.00', unit_cost_snapshot: '10.0000', cost_estimated: true },
+      ]
+      visit.line_items[0].cost = String(MONEY_MAX - 8)
+      render(<ServiceVisitForm {...DEFAULT_PROPS} visit={visit} />)
+      expect(await screen.findByText('service.partsUnpriced')).toBeInTheDocument()
+      expect(partsRow()).toHaveTextContent(usd(7))
+      expect(estimatedMark(partsRow())).toBe(false)
+      expect(estimatedMark(lineParts())).toBe(false)
+      expect(screen.queryByText('service.partsEstimated')).not.toBeInTheDocument()
     })
 
     it('says so when a supply has nothing to price it with yet', async () => {

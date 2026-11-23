@@ -7,6 +7,10 @@
  * current average. Re-pricing everything at today's average made the editor
  * disagree with the History card, which reads what's stored.
  *
+ * The server prices as of the visit date (#307), which the editor can't see,
+ * so anything it may still move is flagged `estimated`: a price from today's
+ * average, a stored estimate, and every saved usage while the date is changed.
+ *
  * Money is worked in exact decimals: half a cent rounds up as on the server,
  * where float maths would round 1 × 1.0050 down to 1.00.
  */
@@ -17,6 +21,8 @@ export interface SavedUsageCost {
   quantity: Amount
   unit_cost_snapshot?: Amount | null
   cost_snapshot?: Amount | null
+  /** Stored at the all-time average; the server settles it once a purchase on or before the visit exists. */
+  cost_estimated?: boolean
 }
 
 export interface UsageCostEstimate {
@@ -30,6 +36,16 @@ export interface UsageCostEstimate {
    * it leaves them all unpriced and saves the edit alone.
    */
   backfill: boolean
+  /** The save may store a different cost than this one: the server prices as of the visit date. */
+  estimated: boolean
+}
+
+export interface EstimateOptions {
+  /**
+   * The visit's date differs from the stored one. The save then re-prices any
+   * usage a purchase moved across the old and new dates, frozen ones too.
+   */
+  dateChanged?: boolean
 }
 
 /** Decimal places the server stores: quantity (25, 13), unit cost (15, 4). */
@@ -89,17 +105,23 @@ export function estimateUsageCost(
   quantity: number,
   saved: SavedUsageCost | undefined,
   avgUnitCost: Amount | null | undefined,
+  { dateChanged = false }: EstimateOptions = {},
 ): UsageCostEstimate {
   const unchanged = saved != null && sameQuantity(quantity, saved.quantity)
-  // Kept as is: the server never touches a priced usage at the same quantity.
+  // An estimate is settled by the pricer after the edit, in the savepoint that
+  // drops every backfill on overflow, so it counts as one whatever the edit does.
+  const flagged = saved?.cost_estimated === true
+  // Kept as is: the edit never touches a priced usage at the same quantity.
   if (saved?.cost_snapshot != null && unchanged) {
-    return { cost: Number(saved.cost_snapshot), unpriced: false, backfill: false }
+    return { cost: Number(saved.cost_snapshot), unpriced: false, backfill: flagged, estimated: flagged || dateChanged }
   }
   // Its frozen unit cost prices it, else today's average. A new quantity at a
   // frozen unit is priced by the edit itself; any other saved usage comes out
   // of the edit with no cost, for the backfill after it.
   const unit = saved?.unit_cost_snapshot ?? avgUnitCost
-  if (unit == null) return { cost: 0, unpriced: true, backfill: false }
-  const backfill = saved != null && (saved.unit_cost_snapshot == null || unchanged)
-  return { cost: priced(unit, quantity), unpriced: false, backfill }
+  if (unit == null) return { cost: 0, unpriced: true, backfill: false, estimated: false }
+  const backfill = saved != null && (flagged || saved.unit_cost_snapshot == null || unchanged)
+  // Today's average stands in for the price as of the visit date.
+  const fromAverage = saved?.unit_cost_snapshot == null
+  return { cost: priced(unit, quantity), unpriced: false, backfill, estimated: fromAverage || flagged || dateChanged }
 }
