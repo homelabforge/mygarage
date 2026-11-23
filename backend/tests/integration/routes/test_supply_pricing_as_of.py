@@ -564,6 +564,74 @@ async def test_a_date_edit_reprices_at_the_quantity_sent_with_it(
     await _expect(client, auth_headers, db_session, vin, visit, "26.98", False, "99.22")
 
 
+#: 1.5 billion: 9,000,000,000.00 at 6.00 fits a money column, 10,117,500,000.00
+#: at 6.745 doesn't.
+_HUGE = "1500000000"
+
+
+async def _move_with_quantity(
+    client: AsyncClient, headers: dict[str, str], vin: str, visit_id: int, sid: int, day: str
+) -> Any:
+    item = (await _get(client, headers, vin, visit_id))["line_items"][0]
+    return await client.put(
+        f"/api/vehicles/{vin}/service-visits/{visit_id}",
+        json={
+            "date": day,
+            "line_items": [
+                {
+                    "id": item["id"],
+                    "description": item["description"],
+                    "supplies_used": [{"supply_id": sid, "quantity": _HUGE}],
+                }
+            ],
+        },
+        headers=headers,
+    )
+
+
+async def test_a_date_edit_checks_a_raised_quantity_at_the_new_price(
+    client: AsyncClient, auth_headers, own_vehicle: Vehicle, db_session: AsyncSession
+):
+    """R1-M2: only the price as of the new date counts. The old 6.745 times
+    the new quantity overflows, the July 2025 price of 6.00 doesn't."""
+    vin = own_vehicle.vin
+    sid = await _both_purchases(client, auth_headers)
+    visit = await _visit(client, auth_headers, vin, "2026-07-01", sid, labour="0.00")
+
+    r = await _move_with_quantity(client, auth_headers, vin, visit, sid, VISIT_DAY)
+
+    # dbed8dd2: 422, the quantity was checked at the price the move replaces.
+    assert r.status_code == 200, r.text
+    body = await _get(client, auth_headers, vin, visit)
+    [use] = body["line_items"][0]["supply_usages"]
+    assert (body["date"], Decimal(use["quantity"]), Decimal(use["unit_cost_snapshot"])) == (
+        VISIT_DAY,
+        Decimal(_HUGE),
+        Decimal("6.0000"),
+    )
+    await _expect(
+        client, auth_headers, db_session, vin, visit, "9000000000.00", False, "9000000000.00"
+    )
+
+
+async def test_a_date_edit_refuses_a_raised_quantity_that_overflows_at_the_new_price(
+    client: AsyncClient, auth_headers, own_vehicle: Vehicle, db_session: AsyncSession
+):
+    """Regression control: the other way round, the final price is what
+    overflows. A 422, and the old date and quantity stay."""
+    vin = own_vehicle.vin
+    sid = await _both_purchases(client, auth_headers)
+    visit = await _visit(client, auth_headers, vin, VISIT_DAY, sid, labour="0.00")
+
+    r = await _move_with_quantity(client, auth_headers, vin, visit, sid, "2026-07-01")
+
+    assert r.status_code == 422, r.text
+    body = await _get(client, auth_headers, vin, visit)
+    [use] = body["line_items"][0]["supply_usages"]
+    assert (body["date"], Decimal(use["quantity"])) == (VISIT_DAY, Decimal("5"))
+    await _expect(client, auth_headers, db_session, vin, visit, "30.00", False, "30.00")
+
+
 async def _get(
     client: AsyncClient, headers: dict[str, str], vin: str, visit_id: int
 ) -> dict[str, Any]:

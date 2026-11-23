@@ -5,10 +5,10 @@ import logging
 from collections.abc import Mapping, Sequence
 
 from fastapi import HTTPException
-from sqlalchemy import delete, func, or_, select
+from sqlalchemy import ColumnElement, Exists, delete, func, or_, select
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import joinedload, selectinload
+from sqlalchemy.orm import InstrumentedAttribute, joinedload, selectinload
 
 from app.constants.service_vocab import ServiceCategory, is_service_category
 from app.models.service_line_item import ServiceLineItem
@@ -62,6 +62,25 @@ _KEPT_WHEN_OMITTED = (
     "inspection_result",
     "inspection_severity",
 )
+
+
+def _bought_between(
+    supply_id: InstrumentedAttribute[int] | ColumnElement[int] | int,
+    low: dt.date,
+    high: dt.date,
+) -> Exists:
+    """A costed purchase of the supply dated in (low, high]. That's exactly when
+    moving a visit between the two dates changes what its usage is priced on."""
+    return (
+        select(SupplyPurchase.id)
+        .where(
+            SupplyPurchase.supply_id == supply_id,
+            SupplyPurchase.total_cost.isnot(None),
+            SupplyPurchase.date > low,
+            SupplyPurchase.date <= high,
+        )
+        .exists()
+    )
 
 
 def drop_stray_links(items: Sequence[ServiceLineItem]) -> None:
@@ -565,7 +584,11 @@ class ServiceVisitService:
                         # field out must not delete the item's usages. [] clears.
                         if "supplies_used" in sent:
                             await self._sync_line_item_supplies(
-                                row, item_data.supplies_used, vin, visit.date
+                                row,
+                                item_data.supplies_used,
+                                vin,
+                                visit.date,
+                                moved_from=old_date if visit.date != old_date else None,
                             )
                         # Skip one the visit's CHECK would refuse.
                         if is_service_category(row.category):
@@ -1150,16 +1173,7 @@ class ServiceVisitService:
         # Before the read: a purchase racing this edit lands after its commit,
         # and the pricing after that purchase sees the new date.
         await supplies.hold_prices(supply_ids)
-        moved_between = (
-            select(SupplyPurchase.id)
-            .where(
-                SupplyPurchase.supply_id == SupplyUsage.supply_id,
-                SupplyPurchase.total_cost.isnot(None),
-                SupplyPurchase.date > low,
-                SupplyPurchase.date <= high,
-            )
-            .exists()
-        )
+        moved_between = _bought_between(SupplyUsage.supply_id, low, high)
         usages = (
             (
                 await self.db.execute(
@@ -1187,6 +1201,19 @@ class ServiceVisitService:
             usage.unit_cost_snapshot, usage.cost_snapshot = unit, cost
             usage.cost_estimated = estimated
         await self.db.flush()
+
+    async def _repriced_by_move(
+        self, supply_id: int, moved_from: dt.date | None, new_date: dt.date
+    ) -> bool:
+        """Whether `_reprice_for_new_date` will re-price this supply's usage
+        when the visit moves from `moved_from` to `new_date`."""
+        if moved_from is None:
+            return False
+        # The same lock the re-price takes, so a purchase can't land or go
+        # between this answer and that one.
+        await SupplyService(self.db).hold_prices([supply_id])
+        low, high = sorted((moved_from, new_date))
+        return bool(await self.db.scalar(select(_bought_between(supply_id, low, high))))
 
     async def _reload_visit_full(self, visit_id: int) -> ServiceVisit:
         """Reload a visit with line_items → supply_usages eager-loaded — just
@@ -1234,6 +1261,8 @@ class ServiceVisitService:
         supplies_used: Sequence[SupplyUsageInput] | None,
         vin: str,
         visit_date: dt.date,
+        *,
+        moved_from: dt.date | None = None,
     ) -> None:
         """Diff a line item's supply usages by supply_id — PRESERVE frozen snapshots.
 
@@ -1248,6 +1277,9 @@ class ServiceVisitService:
             when it's the all-time fallback (#307).
           A kept row keeps its unit and its flag through a quantity change.
           - supply_id removed → delete the row.
+        `moved_from` is the visit's old date when this edit moves it. A kept row
+        the move re-prices skips the frozen-price check, since
+        `_reprice_for_new_date` checks its new quantity at the final price.
         Only NEW associations are validated, so editing an unrelated field on a
         historical visit never fails because a supply was archived/repinned since.
         """
@@ -1285,7 +1317,13 @@ class ServiceVisitService:
             prior = existing.get(u.supply_id)
             if prior is not None:
                 # Unchanged association: keep frozen unit cost; recompute cost only if qty moved.
-                if prior.quantity != u.quantity:
+                if prior.quantity != u.quantity and await self._repriced_by_move(
+                    u.supply_id, moved_from, visit_date
+                ):
+                    # The date move re-prices this row next and checks the new
+                    # quantity there, so the old price doesn't get a say.
+                    prior.quantity = u.quantity
+                elif prior.quantity != u.quantity:
                     cost = (
                         usage_cost(prior.unit_cost_snapshot, u.quantity)
                         if prior.unit_cost_snapshot is not None
