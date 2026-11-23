@@ -108,7 +108,7 @@ export default function FinancingRecordForm({ vin, record, onClose, onSuccess }:
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field id="date" label={t('financing.date')} required error={errors.date}>
               <Input id="date" type="date" {...register('date')} invalid={!!errors.date} disabled={isSubmitting} />
             </Field>

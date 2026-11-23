@@ -118,7 +118,7 @@ export default function TollTransactionForm({ vin, tollTags, transaction, onClos
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field id="transaction_date" label={t('common:date')} required error={errors.transaction_date}>
               <Input id="transaction_date" type="date" {...register('transaction_date')} invalid={!!errors.transaction_date} disabled={isSubmitting} />
             </Field>

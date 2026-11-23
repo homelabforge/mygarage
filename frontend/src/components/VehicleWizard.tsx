@@ -699,7 +699,7 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label htmlFor="wizard-purchase-date" className="block text-sm font-medium text-text-mid mb-2">
                   {t('edit.purchaseDate')}
@@ -731,7 +731,7 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
                 country opens on the one Quick Settings resolves, so a French
                 household never has to pick it; the date drives the technical
                 inspection cadence of the country's profile. */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-text-mid mb-2">
                   {t('edit.registrationCountry')}

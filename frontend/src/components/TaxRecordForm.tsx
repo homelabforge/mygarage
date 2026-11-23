@@ -139,7 +139,7 @@ export default function TaxRecordForm({ vin, record, onClose, onSuccess }: TaxRe
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field id="date" label={t('tax.datePaid')} required error={errors.date}>
               <Input id="date" type="date" {...register('date')} invalid={!!errors.date} disabled={isSubmitting} />
             </Field>
@@ -156,7 +156,7 @@ export default function TaxRecordForm({ vin, record, onClose, onSuccess }: TaxRe
             </Field>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field id="amount" label={t('common:amount')} required error={errors.amount}>
               <CurrencyInput
                 id="amount"

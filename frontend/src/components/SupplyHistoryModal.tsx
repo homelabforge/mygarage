@@ -529,7 +529,7 @@ function PurchaseForm({
         <div className="bg-danger/10 border border-danger rounded-lg p-2 text-sm text-danger">{error}</div>
       )}
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <label htmlFor="purchase-date" className="block text-xs font-medium text-garage-text mb-1">
             {t('date')} <span className="text-danger">*</span>

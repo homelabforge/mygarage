@@ -119,7 +119,7 @@ export default function RecallForm({ vin, recall, onClose, onSuccess }: RecallFo
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field id="nhtsa_campaign_number" label={t('recall.nhtsaCampaignNumber')} error={errors.nhtsa_campaign_number}>
               <Input id="nhtsa_campaign_number" type="text" mono {...register('nhtsa_campaign_number')} placeholder="e.g., 23V123000" invalid={!!errors.nhtsa_campaign_number} disabled={isSubmitting} />
             </Field>

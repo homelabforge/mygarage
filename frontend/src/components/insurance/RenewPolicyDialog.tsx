@@ -105,7 +105,7 @@ export default function RenewPolicyDialog({ policy, onClose, onSuccess }: RenewP
             disabled={isSubmitting}
           />
         </Field>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Field id="renew_start" label={t('common:startDate')} required error={errors.start_date}>
             <Input
               id="renew_start"
