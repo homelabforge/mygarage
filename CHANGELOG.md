@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.11.3] - 2026-11-23
+
+### Upgrade note
+
+Back up first. Migration 162 is FATAL: if it fails, MyGarage refuses to start.
+
+- 162 adds `supply_usages.cost_estimated`.
+- 163 prices still-unpriced visit supply usages as of their visit date.
+
+### Changed
+- The line item cost reads "Cost (parts + labor)" and the supply side reads "Supplies", with a note that supplies come from your own stock.
+
+### Fixed
+- iPhone PWA: the header, Quick Entry, drawers, toasts and modals now clear the notch and home bar (#305, #308).
+- Quick Entry lists every vehicle an admin can write to, including vehicles with no owner (#308).
+- Supply usages are priced as of the visit date. A visit with no earlier purchase gets the all-time average, marked Estimated, which settles once an earlier purchase is added (#307).
+- The date field gets its own row on phones in the Fuel, DEF, Propane and other forms, so the iOS calendar stays on screen.
+- A purchase delete refreshes the visits it re-priced.
+- Import/export: an estimated usage matches at any price on re-import, same-day visits export in id order, and a restore moves the exact matching usage first.
+
 ## [3.11.2] - 2026-11-18
 
 ### Fixed
