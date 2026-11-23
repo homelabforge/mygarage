@@ -471,13 +471,10 @@ SECTIONS = [
     JsonSection(
         "supplies.used_elsewhere",
         SupplyUsage,
-        keys=frozenset({"quantity", "unit_cost_snapshot", "cost_snapshot"}),
+        keys=frozenset({"quantity", "unit_cost_snapshot", "cost_snapshot", "cost_estimated"}),
         # The other vehicle's line item is named by its visit and description;
-        # the visit dates it. cost_estimated isn't carried here yet: this row is
-        # hand-built, and the import doesn't read the flag (#307).
-        exclude=frozenset(
-            {"id", "supply_id", "service_line_item_id", "created_at", "cost_estimated"}
-        ),
+        # the visit dates it.
+        exclude=frozenset({"id", "supply_id", "service_line_item_id", "created_at"}),
         portable=frozenset({"vin", "date", "description", "item_index", "item_cost"}),
     ),
     JsonSection(

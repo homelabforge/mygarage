@@ -676,6 +676,8 @@ async def test_a_use_on_another_vehicles_visit_travels_as_a_reference(
             "quantity": Decimal("3"),
             "unit_cost_snapshot": 1.5,
             "cost_snapshot": 4.5,
+            # 10f6e9d7: missing, so a restore read every use as frozen.
+            "cost_estimated": False,
         }
     ]
     # Only the purchase is A's own ledger; the use is B's, by reference.

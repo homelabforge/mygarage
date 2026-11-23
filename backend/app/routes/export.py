@@ -487,6 +487,9 @@ def _used_elsewhere_json(usage: SupplyUsage, readable_vins: set[str]) -> dict[st
         "quantity": _json_quantity(usage.quantity),
         "unit_cost_snapshot": _json_value(usage.unit_cost_snapshot),
         "cost_snapshot": _json_value(usage.cost_snapshot),
+        # An estimate settles once an earlier purchase is in, so a restore has
+        # to know this price can move (#307).
+        "cost_estimated": usage.cost_estimated,
     }
 
 
