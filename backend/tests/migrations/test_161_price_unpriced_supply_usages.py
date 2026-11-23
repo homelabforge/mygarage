@@ -1,4 +1,8 @@
-"""Migration 161: price the supply usages logged before their supply had a cost (#301)."""
+"""Migration 161: price the supply usages logged before their supply had a cost (#301).
+
+A visit usage with neither a cost nor a frozen unit is left for 163, which
+prices it as of its visit's date (#307).
+"""
 
 from decimal import Decimal
 
@@ -148,13 +152,14 @@ def test_the_migration_is_not_fatal() -> None:
 
 
 @_BOTH
-def test_the_issue_visit_is_priced(engine_for_migration) -> None:
+def test_a_visit_usage_with_no_unit_is_left_for_163(engine_for_migration) -> None:
+    # 3.11.2 priced these at the date-blind average, and 162 then froze them.
     _dialect, engine, _url = engine_for_migration
     _issue_301(engine)
     _upgrade(engine)
-    assert _snapshots(engine, 1) == (Decimal("7.9146"), Decimal("37.45"))
-    assert _snapshots(engine, 2) == (Decimal("9.0000"), Decimal("9.00"))
-    assert _total(engine, 1) == Decimal("92.45")
+    assert _snapshots(engine, 1) == (None, None)
+    assert _snapshots(engine, 2) == (None, None)
+    assert _total(engine, 1) == Decimal("46.00")
 
 
 @_BOTH
@@ -164,12 +169,10 @@ def test_the_average_weighs_only_costed_purchases(engine_for_migration) -> None:
     _purchase(engine, 1, "10", "80.00")
     _purchase(engine, 1, "5", "100.00")
     _purchase(engine, 1, "100", None)  # uncosted: not in the average
-    _visit(engine, 1, "0")
-    _usage(engine, 1, 1, 1, "3")
+    _usage(engine, 1, 1, None, "3")
     _upgrade(engine)
     # 180 / 15 = 12.0000
     assert _snapshots(engine, 1) == (Decimal("12.0000"), Decimal("36.00"))
-    assert _total(engine, 1) == Decimal("36.00")
 
 
 @_BOTH
@@ -221,10 +224,10 @@ def test_a_visit_that_would_overflow_is_skipped_alone(engine_for_migration) -> N
     _purchase(engine, 1, "10", "80.00")
     _visit(engine, 1, near_cap, labour=near_cap)
     _visit(engine, 2, "0")
-    _usage(engine, 1, 1, 1, "5")  # 40.00 > 1.00 of headroom
-    _usage(engine, 2, 1, 2, "5")
+    _usage(engine, 1, 1, 1, "5", unit="8.0000")  # 40.00 > 1.00 of headroom
+    _usage(engine, 2, 1, 2, "5", unit="8.0000")
     _upgrade(engine)
-    assert _snapshots(engine, 1) == (None, None)
+    assert _snapshots(engine, 1) == (Decimal("8.0000"), None)
     assert _total(engine, 1) == Decimal(near_cap)
     assert _snapshots(engine, 2) == (Decimal("8.0000"), Decimal("40.00"))
     assert _total(engine, 2) == Decimal("40.00")
@@ -239,10 +242,10 @@ def test_a_line_item_whose_visit_is_gone_is_skipped_alone(engine_for_migration) 
     _purchase(engine, 1, "10", "80.00")
     _visit(engine, 2, "0")
     _run(engine, "INSERT INTO service_line_items (id, visit_id, cost) VALUES (9, 99, 0)")
-    _usage(engine, 1, 1, 9, "5")
-    _usage(engine, 2, 1, 2, "5")
+    _usage(engine, 1, 1, 9, "5", unit="8.0000")
+    _usage(engine, 2, 1, 2, "5", unit="8.0000")
     _upgrade(engine)
-    assert _snapshots(engine, 1) == (None, None)
+    assert _snapshots(engine, 1) == (Decimal("8.0000"), None)
     assert _snapshots(engine, 2) == (Decimal("8.0000"), Decimal("40.00"))
     assert _total(engine, 2) == Decimal("40.00")
 
@@ -251,11 +254,15 @@ def test_a_line_item_whose_visit_is_gone_is_skipped_alone(engine_for_migration) 
 def test_a_second_run_changes_nothing(engine_for_migration) -> None:
     _dialect, engine, _url = engine_for_migration
     _issue_301(engine)
+    _usage(engine, 3, 1, None, _FIVE_QT)  # a standalone adjustment
+    _usage(engine, 4, 2, 1, "1", unit="9.0000")
     _upgrade(engine)
     _purchase(engine, 1, "10", "500.00")  # a new average must not reprice anything
     _upgrade(engine)
-    assert _snapshots(engine, 1) == (Decimal("7.9146"), Decimal("37.45"))
-    assert _total(engine, 1) == Decimal("92.45")
+    assert _snapshots(engine, 3) == (Decimal("7.9146"), Decimal("37.45"))
+    assert _snapshots(engine, 4) == (Decimal("9.0000"), Decimal("9.00"))
+    assert _snapshots(engine, 1) == (None, None)
+    assert _total(engine, 1) == Decimal("55.00")
 
 
 @_BOTH
@@ -272,9 +279,10 @@ def test_the_work_rolls_back_with_the_runners_transaction(engine_for_migration) 
     # nothing 161 did may stick.
     _dialect, engine, _url = engine_for_migration
     _issue_301(engine)
+    _usage(engine, 3, 2, 1, "1", unit="9.0000")
     with pytest.raises(RuntimeError, match="stamp failed"):
         with engine.begin() as conn:
             _load().upgrade(conn=conn)
             raise RuntimeError("stamp failed")
-    assert _snapshots(engine, 1) == (None, None)
+    assert _snapshots(engine, 3) == (Decimal("9.0000"), None)
     assert _total(engine, 1) == Decimal("46.00")
