@@ -37,10 +37,11 @@ def test_nothing_costed_is_none() -> None:
 
 
 def test_the_average_rounds_half_up_at_four_places() -> None:
-    # 67.45 over 10 = 6.745 exactly; 0.00005 over 1 rounds up.
+    # 67.45 over 10 = 6.745 exactly. 0.01 over 200 = 0.00005, a tie at the
+    # fifth place: half up makes it 0.0001, half even would make it 0.0000.
     assert as_of_price([JULY_2025, JUNE_2026], date(2026, 7, 1)) == (Decimal("6.7450"), False)
-    tiny: CostedPurchase = (date(2025, 1, 1), Decimal("2"), Decimal("0.01"))
-    assert as_of_price([tiny], VISIT_DAY) == (Decimal("0.0050"), False)
+    tiny: CostedPurchase = (date(2025, 1, 1), Decimal("200"), Decimal("0.01"))
+    assert as_of_price([tiny], VISIT_DAY) == (Decimal("0.0001"), False)
     third: CostedPurchase = (date(2025, 1, 1), Decimal("3"), Decimal("1.00"))
     assert as_of_price([third], VISIT_DAY) == (Decimal("0.3333"), False)
 
