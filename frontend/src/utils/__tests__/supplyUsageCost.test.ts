@@ -50,16 +50,18 @@ describe('estimateUsageCost', () => {
   })
 
   // #307: an estimate is the all-time average standing in for an as-of price.
-  // The visit pricer settles it inside its savepoint, so it isn't fixed.
+  // The visit pricer may settle it, so it's labelled; but it keeps whatever cost
+  // the edit leaves it when the pricer's savepoint rolls back, so it's part of
+  // the edit, not a backfill (T5-C1).
   describe('a saved estimate', () => {
     const estimate = { quantity: '5', unit_cost_snapshot: '7.4900', cost_snapshot: '37.45', cost_estimated: true }
 
     it('shows its stored cost, but as an estimate the save may move', () => {
-      expect(estimateUsageCost(5, estimate, '9.0000')).toEqual({ cost: 37.45, unpriced: false, backfill: true, estimated: true })
+      expect(estimateUsageCost(5, estimate, '9.0000')).toEqual({ cost: 37.45, unpriced: false, backfill: false, estimated: true })
     })
 
     it('stays an estimate at a new quantity, priced at its own unit like the edit does', () => {
-      expect(estimateUsageCost(6, estimate, '9.0000')).toEqual({ cost: 44.94, unpriced: false, backfill: true, estimated: true })
+      expect(estimateUsageCost(6, estimate, '9.0000')).toEqual({ cost: 44.94, unpriced: false, backfill: false, estimated: true })
     })
 
     it('a settled usage is fixed, the same row unflagged', () => {

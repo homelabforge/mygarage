@@ -4730,7 +4730,7 @@
     {
       "path": "src/utils/supplyUsageCost.ts",
       "disposition": "audited",
-      "digest": "a3eb475dc7225f5c7f22c419178e9687cd39da87d10f149b5b6db7d0524aabe6",
+      "digest": "7e7546198c6ccfdc26f4939b3bcebd6e305cfa5d42268e84ecef7e1325dab730",
       "reason": "2026-11-18 (#301): prices a supply usage the way the server does. Quantities are canonical (litres or the supply's base unit) on both sides; sameQuantity compares them at the server's 13 stored places so a display round trip (qt_uk drift) reads as unchanged; a number is read as the decimal text the request sends, so it rounds once as the server does. Money is unit cost per canonical unit times canonical quantity, half up in BigInt. No display units here. 2026-11-22 (#307): adds an `estimated` flag and a dateChanged option; both are booleans over the same canonical quantities, no unit behaviour added.",
       "tests": [
         "utils/__tests__/supplyUsageCost.test.ts"

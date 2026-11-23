@@ -108,19 +108,20 @@ export function estimateUsageCost(
   { dateChanged = false }: EstimateOptions = {},
 ): UsageCostEstimate {
   const unchanged = saved != null && sameQuantity(quantity, saved.quantity)
-  // An estimate is settled by the pricer after the edit, in the savepoint that
-  // drops every backfill on overflow, so it counts as one whatever the edit does.
+  // An estimate may be settled by the pricer after the edit, so it's labelled.
+  // It's no backfill: the pricer's savepoint rolls back only its own writes, so
+  // past the money column it keeps the cost the edit leaves it.
   const flagged = saved?.cost_estimated === true
   // Kept as is: the edit never touches a priced usage at the same quantity.
   if (saved?.cost_snapshot != null && unchanged) {
-    return { cost: Number(saved.cost_snapshot), unpriced: false, backfill: flagged, estimated: flagged || dateChanged }
+    return { cost: Number(saved.cost_snapshot), unpriced: false, backfill: false, estimated: flagged || dateChanged }
   }
   // Its frozen unit cost prices it, else today's average. A new quantity at a
   // frozen unit is priced by the edit itself; any other saved usage comes out
   // of the edit with no cost, for the backfill after it.
   const unit = saved?.unit_cost_snapshot ?? avgUnitCost
   if (unit == null) return { cost: 0, unpriced: true, backfill: false, estimated: false }
-  const backfill = saved != null && (flagged || saved.unit_cost_snapshot == null || unchanged)
+  const backfill = saved != null && (saved.unit_cost_snapshot == null || unchanged)
   // Today's average stands in for the price as of the visit date.
   const fromAverage = saved?.unit_cost_snapshot == null
   return { cost: priced(unit, quantity), unpriced: false, backfill, estimated: fromAverage || flagged || dateChanged }

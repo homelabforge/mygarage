@@ -445,33 +445,42 @@ describe('ServiceVisitForm — supplies used (Task 17)', () => {
       expect(screen.queryByText('service.partsEstimated')).not.toBeInTheDocument()
     })
 
-    it('drops a saved estimate with the backfills past the money column', async () => {
-      // The pricer may re-price an estimate inside its savepoint, so it's a
-      // backfill, not part of the edit (Fable F-11).
-      const nearCap = visitWithUsage({ quantity: '1', cost_snapshot: '10.00', unit_cost_snapshot: '10.0000', cost_estimated: true })
-      nearCap.line_items[0].cost = String(MONEY_MAX - 5)
-      render(<ServiceVisitForm {...DEFAULT_PROPS} visit={nearCap} />)
-      expect(await screen.findByText('service.partsUnpriced')).toBeInTheDocument()
-      expect(partsRow()).toBeNull()
-      expect(screen.queryByText('service.partsEstimated')).not.toBeInTheDocument()
-    })
-
-    it('does not mark what stays in the total when the dropped backfill was the estimate', async () => {
-      // A settled 7.00 and an estimated 10.00 on one line, 8.00 short of the cap:
-      // the estimate drops, so the 7.00 left in the total is no estimate.
+    // Past the money column only the pricer's writes roll back, so a stored
+    // estimate keeps the cost the edit left it; only new or unpriced usages drop (T5-C1).
+    const withSecondUsage = (first: ServiceVisit, second: Record<string, unknown>, labour: number): ServiceVisit => {
       vi.mocked(useSupplies).mockReturnValue({
         data: { supplies: [MOCK_SUPPLY, { ...MOCK_SUPPLY, id: 2, name: 'Coolant' }], total: 2 },
         isSuccess: true,
         isLoading: false,
         isError: false,
       } as unknown as ReturnType<typeof useSupplies>)
-      const visit = visitWithUsage(settled)
-      const [kept] = visit.line_items[0].supply_usages!
-      visit.line_items[0].supply_usages = [
-        kept,
-        { ...kept, id: 2, supply_id: 2, supply_name: 'Coolant', cost_snapshot: '10.00', unit_cost_snapshot: '10.0000', cost_estimated: true },
-      ]
-      visit.line_items[0].cost = String(MONEY_MAX - 8)
+      const [kept] = first.line_items[0].supply_usages!
+      first.line_items[0].supply_usages = [kept, { ...kept, id: 2, supply_id: 2, supply_name: 'Coolant', ...second }]
+      first.line_items[0].cost = String(labour)
+      return first
+    }
+    const unpricedUsage = { cost_snapshot: null, unit_cost_snapshot: null, cost_estimated: false }
+
+    it('keeps a saved estimate in the total past the money column, still estimated', async () => {
+      // An estimated 10.00 and an unpriced usage (10.00 at the average), 5.00
+      // short of the cap with the estimate in: the unpriced one drops, the estimate stays.
+      const visit = withSecondUsage(
+        visitWithUsage({ quantity: '1', cost_snapshot: '10.00', unit_cost_snapshot: '10.0000', cost_estimated: true }),
+        unpricedUsage,
+        MONEY_MAX - 15,
+      )
+      render(<ServiceVisitForm {...DEFAULT_PROPS} visit={visit} />)
+      expect(await screen.findByText('service.partsUnpriced')).toBeInTheDocument()
+      expect(partsRow()).toHaveTextContent(usd(10))
+      expect(estimatedMark(partsRow())).toBe(true)
+      expect(estimatedMark(lineParts())).toBe(true)
+      expect(screen.getByText('service.partsEstimated')).toBeInTheDocument()
+    })
+
+    it('does not mark what stays in the total when the dropped backfill was the estimate', async () => {
+      // A settled 7.00 and an unpriced usage priced at the average (an estimate),
+      // 8.00 short of the cap: the backfill drops, so the 7.00 left is no estimate.
+      const visit = withSecondUsage(visitWithUsage(settled), unpricedUsage, MONEY_MAX - 8)
       render(<ServiceVisitForm {...DEFAULT_PROPS} visit={visit} />)
       expect(await screen.findByText('service.partsUnpriced')).toBeInTheDocument()
       expect(partsRow()).toHaveTextContent(usd(7))
