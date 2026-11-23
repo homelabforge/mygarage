@@ -295,13 +295,22 @@ class SupplyService:
         return {sid: as_of_price(purchases, as_of) for sid, purchases in costed.items()}
 
     async def as_of_unit_cost(self, supply_id: int, as_of: date) -> AsOfPrice | None:
-        """One supply's price as of a visit's date (for a new usage's snapshot)."""
+        """One supply's price as of a visit's date (for a new usage's snapshot).
+
+        Kept apart from ``as_of_unit_costs`` on purpose: the concurrency tests
+        hold that read and not this one, so folding the two together would
+        silently disarm ``test_a_usage_logged_as_the_first_cost_lands_is_priced``.
+        """
         return (await self._as_of_prices([supply_id], as_of))[supply_id]
 
     async def as_of_unit_costs(
         self, supply_ids: Sequence[int], as_of: date
     ) -> dict[int, AsOfPrice | None]:
-        """Several supplies' prices as of one visit's date (for the visit pricer)."""
+        """Several supplies' prices as of one visit's date (for the visit pricer).
+
+        Not merged with ``as_of_unit_cost``: see there (the concurrency tests
+        patch this read only).
+        """
         return await self._as_of_prices(supply_ids, as_of)
 
     def _to_supply_response(

@@ -13,6 +13,13 @@ of its own writers to touch the visit
 The purchase is committed before this runs and its answer has to say so, so
 nothing here fails the request: a vehicle that can't be priced is logged and
 skipped, and the next opportunity prices it.
+
+Deleting a costed purchase re-runs the fallback for the supply's estimates
+(``price_after_purchase_delete``), and that has no next opportunity. A vehicle
+the deleter can't write, or one whose re-run would overflow, keeps its
+estimate as it was until a costed purchase on or before its visit settles it,
+its visit's date is edited, or another costed purchase of the supply is
+deleted.
 """
 
 from __future__ import annotations
