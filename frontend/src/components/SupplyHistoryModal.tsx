@@ -31,7 +31,7 @@ import { formatDateForDisplay, formatDateForInput } from '@/utils/dateUtils'
 import { FormError } from '@/components/FormError'
 import FormModalWrapper from '@/components/FormModalWrapper'
 import CurrencyInput from '@/components/common/CurrencyInput'
-import { NumberInput, Select, registerDecimal } from '@/components/ui'
+import { Badge, NumberInput, Select, registerDecimal } from '@/components/ui'
 import type { Supply } from '@/types/supplies'
 import type { AddressBookEntry } from '@/types/addressBook'
 import type { components } from '@/types/api.generated'
@@ -128,6 +128,9 @@ function SupplyHistoryModal({ supply, onClose, initialForm }: SupplyHistoryModal
                 )
               )}
             </div>
+          )}
+          {entries.some((entry) => entry.cost_estimated) && (
+            <p className="text-xs text-garage-text-muted mt-2">{t('supplies.estimatedHint')}</p>
           )}
         </div>
 
@@ -357,6 +360,7 @@ function UsageRow({ entry, supply, unit }: LedgerRowProps) {
           {t('supplies.history.balance')}: {formatQuantity(entry.running_balance, unit)}
           {' · '}
           {formatCurrency(entry.cost)}
+          {entry.cost_estimated && <Badge tone="muted" className="ml-1.5">{t('supplies.estimated')}</Badge>}
           {isJob && entry.service_visit_date && (
             <>
               {' · '}

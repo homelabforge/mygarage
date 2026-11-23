@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { AlertTriangle, Package } from 'lucide-react'
-import { Card, Mono, EmptyState } from '@/components/ui'
+import { Badge, Card, Mono, EmptyState } from '@/components/ui'
 import { getActionErrorMessage } from '@/utils/httpErrorHandler'
 import { useVehicleSupplyUsages } from '@/hooks/queries/useSupplies'
 import { useCurrencyPreference } from '@/hooks/useCurrencyPreference'
@@ -88,7 +88,10 @@ export default function SuppliesUsedTab({ vin }: SuppliesUsedTabProps) {
               </div>
 
               <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                <Mono size="sm">{formatCurrency(usage.cost_snapshot)}</Mono>
+                <span className="flex items-center gap-2">
+                  {usage.cost_estimated && <Badge tone="muted">{t('supplies.estimated')}</Badge>}
+                  <Mono size="sm">{formatCurrency(usage.cost_snapshot)}</Mono>
+                </span>
                 {usage.service_visit_id != null && (
                   <Link
                     to={`/vehicles/${vin}?tab=service`}
@@ -101,6 +104,9 @@ export default function SuppliesUsedTab({ vin }: SuppliesUsedTabProps) {
             </Card>
           ))}
         </div>
+      )}
+      {usages.some((usage) => usage.cost_estimated) && (
+        <p className="text-xs text-text-mute mt-3">{t('supplies.estimatedHint')}</p>
       )}
     </div>
   )

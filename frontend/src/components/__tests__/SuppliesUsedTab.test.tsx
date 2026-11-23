@@ -85,6 +85,25 @@ describe('SuppliesUsedTab', () => {
     expect(screen.getByText(/4\.5/)).toBeInTheDocument()
   })
 
+  it('marks a cost the server flagged as an estimate, and says why (#307)', () => {
+    useVehicleSupplyUsagesMock.mockReturnValue({
+      data: { usages: [{ ...mockUsages[0], cost_estimated: true }, mockUsages[1]], total: 2 },
+      isLoading: false,
+      error: null,
+    })
+    render(<SuppliesUsedTab vin="1HGCM82633A004352" />)
+
+    expect(screen.getAllByText('supplies.estimated')).toHaveLength(1)
+    expect(screen.getByText('$22.50').parentElement).toHaveTextContent('supplies.estimated')
+    expect(screen.getByText('supplies.estimatedHint')).toBeInTheDocument()
+  })
+
+  it('marks nothing when no cost is an estimate (regression control)', () => {
+    render(<SuppliesUsedTab vin="1HGCM82633A004352" />)
+    expect(screen.queryByText('supplies.estimated')).not.toBeInTheDocument()
+    expect(screen.queryByText('supplies.estimatedHint')).not.toBeInTheDocument()
+  })
+
   it('links a usage with a service_visit_id to the service tab, guards rows without one', () => {
     render(<SuppliesUsedTab vin="1HGCM82633A004352" />)
 

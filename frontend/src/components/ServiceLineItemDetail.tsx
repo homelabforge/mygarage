@@ -5,7 +5,7 @@ import { Calendar, ExternalLink, Gauge, Store } from 'lucide-react'
 import type { ServiceVisit, ServiceLineItem } from '../types/serviceVisit'
 import FormModalWrapper from './FormModalWrapper'
 import LineItemLinkChips from './LineItemLinkChips'
-import { Button, Chip, Mono } from './ui'
+import { Badge, Button, Chip, Mono } from './ui'
 import { formatDateForDisplay } from '../utils/dateUtils'
 import { formatCurrency } from '../utils/formatUtils'
 import { useCurrencyPreference } from '../hooks/useCurrencyPreference'
@@ -142,11 +142,15 @@ export default function ServiceLineItemDetail({
                         {formatSupplyQuantity(Number(usage.quantity), supplyDisplayUnit(usage, system), locale)}
                       </Mono>
                       <Mono size="sm">{usage.cost_snapshot != null ? fmt(Number(usage.cost_snapshot)) : '-'}</Mono>
+                      {usage.cost_estimated && <Badge tone="muted">{t('common:supplies.estimated')}</Badge>}
                     </span>
                   </Link>
                 </li>
               ))}
             </ul>
+          )}
+          {usages.some((usage) => usage.cost_estimated) && (
+            <p className="text-xs text-text-mute">{t('common:supplies.estimatedHint')}</p>
           )}
         </section>
 
