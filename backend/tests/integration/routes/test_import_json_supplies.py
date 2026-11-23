@@ -1140,6 +1140,75 @@ async def test_a_use_elsewhere_takes_the_stored_usage_with_its_own_figures(
     assert await _balance(db_session, copy_id) == Decimal("8")
 
 
+async def test_a_use_elsewhere_takes_its_exact_twin_over_a_lower_id_estimate(
+    client: AsyncClient,
+    auth_headers,
+    db_session: AsyncSession,
+    new_vehicle,
+):
+    name = f"Jug {_tag()}"
+    a, b = await new_vehicle(), await new_vehicle()
+    # Same day, description and quantity. The shared jug's use is an estimate
+    # and comes first, so it gets the lower id when B is restored.
+    shared = Supply(name=name, unit_type="count")
+    ours = Supply(name=name, unit_type="count", vin=a)
+    job = ServiceVisit(vin=b, date=date(2026, 3, 1), service_category="Maintenance")
+    db_session.add_all([shared, ours, job])
+    await db_session.flush()
+    items = [ServiceLineItem(visit_id=job.id, description="Job") for _ in range(2)]
+    db_session.add_all(items)
+    await db_session.flush()
+    db_session.add_all(
+        [
+            SupplyPurchase(supply_id=shared.id, date=date(2026, 2, 1), quantity=Decimal("5")),
+            SupplyPurchase(supply_id=ours.id, date=date(2026, 2, 1), quantity=Decimal("10")),
+        ]
+    )
+    estimate = (Decimal("2"), Decimal("2.2500"), Decimal("4.50"), True)
+    exact = (*_TARGET, False)
+    for item, supply, (quantity, unit_cost, cost, estimated) in (
+        (items[0], shared, estimate),
+        (items[1], ours, exact),
+    ):
+        db_session.add(
+            SupplyUsage(
+                supply_id=supply.id,
+                service_line_item_id=item.id,
+                quantity=quantity,
+                unit_cost_snapshot=unit_cost,
+                cost_snapshot=cost,
+                cost_estimated=estimated,
+            )
+        )
+        await db_session.flush()
+    await db_session.commit()
+    shared_id = shared.id
+    backup_a = await export_json(client, auth_headers, a)
+    backup_b = await export_json(client, auth_headers, b)
+
+    await _start_over(db_session, a, b)
+    await import_json(client, auth_headers, b, backup_b)
+    data = await import_json(client, auth_headers, a, backup_a)
+    assert (data["errors"], data["warnings"]) == ([], [])
+
+    [_shared, copy_id] = await _supply_ids(db_session, name)
+    figures = (
+        SupplyUsage.quantity,
+        SupplyUsage.unit_cost_snapshot,
+        SupplyUsage.cost_snapshot,
+        SupplyUsage.cost_estimated,
+    )
+    # dbed8dd2: the lower-id estimate moved to A's jug and the exact twin stayed.
+    assert (
+        await db_session.execute(select(*figures).where(SupplyUsage.supply_id == copy_id))
+    ).all() == [exact]
+    assert (
+        await db_session.execute(select(*figures).where(SupplyUsage.supply_id == shared_id))
+    ).all() == [estimate]
+    assert await _balance(db_session, copy_id) == Decimal("8")
+    assert await _balance(db_session, shared_id) == Decimal("3")
+
+
 async def test_a_genuine_adjustment_with_the_jobs_day_and_figures_is_never_taken(
     client: AsyncClient, auth_headers, db_session: AsyncSession, new_vehicle
 ):

@@ -19,7 +19,7 @@ from typing import Any, Literal, get_args
 
 from fastapi import HTTPException
 from pydantic import Field
-from sqlalchemy import ColumnElement, and_, exists, func, or_, select, update
+from sqlalchemy import ColumnElement, and_, case, exists, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
@@ -410,19 +410,15 @@ async def _place_used_elsewhere(db: AsyncSession, pinned: PinnedSupply, use: Use
     # A use exported with no cost may be priced since (#301), and an estimate
     # moves when it settles (#307): either side estimated takes any price, as
     # `_usages_match` does (D7). A move keeps the stored snapshot.
-    at_its_price = (
-        [
-            or_(
-                SupplyUsage.cost_estimated.is_(True),
-                and_(
-                    _same_figure(SupplyUsage.unit_cost_snapshot, use.unit_cost_snapshot),
-                    _same_figure(SupplyUsage.cost_snapshot, use.cost_snapshot),
-                ),
-            )
-        ]
-        if use.cost_snapshot is not None and not use.cost_estimated
-        else []
+    priced = use.cost_snapshot is not None and not use.cost_estimated
+    exact = and_(
+        _same_figure(SupplyUsage.unit_cost_snapshot, use.unit_cost_snapshot),
+        _same_figure(SupplyUsage.cost_snapshot, use.cost_snapshot),
     )
+    at_its_price = [or_(SupplyUsage.cost_estimated.is_(True), exact)] if priced else []
+    # An exact twin beats an estimate on the same item, or a lower-id estimate
+    # would take the move and strand the real match on the shared supply.
+    exact_first = [case((exact, 0), else_=1)] if priced else []
     # Shared only: nothing else is pinned here yet, and a supply pinned to
     # another vehicle is a different supply (K12). A moved one leaves the pool.
     usage_id = (
@@ -438,7 +434,7 @@ async def _place_used_elsewhere(db: AsyncSession, pinned: PinnedSupply, use: Use
                 _same_figure(SupplyUsage.quantity, use.quantity),
                 *at_its_price,
             )
-            .order_by(SupplyUsage.id)
+            .order_by(*exact_first, SupplyUsage.id)
             .limit(1)
         )
     ).scalar_one_or_none()
