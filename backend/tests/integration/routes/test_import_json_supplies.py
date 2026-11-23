@@ -2108,6 +2108,7 @@ async def _usage_rows(
 
 
 async def _pinned_copy(db_session: AsyncSession, vin: str) -> int:
+    """The id of the one supply pinned to `vin`."""
     [copy_id] = (
         (await db_session.execute(select(Supply.id).where(Supply.vin == vin))).scalars().all()
     )
@@ -2115,6 +2116,7 @@ async def _pinned_copy(db_session: AsyncSession, vin: str) -> int:
 
 
 async def _visit_count(db_session: AsyncSession, vin: str) -> int:
+    """How many service visits `vin` has."""
     return (
         await db_session.execute(
             select(func.count()).select_from(ServiceVisit).where(ServiceVisit.vin == vin)
