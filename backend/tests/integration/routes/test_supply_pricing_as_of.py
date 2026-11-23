@@ -190,3 +190,40 @@ async def test_both_responses_carry_the_flag(
     r = await client.get(f"/api/vehicles/{vin}/supply-usages", headers=auth_headers)
     assert r.status_code == 200, r.text
     assert [u["cost_estimated"] for u in r.json()["usages"]] == [True]
+
+
+# ---- the snapshot at save time ----------------------------------------------
+
+
+async def test_a_visit_saved_after_only_later_receipts_is_flagged(
+    client: AsyncClient, auth_headers, own_vehicle: Vehicle, db_session: AsyncSession
+):
+    """The snapshot at save time follows the same rule as the pricers."""
+    vin = own_vehicle.vin
+    sid = await _supply(client, auth_headers)
+    await _buy(client, auth_headers, sid, JUNE_2026, "37.45")
+    visit = await _visit(client, auth_headers, vin, VISIT_DAY, sid)
+    await _expect(client, auth_headers, db_session, vin, visit, "37.45", True, "109.69")
+
+
+async def test_a_purchase_on_or_before_the_visit_is_not_an_estimate(
+    client: AsyncClient, auth_headers, own_vehicle: Vehicle, db_session: AsyncSession
+):
+    vin = own_vehicle.vin
+    sid = await _supply(client, auth_headers)
+    await _buy(client, auth_headers, sid, JULY_2025, "30.00")
+    visit = await _visit(client, auth_headers, vin, VISIT_DAY, sid)
+    await _expect(client, auth_headers, db_session, vin, visit, "30.00", False, "102.24")
+    assert await _history_flags(client, auth_headers, sid) == [False]
+
+
+async def test_a_visit_saved_between_two_receipts_prices_as_of_its_date(
+    client: AsyncClient, auth_headers, own_vehicle: Vehicle, db_session: AsyncSession
+):
+    """The June receipt is after the visit, so only July's counts: 30.00, not 33.73."""
+    vin = own_vehicle.vin
+    sid = await _supply(client, auth_headers)
+    await _buy(client, auth_headers, sid, JULY_2025, "30.00")
+    await _buy(client, auth_headers, sid, JUNE_2026, "37.45")
+    visit = await _visit(client, auth_headers, vin, VISIT_DAY, sid)
+    await _expect(client, auth_headers, db_session, vin, visit, "30.00", False, "102.24")

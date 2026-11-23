@@ -1,5 +1,6 @@
 """Service visit business logic service layer."""
 
+import datetime as dt
 import logging
 from collections.abc import Mapping, Sequence
 
@@ -401,7 +402,9 @@ class ServiceVisitService:
         # Pass 3: sync supply usages for each created line item
         for item_data, line_item in created_items:
             if item_data.supplies_used:
-                await self._sync_line_item_supplies(line_item, item_data.supplies_used, vin)
+                await self._sync_line_item_supplies(
+                    line_item, item_data.supplies_used, vin, visit.date
+                )
 
         # Always recompute total_cost from line items + supplies + fees (denormalized cache)
         await self._recompute_visit_total(visit.id)
@@ -556,7 +559,9 @@ class ServiceVisitService:
                         # Omitted = keep (G1-D5): an API client that leaves the
                         # field out must not delete the item's usages. [] clears.
                         if "supplies_used" in sent:
-                            await self._sync_line_item_supplies(row, item_data.supplies_used, vin)
+                            await self._sync_line_item_supplies(
+                                row, item_data.supplies_used, vin, visit.date
+                            )
                         # Skip one the visit's CHECK would refuse.
                         if is_service_category(row.category):
                             effective_cats.append(row.category)
@@ -620,7 +625,9 @@ class ServiceVisitService:
                 )
 
                 for item_data, line_item in new_items:
-                    await self._sync_line_item_supplies(line_item, item_data.supplies_used, vin)
+                    await self._sync_line_item_supplies(
+                        line_item, item_data.supplies_used, vin, visit.date
+                    )
                     if item_data.reminder:
                         await maintenance_service.create_reminder_for_line_item(
                             self.db, vin, line_item, visit, item_data.reminder
@@ -901,7 +908,9 @@ class ServiceVisitService:
                 )
 
             if item_data.supplies_used:
-                await self._sync_line_item_supplies(line_item, item_data.supplies_used, vin)
+                await self._sync_line_item_supplies(
+                    line_item, item_data.supplies_used, vin, visit.date
+                )
 
             # Recompute total_cost (denormalized cache)
             await self.price_and_recompute_visit_total(visit.id)
@@ -1103,6 +1112,7 @@ class ServiceVisitService:
         line_item: ServiceLineItem,
         supplies_used: Sequence[SupplyUsageInput] | None,
         vin: str,
+        visit_date: dt.date,
     ) -> None:
         """Diff a line item's supply usages by supply_id — PRESERVE frozen snapshots.
 
@@ -1112,7 +1122,10 @@ class ServiceVisitService:
           - supply_id present before AND now → keep the row (id, created_at). If only
             the quantity changed, RETAIN the original unit_cost_snapshot and recompute
             cost_snapshot = unit_cost_snapshot × new_quantity (cost stays frozen).
-          - supply_id newly added → validate active/pinned NOW + snapshot current avg.
+          - supply_id newly added → validate active/pinned NOW + snapshot the price as
+            of `visit_date` (the visit's date as this write leaves it), flagged
+            when it's the all-time fallback (#307).
+          A kept row keeps its unit and its flag through a quantity change.
           - supply_id removed → delete the row.
         Only NEW associations are validated, so editing an unrelated field on a
         historical visit never fails because a supply was archived/repinned since.
@@ -1163,10 +1176,10 @@ class ServiceVisitService:
                     prior.cost_snapshot = cost
                 # fully unchanged → leave the row (and its created_at) untouched
             else:
-                # New association: validate + snapshot at current average cost.
+                # New association: validate + snapshot as of the visit's date.
                 await supply_service.get_supply_for_use(u.supply_id, vin)  # 400 if not usable
-                unit_cost, cost = await supply_service.create_usage_snapshot(
-                    u.supply_id, u.quantity
+                unit_cost, cost, estimated = await supply_service.create_usage_snapshot(
+                    u.supply_id, u.quantity, as_of=visit_date
                 )
                 self.db.add(
                     SupplyUsage(
@@ -1174,6 +1187,7 @@ class ServiceVisitService:
                         quantity=u.quantity,
                         unit_cost_snapshot=unit_cost,
                         cost_snapshot=cost,
+                        cost_estimated=estimated,
                         service_line_item_id=line_item.id,
                     )
                 )

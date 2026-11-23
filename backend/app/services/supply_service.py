@@ -5,6 +5,8 @@ so editing or deleting a purchase / job self-heals the balance.
 """
 
 import logging
+from collections.abc import Sequence
+from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
 
 from fastapi import HTTPException
@@ -57,6 +59,39 @@ def usage_cost(unit_cost: Decimal, quantity: Decimal) -> Decimal:
     """A usage's cost: unit cost times quantity, to the cent, half up. The one rounding
     every server path stores, and the one the editor's estimate mirrors."""
     return (unit_cost * quantity).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+
+#: A usage's (unit cost, estimated) as of its visit's date. Estimated means no
+#: costed purchase on or before that day existed, so the unit is the all-time
+#: average (#307).
+AsOfPrice = tuple[Decimal, bool]
+
+#: One costed purchase of a supply: (date, quantity, total_cost).
+CostedPurchase = tuple[date, Decimal, Decimal]
+
+
+def _average(purchases: Sequence[CostedPurchase]) -> Decimal | None:
+    """Σ cost / Σ quantity at 4 places, half up, as every average rounds. None with no quantity."""
+    cost = sum((c for _, _, c in purchases), _ZERO)
+    qty = sum((q for _, q, _ in purchases), _ZERO)
+    if qty <= 0:
+        return None
+    return (cost / qty).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP)
+
+
+def as_of_price(purchases: Sequence[CostedPurchase], as_of: date) -> AsOfPrice | None:
+    """A usage's price as of `as_of` from its supply's costed purchases, or None.
+
+    The average of the purchases dated on or before `as_of`; with none, the
+    all-time average, estimated. None with no costed purchase at all. Migration
+    163 prices stranded rows with the same rule, so the two must agree.
+    """
+    on_or_before = [p for p in purchases if p[0] <= as_of]
+    unit = _average(on_or_before) if on_or_before else None
+    if unit is not None:
+        return unit, False
+    fallback = _average(purchases)
+    return None if fallback is None else (fallback, True)
 
 
 def usage_price(
@@ -164,6 +199,36 @@ class SupplyService:
         """Current weighted average unit cost for each of several supplies."""
         balances = await self._compute_balances(supply_ids)
         return {sid: avg for sid, (_on_hand, avg) in balances.items()}
+
+    async def _as_of_prices(
+        self, supply_ids: Sequence[int], as_of: date
+    ) -> dict[int, AsOfPrice | None]:
+        """{supply_id: its price as of `as_of`} (see ``as_of_price``)."""
+        if not supply_ids:
+            return {}
+        rows = await self.db.execute(
+            select(
+                SupplyPurchase.supply_id,
+                SupplyPurchase.date,
+                SupplyPurchase.quantity,
+                SupplyPurchase.total_cost,
+            ).where(SupplyPurchase.supply_id.in_(supply_ids))
+        )
+        costed: dict[int, list[CostedPurchase]] = {sid: [] for sid in supply_ids}
+        for sid, day, quantity, total_cost in rows.all():
+            if total_cost is not None:  # an uncosted purchase is in no average
+                costed[sid].append((day, quantity, total_cost))
+        return {sid: as_of_price(purchases, as_of) for sid, purchases in costed.items()}
+
+    async def as_of_unit_cost(self, supply_id: int, as_of: date) -> AsOfPrice | None:
+        """One supply's price as of a visit's date (for a new usage's snapshot)."""
+        return (await self._as_of_prices([supply_id], as_of))[supply_id]
+
+    async def as_of_unit_costs(
+        self, supply_ids: Sequence[int], as_of: date
+    ) -> dict[int, AsOfPrice | None]:
+        """Several supplies' prices as of one visit's date (for the visit pricer)."""
+        return await self._as_of_prices(supply_ids, as_of)
 
     def _to_supply_response(
         self, supply: Supply, on_hand: Decimal, avg: Decimal | None
@@ -370,9 +435,14 @@ class SupplyService:
     # ---- usages / adjustments ----------------------------------------------
 
     async def create_usage_snapshot(
-        self, supply_id: int, quantity: Decimal
-    ) -> tuple[Decimal | None, Decimal | None]:
-        """Freeze (unit_cost, cost) for a usage from the supply's current avg cost.
+        self, supply_id: int, quantity: Decimal, as_of: date | None
+    ) -> tuple[Decimal | None, Decimal | None, bool]:
+        """Freeze (unit_cost, cost, estimated) for a new usage.
+
+        `as_of` is the visit's date: the price as of that day, else the all-time
+        average flagged as an estimate (#307). None, for a standalone adjustment,
+        is the current average and never an estimate. No costed purchase at all
+        is (None, None, False).
 
         Both are computed, so both are checked against their columns here: a
         huge purchase over a tiny quantity makes a unit cost no column holds.
@@ -380,13 +450,17 @@ class SupplyService:
         # Held to commit: a purchase landing between this read and the usage's
         # commit would price before the usage exists and leave it unpriced (#301).
         await self._lock_supply(supply_id, exclusive=False)
-        avg = await self.compute_avg_unit_cost(supply_id)
-        if avg is None:
-            return None, None
-        ensure_fits(avg, f"The unit cost of supply {supply_id}", UNIT_COST_MAX)
-        cost = usage_cost(avg, quantity)
+        if as_of is None:
+            unit, estimated = await self.compute_avg_unit_cost(supply_id), False
+        else:
+            found = await self.as_of_unit_cost(supply_id, as_of)
+            unit, estimated = found if found is not None else (None, False)
+        if unit is None:
+            return None, None, False
+        ensure_fits(unit, f"The unit cost of supply {supply_id}", UNIT_COST_MAX)
+        cost = usage_cost(unit, quantity)
         ensure_fits(cost, usage_cost_subject(supply_id))
-        return avg, cost
+        return unit, cost, estimated
 
     async def _lock_supply(self, supply_id: int, *, exclusive: bool) -> None:
         """Lock the supply's row to commit: shared for a usage, exclusive for a purchase.
@@ -405,7 +479,10 @@ class SupplyService:
         self, supply_id: int, data: SupplyAdjustmentCreate, current_user: User | None
     ) -> SupplyUsage:
         await self.get_supply(supply_id)
-        unit_cost, cost = await self.create_usage_snapshot(supply_id, data.quantity)
+        # No visit, no date to price as of: today's average, never an estimate.
+        unit_cost, cost, _estimated = await self.create_usage_snapshot(
+            supply_id, data.quantity, as_of=None
+        )
         usage = SupplyUsage(
             supply_id=supply_id,
             quantity=data.quantity,
