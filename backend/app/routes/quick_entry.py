@@ -11,9 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models.user import User
 from app.models.vehicle import Vehicle
-from app.models.vehicle_share import VehicleShare
 from app.schemas.vehicle import LenientUsageUnit, LenientVehicleType
-from app.services.auth import require_auth
+from app.services.auth import require_auth, writable_vehicles_filter
 from app.utils.unit_resolution import LenientDistanceUnit
 
 logger = logging.getLogger(__name__)
@@ -56,51 +55,18 @@ async def list_quick_entry_vehicles(
 ) -> QuickEntryVehicleList:
     """Return writable, non-archived vehicles for the Quick Entry page.
 
-    Returns vehicles the current user:
-    - Owns (user_id matches), OR
-    - Has write-share access to
-
-    Excludes archived vehicles in both cases.
-
-    When auth is disabled (``auth_mode='none'`` — ``require_auth`` returns
-    ``None``), there is no user to scope to, so all non-archived vehicles are
-    returned, matching ``VehicleService.list_vehicles``.
+    Quick Entry only writes, so the rule is `writable_vehicles_filter`: an admin
+    (and `auth_mode='none'`, where ``require_auth`` returns ``None``) gets every
+    vehicle, anyone else what they own plus what is write-shared to them.
+    Archived vehicles are left out either way.
     """
-    if current_user is None:
-        all_result = await db.execute(select(Vehicle).where(Vehicle.archived_at.is_(None)))
-        all_vehicles = list(all_result.scalars().all())
-    else:
-        # Owned, non-archived vehicles
-        owned_result = await db.execute(
-            select(Vehicle).where(
-                Vehicle.user_id == current_user.id,
-                Vehicle.archived_at.is_(None),
-            )
-        )
-        owned = list(owned_result.scalars().all())
+    query = select(Vehicle).where(Vehicle.archived_at.is_(None))
+    scope = writable_vehicles_filter(current_user)
+    if scope is not None:
+        query = query.where(scope)
+    all_vehicles = (await db.execute(query)).scalars().all()
 
-        # Write-shared, non-archived vehicles (exclude already-owned to avoid duplicates)
-        owned_vins = {v.vin for v in owned}
-        shared_query = (
-            select(Vehicle)
-            .join(
-                VehicleShare,
-                VehicleShare.vehicle_vin == Vehicle.vin,
-            )
-            .where(
-                VehicleShare.user_id == current_user.id,
-                VehicleShare.permission == "write",
-                Vehicle.archived_at.is_(None),
-            )
-        )
-        if owned_vins:
-            shared_query = shared_query.where(Vehicle.vin.not_in(owned_vins))
-        shared_result = await db.execute(shared_query)
-        shared = list(shared_result.scalars().all())
-
-        all_vehicles = owned + shared
-
-    result = []
+    result: list[QuickEntryVehicle] = []
     for vehicle in all_vehicles:
         thumbnail_url: str | None = None
         if vehicle.main_photo:

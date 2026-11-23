@@ -3,7 +3,8 @@
 Covers:
 - PUT /auth/me: preference updates (show_both, mobile_quick_entry)
 - PUT /auth/me: rejects is_active and is_admin self-escalation
-- GET /quick-entry/vehicles: returns owned and write-shared vehicles
+- GET /quick-entry/vehicles: an admin gets every non-archived vehicle; anyone
+  else gets owned and write-shared ones
 - Service visit write: 403 for read-only shared vehicle
 - Odometer write: 403 for read-only shared vehicle
 
@@ -318,6 +319,58 @@ class TestQuickEntryVehicles:
         assert test_vehicle["vin"] in listed
         assert vins[0] in listed
         assert vins[1] not in listed
+
+    async def test_admin_sees_unowned_vehicle(self, client: AsyncClient, auth_headers, db_session):
+        """#308: a vehicle created under auth_mode=none has no owner. The admin
+        can open it everywhere else, so Quick Entry must list it too."""
+        vin = "QEADMINUNOWNED001"
+        await self._add_vehicle(db_session, vin, None)
+        await db_session.commit()
+        try:
+            listed = await self._vins(client, auth_headers)
+        finally:
+            await self._cleanup(db_session, [vin])
+
+        assert vin in listed
+
+    async def test_admin_sees_other_users_vehicle(
+        self, client: AsyncClient, auth_headers, test_vehicle, db_session
+    ):
+        """An admin can write to every vehicle, so Quick Entry lists another
+        user's unshared vehicle beside the admin's own."""
+        vin = "QEADMINOTHER00001"
+        other_id = await self._add_user(db_session, "qe_admin_other")
+        await self._add_vehicle(db_session, vin, other_id)
+        await db_session.commit()
+        try:
+            listed = await self._vins(client, auth_headers)
+        finally:
+            await self._cleanup(db_session, [vin], [other_id])
+
+        assert vin in listed
+        assert test_vehicle["vin"] in listed
+
+    async def test_admin_excludes_archived_vehicles(
+        self, client: AsyncClient, auth_headers, test_user, db_session
+    ):
+        """Seeing everything still stops at archived, owned by the admin or not."""
+        live, archived_unowned, archived_own = (
+            "QEADMINLIVE000001",
+            "QEADMINARCHIVED01",
+            "QEADMINARCHIVED02",
+        )
+        await self._add_vehicle(db_session, live, None)
+        await self._add_vehicle(db_session, archived_unowned, None, archived=True)
+        await self._add_vehicle(db_session, archived_own, test_user["id"], archived=True)
+        await db_session.commit()
+        try:
+            listed = await self._vins(client, auth_headers)
+        finally:
+            await self._cleanup(db_session, [live, archived_unowned, archived_own])
+
+        assert live in listed
+        assert archived_unowned not in listed
+        assert archived_own not in listed
 
     async def test_non_admin_sees_owned_vehicles(
         self, client: AsyncClient, non_admin_headers, non_admin_user, db_session
