@@ -310,8 +310,6 @@
     "title": "Страхові поліси"
   },
   "lineItemEditor": {
-    "cost": "Вартість робіт / сервісу",
-    "partsCost": "Запчастини та матеріали: {{amount}}",
     "notes": "Нотатки"
   },
   "livelink": {
@@ -546,7 +544,6 @@
       "cost": "Вартість",
       "noSupplies": "Для цієї послуги витратні матеріали не записано.",
       "openSupply": "Відкрити {{name}} у витратних матеріалах",
-      "parts": "Запчастини та матеріали",
       "supplies": "Використані матеріали",
       "viewDetails": "Детальніше: {{name}}"
     },
@@ -556,7 +553,6 @@
     "noRecordsDesc": "Кнопка відсутності записів",
     "searchPlaceholder": "Пошук...",
     "serviceCount": "{{count}} послуг",
-    "partsCost": "Запчастини {{amount}}",
     "servicesPerformed": "Виконані послуги",
     "shopSupplies": "Матеріали майстерні",
     "showingResults": "Показано {{shown}} з {{total}} візитів",

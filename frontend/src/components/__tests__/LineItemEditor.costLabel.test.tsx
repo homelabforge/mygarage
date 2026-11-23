@@ -100,13 +100,14 @@ describe('line cost copy (English)', () => {
     expect(at(en('forms'), 'service.suppliesTotal')).toBe('Supplies')
   })
 
-  it('drops the labor-only keys nothing reads any more', () => {
+  it('drops the labor-only and parts keys nothing reads any more', () => {
     const vehicles = en('vehicles')
     expect(at(vehicles, 'serviceList.laborCost')).toBeUndefined()
     expect(at(vehicles, 'serviceList.detail.labor')).toBeUndefined()
-  })
-
-  it('leaves the old key alone, so the 8 translated locales do not change meaning (regression control)', () => {
-    expect(at(en('vehicles'), 'lineItemEditor.cost')).toBe('Labor / shop cost')
+    expect(at(vehicles, 'lineItemEditor.cost')).toBeUndefined()
+    expect(at(vehicles, 'lineItemEditor.partsCost')).toBeUndefined()
+    expect(at(vehicles, 'serviceList.partsCost')).toBeUndefined()
+    expect(at(vehicles, 'serviceList.detail.parts')).toBeUndefined()
+    expect(at(en('forms'), 'service.partsSupplies')).toBeUndefined()
   })
 })

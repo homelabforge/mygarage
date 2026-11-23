@@ -652,9 +652,7 @@
     "loadAction": "load insurance policies"
   },
   "lineItemEditor": {
-    "cost": "Labor / shop cost",
     "costPartsLabor": "Cost (parts + labor)",
-    "partsCost": "Parts & supplies: {{amount}}",
     "suppliesCost": "Supplies: {{amount}}",
     "notes": "Notes",
     "misc": {
@@ -1195,7 +1193,6 @@
       "partsLabor": "Parts + labor",
       "noSupplies": "No supplies recorded for this service.",
       "openSupply": "Open {{name}} in Supplies",
-      "parts": "Parts & supplies",
       "supplies": "Supplies used",
       "suppliesCost": "Supplies",
       "viewDetails": "View details for {{name}}"
@@ -1207,7 +1204,6 @@
     "noRecordsDesc": "Start tracking your vehicle's maintenance and repairs",
     "searchPlaceholder": "Search services...",
     "serviceCount": "{{count}} services",
-    "partsCost": "Parts {{amount}}",
     "suppliesCost": "Supplies {{amount}}",
     "po": "PO #",
     "servicesPerformed": "Services Performed",

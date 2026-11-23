@@ -614,8 +614,6 @@
     "loadAction": "caricare le polizze assicurative"
   },
   "lineItemEditor": {
-    "cost": "Costo manodopera / officina",
-    "partsCost": "Ricambi e scorte: {{amount}}",
     "notes": "Note",
     "misc": {
       "lineItem": "Voce {{number}}",
@@ -1093,7 +1091,6 @@
       "cost": "Costo",
       "noSupplies": "Nessuna scorta registrata per questo intervento.",
       "openSupply": "Apri {{name}} in Scorte",
-      "parts": "Ricambi e scorte",
       "supplies": "Scorte utilizzate",
       "viewDetails": "Visualizza dettagli di {{name}}"
     },
@@ -1103,7 +1100,6 @@
     "noRecordsDesc": "Inizia a monitorare la manutenzione e le riparazioni del tuo veicolo",
     "searchPlaceholder": "Cerca servizi...",
     "serviceCount": "{{count}} servizi",
-    "partsCost": "Ricambi {{amount}}",
     "servicesPerformed": "Servizi eseguiti",
     "shopSupplies": "Materiali d'officina",
     "showingResults": "Visualizzazione di {{shown}} su {{total}} visite",

@@ -581,8 +581,6 @@
     "loadAction": "de charger les polices d’assurance"
   },
   "lineItemEditor": {
-    "cost": "Coût main-d’œuvre / atelier",
-    "partsCost": "Pièces et fournitures : {{amount}}",
     "notes": "Notes",
     "misc": {
       "lineItem": "Ligne {{number}}",
@@ -1095,7 +1093,6 @@
       "cost": "Coût",
       "noSupplies": "Aucune fourniture enregistrée pour cette intervention.",
       "openSupply": "Ouvrir {{name}} dans Fournitures",
-      "parts": "Pièces et fournitures",
       "supplies": "Fournitures utilisées",
       "viewDetails": "Voir les détails de {{name}}"
     },
@@ -1105,7 +1102,6 @@
     "noRecordsDesc": "Commencez à suivre l’entretien et les réparations de votre véhicule",
     "searchPlaceholder": "Rechercher des services…",
     "serviceCount": "{{count}} service(s)",
-    "partsCost": "Pièces {{amount}}",
     "servicesPerformed": "Services effectués",
     "shopSupplies": "Fournitures d’atelier",
     "showingResults": "Affichage de {{shown}} sur {{total}} interventions",

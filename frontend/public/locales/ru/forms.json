@@ -816,7 +816,6 @@
     "lineItemCostInvalid": "Позиция {{number}}: введите число в поле стоимости",
     "lineItemCostNegative": "Позиция {{number}}: стоимость не может быть отрицательной",
     "lineItemCostTooLarge": "Позиция {{number}}: слишком большая стоимость",
-    "partsSupplies": "Запчасти/расходники",
     "reminderIntervalTooSmall": "Позиция {{number}}: интервал напоминания должен быть не меньше 1",
     "saveAction": "сохранить визит на сервис",
     "suppliesAddRow": "Добавить расходник",
