@@ -506,6 +506,13 @@ class SupplyService:
         ensure_fits(cost, usage_cost_subject(supply_id))
         return unit, cost, estimated
 
+    async def hold_prices(self, supply_ids: Sequence[int]) -> None:
+        """Lock the supplies' rows shared to commit, in id order, before reading
+        their prices for a write: a purchase of one waits for this commit, and
+        the pricing after it then sees what this transaction wrote."""
+        for supply_id in sorted(supply_ids):
+            await self._lock_supply(supply_id, exclusive=False)
+
     async def _lock_supply(self, supply_id: int, *, exclusive: bool) -> None:
         """Lock the supply's row to commit: shared for a usage, exclusive for a purchase.
 

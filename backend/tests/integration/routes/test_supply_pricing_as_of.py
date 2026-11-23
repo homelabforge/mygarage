@@ -31,6 +31,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.service_visit import ServiceVisit
 from app.models.supply import SupplyPurchase, SupplyUsage
 from app.models.vehicle import Vehicle
+from app.schemas._money import MONEY_MAX
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio, pytest.mark.supplies]
 
@@ -398,3 +399,173 @@ async def test_a_later_receipt_locks_no_vehicle_with_an_unresolvable_estimate(
     # And one that can settle it does.
     await _buy(client, auth_headers, sid, JULY_2025, "30.00")
     assert vin in locked
+
+
+# ---- visit date changes (F-1) -------------------------------------------------
+
+
+async def test_f1_order_visit_saved_today_then_backdated(
+    client: AsyncClient, auth_headers, own_vehicle: Vehicle, db_session: AsyncSession
+):
+    """June receipt, the visit saved with a recent date, the date corrected,
+    then the July receipt entered."""
+    vin = own_vehicle.vin
+    sid = await _supply(client, auth_headers)
+    await _buy(client, auth_headers, sid, JUNE_2026, "37.45")
+    visit = await _visit(client, auth_headers, vin, "2026-11-17", sid)
+    await _expect(client, auth_headers, db_session, vin, visit, "37.45", False, "109.69")
+
+    r = await _move(client, auth_headers, vin, visit, VISIT_DAY)
+    assert r.status_code == 200, r.text
+    await _expect(client, auth_headers, db_session, vin, visit, "37.45", True, "109.69")
+
+    await _buy(client, auth_headers, sid, JULY_2025, "30.00")
+    await _expect(client, auth_headers, db_session, vin, visit, "30.00", False, "102.24")
+
+
+async def _both_purchases(client: AsyncClient, headers: dict[str, str]) -> int:
+    sid = await _supply(client, headers)
+    await _buy(client, headers, sid, JULY_2025, "30.00")
+    await _buy(client, headers, sid, JUNE_2026, "37.45")
+    return sid
+
+
+@pytest.mark.parametrize(
+    ("start", "moved_to", "cost", "total"),
+    [
+        # Later, past the June receipt: both count now, 67.45 over 10.
+        (VISIT_DAY, "2026-07-01", "33.73", "105.97"),
+        # Later, onto the June receipt's own day: it counts.
+        (VISIT_DAY, JUNE_2026, "33.73", "105.97"),
+        # Earlier, back before the June receipt.
+        ("2026-07-01", VISIT_DAY, "30.00", "102.24"),
+        # Earlier, from the June receipt's own day.
+        (JUNE_2026, VISIT_DAY, "30.00", "102.24"),
+    ],
+    ids=["later", "later-onto-purchase-day", "earlier", "earlier-from-purchase-day"],
+)
+async def test_moving_the_date_past_a_purchase_reprices(
+    client: AsyncClient,
+    auth_headers,
+    own_vehicle: Vehicle,
+    db_session: AsyncSession,
+    start: str,
+    moved_to: str,
+    cost: str,
+    total: str,
+):
+    vin = own_vehicle.vin
+    sid = await _both_purchases(client, auth_headers)
+    visit = await _visit(client, auth_headers, vin, start, sid)
+    r = await _move(client, auth_headers, vin, visit, moved_to)
+    assert r.status_code == 200, r.text
+    await _expect(client, auth_headers, db_session, vin, visit, cost, False, total)
+
+
+async def test_a_date_edit_clears_the_flag_at_the_same_price(
+    client: AsyncClient, auth_headers, own_vehicle: Vehicle, db_session: AsyncSession
+):
+    """Saved before the only receipt: the fallback is that receipt's price.
+    Moved past it, the same price is now a real one."""
+    vin = own_vehicle.vin
+    sid = await _supply(client, auth_headers)
+    await _buy(client, auth_headers, sid, JULY_2025, "30.00")
+    visit = await _visit(client, auth_headers, vin, "2025-07-01", sid)
+    await _expect(client, auth_headers, db_session, vin, visit, "30.00", True, "102.24")
+    r = await _move(client, auth_headers, vin, visit, VISIT_DAY)
+    assert r.status_code == 200, r.text
+    await _expect(client, auth_headers, db_session, vin, visit, "30.00", False, "102.24")
+
+
+async def test_a_date_edit_that_changes_no_purchase_set_leaves_the_row(
+    client: AsyncClient, auth_headers, own_vehicle: Vehicle, db_session: AsyncSession
+):
+    """Half-open: a purchase on the earlier of the two dates was on/before both.
+    An imported unit of 5.00 shows whether the row was touched."""
+    vin = own_vehicle.vin
+    sid = await _supply(client, auth_headers)
+    await _buy(client, auth_headers, sid, JULY_2025, "30.00")
+    visit = await _visit(client, auth_headers, vin, JULY_2025, sid)
+    db_session.expire_all()
+    await db_session.execute(
+        update(SupplyUsage)
+        .where(SupplyUsage.supply_id == sid)
+        .values(unit_cost_snapshot=Decimal("5.0000"), cost_snapshot=Decimal("25.00"))
+    )
+    await db_session.execute(
+        update(ServiceVisit).where(ServiceVisit.id == visit).values(total_cost=Decimal("97.24"))
+    )
+    await db_session.commit()
+    r = await _move(client, auth_headers, vin, visit, VISIT_DAY)
+    assert r.status_code == 200, r.text
+    await _expect(client, auth_headers, db_session, vin, visit, "25.00", False, "97.24")
+
+
+async def test_a_date_edit_reprices_an_imported_unit(
+    client: AsyncClient, auth_headers, own_vehicle: Vehicle, db_session: AsyncSession
+):
+    """N-2: a row carrying a file's own unit is re-priced like any other."""
+    vin = own_vehicle.vin
+    sid = await _both_purchases(client, auth_headers)
+    visit = await _visit(client, auth_headers, vin, VISIT_DAY, sid)
+    db_session.expire_all()
+    await db_session.execute(
+        update(SupplyUsage)
+        .where(SupplyUsage.supply_id == sid)
+        .values(unit_cost_snapshot=Decimal("5.0000"), cost_snapshot=Decimal("25.00"))
+    )
+    await db_session.commit()
+    r = await _move(client, auth_headers, vin, visit, "2026-07-01")
+    assert r.status_code == 200, r.text
+    await _expect(client, auth_headers, db_session, vin, visit, "33.73", False, "105.97")
+
+
+async def test_an_overflowing_date_repricing_refuses_the_edit(
+    client: AsyncClient, auth_headers, own_vehicle: Vehicle, db_session: AsyncSession
+):
+    """N-2: part of the edit, so the PUT is a 422 and the date stays put."""
+    vin = own_vehicle.vin
+    sid = await _both_purchases(client, auth_headers)
+    labour = str(MONEY_MAX - Decimal("31.00"))
+    visit = await _visit(client, auth_headers, vin, VISIT_DAY, sid, labour=labour)
+    r = await _move(client, auth_headers, vin, visit, "2026-07-01")  # 33.73 > 31.00
+    assert r.status_code == 422, r.text
+    r = await client.get(f"/api/vehicles/{vin}/service-visits/{visit}", headers=auth_headers)
+    assert r.json()["date"] == VISIT_DAY
+    seen = await _seen(client, auth_headers, db_session, vin, visit)
+    assert (seen.cost, seen.estimated) == (Decimal("30.00"), False)
+
+
+async def test_a_date_edit_reprices_at_the_quantity_sent_with_it(
+    client: AsyncClient, auth_headers, own_vehicle: Vehicle, db_session: AsyncSession
+):
+    """The re-price runs after the item sync, so it prices the new quantity."""
+    vin = own_vehicle.vin
+    sid = await _both_purchases(client, auth_headers)
+    visit = await _visit(client, auth_headers, vin, VISIT_DAY, sid)
+    item = (await _get(client, auth_headers, vin, visit))["line_items"][0]
+    r = await client.put(
+        f"/api/vehicles/{vin}/service-visits/{visit}",
+        json={
+            "date": "2026-07-01",
+            "line_items": [
+                {
+                    "id": item["id"],
+                    "description": item["description"],
+                    "supplies_used": [{"supply_id": sid, "quantity": "4"}],
+                }
+            ],
+        },
+        headers=auth_headers,
+    )
+    assert r.status_code == 200, r.text
+    # 4 at 6.745 = 26.98
+    await _expect(client, auth_headers, db_session, vin, visit, "26.98", False, "99.22")
+
+
+async def _get(
+    client: AsyncClient, headers: dict[str, str], vin: str, visit_id: int
+) -> dict[str, Any]:
+    r = await client.get(f"/api/vehicles/{vin}/service-visits/{visit_id}", headers=headers)
+    assert r.status_code == 200, r.text
+    return r.json()

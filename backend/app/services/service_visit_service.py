@@ -13,8 +13,9 @@ from sqlalchemy.orm import joinedload, selectinload
 from app.constants.service_vocab import ServiceCategory, is_service_category
 from app.models.service_line_item import ServiceLineItem
 from app.models.service_visit import ServiceVisit
-from app.models.supply import SupplyUsage
+from app.models.supply import SupplyPurchase, SupplyUsage
 from app.models.user import User
+from app.schemas._money import UNIT_COST_MAX
 from app.schemas.service_visit import (
     FLAGGED_LINKS,
     LinkedRecall,
@@ -644,6 +645,12 @@ class ServiceVisitService:
                     self.db, [(rid, visit.date) for rid in linked_before if rid is not None]
                 )
 
+            # A new date can change which purchases count for each usage's
+            # price (#307). After the item sync, so it sees every usage the
+            # visit keeps at its new quantity.
+            if visit.date != old_date:
+                await self._reprice_for_new_date(visit_id, old_date, visit.date)
+
             # Always recompute total_cost from line items + supplies + fees (denormalized cache)
             await self.db.flush()
             await self.price_and_recompute_visit_total(visit_id)
@@ -1080,6 +1087,81 @@ class ServiceVisitService:
             logger.info(
                 "Left visit %s's supplies unpriced: %s", visit_id, sanitize_for_log(e.detail)
             )
+
+    async def _reprice_for_new_date(
+        self, visit_id: int, old_date: dt.date, new_date: dt.date
+    ) -> None:
+        """Re-price the visit's usages whose purchases on or before it changed
+        with its date (#307). Vehicle lock held, no commit.
+
+        A usage is re-priced, estimated or not, frozen, imported or from before
+        3.11.3, when a costed purchase of its supply is dated in
+        (min(old, new), max(old, new)]: exactly when the set dated on or before
+        the visit changed. Otherwise it's left alone. It takes the price as of
+        the new date, else the all-time fallback, flagged. An explicit date
+        edit is the user asking for it, and nothing else tells those rows apart.
+
+        Part of the edit, not the pricer's savepoint: a unit or cost that won't
+        fit is a 422 and the date change is refused with it. In the savepoint a
+        rollback would keep the new date and lose the re-price for good.
+        """
+        low, high = sorted((old_date, new_date))
+        await self.db.flush()
+        supply_ids = (
+            (
+                await self.db.execute(
+                    select(SupplyUsage.supply_id)
+                    .join(ServiceLineItem, SupplyUsage.service_line_item_id == ServiceLineItem.id)
+                    .where(ServiceLineItem.visit_id == visit_id)
+                    .distinct()
+                )
+            )
+            .scalars()
+            .all()
+        )
+        if not supply_ids:
+            return
+        supplies = SupplyService(self.db)
+        # Before the read: a purchase racing this edit lands after its commit,
+        # and the pricing after that purchase sees the new date.
+        await supplies.hold_prices(supply_ids)
+        moved_between = (
+            select(SupplyPurchase.id)
+            .where(
+                SupplyPurchase.supply_id == SupplyUsage.supply_id,
+                SupplyPurchase.total_cost.isnot(None),
+                SupplyPurchase.date > low,
+                SupplyPurchase.date <= high,
+            )
+            .exists()
+        )
+        usages = (
+            (
+                await self.db.execute(
+                    select(SupplyUsage)
+                    .join(ServiceLineItem, SupplyUsage.service_line_item_id == ServiceLineItem.id)
+                    .where(ServiceLineItem.visit_id == visit_id, moved_between)
+                    .order_by(SupplyUsage.id)
+                    .execution_options(populate_existing=True)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        if not usages:
+            return
+        found = await supplies.as_of_unit_costs(sorted({u.supply_id for u in usages}), new_date)
+        for usage in usages:
+            price = found.get(usage.supply_id)
+            if price is None:
+                continue  # only with no costed quantity, which the range test rules out
+            unit, estimated = price
+            ensure_fits(unit, f"The unit cost of supply {usage.supply_id}", UNIT_COST_MAX)
+            cost = usage_cost(unit, usage.quantity)
+            ensure_fits(cost, usage_cost_subject(usage.supply_id))
+            usage.unit_cost_snapshot, usage.cost_snapshot = unit, cost
+            usage.cost_estimated = estimated
+        await self.db.flush()
 
     async def _reload_visit_full(self, visit_id: int) -> ServiceVisit:
         """Reload a visit with line_items → supply_usages eager-loaded — just

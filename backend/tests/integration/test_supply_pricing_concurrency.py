@@ -265,3 +265,66 @@ async def test_a_usage_logged_as_the_first_cost_lands_is_priced(
             await db.execute(delete(SupplyPurchase).where(SupplyPurchase.supply_id == jug_id))
             await db.execute(delete(Supply).where(Supply.id == jug_id))
             await db.commit()
+
+
+async def test_a_purchase_racing_a_date_change_settles_the_usage(
+    seeded: Seeded, test_sessionmaker, monkeypatch: pytest.MonkeyPatch
+):
+    """#307: the visit is priced from a later receipt, then its date moves back
+    before it while a costed purchase dated before the new date lands. The
+    edit re-prices to an estimate and is held after its own pricing pass,
+    before it commits; the purchase lands in that hold. Its pricing must see
+    the edit's estimate, or the edit must see the purchase: otherwise the usage
+    keeps an estimate that purchase should have settled."""
+    async with test_sessionmaker() as db:
+        user = await db.get(User, seeded.user.id)
+        await SupplyService(db).add_purchase(
+            seeded.supply_id,
+            SupplyPurchaseCreate(
+                date=date(2026, 6, 2), quantity=Decimal("5"), total_cost=Decimal("37.45")
+            ),
+            user,
+        )
+        await supply_pricing.price_after_purchase(db, seeded.supply_id, seeded.user.id)
+    assert (await _state(test_sessionmaker, seeded))[:2] == (Decimal("7.4900"), Decimal("37.45"))
+
+    original = ServiceVisitService.price_unsettled_on_visit
+
+    async def slow(self: ServiceVisitService, visit_id: int) -> None:
+        await original(self, visit_id)
+        await asyncio.sleep(0.5)
+
+    monkeypatch.setattr(ServiceVisitService, "price_unsettled_on_visit", slow)
+
+    async def move() -> None:
+        async with test_sessionmaker() as db:
+            user = await db.get(User, seeded.user.id)
+            await ServiceVisitService(db).update_service_visit(
+                seeded.vin, seeded.visit_id, ServiceVisitUpdate(date=date(2025, 7, 17)), user
+            )
+
+    async def buy() -> None:
+        await asyncio.sleep(0.2)  # inside the edit's hold
+        async with test_sessionmaker() as db:
+            user = await db.get(User, seeded.user.id)
+            await SupplyService(db).add_purchase(
+                seeded.supply_id,
+                SupplyPurchaseCreate(
+                    date=date(2025, 7, 10), quantity=Decimal("5"), total_cost=Decimal("30.00")
+                ),
+                user,
+            )
+            await supply_pricing.price_after_purchase(db, seeded.supply_id, seeded.user.id)
+
+    await asyncio.gather(move(), buy())
+    async with test_sessionmaker() as db:
+        usage = (
+            await db.execute(select(SupplyUsage).where(SupplyUsage.supply_id == seeded.supply_id))
+        ).scalar_one()
+        assert (usage.unit_cost_snapshot, usage.cost_snapshot, usage.cost_estimated) == (
+            Decimal("6.0000"),
+            Decimal("30.00"),
+            False,
+        )
+    *_, stored, fresh = await _state(test_sessionmaker, seeded)
+    assert stored == fresh == Decimal("40.00")
