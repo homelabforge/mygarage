@@ -62,11 +62,6 @@ function grown(base: Sides, sides: (keyof Sides)[]): Sides {
 }
 
 /**
- * A right-anchored drawer only reaches the left inset when it starts inside it,
- * so its extra left padding is just the overlap: the inset minus the gap
- * between the screen's left edge and the panel.
- */
-/**
  * The slide-in class flips at once and the panel takes a moment to land
  * (Tailwind v4 animates `translate`, not `transform`). Settled means no
  * animation left and the right edge on the viewport's.
@@ -83,6 +78,11 @@ async function settled(drawer: Locator): Promise<void> {
     .toEqual({ running: 0, gap: 0 })
 }
 
+/**
+ * A right-anchored drawer only reaches the left inset when it starts inside it,
+ * so its extra left padding is just the overlap: the inset minus the gap
+ * between the screen's left edge and the panel.
+ */
 async function expectLeftOverlapOnly(drawer: Locator, inset: number): Promise<number> {
   const box = await drawer.boundingBox()
   expect(box).not.toBeNull()
