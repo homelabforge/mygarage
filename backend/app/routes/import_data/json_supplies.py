@@ -50,7 +50,7 @@ from app.routes.import_data._families import (
     within_figure_bounds,
 )
 from app.routes.import_data._matching import _matches, _same_figure, _text_matches
-from app.routes.import_data._service import usage_counts
+from app.routes.import_data._service import UsageCounts, UsageEntry, usage_counts
 from app.schemas._money import UNIT_COST_MAX, OptionalMoney
 from app.schemas.supply import (
     SupplyAdjustmentCreate,
@@ -397,13 +397,20 @@ async def _place_used_elsewhere(db: AsyncSession, pinned: PinnedSupply, use: Use
         ServiceLineItem.description == use.description,
         *([_same_figure(ServiceLineItem.cost, use.item_cost)] if use.has_item_cost else []),
     ]
-    # A use exported with no cost may be priced since (#301): any price.
+    # A use exported with no cost may be priced since (#301), and an estimate
+    # moves when it settles (#307): either side estimated takes any price, as
+    # `_usages_match` does (D7). A move keeps the stored snapshot.
     at_its_price = (
         [
-            _same_figure(SupplyUsage.unit_cost_snapshot, use.unit_cost_snapshot),
-            _same_figure(SupplyUsage.cost_snapshot, use.cost_snapshot),
+            or_(
+                SupplyUsage.cost_estimated.is_(True),
+                and_(
+                    _same_figure(SupplyUsage.unit_cost_snapshot, use.unit_cost_snapshot),
+                    _same_figure(SupplyUsage.cost_snapshot, use.cost_snapshot),
+                ),
+            )
         ]
-        if use.cost_snapshot is not None
+        if use.cost_snapshot is not None and not use.cost_estimated
         else []
     )
     # Shared only: nothing else is pinned here yet, and a supply pinned to
@@ -530,9 +537,9 @@ def file_supply_key(file_supplies: list[Any], ref: int | SupplyKey) -> SupplyKey
 
 def line_item_usage_counts(
     position: int, usages: list[LineItemUsage], file_supplies: list[Any]
-) -> frozenset[tuple[tuple[Any, ...], int]]:
+) -> UsageCounts:
     """A file line item's `usage_counts`, each usage named by its supply's key."""
-    entries: list[tuple[str, str | None, str, Decimal | None, Decimal | None, Decimal | None]] = []
+    entries: list[UsageEntry] = []
     for k, usage in enumerate(usages):
         try:
             key = file_supply_key(file_supplies, usage.ref)
@@ -546,6 +553,7 @@ def line_item_usage_counts(
                 usage.quantity,
                 usage.unit_cost_snapshot,
                 usage.cost_snapshot,
+                usage.cost_estimated,
             )
         )
     return usage_counts(entries)

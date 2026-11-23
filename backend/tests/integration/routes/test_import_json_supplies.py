@@ -2242,3 +2242,104 @@ async def test_a_restored_use_elsewhere_keeps_its_estimate(
     # 10f6e9d7: False, the use came back frozen at its estimate.
     assert await _usage_rows(db_session, await _pinned_copy(db_session, a)) == [_ESTIMATE]
     assert await _visit_count(db_session, b) == 1
+
+
+async def test_a_file_price_over_a_stored_estimate_is_the_same_visit(
+    client: AsyncClient, auth_headers, db_session: AsyncSession, new_vehicle
+):
+    vin = await new_vehicle()
+    ids = await _july_oil(db_session, vin, vin, settled=True)
+    backup = await export_json(client, auth_headers, vin)
+    # Deleting the July receipt puts the stored usage back on the June
+    # estimate; the file still says 30.00, frozen.
+    await db_session.execute(
+        delete(SupplyPurchase).where(
+            SupplyPurchase.supply_id == ids["oil"], SupplyPurchase.date == date(2025, 7, 1)
+        )
+    )
+    await db_session.execute(
+        update(SupplyUsage)
+        .where(SupplyUsage.id == ids["usage"])
+        .values(
+            unit_cost_snapshot=Decimal("7.4900"),
+            cost_snapshot=Decimal("37.45"),
+            cost_estimated=True,
+        )
+    )
+    await db_session.commit()
+
+    data = await import_json(client, auth_headers, vin, backup)
+
+    assert data["errors"] == []
+    # 10f6e9d7: (1, 0), 30.00 missed the stored 37.45, so a second visit took 5 more.
+    assert (
+        data["service_records"]["success_count"],
+        data["service_records"]["skipped_count"],
+    ) == (0, 1)
+    assert await _visit_count(db_session, vin) == 1
+    # The stored row stays as it was: the file's price doesn't win.
+    assert await _usage_rows(db_session, ids["oil"]) == [_ESTIMATE]
+
+
+async def test_reimporting_an_estimate_that_settled_since_is_the_same_visit(
+    client: AsyncClient, auth_headers, db_session: AsyncSession, new_vehicle
+):
+    vin = await new_vehicle()
+    ids = await _july_oil(db_session, vin, vin, settled=False)
+    backup = await export_json(client, auth_headers, vin)
+    # The July receipt goes in after the backup, and the estimate settles.
+    await _settle(db_session, ids)
+
+    data = await import_json(client, auth_headers, vin, backup)
+
+    assert data["errors"] == []
+    # 10f6e9d7: (1, 0), the file's 37.45 missed the settled 30.00.
+    assert (
+        data["service_records"]["success_count"],
+        data["service_records"]["skipped_count"],
+    ) == (0, 1)
+    assert await _visit_count(db_session, vin) == 1
+    # The newer, stored price.
+    assert await _usage_rows(db_session, ids["oil"]) == [_SETTLED]
+
+
+@pytest.mark.parametrize("estimated_in", ["a", "b"], ids=["a-estimated", "b-estimated"])
+@pytest.mark.parametrize("order", ["a-then-b", "b-then-a"])
+async def test_a_use_elsewhere_restores_once_whichever_file_has_the_estimate(
+    client: AsyncClient,
+    auth_headers,
+    db_session: AsyncSession,
+    new_vehicle,
+    estimated_in: str,
+    order: str,
+):
+    # One file was taken while the use was an estimate, the other after the
+    # July receipt settled it, so the two disagree on its price.
+    a, b = await new_vehicle(), await new_vehicle()
+    ids = await _july_oil(db_session, a, b, settled=False)
+    early = await export_json(client, auth_headers, a if estimated_in == "a" else b)
+    await _settle(db_session, ids)
+    late = await export_json(client, auth_headers, b if estimated_in == "a" else a)
+    backups = {"a": early, "b": late} if estimated_in == "a" else {"a": late, "b": early}
+    name = ids["name"]
+
+    await _start_over(db_session, a, b)
+    vins = {"a": a, "b": b}
+    first, second = order.split("-then-")
+    first_data = await import_json(client, auth_headers, vins[first], backups[first])
+    second_data = await import_json(client, auth_headers, vins[second], backups[second])
+
+    if order == "a-then-b":
+        # B isn't here yet, so A's restore can't count the use; B's restores it.
+        assert first_data["warnings"] == [_not_counted(name, "5", b, "2025-07-17")]
+    else:
+        # B's use lands on a bare shared oil until A's restore moves it over.
+        assert first_data["warnings"] == [_added(name)]
+    assert first_data["errors"] == []
+    # 10f6e9d7, b-then-a: A's use missed B's at the other price and wasn't counted.
+    assert (second_data["errors"], second_data["warnings"]) == ([], [])
+    copy_id = await _pinned_copy(db_session, a)
+    # Either way one use, settled on the July purchase once both are here.
+    # 10f6e9d7, b-estimated a-then-b: 37.45, B's estimate came in frozen.
+    assert await _usage_rows(db_session, copy_id) == [_SETTLED]
+    assert await _visit_count(db_session, b) == 1
