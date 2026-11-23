@@ -2435,6 +2435,80 @@ async def test_reimporting_an_estimate_that_settled_since_is_the_same_visit(
     assert await _usage_rows(db_session, ids["oil"]) == [_SETTLED]
 
 
+async def test_reimporting_same_day_twins_after_an_estimate_settles_adds_nothing(
+    client: AsyncClient, auth_headers, db_session: AsyncSession, new_vehicle
+):
+    """R1-H2: two same-day visits that differ only in what their oil cost.
+
+    The lower id is frozen at 30.00 and the higher one is an estimate. If the
+    file lists the estimate first, it takes the lowest id at any price and the
+    frozen visit has nothing left to match, so it imports a second time.
+    """
+    vin = await new_vehicle()
+    name = f"Oil {_tag()}"
+    oil = Supply(name=name, unit_type="count", vin=vin)
+    db_session.add(oil)
+    await db_session.flush()
+    db_session.add(
+        SupplyPurchase(
+            supply_id=oil.id,
+            date=date(2026, 6, 1),
+            quantity=Decimal("10"),
+            total_cost=Decimal("74.90"),
+        )
+    )
+    for unit, cost, estimated in (_SETTLED, _ESTIMATE):
+        visit = ServiceVisit(
+            vin=vin,
+            date=date(2025, 7, 17),
+            service_category="Maintenance",
+            total_cost=Decimal("20.00") + cost,
+        )
+        db_session.add(visit)
+        await db_session.flush()
+        item = ServiceLineItem(visit_id=visit.id, description="Oil change", cost=Decimal("20.00"))
+        db_session.add(item)
+        await db_session.flush()
+        db_session.add(
+            SupplyUsage(
+                supply_id=oil.id,
+                service_line_item_id=item.id,
+                quantity=Decimal("5"),
+                unit_cost_snapshot=unit,
+                cost_snapshot=cost,
+                cost_estimated=estimated,
+            )
+        )
+        await db_session.flush()
+    await db_session.commit()
+    oil_id = oil.id
+    backup = await export_json(client, auth_headers, vin)
+    # A receipt before the visit goes in after the backup, and the estimate
+    # settles on it at 25.00. The frozen 30.00 doesn't move.
+    r = await client.post(
+        f"/api/supplies/{oil_id}/purchases",
+        json={"date": "2025-07-01", "quantity": "5", "total_cost": "25.00"},
+        headers=auth_headers,
+    )
+    assert r.status_code == 201, r.text
+    settled = [_SETTLED, (Decimal("5.0000"), Decimal("25.00"), False)]
+    assert await _usage_rows(db_session, oil_id) == settled
+    balance = await _balance(db_session, oil_id)
+
+    data = await import_json(client, auth_headers, vin, backup)
+
+    assert data["errors"] == []
+    # dbed8dd2: (1, 1), the file's estimate took the 30.00 visit and the
+    # file's 30.00 visit came in again.
+    assert (
+        data["service_records"]["success_count"],
+        data["service_records"]["skipped_count"],
+    ) == (0, 2)
+    assert await _visit_count(db_session, vin) == 2
+    assert await _usage_rows(db_session, oil_id) == settled
+    assert await _balance(db_session, oil_id) == balance
+
+
 @pytest.mark.parametrize("estimated_in", ["a", "b"], ids=["a-estimated", "b-estimated"])
 @pytest.mark.parametrize("order", ["a-then-b", "b-then-a"])
 async def test_a_use_elsewhere_restores_once_whichever_file_has_the_estimate(

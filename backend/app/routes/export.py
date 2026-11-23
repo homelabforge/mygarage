@@ -558,7 +558,9 @@ async def export_service_records_csv(
         select(ServiceVisit)
         .where(ServiceVisit.vin == vin)
         .options(*_SERVICE_VISIT_EXPORT_LOADS)
-        .order_by(ServiceVisit.date.desc())
+        # A day's visits in id order, so same-day twins pair up with the
+        # stored ones on a re-import (R1-H2).
+        .order_by(ServiceVisit.date.desc(), ServiceVisit.id)
     )
     visits = result.scalars().all()
 
@@ -1240,7 +1242,9 @@ async def export_vehicle_json(
         select(ServiceVisit)
         .where(ServiceVisit.vin == vin)
         .options(*_SERVICE_VISIT_JSON_LOADS)
-        .order_by(ServiceVisit.date.desc())
+        # Same-day visits in id order. The duplicate check takes the lowest
+        # unspent id, so an estimate listed first could steal a frozen twin's match.
+        .order_by(ServiceVisit.date.desc(), ServiceVisit.id)
     )
     service_visits = service_result.scalars().all()
 
