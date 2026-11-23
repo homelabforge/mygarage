@@ -58,9 +58,14 @@ async def list_quick_entry_vehicles(
     Quick Entry only writes, so the rule is `writable_vehicles_filter`: an admin
     (and `auth_mode='none'`, where ``require_auth`` returns ``None``) gets every
     vehicle, anyone else what they own plus what is write-shared to them.
-    Archived vehicles are left out either way.
+    Archived vehicles are left out either way. Sorted like the garage page
+    (`VehicleService.list_vehicles`) so the picker reads the same.
     """
-    query = select(Vehicle).where(Vehicle.archived_at.is_(None))
+    query = (
+        select(Vehicle)
+        .where(Vehicle.archived_at.is_(None))
+        .order_by(Vehicle.created_at.desc(), Vehicle.vin)
+    )
     scope = writable_vehicles_filter(current_user)
     if scope is not None:
         query = query.where(scope)

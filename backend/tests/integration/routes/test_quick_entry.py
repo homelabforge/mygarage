@@ -239,20 +239,23 @@ class TestQuickEntryVehicles:
         user_id: int | None,
         *,
         archived: bool = False,
+        created_at: datetime | None = None,
     ) -> None:
         """Add a bare vehicle. `user_id=None` is a vehicle created under auth_mode=none."""
-        db_session.add(
-            Vehicle(
-                vin=vin,
-                user_id=user_id,
-                nickname=f"QE {vin[-4:]}",
-                vehicle_type="Car",
-                year=2020,
-                make="Test",
-                model="Car",
-                archived_at=datetime.now(UTC) if archived else None,
-            )
+        vehicle = Vehicle(
+            vin=vin,
+            user_id=user_id,
+            nickname=f"QE {vin[-4:]}",
+            vehicle_type="Car",
+            year=2020,
+            make="Test",
+            model="Car",
+            archived_at=datetime.now(UTC) if archived else None,
         )
+        # Only when asked: an explicit None would skip the server default.
+        if created_at is not None:
+            vehicle.created_at = created_at
+        db_session.add(vehicle)
         await db_session.flush()
 
     async def _cleanup(
@@ -375,6 +378,34 @@ class TestQuickEntryVehicles:
         assert live in listed
         assert archived_unowned not in listed
         assert archived_own not in listed
+
+    async def test_lists_newest_first_like_the_garage(
+        self, client: AsyncClient, auth_headers, db_session
+    ):
+        """The picker uses the garage page's order: newest first, vin breaking a
+        created_at tie (`VehicleService.list_vehicles`).
+
+        Inserted oldest first and the tie in reverse vin order, so the old
+        unsorted query (insertion order) gets every position wrong.
+        """
+        old, tie_b, tie_a, new = (
+            "QEORDEROLD0000001",
+            "QEORDERTIE000000B",
+            "QEORDERTIE000000A",
+            "QEORDERNEW0000001",
+        )
+        await self._add_vehicle(db_session, old, None, created_at=datetime(2019, 1, 1))
+        await self._add_vehicle(db_session, tie_b, None, created_at=datetime(2020, 6, 1))
+        await self._add_vehicle(db_session, tie_a, None, created_at=datetime(2020, 6, 1))
+        await self._add_vehicle(db_session, new, None, created_at=datetime(2022, 1, 1))
+        await db_session.commit()
+        try:
+            listed = await self._vins(client, auth_headers)
+        finally:
+            await self._cleanup(db_session, [old, tie_b, tie_a, new])
+
+        ours = [vin for vin in listed if vin.startswith("QEORDER")]
+        assert ours == [new, tie_a, tie_b, old]
 
     async def test_non_admin_sees_owned_vehicles(
         self, client: AsyncClient, non_admin_headers, non_admin_user, db_session
