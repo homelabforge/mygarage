@@ -421,6 +421,7 @@ export default function LineItemEditor({
               value={item.supplies_used ?? []}
               onChange={(next) => onChange(index, 'supplies_used', next)}
               disabled={disabled}
+              showOwnStockHint={index === 0}
             />
           </div>
 

@@ -20,6 +20,8 @@ interface SupplyUsedPickerProps {
   // the parent's own lookup hasn't resolved yet would silently vanish from the
   // submit payload (mapSuppliesUsedForSubmit can't convert what it can't find).
   supplies: Supply[]
+  // Where supplies come from, said once per visit: the first line item shows it.
+  showOwnStockHint?: boolean
   // ServiceVisitForm's pinned unit per supply. Labels read the same map submit
   // converts with, so they can't disagree.
   unitsBySupplyId: Map<number, SupplyUnit>
@@ -76,6 +78,7 @@ export default function SupplyUsedPicker({
   supplies,
   unitsBySupplyId,
   disabled = false,
+  showOwnStockHint = false,
 }: SupplyUsedPickerProps) {
   const { t } = useTranslation('forms')
   const suppliesById = new Map(supplies.map((s) => [s.id, s]))
@@ -124,7 +127,7 @@ export default function SupplyUsedPicker({
           {t('service.suppliesAddRow')}
         </button>
       </div>
-      <p className="text-xs text-garage-text-muted">{t('service.suppliesOwnStockHint')}</p>
+      {showOwnStockHint && <p className="text-xs text-garage-text-muted">{t('service.suppliesOwnStockHint')}</p>}
 
       {value.length === 0 ? (
         <p className="text-xs text-garage-text-muted">{t('service.suppliesNone')}</p>

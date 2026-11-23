@@ -75,6 +75,12 @@ describe('LineItemEditor line cost says parts and labor', () => {
     expect(within(picker).getByText('service.suppliesOwnStockHint')).toBeInTheDocument()
   })
 
+  it('leaves the hint to the first line item', () => {
+    renderEditor({ index: 1 })
+    expect(screen.getByText('service.suppliesUsed')).toBeInTheDocument()
+    expect(screen.queryByText('service.suppliesOwnStockHint')).not.toBeInTheDocument()
+  })
+
   it('captions the supplies under the cost as Supplies, not Parts', () => {
     renderEditor({ partsCost: 9.52 })
     expect(screen.getByText('lineItemEditor.suppliesCost')).toBeInTheDocument()

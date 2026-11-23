@@ -361,6 +361,17 @@ describe('ServiceVisitForm — supplies used (Task 17)', () => {
       expect(lineItem?.supplies_used.map((u) => u.supply_id)).toContain(2)
     })
 
+    it('says where supplies come from once per visit, not under every line item', async () => {
+      const line = MOCK_VISIT.line_items[0]
+      const threeLines: ServiceVisit = {
+        ...MOCK_VISIT,
+        line_items: [501, 502, 503].map((id) => ({ ...line, id, supply_usages: [] })),
+      }
+      render(<ServiceVisitForm {...DEFAULT_PROPS} visit={threeLines} />)
+      await waitFor(() => expect(screen.getAllByText('service.suppliesUsed')).toHaveLength(3))
+      expect(screen.getAllByText('service.suppliesOwnStockHint')).toHaveLength(1)
+    })
+
     // #301: the estimate is what the save will store, not today's average.
     const visitWithUsage = (usage: { quantity: string; cost_snapshot: string | null; unit_cost_snapshot: string | null; cost_estimated?: boolean }): ServiceVisit => ({
       ...MOCK_VISIT,
