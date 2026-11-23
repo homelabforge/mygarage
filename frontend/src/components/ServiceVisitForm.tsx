@@ -1050,6 +1050,8 @@ function ServiceVisitForm({
                 {t('service.addItem')}
               </Button>
             </div>
+            {/* Said once for the whole visit, so collapsing or deleting an item can't hide it. */}
+            <p className="text-xs text-garage-text-muted">{t('service.suppliesOwnStockHint')}</p>
 
             <div className="space-y-3">
               {formData.line_items.map((item, index) => (

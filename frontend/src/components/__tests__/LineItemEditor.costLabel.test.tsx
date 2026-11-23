@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { screen, within } from '@testing-library/react'
+import { screen } from '@testing-library/react'
 import { render } from '../../__tests__/test-utils'
 import type { ServiceVisitFormLineItem } from '../../types/serviceVisit'
 
@@ -37,11 +37,11 @@ const item: ServiceVisitFormLineItem = {
   supplies_used: [],
 }
 
-function renderEditor({ index = 0, partsCost = 0 }: { index?: number; partsCost?: number } = {}): void {
+function renderEditor({ partsCost = 0 }: { partsCost?: number } = {}): void {
   render(
     <LineItemEditor
       item={item}
-      index={index}
+      index={0}
       partsCost={partsCost}
       vin="V1"
       supplies={[]}
@@ -67,16 +67,8 @@ describe('LineItemEditor line cost says parts and labor', () => {
     expect(screen.queryByText('lineItemEditor.cost')).not.toBeInTheDocument()
   })
 
-  it('says under Supplies Used that supplies come from your own stock', () => {
+  it('leaves the own-stock hint to the visit form, even on the first line item', () => {
     renderEditor()
-    const heading = screen.getByText('service.suppliesUsed')
-    // The picker's own block: heading row, then the hint, then the rows.
-    const picker = heading.closest('div.space-y-2') as HTMLElement
-    expect(within(picker).getByText('service.suppliesOwnStockHint')).toBeInTheDocument()
-  })
-
-  it('leaves the hint to the first line item', () => {
-    renderEditor({ index: 1 })
     expect(screen.getByText('service.suppliesUsed')).toBeInTheDocument()
     expect(screen.queryByText('service.suppliesOwnStockHint')).not.toBeInTheDocument()
   })

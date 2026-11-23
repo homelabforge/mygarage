@@ -361,15 +361,40 @@ describe('ServiceVisitForm — supplies used (Task 17)', () => {
       expect(lineItem?.supplies_used.map((u) => u.supply_id)).toContain(2)
     })
 
-    it('says where supplies come from once per visit, not under every line item', async () => {
+    describe('says where supplies come from once per visit', () => {
       const line = MOCK_VISIT.line_items[0]
       const threeLines: ServiceVisit = {
         ...MOCK_VISIT,
         line_items: [501, 502, 503].map((id) => ({ ...line, id, supply_usages: [] })),
       }
-      render(<ServiceVisitForm {...DEFAULT_PROPS} visit={threeLines} />)
-      await waitFor(() => expect(screen.getAllByText('service.suppliesUsed')).toHaveLength(3))
-      expect(screen.getAllByText('service.suppliesOwnStockHint')).toHaveLength(1)
+      const hints = (): HTMLElement[] => screen.queryAllByText('service.suppliesOwnStockHint')
+      const firstRemove = (): HTMLElement => screen.getAllByTitle('lineItemEditor.misc.removeLineItem')[0]
+      const renderThree = async (): Promise<void> => {
+        render(<ServiceVisitForm {...DEFAULT_PROPS} visit={threeLines} />)
+        await waitFor(() => expect(screen.getAllByText('service.suppliesUsed')).toHaveLength(3))
+      }
+
+      it('not under every line item', async () => {
+        await renderThree()
+        expect(hints()).toHaveLength(1)
+      })
+
+      it('still there with the first line item collapsed', async () => {
+        await renderThree()
+        // The chevron is the first button in the item's header row.
+        const collapse = firstRemove().parentElement!.querySelector('button')!
+        fireEvent.click(collapse)
+        await waitFor(() => expect(screen.getAllByText('service.suppliesUsed')).toHaveLength(2))
+        // d0b0950c: 0, the hint rode inside item 1's body.
+        expect(hints()).toHaveLength(1)
+      })
+
+      it('still there with the first line item deleted', async () => {
+        await renderThree()
+        fireEvent.click(firstRemove())
+        await waitFor(() => expect(screen.getAllByText('service.suppliesUsed')).toHaveLength(2))
+        expect(hints()).toHaveLength(1)
+      })
     })
 
     // #301: the estimate is what the save will store, not today's average.
