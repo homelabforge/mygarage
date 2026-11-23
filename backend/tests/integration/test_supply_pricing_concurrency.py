@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import asyncio
 import uuid
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Sequence
 from dataclasses import dataclass, replace
 from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
@@ -37,7 +37,7 @@ from app.models.vehicle import Vehicle
 from app.schemas.service_visit import ServiceLineItemCreate, ServiceVisitUpdate
 from app.schemas.supply import SupplyPurchaseCreate, SupplyUsageInput
 from app.services.service_visit_service import ServiceVisitService
-from app.services.supply_service import SupplyService
+from app.services.supply_service import AsOfPrice, SupplyService
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
@@ -94,25 +94,25 @@ def _hold_after_the_averages(monkeypatch: pytest.MonkeyPatch) -> list[int]:
     finds nothing; without it both read unpriced and both price. A hold, not a
     barrier: the loser blocks inside the driver on the lock and would never
     reach one."""
-    original_avgs = SupplyService.avg_unit_costs
+    original_prices = SupplyService.as_of_unit_costs
 
-    async def slow(self: SupplyService, supply_ids: list[int]):
-        result = await original_avgs(self, supply_ids)
+    async def slow(self: SupplyService, supply_ids: Sequence[int], as_of: date):
+        result = await original_prices(self, supply_ids, as_of)
         await asyncio.sleep(0.5)
         return result
 
-    monkeypatch.setattr(SupplyService, "avg_unit_costs", slow)
+    monkeypatch.setattr(SupplyService, "as_of_unit_costs", slow)
 
     priced: list[int] = []
-    original_price = service_visit_service.price_unpriced_usage
+    original_price = service_visit_service.price_unsettled_usage
 
-    def counted(usage: SupplyUsage, avg: Decimal | None) -> bool:
-        did = original_price(usage, avg)
+    def counted(usage: SupplyUsage, found: AsOfPrice | None) -> bool:
+        did = original_price(usage, found)
         if did:
             priced.append(usage.id)
         return did
 
-    monkeypatch.setattr(service_visit_service, "price_unpriced_usage", counted)
+    monkeypatch.setattr(service_visit_service, "price_unsettled_usage", counted)
     return priced
 
 
@@ -215,15 +215,18 @@ async def test_a_usage_logged_as_the_first_cost_lands_is_priced(
         await db.commit()
         jug_id = jug.id
 
-    # Held after the visit's pricing pass reads the averages, its usage in.
-    original = SupplyService.avg_unit_costs
+    # Held after the visit's pricing pass reads the prices, its usage in. Not
+    # the snapshot's read (as_of_unit_cost): that one is under the supply lock.
+    original = SupplyService.as_of_unit_costs
 
-    async def slow(self: SupplyService, supply_ids: list[int]) -> dict[int, Decimal | None]:
-        avgs = await original(self, supply_ids)
+    async def slow(
+        self: SupplyService, supply_ids: Sequence[int], as_of: date
+    ) -> dict[int, AsOfPrice | None]:
+        found = await original(self, supply_ids, as_of)
         await asyncio.sleep(0.5)
-        return avgs
+        return found
 
-    monkeypatch.setattr(SupplyService, "avg_unit_costs", slow)
+    monkeypatch.setattr(SupplyService, "as_of_unit_costs", slow)
 
     async def top_up() -> None:
         async with test_sessionmaker() as db:

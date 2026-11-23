@@ -10,7 +10,7 @@ from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
 
 from fastapi import HTTPException
-from sqlalchemy import case, func, select
+from sqlalchemy import ColumnElement, SQLColumnExpression, and_, case, func, or_, select
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -112,20 +112,64 @@ def usage_price(
     return unit, cost
 
 
-def price_unpriced_usage(usage: SupplyUsage, avg: Decimal | None) -> bool:
-    """Price a usage that has no cost yet; leave a priced one alone. True if priced.
+def price_unsettled_usage(usage: SupplyUsage, found: AsOfPrice | None) -> bool:
+    """Price a usage whose price isn't settled yet; leave the rest alone. True if written.
 
-    A NULL cost means the cost was unknown when it was logged (its supply had no
-    costed purchase yet), not that it was free: a free purchase prices at 0.00.
-    A priced usage stays frozen, whatever the average does later.
+    `found` is its supply's price as of the usage's visit (``as_of_price``).
+
+    - No cost yet: priced at the first chance. A NULL cost means the cost was
+      unknown when it was logged (no costed purchase yet), not that it was
+      free: a free purchase prices at 0.00. Its own frozen unit wins if it has
+      one and isn't flagged: an imported row can carry a unit and no cost, and
+      that unit was the price at the time (#301). Otherwise `found`, flagged
+      when it's the all-time fallback (#307).
+    - An estimate settles only on a real as-of price, which clears the flag
+      even when the amount doesn't move. A later receipt never moves it, and
+      its own unit doesn't count: that unit IS the estimate.
+    - Any other priced usage is frozen, whatever the averages do later.
     """
-    if usage.cost_snapshot is not None:
+    if usage.cost_snapshot is None:
+        own = None if usage.cost_estimated else usage.unit_cost_snapshot
+        if own is not None:
+            unit, estimated = own, False
+        elif found is not None:
+            unit, estimated = found
+        else:
+            return False
+    elif usage.cost_estimated and found is not None and not found[1]:
+        unit, estimated = found[0], False
+    else:
         return False
-    price = usage_price(usage.unit_cost_snapshot, usage.quantity, avg)
+    price = usage_price(None, usage.quantity, unit)
     if price is None:
         return False
     usage.unit_cost_snapshot, usage.cost_snapshot = price
+    usage.cost_estimated = estimated
     return True
+
+
+def unsettled_usage(visit_date: SQLColumnExpression[date]) -> ColumnElement[bool]:
+    """Where-clause for the usages a pricer may write (D8), ``price_unsettled_usage``'s rule.
+
+    A usage with no cost (always priced), or an estimate that a costed
+    purchase dated on or before its visit can settle now. That second half is
+    here, not just in the rule, so a purchase that can't settle an estimate
+    doesn't walk and lock its vehicle. `visit_date` is the usage's visit's
+    date, joined in by the caller; NULL (a standalone adjustment) settles nothing.
+    """
+    settles = (
+        select(SupplyPurchase.id)
+        .where(
+            SupplyPurchase.supply_id == SupplyUsage.supply_id,
+            SupplyPurchase.total_cost.isnot(None),
+            SupplyPurchase.date <= visit_date,
+        )
+        .exists()
+    )
+    return or_(
+        SupplyUsage.cost_snapshot.is_(None),
+        and_(SupplyUsage.cost_estimated.is_(True), settles),
+    )
 
 
 class SupplyService:

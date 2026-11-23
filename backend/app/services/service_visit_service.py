@@ -32,7 +32,8 @@ from app.services import maintenance_service, recall_links
 from app.services.attachment_cleanup import purge_record_attachments, remove_attachment_files
 from app.services.supply_service import (
     SupplyService,
-    price_unpriced_usage,
+    price_unsettled_usage,
+    unsettled_usage,
     usage_cost,
     usage_cost_subject,
 )
@@ -438,8 +439,9 @@ class ServiceVisitService:
 
     async def price_and_recompute_visit_total(self, visit_id: int) -> ServiceVisit:
         """What every visit write ends with: price its supplies that had no cost
-        yet (#301), then recompute the total. Vehicle lock held, no commit."""
-        await self.price_unpriced_on_visit(visit_id)
+        yet (#301) and settle the estimates it can (#307), then recompute the
+        total. Vehicle lock held, no commit."""
+        await self.price_unsettled_on_visit(visit_id)
         return await self._recompute_visit_total(visit_id)
 
     async def update_service_visit(
@@ -1027,26 +1029,36 @@ class ServiceVisitService:
             )
             raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
-    async def price_unpriced_on_visit(self, visit_id: int) -> None:
-        """Price the visit's usages that have no cost yet, if their supply has one now (#301).
+    async def price_unsettled_on_visit(self, visit_id: int) -> None:
+        """Price the visit's usages that have no cost yet, and settle its estimates
+        that a costed purchase on or before the visit can settle now (#301, #307).
 
         Called by every visit write after its edits are flushed and before the
-        total recompute, with the vehicle lock held. The pricing runs in a
-        savepoint: if it would push the total past the money column, only the
-        pricing rolls back and the edit still saves (the caller's own recompute
-        then judges the edit alone). A priced usage is never touched.
+        total recompute, with the vehicle lock held, and by the pricing after a
+        purchase or an import. Prices are as of the visit's date
+        (``price_unsettled_usage`` has the rule). It runs in a savepoint: if it
+        would push the total past the money column, only the pricing rolls
+        back and the edit still saves (the caller's own recompute then judges
+        the edit alone). A settled usage is never touched here; a date change
+        re-prices in the edit itself (``_reprice_for_new_date``).
         """
         # Sessions don't autoflush; the edits must be in before the select, and
         # outside the savepoint so its rollback can't take them.
         await self.db.flush()
+        visit_date = (
+            await self.db.execute(select(ServiceVisit.date).where(ServiceVisit.id == visit_id))
+        ).scalar_one()
         usages = (
             (
                 await self.db.execute(
                     select(SupplyUsage)
                     .join(ServiceLineItem, SupplyUsage.service_line_item_id == ServiceLineItem.id)
-                    .where(
-                        ServiceLineItem.visit_id == visit_id, SupplyUsage.cost_snapshot.is_(None)
-                    )
+                    .join(ServiceVisit, ServiceLineItem.visit_id == ServiceVisit.id)
+                    .where(ServiceVisit.id == visit_id, unsettled_usage(ServiceVisit.date))
+                    .order_by(SupplyUsage.id)
+                    # The rule reads the row's cost and flag: the database's, not
+                    # whatever an earlier load left in the identity map (flushed above).
+                    .execution_options(populate_existing=True)
                 )
             )
             .scalars()
@@ -1054,10 +1066,12 @@ class ServiceVisitService:
         )
         if not usages:
             return
-        avgs = await SupplyService(self.db).avg_unit_costs(sorted({u.supply_id for u in usages}))
+        found = await SupplyService(self.db).as_of_unit_costs(
+            sorted({u.supply_id for u in usages}), visit_date
+        )
         try:
             async with self.db.begin_nested():
-                priced = [u for u in usages if price_unpriced_usage(u, avgs.get(u.supply_id))]
+                priced = [u for u in usages if price_unsettled_usage(u, found.get(u.supply_id))]
                 if priced:
                     await self._recompute_visit_total(visit_id)
         except HTTPException as e:
