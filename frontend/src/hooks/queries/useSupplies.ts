@@ -136,7 +136,9 @@ export function useDeletePurchase(supplyId: number) {
     mutationFn: async (purchaseId: number) => {
       await api.delete(`/supplies/${supplyId}/purchases/${purchaseId}`)
     },
-    onSuccess: () => invalidateSupplies(queryClient, supplyId),
+    // A delete re-runs the fallback for flagged visit usages, and the 204 doesn't
+    // say if anything moved, so refresh everything a costed purchase would.
+    onSuccess: () => invalidatePricedVisits(queryClient),
   })
 }
 

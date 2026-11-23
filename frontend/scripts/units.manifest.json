@@ -3544,8 +3544,8 @@
     {
       "path": "src/hooks/queries/useSupplies.ts",
       "disposition": "no unit behaviour",
-      "digest": "070b7de35e28115e36126e4d246965b2b9f3118654040c9952122c1009451a4a",
-      "reason": "no unit behaviour: dispositioned under the CORRECTED scan: every unit stem, token, quantity name and canonical field suffix this codebase uses, matched case-insensitively with NO word boundary. The earlier word-boundary version was a floor (it called AnalyticsHelpModal.tsx clean while it renders \"Average MPG:\" to every user) and it was superseded before any disposition in this file was written. This file matched NONE of them. 2026-10-03 (#191 Part B): update invalidation now also covers vehicle-supply-usages and serviceVisits so a unit PATCH refreshes its consumers; no unit behaviour. 2026-11-18 (#301): useAddPurchase also invalidates serviceVisits, vehicle-supply-usages and vehicleDetailStats, since a costed purchase prices earlier usages; no unit behaviour."
+      "digest": "e5005a86a2a8424c4a89f6ea6cee428317e70991e229d1058a2b4d800159b228",
+      "reason": "no unit behaviour: dispositioned under the CORRECTED scan: every unit stem, token, quantity name and canonical field suffix this codebase uses, matched case-insensitively with NO word boundary. The earlier word-boundary version was a floor (it called AnalyticsHelpModal.tsx clean while it renders \"Average MPG:\" to every user) and it was superseded before any disposition in this file was written. This file matched NONE of them. 2026-10-03 (#191 Part B): update invalidation now also covers vehicle-supply-usages and serviceVisits so a unit PATCH refreshes its consumers; no unit behaviour. 2026-11-18 (#301): useAddPurchase also invalidates serviceVisits, vehicle-supply-usages and vehicleDetailStats, since a costed purchase prices earlier usages; no unit behaviour. 2026-11-23 (final fix wave R1-M1): useDeletePurchase refreshes visits, usages and stats like a costed purchase, since a delete can re-price estimates. Query keys only; no unit path touched."
     },
     {
       "path": "src/hooks/queries/useTaxRecords.ts",
