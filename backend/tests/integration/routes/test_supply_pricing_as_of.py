@@ -661,3 +661,66 @@ async def test_the_purchase_hooks_respect_the_buyers_write_access(
         if stored is not None:
             await db_session.delete(stored)
         await db_session.commit()
+
+
+async def test_a_quantity_edit_keeps_an_estimate_flagged(
+    client: AsyncClient, auth_headers, own_vehicle: Vehicle, db_session: AsyncSession
+):
+    """Regression control, passing when written: a quantity edit keeps the
+    row's unit and flag, so an estimate stays one at its fallback unit. It
+    guards the unchanged quantity path. 4 at 7.49 = 29.96."""
+    vin = own_vehicle.vin
+    sid = await _supply(client, auth_headers)
+    visit = await _visit(client, auth_headers, vin, VISIT_DAY, sid)
+    await _buy(client, auth_headers, sid, JUNE_2026, "37.45")
+    await _expect(client, auth_headers, db_session, vin, visit, "37.45", True, "109.69")
+    item = (await _get(client, auth_headers, vin, visit))["line_items"][0]
+    r = await client.put(
+        f"/api/vehicles/{vin}/service-visits/{visit}",
+        json={
+            "line_items": [
+                {
+                    "id": item["id"],
+                    "description": item["description"],
+                    "supplies_used": [{"supply_id": sid, "quantity": "4"}],
+                }
+            ]
+        },
+        headers=auth_headers,
+    )
+    assert r.status_code == 200, r.text
+    await _expect(client, auth_headers, db_session, vin, visit, "29.96", True, "102.20")
+    seen = await _seen(client, auth_headers, db_session, vin, visit)
+    assert seen.unit == Decimal("7.4900")
+
+
+async def test_a_date_edit_reprices_a_frozen_row_the_pricers_never_select(
+    client: AsyncClient, auth_headers, own_vehicle: Vehicle, db_session: AsyncSession
+):
+    """Only the date path reaches this row: it has a cost and no flag, so every
+    pricer leaves it frozen. It's a pre-3.11.3 row priced date-blind at both
+    receipts (6.745, 33.73) on a visit before the June one.
+
+    The purchase that falls in the moved range costs 6.00 a litre, the same as
+    the July one, so it doesn't change the as-of price (6.00 before the move
+    and after). That's still the smallest observable case: the row must hold a
+    price other than its as-of one, or re-pricing it writes what's there."""
+    vin = own_vehicle.vin
+    sid = await _both_purchases(client, auth_headers)
+    visit = await _visit(client, auth_headers, vin, VISIT_DAY, sid)
+    db_session.expire_all()
+    await db_session.execute(
+        update(SupplyUsage)
+        .where(SupplyUsage.supply_id == sid)
+        .values(unit_cost_snapshot=Decimal("6.7450"), cost_snapshot=Decimal("33.73"))
+    )
+    await db_session.execute(
+        update(ServiceVisit).where(ServiceVisit.id == visit).values(total_cost=Decimal("105.97"))
+    )
+    await db_session.commit()
+    await _buy(client, auth_headers, sid, "2025-07-18", "30.00")
+    await _expect(client, auth_headers, db_session, vin, visit, "33.73", False, "105.97")
+
+    r = await _move(client, auth_headers, vin, visit, "2025-07-20")
+    assert r.status_code == 200, r.text
+    await _expect(client, auth_headers, db_session, vin, visit, "30.00", False, "102.24")
