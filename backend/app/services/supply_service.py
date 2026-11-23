@@ -269,11 +269,6 @@ class SupplyService:
         """Current weighted average unit cost for a single supply (for snapshots)."""
         return (await self._compute_balances([supply_id]))[supply_id][1]
 
-    async def avg_unit_costs(self, supply_ids: list[int]) -> dict[int, Decimal | None]:
-        """Current weighted average unit cost for each of several supplies."""
-        balances = await self._compute_balances(supply_ids)
-        return {sid: avg for sid, (_on_hand, avg) in balances.items()}
-
     async def _as_of_prices(
         self, supply_ids: Sequence[int], as_of: date
     ) -> dict[int, AsOfPrice | None]:
