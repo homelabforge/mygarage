@@ -437,7 +437,8 @@
 
 /* The old centred modals' overlay (#305): their p-4 plus the iPhone safe-area
    insets, so the box centres inside the safe area instead of under the status
-   bar. Put max-h-full on the box so the cap is the safe box too. */
+   bar. Cap the box at max-h-[min(90vh,100%)] so desktop keeps 90vh and a phone
+   stays inside the padding. */
 @utility modal-safe-pad {
   padding: calc(1rem + var(--spacing-safe-top)) calc(1rem + var(--spacing-safe-right))
     calc(1rem + var(--spacing-safe-bottom)) calc(1rem + var(--spacing-safe-left));

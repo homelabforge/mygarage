@@ -282,6 +282,6 @@ describe('Calendar notes modal layout', () => {
     render(<CalendarPage />)
     await screen.findByText('Oil change')
     fireEvent.click(screen.getByRole('button', { name: 'calendar.misc.viewNotes' }))
-    expectSafeOverlay(screen.getByRole('heading', { name: 'calendar.eventNotes' }))
+    expectSafeOverlay(screen.getByRole('heading', { name: 'calendar.eventNotes' }), '80vh')
   })
 })

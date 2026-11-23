@@ -235,7 +235,9 @@ test.describe('iOS safe-area insets (#305, #308)', () => {
 
   test('a legacy centred modal is centred inside the safe box', async ({ page }) => {
     // Short enough that the modal's content overflows and the cap is what sets
-    // its box, so its edges land on the overlay's padding exactly.
+    // its box. Without insets that's still the desktop 90vh (324px, under the
+    // 328px the padding leaves), centred. With them the padded box is smaller,
+    // so its edges land on the overlay's padding exactly.
     const viewport = { width: 1280, height: 360 }
     await page.setViewportSize(viewport)
     await page.goto(`/vehicles/${TEST_VEHICLE.vin}`)
@@ -251,11 +253,14 @@ test.describe('iOS safe-area insets (#305, #308)', () => {
     // p-4, unchanged where the inset is 0.
     const base = { top: 16, right: 16, bottom: 16, left: 16 }
     expect(await padding(overlay)).toEqual(base)
-    expect(await box.boundingBox()).toMatchObject({ y: base.top, height: viewport.height - base.top - base.bottom })
+    // The desktop cap is still 90vh.
+    const cap = viewport.height * 0.9
+    expect(await box.boundingBox()).toMatchObject({ y: (viewport.height - cap) / 2, height: cap })
 
     await injectInsets(page)
     const inset = grown(base, ['top', 'right', 'bottom', 'left'])
     expect(await padding(overlay)).toEqual(inset)
     expect(await box.boundingBox()).toMatchObject({ y: inset.top, height: viewport.height - inset.top - inset.bottom })
   })
+
 })

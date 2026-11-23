@@ -120,7 +120,7 @@ export default function VehicleRemoveModal({ isOpen, onClose, vehicle, onConfirm
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 modal-safe-pad">
-      <div className="bg-garage-surface border border-garage-border rounded-lg max-w-lg w-full max-h-full overflow-y-auto">
+      <div className="bg-garage-surface border border-garage-border rounded-lg max-w-lg w-full max-h-[min(90vh,100%)] overflow-y-auto">
         <div className="p-6 space-y-4">
           {/* Mode Selection */}
           {mode === 'select' && (

@@ -22,7 +22,7 @@ export default function AnalyticsHelpModal({ isOpen, onClose }: AnalyticsHelpMod
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 modal-safe-pad">
-      <div className="bg-garage-surface border border-garage-border rounded-lg max-w-4xl w-full max-h-full overflow-y-auto">
+      <div className="bg-garage-surface border border-garage-border rounded-lg max-w-4xl w-full max-h-[min(90vh,100%)] overflow-y-auto">
         {/* Header */}
         <div className="sticky top-0 bg-garage-surface border-b border-garage-border p-6 flex items-center justify-between">
           <div className="flex items-center gap-2">
