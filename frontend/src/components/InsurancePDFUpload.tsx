@@ -188,8 +188,8 @@ export default function InsurancePDFUpload({ onDataExtracted, onClose }: Insuran
   }
 
   return createPortal(
-    <div className="fixed inset-0 modal-overlay flex items-center justify-center z-drawer-nested p-4">
-      <div className="bg-surface rounded-lg shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-border">
+    <div className="fixed inset-0 modal-overlay flex items-center justify-center z-drawer-nested pt-[calc(1rem+var(--spacing-safe-top))] pr-[calc(1rem+var(--spacing-safe-right))] pb-[calc(1rem+var(--spacing-safe-bottom))] pl-[calc(1rem+var(--spacing-safe-left))]">
+      <div className="bg-surface rounded-lg shadow-2xl max-w-2xl w-full max-h-full overflow-y-auto border border-border">
         {/* Header */}
         <div className="sticky top-0 bg-surface border-b border-border px-6 py-4 flex justify-between items-center rounded-t-lg">
           <h2 className="text-xl font-semibold text-text">{t('insurancePdfUpload.title')}</h2>
