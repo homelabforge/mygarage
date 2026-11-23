@@ -513,7 +513,7 @@ describe('ServiceVisitForm — supplies used (Task 17)', () => {
       expect(screen.getByText('service.partsEstimated')).toBeInTheDocument()
     })
 
-    it('does not mark what stays in the total when the dropped backfill was the estimate', async () => {
+    it('does not mark what stays in the total when the dropped backfill was the estimate (regression control)', async () => {
       // A settled 7.00 and an unpriced usage priced at the average (an estimate),
       // 8.00 short of the cap: the backfill drops, so the 7.00 left is no estimate.
       const visit = withSecondUsage(visitWithUsage(settled), unpricedUsage, MONEY_MAX - 8)
