@@ -130,6 +130,7 @@ def test_supply_usage_response_reads_leniently_too():
             "supply_name": "Oil",
             "unit_type": "volume",
             "quantity": Decimal("0.250"),
+            "cost_estimated": False,
             "created_at": datetime(2026, 1, 1),
             "volume_unit": "bogus",
         }
