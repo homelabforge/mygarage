@@ -142,7 +142,7 @@ describe('ServiceVisitForm — supplies used (Task 17)', () => {
     // MOCK_SUPPLY has no stored token, so under the imperial mock it falls back to US quarts.
     const expectedCanonicalQty = toCanonical(2, 'qt_us')
     const expectedPartsSuppliesCost = formatCurrency(10 * expectedCanonicalQty, { currencyCode: 'USD', locale: 'en-US' })
-    const partsSuppliesRow = screen.getByText('service.partsSupplies:').closest('div')
+    const partsSuppliesRow = screen.getByText('service.suppliesTotal:').closest('div')
     expect(partsSuppliesRow).toHaveTextContent(expectedPartsSuppliesCost)
 
     fireEvent.submit(drawerForm())
@@ -165,7 +165,7 @@ describe('ServiceVisitForm — supplies used (Task 17)', () => {
     fireEvent.click(screen.getByRole('button', { name: /suppliesAddRow/ }))
     fireEvent.change(screen.getByRole('textbox', { name: 'service.suppliesQuantityOf' }), { target: { value: '2' } })
 
-    const partsSuppliesRow = screen.getByText('service.partsSupplies:').closest('div') as HTMLElement
+    const partsSuppliesRow = screen.getByText('service.suppliesTotal:').closest('div') as HTMLElement
     expect(within(partsSuppliesRow).getByText('common:supplies.estimated')).toBeInTheDocument()
     expect(screen.getByText('service.partsEstimated')).toBeInTheDocument()
   })
@@ -179,7 +179,7 @@ describe('ServiceVisitForm — supplies used (Task 17)', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'service.suppliesRemoveNamed' }))
     expect(screen.queryByRole('textbox', { name: 'service.suppliesQuantityOf' })).not.toBeInTheDocument()
-    expect(screen.queryByText('service.partsSupplies:')).not.toBeInTheDocument()
+    expect(screen.queryByText('service.suppliesTotal:')).not.toBeInTheDocument()
 
     fireEvent.submit(drawerForm())
 
@@ -372,7 +372,7 @@ describe('ServiceVisitForm — supplies used (Task 17)', () => {
       ],
     })
     const partsRow = (): HTMLElement | null =>
-      screen.queryByText('service.partsSupplies:')?.closest('div') ?? null
+      screen.queryByText('service.suppliesTotal:')?.closest('div') ?? null
     const usd = (n: number): string => formatCurrency(n, { currencyCode: 'USD', locale: 'en-US' })
 
     it('shows a saved usage at its stored cost even when the average has moved', async () => {
@@ -410,7 +410,7 @@ describe('ServiceVisitForm — supplies used (Task 17)', () => {
     const estimatedMark = (el: HTMLElement | null): boolean =>
       el != null && within(el).queryByText('common:supplies.estimated') != null
     const lineParts = (): HTMLElement | null =>
-      screen.queryByText('lineItemEditor.partsCost')?.closest('p') ?? null
+      screen.queryByText('lineItemEditor.suppliesCost')?.closest('p') ?? null
     const settled = { quantity: '1', cost_snapshot: '7.00', unit_cost_snapshot: '7.0000' }
 
     it('leaves a settled usage unmarked (regression control)', async () => {

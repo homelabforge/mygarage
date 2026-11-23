@@ -1093,14 +1093,12 @@
     "logVisit": "Enregistrer une intervention",
     "detail": {
       "cost": "Coût",
-      "labor": "Main-d'œuvre / atelier",
       "noSupplies": "Aucune fourniture enregistrée pour cette intervention.",
       "openSupply": "Ouvrir {{name}} dans Fournitures",
       "parts": "Pièces et fournitures",
       "supplies": "Fournitures utilisées",
       "viewDetails": "Voir les détails de {{name}}"
     },
-    "laborCost": "Main-d'œuvre {{amount}}",
     "miscFees": "Frais divers",
     "noMatchingVisits": "Aucune intervention correspondante trouvée",
     "noRecords": "Aucune intervention d’entretien pour le moment",

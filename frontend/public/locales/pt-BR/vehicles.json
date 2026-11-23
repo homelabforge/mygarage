@@ -544,14 +544,12 @@
     "logVisit": "Registrar visita",
     "detail": {
       "cost": "Custo",
-      "labor": "Mão de obra / oficina",
       "noSupplies": "Nenhum suprimento registrado para este serviço.",
       "openSupply": "Abrir {{name}} em Suprimentos",
       "parts": "Peças e suprimentos",
       "supplies": "Suprimentos usados",
       "viewDetails": "Ver detalhes de {{name}}"
     },
-    "laborCost": "Mão de obra {{amount}}",
     "miscFees": "Taxas diversas",
     "noMatchingVisits": "Nenhuma visita correspondente",
     "noRecords": "Nenhum registro",

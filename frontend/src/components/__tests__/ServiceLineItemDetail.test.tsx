@@ -98,6 +98,8 @@ describe('ServiceLineItemDetail cost', () => {
     // The line cost is parts + labor (#302/#306/#307), not labor alone.
     expect(screen.getByText('serviceList.detail.partsLabor').nextElementSibling).toHaveTextContent('$40.00')
     expect(screen.queryByText('serviceList.detail.labor')).not.toBeInTheDocument()
+    expect(screen.getByText('serviceList.detail.suppliesCost').nextElementSibling).toHaveTextContent('$9.52')
+    expect(screen.queryByText('serviceList.detail.parts')).not.toBeInTheDocument()
     // Once in the parts row, once on the supply itself.
     expect(screen.getAllByText('$9.52')).toHaveLength(2)
     expect(screen.getByText('$49.52')).toBeInTheDocument()

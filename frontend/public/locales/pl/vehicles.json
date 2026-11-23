@@ -544,14 +544,12 @@
     "logVisit": "Zarejestruj wizytę",
     "detail": {
       "cost": "Koszt",
-      "labor": "Robocizna / warsztat",
       "noSupplies": "Nie zapisano materiałów dla tej usługi.",
       "openSupply": "Otwórz {{name}} w materiałach eksploatacyjnych",
       "parts": "Części i materiały",
       "supplies": "Zużyte materiały",
       "viewDetails": "Pokaż szczegóły: {{name}}"
     },
-    "laborCost": "Robocizna {{amount}}",
     "miscFees": "Opłaty różne",
     "noMatchingVisits": "Brak pasujących wizyt",
     "noRecords": "Brak rekordów",

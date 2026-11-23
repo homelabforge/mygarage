@@ -37,11 +37,12 @@ const item: ServiceVisitFormLineItem = {
   supplies_used: [],
 }
 
-function renderEditor(): void {
+function renderEditor({ index = 0, partsCost = 0 }: { index?: number; partsCost?: number } = {}): void {
   render(
     <LineItemEditor
       item={item}
-      index={0}
+      index={index}
+      partsCost={partsCost}
       vin="V1"
       supplies={[]}
       unitsBySupplyId={new Map()}
@@ -73,6 +74,12 @@ describe('LineItemEditor line cost says parts and labor', () => {
     const picker = heading.closest('div.space-y-2') as HTMLElement
     expect(within(picker).getByText('service.suppliesOwnStockHint')).toBeInTheDocument()
   })
+
+  it('captions the supplies under the cost as Supplies, not Parts', () => {
+    renderEditor({ partsCost: 9.52 })
+    expect(screen.getByText('lineItemEditor.suppliesCost')).toBeInTheDocument()
+    expect(screen.queryByText('lineItemEditor.partsCost')).not.toBeInTheDocument()
+  })
 })
 
 describe('line cost copy (English)', () => {
@@ -85,6 +92,20 @@ describe('line cost copy (English)', () => {
     // The read views say the same thing as the editor.
     expect(at(vehicles, 'serviceList.detail.partsLabor')).toBe('Parts + labor')
     expect(at(vehicles, 'serviceList.partsLaborCost')).toBe('Parts + labor {{amount}}')
+  })
+
+  it('calls the supply side Supplies wherever it sits beside parts + labor', () => {
+    const vehicles = en('vehicles')
+    expect(at(vehicles, 'lineItemEditor.suppliesCost')).toBe('Supplies: {{amount}}')
+    expect(at(vehicles, 'serviceList.suppliesCost')).toBe('Supplies {{amount}}')
+    expect(at(vehicles, 'serviceList.detail.suppliesCost')).toBe('Supplies')
+    expect(at(en('forms'), 'service.suppliesTotal')).toBe('Supplies')
+  })
+
+  it('drops the labor-only keys nothing reads any more', () => {
+    const vehicles = en('vehicles')
+    expect(at(vehicles, 'serviceList.laborCost')).toBeUndefined()
+    expect(at(vehicles, 'serviceList.detail.labor')).toBeUndefined()
   })
 
   it('leaves the old key alone, so the 8 translated locales do not change meaning (regression control)', () => {

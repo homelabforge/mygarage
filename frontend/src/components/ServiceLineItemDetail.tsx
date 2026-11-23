@@ -108,7 +108,7 @@ export default function ServiceLineItemDetail({
               <Mono size="sm">{fmt(lineCost)}</Mono>
             </div>
             <div className="flex justify-between text-text-mute">
-              <span>{t('serviceList.detail.parts')}</span>
+              <span>{t('serviceList.detail.suppliesCost')}</span>
               <Mono size="sm">{fmt(partsCost)}</Mono>
             </div>
             <div className="flex justify-between font-medium text-text border-t border-border pt-1 mt-1">

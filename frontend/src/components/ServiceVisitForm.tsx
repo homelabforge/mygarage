@@ -1151,7 +1151,7 @@ function ServiceVisitForm({
                 )}
                 {partsSupplies > 0 && (
                   <div className="flex items-center justify-end gap-2 text-sm text-text-mute">
-                    <span>{t('service.partsSupplies')}:</span>
+                    <span>{t('service.suppliesTotal')}:</span>
                     <Mono>{formatCurrency(partsSupplies, { currencyCode, locale })}</Mono>
                     {partsEstimated && <Badge tone="muted">{t('common:supplies.estimated')}</Badge>}
                   </div>

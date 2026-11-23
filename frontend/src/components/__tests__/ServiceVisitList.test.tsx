@@ -316,7 +316,9 @@ describe('ServiceVisitList: a service line shows what it cost and opens its deta
     // The line cost is parts + labor (#302/#306/#307), not labor alone.
     expect(screen.getByText(/serviceList\.partsLaborCost/)).toBeInTheDocument()
     expect(screen.queryByText(/serviceList\.laborCost/)).not.toBeInTheDocument()
-    expect(screen.getByText(/serviceList\.partsCost/)).toBeInTheDocument()
+    // ...and the supply side says Supplies, so "Parts" doesn't read twice.
+    expect(screen.getByText(/serviceList\.suppliesCost/)).toBeInTheDocument()
+    expect(screen.queryByText(/serviceList\.partsCost/)).not.toBeInTheDocument()
   })
 
   it("clicking the line opens its detail; ending a selection in it doesn't (#179)", () => {
@@ -343,7 +345,7 @@ describe('ServiceVisitList: a service line shows what it cost and opens its deta
     })
     openVisit()
 
-    const partsRow = screen.getByText('serviceList.detail.parts:').parentElement
+    const partsRow = screen.getByText('serviceList.detail.suppliesCost:').parentElement
     expect(partsRow).toHaveTextContent('$9.52')
   })
 

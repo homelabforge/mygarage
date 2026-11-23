@@ -156,7 +156,7 @@ describe('ServiceVisitForm: numbers read in the user language', () => {
     fireEvent.click(screen.getByRole('button', { name: /suppliesAddRow/ }))
     type(screen.getByRole('textbox', { name: 'service.suppliesQuantityOf(supply=Oil Filter)' }), '1')
     type(screen.getByLabelText('service.tax'), 'abc')
-    expect(screen.getByText('service.partsSupplies:')).toBeInTheDocument()
+    expect(screen.getByText('service.suppliesTotal:')).toBeInTheDocument()
     expect(screen.getByRole('dialog').textContent).not.toContain('NaN')
     fireEvent.submit(drawerForm())
     expect(await screen.findByText('common:mustBeANumber')).toBeInTheDocument()

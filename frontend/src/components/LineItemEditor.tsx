@@ -284,7 +284,7 @@ export default function LineItemEditor({
               />
               {partsCost > 0 && (
                 <p className="text-xs text-garage-text-muted mt-1">
-                  {t('lineItemEditor.partsCost', { amount: formatCurrency(partsCost) })}
+                  {t('lineItemEditor.suppliesCost', { amount: formatCurrency(partsCost) })}
                   {partsEstimated && <Badge tone="muted" className="ml-2">{t('common:supplies.estimated')}</Badge>}
                 </p>
               )}

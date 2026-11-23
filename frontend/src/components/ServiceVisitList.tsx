@@ -298,7 +298,7 @@ export default function ServiceVisitList({
           {lineTotal > 0 ? <Mono size="sm">{fmt(lineTotal)}</Mono> : '-'}
           {lineCost > 0 && partsCost > 0 && (
             <p className="text-xs text-text-mute">
-              {t('serviceList.partsLaborCost', { amount: fmt(lineCost) })} · {t('serviceList.partsCost', { amount: fmt(partsCost) })}
+              {t('serviceList.partsLaborCost', { amount: fmt(lineCost) })} · {t('serviceList.suppliesCost', { amount: fmt(partsCost) })}
             </p>
           )}
         </div>
@@ -538,7 +538,7 @@ export default function ServiceVisitList({
                           </div>
                           {Number(visit.parts_supplies_cost) > 0 && (
                             <div className="flex justify-between text-text-mute">
-                              <span>{t('serviceList.detail.parts')}:</span>
+                              <span>{t('serviceList.detail.suppliesCost')}:</span>
                               <Mono size="sm">{formatCurrency(visit.parts_supplies_cost, { currencyCode, locale })}</Mono>
                             </div>
                           )}

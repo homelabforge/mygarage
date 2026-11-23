@@ -826,6 +826,7 @@
     "suppliesOwnStockHint": "Supplies come out of your own stock. Parts the shop supplied go in the cost.",
     "suppliesQuantityOf": "Quantity, {{supply}}",
     "suppliesRemoveNamed": "Remove {{supply}}",
+    "suppliesTotal": "Supplies",
     "suppliesUsed": "Supplies Used",
     "supplyQuantityInvalid": "Line item {{number}}: supply quantity cannot be negative",
     "supplyQuantityTooSmall": "Line item {{number}}: a supply amount is too small to store (less than 1 mL)",

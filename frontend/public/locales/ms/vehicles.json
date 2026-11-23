@@ -1089,14 +1089,12 @@
     "logVisit": "Rekod Lawatan Servis",
     "detail": {
       "cost": "Kos",
-      "labor": "Upah / bengkel",
       "noSupplies": "Tiada bekalan direkodkan untuk servis ini.",
       "openSupply": "Buka {{name}} dalam Bekalan",
       "parts": "Alat ganti & bekalan",
       "supplies": "Bekalan digunakan",
       "viewDetails": "Lihat butiran untuk {{name}}"
     },
-    "laborCost": "Upah {{amount}}",
     "miscFees": "Yuran Lain-lain",
     "noMatchingVisits": "Tiada lawatan sepadan ditemui",
     "noRecords": "Belum ada servis visits",

@@ -1091,14 +1091,12 @@
     "logVisit": "Registra visita di assistenza",
     "detail": {
       "cost": "Costo",
-      "labor": "Manodopera / officina",
       "noSupplies": "Nessuna scorta registrata per questo intervento.",
       "openSupply": "Apri {{name}} in Scorte",
       "parts": "Ricambi e scorte",
       "supplies": "Scorte utilizzate",
       "viewDetails": "Visualizza dettagli di {{name}}"
     },
-    "laborCost": "Manodopera {{amount}}",
     "miscFees": "Spese varie",
     "noMatchingVisits": "Nessuna visita corrispondente trovata",
     "noRecords": "Nessuna visita di assistenza presente",

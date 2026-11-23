@@ -933,14 +933,12 @@
     "logVisit": "Servicebesuch erfassen",
     "detail": {
       "cost": "Kosten",
-      "labor": "Arbeit / Werkstatt",
       "noSupplies": "Für diesen Service wurden keine Vorräte erfasst.",
       "openSupply": "{{name}} in Vorräte öffnen",
       "parts": "Teile & Vorräte",
       "supplies": "Verwendete Vorräte",
       "viewDetails": "Details zu {{name}} anzeigen"
     },
-    "laborCost": "Arbeit {{amount}}",
     "miscFees": "Sonstige Gebühren",
     "noMatchingVisits": "Keine übereinstimmenden Besuche gefunden",
     "noRecords": "Noch keine Servicebesuche vorhanden",

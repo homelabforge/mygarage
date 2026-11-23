@@ -655,6 +655,7 @@
     "cost": "Labor / shop cost",
     "costPartsLabor": "Cost (parts + labor)",
     "partsCost": "Parts & supplies: {{amount}}",
+    "suppliesCost": "Supplies: {{amount}}",
     "notes": "Notes",
     "misc": {
       "lineItem": "Line Item {{number}}",
@@ -1191,15 +1192,14 @@
     "detail": {
       "cost": "Cost",
       "editVisit": "Edit visit",
-      "labor": "Labor / shop",
       "partsLabor": "Parts + labor",
       "noSupplies": "No supplies recorded for this service.",
       "openSupply": "Open {{name}} in Supplies",
       "parts": "Parts & supplies",
       "supplies": "Supplies used",
+      "suppliesCost": "Supplies",
       "viewDetails": "View details for {{name}}"
     },
-    "laborCost": "Labor {{amount}}",
     "partsLaborCost": "Parts + labor {{amount}}",
     "miscFees": "Misc Fees",
     "noMatchingVisits": "No matching visits found",
@@ -1208,6 +1208,7 @@
     "searchPlaceholder": "Search services...",
     "serviceCount": "{{count}} services",
     "partsCost": "Parts {{amount}}",
+    "suppliesCost": "Supplies {{amount}}",
     "po": "PO #",
     "servicesPerformed": "Services Performed",
     "shopSupplies": "Shop Supplies",
