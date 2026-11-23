@@ -42,7 +42,7 @@ from app.schemas.supply import (
 )
 from app.services.auth import require_auth
 from app.services.file_upload_service import ATTACHMENT_UPLOAD_CONFIG, FileUploadService
-from app.services.supply_pricing import price_after_purchase
+from app.services.supply_pricing import price_after_purchase, price_after_purchase_delete
 from app.services.supply_service import SupplyService
 
 router = APIRouter(prefix="/api/supplies", tags=["supplies"])
@@ -153,8 +153,15 @@ async def delete_purchase(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[User | None, Depends(require_auth)],
 ) -> Response:
-    """Delete a purchase (and its receipt, if any) from the ledger."""
-    await SupplyService(db).delete_purchase(supply_id, purchase_id, current_user)
+    """Delete a purchase (and its receipt, if any) from the ledger.
+
+    A costed one also re-runs the fallback for the supply's estimated usages
+    (#307), on the vehicles this user can write.
+    """
+    costed = await SupplyService(db).delete_purchase(supply_id, purchase_id, current_user)
+    if costed:
+        user_id = current_user.id if current_user is not None else None
+        await price_after_purchase_delete(db, supply_id, user_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

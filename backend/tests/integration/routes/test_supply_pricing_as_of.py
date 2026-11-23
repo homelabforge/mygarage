@@ -31,6 +31,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.service_visit import ServiceVisit
 from app.models.supply import SupplyPurchase, SupplyUsage
 from app.models.vehicle import Vehicle
+from app.models.vehicle_share import VehicleShare
 from app.schemas._money import MONEY_MAX
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio, pytest.mark.supplies]
@@ -569,3 +570,94 @@ async def _get(
     r = await client.get(f"/api/vehicles/{vin}/service-visits/{visit_id}", headers=headers)
     assert r.status_code == 200, r.text
     return r.json()
+
+
+# ---- purchase delete (N-6) ----------------------------------------------------
+
+
+async def test_deleting_a_mistyped_receipt_reruns_the_fallback(
+    client: AsyncClient, auth_headers, own_vehicle: Vehicle, db_session: AsyncSession
+):
+    """$374.50 typed for $37.45, re-entered, then the wrong one deleted."""
+    vin = own_vehicle.vin
+    sid = await _supply(client, auth_headers)
+    visit = await _visit(client, auth_headers, vin, VISIT_DAY, sid)
+    wrong = await _buy(client, auth_headers, sid, JUNE_2026, "374.50")
+    await _buy(client, auth_headers, sid, JUNE_2026, "37.45")
+    await _expect(client, auth_headers, db_session, vin, visit, "374.50", True, "446.74")
+
+    await _unbuy(client, auth_headers, sid, wrong)
+    await _expect(client, auth_headers, db_session, vin, visit, "37.45", True, "109.69")
+
+
+async def test_deleting_the_only_receipt_unprices_the_estimate(
+    client: AsyncClient, auth_headers, own_vehicle: Vehicle, db_session: AsyncSession
+):
+    """The other order: delete first, then re-enter. With no costed purchase
+    left there's no fallback, so the estimate goes back to unpriced and the
+    re-entered receipt prices it as a first pricing would."""
+    vin = own_vehicle.vin
+    sid = await _supply(client, auth_headers)
+    visit = await _visit(client, auth_headers, vin, VISIT_DAY, sid)
+    wrong = await _buy(client, auth_headers, sid, JUNE_2026, "374.50")
+    await _unbuy(client, auth_headers, sid, wrong)
+    await _expect(client, auth_headers, db_session, vin, visit, None, False, LABOUR)
+
+    await _buy(client, auth_headers, sid, JUNE_2026, "37.45")
+    await _expect(client, auth_headers, db_session, vin, visit, "37.45", True, "109.69")
+
+
+async def test_deleting_a_receipt_leaves_a_real_price_alone(
+    client: AsyncClient, auth_headers, own_vehicle: Vehicle, db_session: AsyncSession
+):
+    """Regression control: only flagged rows re-run the fallback."""
+    vin = own_vehicle.vin
+    sid = await _supply(client, auth_headers)
+    july = await _buy(client, auth_headers, sid, JULY_2025, "30.00")
+    visit = await _visit(client, auth_headers, vin, VISIT_DAY, sid)
+    await _buy(client, auth_headers, sid, JUNE_2026, "37.45")
+    await _unbuy(client, auth_headers, sid, july)
+    await _expect(client, auth_headers, db_session, vin, visit, "30.00", False, "102.24")
+
+
+# ---- write access (regression controls) -------------------------------------
+
+
+async def test_the_purchase_hooks_respect_the_buyers_write_access(
+    client: AsyncClient,
+    auth_headers,
+    non_admin_headers,
+    test_user,
+    non_admin_user,
+    db_session: AsyncSession,
+):
+    """Neither a settling purchase nor a delete re-runs anything on a vehicle
+    the buyer can only read."""
+    vin = "ASOFREAD000000001"
+    db_session.add(Vehicle(vin=vin, user_id=test_user["id"], nickname=vin, vehicle_type="Car"))
+    await db_session.flush()
+    db_session.add(
+        VehicleShare(
+            vehicle_vin=vin,
+            user_id=non_admin_user["id"],
+            permission="read",
+            shared_by=test_user["id"],
+        )
+    )
+    await db_session.commit()
+    try:
+        sid = await _supply(client, auth_headers)
+        visit = await _visit(client, auth_headers, vin, VISIT_DAY, sid)
+        june = await _buy(client, auth_headers, sid, JUNE_2026, "37.45")
+        await _expect(client, auth_headers, db_session, vin, visit, "37.45", True, "109.69")
+
+        await _buy(client, non_admin_headers, sid, JULY_2025, "30.00")
+        await _expect(client, auth_headers, db_session, vin, visit, "37.45", True, "109.69")
+        await _unbuy(client, non_admin_headers, sid, june)
+        await _expect(client, auth_headers, db_session, vin, visit, "37.45", True, "109.69")
+    finally:
+        await db_session.rollback()
+        stored = await db_session.get(Vehicle, vin)
+        if stored is not None:
+            await db_session.delete(stored)
+        await db_session.commit()

@@ -5,7 +5,7 @@ import logging
 from collections.abc import Mapping, Sequence
 
 from fastapi import HTTPException
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
@@ -33,7 +33,9 @@ from app.services import maintenance_service, recall_links
 from app.services.attachment_cleanup import purge_record_attachments, remove_attachment_files
 from app.services.supply_service import (
     SupplyService,
+    estimate_of,
     price_unsettled_usage,
+    rerun_fallback,
     unsettled_usage,
     usage_cost,
     usage_cost_subject,
@@ -1049,19 +1051,32 @@ class ServiceVisitService:
         the edit alone). A settled usage is never touched here; a date change
         re-prices in the edit itself (``_reprice_for_new_date``).
         """
+        await self._price_visit(visit_id, rerun_supply_id=None)
+
+    async def rerun_fallback_on_visit(self, visit_id: int, supply_id: int) -> None:
+        """After a costed purchase of `supply_id` is deleted: re-run the fallback
+        for the visit's estimates of it (``rerun_fallback``), and price the rest
+        as ``price_unsettled_on_visit`` does. Same lock, savepoint and total."""
+        await self._price_visit(visit_id, rerun_supply_id=supply_id)
+
+    async def _price_visit(self, visit_id: int, *, rerun_supply_id: int | None) -> None:
+        """The visit pricer behind ``price_unsettled_on_visit`` and ``rerun_fallback_on_visit``."""
         # Sessions don't autoflush; the edits must be in before the select, and
         # outside the savepoint so its rollback can't take them.
         await self.db.flush()
         visit_date = (
             await self.db.execute(select(ServiceVisit.date).where(ServiceVisit.id == visit_id))
         ).scalar_one()
+        wanted = unsettled_usage(ServiceVisit.date)
+        if rerun_supply_id is not None:
+            wanted = or_(wanted, estimate_of(rerun_supply_id))
         usages = (
             (
                 await self.db.execute(
                     select(SupplyUsage)
                     .join(ServiceLineItem, SupplyUsage.service_line_item_id == ServiceLineItem.id)
                     .join(ServiceVisit, ServiceLineItem.visit_id == ServiceVisit.id)
-                    .where(ServiceVisit.id == visit_id, unsettled_usage(ServiceVisit.date))
+                    .where(ServiceVisit.id == visit_id, wanted)
                     .order_by(SupplyUsage.id)
                     # The rule reads the row's cost and flag: the database's, not
                     # whatever an earlier load left in the identity map (flushed above).
@@ -1076,9 +1091,19 @@ class ServiceVisitService:
         found = await SupplyService(self.db).as_of_unit_costs(
             sorted({u.supply_id for u in usages}), visit_date
         )
+
+        def price(usage: SupplyUsage) -> bool:
+            rerun = (
+                usage.supply_id == rerun_supply_id
+                and usage.cost_estimated
+                and usage.cost_snapshot is not None
+            )
+            pricer = rerun_fallback if rerun else price_unsettled_usage
+            return pricer(usage, found.get(usage.supply_id))
+
         try:
             async with self.db.begin_nested():
-                priced = [u for u in usages if price_unsettled_usage(u, found.get(u.supply_id))]
+                priced = [u for u in usages if price(u)]
                 if priced:
                     await self._recompute_visit_total(visit_id)
         except HTTPException as e:

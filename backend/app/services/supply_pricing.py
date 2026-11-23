@@ -20,7 +20,7 @@ from __future__ import annotations
 import logging
 
 from fastapi import HTTPException
-from sqlalchemy import or_, select, update
+from sqlalchemy import ColumnElement, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from app.models.service_line_item import ServiceLineItem
@@ -29,7 +29,12 @@ from app.models.supply import Supply, SupplyUsage
 from app.models.user import User
 from app.services.auth import get_vehicle_or_403
 from app.services.service_visit_service import ServiceVisitService
-from app.services.supply_service import SupplyService, unsettled_usage, usage_price
+from app.services.supply_service import (
+    SupplyService,
+    estimate_of,
+    unsettled_usage,
+    usage_price,
+)
 from app.services.vehicle_lock import lock_vehicle_for_write
 from app.utils.logging_utils import sanitize_for_log
 
@@ -52,6 +57,26 @@ async def price_after_purchase(
             await _price_supply(db, supply_id, user_id)
     except Exception:
         logger.exception("Pricing usages of supply %s after a purchase failed", supply_id)
+
+
+async def price_after_purchase_delete(
+    request_db: AsyncSession, supply_id: int, user_id: int | None
+) -> None:
+    """Re-run the fallback for the supply's estimates after a costed purchase
+    of it is deleted. Never raises.
+
+    An estimate is fixed when it's first priced, except here (N-6): a mistyped
+    receipt deleted mustn't leave its price behind. Each estimate takes the
+    supply's price as of its visit as it is now (``rerun_fallback``), through
+    the same path as ``price_after_purchase``: after the commit, on the
+    vehicles the deleter can write, under each vehicle's lock. A usage with a
+    real price stays frozen.
+    """
+    try:
+        async with _own_session(request_db) as db:
+            await _price_supply(db, supply_id, user_id, rerun=True)
+    except Exception:
+        logger.exception("Re-pricing estimates of supply %s after a delete failed", supply_id)
 
 
 async def price_after_import(request_db: AsyncSession, vin: str, user_id: int | None) -> None:
@@ -111,14 +136,18 @@ def _own_session(request_db: AsyncSession) -> AsyncSession:
     return AsyncSession(engine, expire_on_commit=False, autoflush=False)
 
 
-async def _price_supply(db: AsyncSession, supply_id: int, user_id: int | None) -> None:
+async def _price_supply(
+    db: AsyncSession, supply_id: int, user_id: int | None, *, rerun: bool = False
+) -> None:
+    """Price (or with `rerun`, re-run the fallback for) the supply's usages on
+    every vehicle the user can write, then its standalone adjustments."""
     vins = (
         (
             await db.execute(
                 select(ServiceVisit.vin)
                 .join(ServiceLineItem, ServiceLineItem.visit_id == ServiceVisit.id)
                 .join(SupplyUsage, SupplyUsage.service_line_item_id == ServiceLineItem.id)
-                .where(SupplyUsage.supply_id == supply_id, unsettled_usage(ServiceVisit.date))
+                .where(SupplyUsage.supply_id == supply_id, _wanted(supply_id, rerun=rerun))
                 .distinct()
                 .order_by(ServiceVisit.vin)
             )
@@ -143,7 +172,7 @@ async def _price_supply(db: AsyncSession, supply_id: int, user_id: int | None) -
             # The same lock every visit writer takes, so a visit edit can't
             # interleave with the re-read and recompute below.
             await lock_vehicle_for_write(db, vin)
-            await _price_vehicle(db, vin, supply_id)
+            await _price_vehicle(db, vin, supply_id, rerun=rerun)
             await db.commit()
         except Exception as e:
             await db.rollback()
@@ -153,7 +182,16 @@ async def _price_supply(db: AsyncSession, supply_id: int, user_id: int | None) -
                 sanitize_for_log(vin),
                 sanitize_for_log(e),
             )
-    await _price_adjustments(db, supply_id)
+    if not rerun:
+        # A delete makes no unpriced adjustment priceable, and none is an estimate.
+        await _price_adjustments(db, supply_id)
+
+
+def _wanted(supply_id: int, *, rerun: bool) -> ColumnElement[bool]:
+    """The usages of `supply_id` to price (its visit joined in): the unsettled
+    ones, plus with `rerun` every estimate of it."""
+    wanted = unsettled_usage(ServiceVisit.date)
+    return or_(wanted, estimate_of(supply_id)) if rerun else wanted
 
 
 async def _buyer(db: AsyncSession, user_id: int | None) -> tuple[bool, User | None]:
@@ -172,7 +210,7 @@ async def _buyer(db: AsyncSession, user_id: int | None) -> tuple[bool, User | No
     return False, None
 
 
-async def _price_vehicle(db: AsyncSession, vin: str, supply_id: int) -> None:
+async def _price_vehicle(db: AsyncSession, vin: str, supply_id: int, *, rerun: bool) -> None:
     """Price the visits on one vehicle that have the supply unsettled. Holds its lock.
 
     Each visit goes through the same pricer a visit write uses, so it reads the
@@ -188,7 +226,7 @@ async def _price_vehicle(db: AsyncSession, vin: str, supply_id: int) -> None:
                 .where(
                     ServiceVisit.vin == vin,
                     SupplyUsage.supply_id == supply_id,
-                    unsettled_usage(ServiceVisit.date),
+                    _wanted(supply_id, rerun=rerun),
                 )
                 .distinct()
                 .order_by(ServiceLineItem.visit_id)
@@ -199,7 +237,10 @@ async def _price_vehicle(db: AsyncSession, vin: str, supply_id: int) -> None:
     )
     visits = ServiceVisitService(db)
     for visit_id in visit_ids:
-        await visits.price_unsettled_on_visit(visit_id)
+        if rerun:
+            await visits.rerun_fallback_on_visit(visit_id, supply_id)
+        else:
+            await visits.price_unsettled_on_visit(visit_id)
 
 
 async def _price_adjustments(db: AsyncSession, supply_id: int) -> None:

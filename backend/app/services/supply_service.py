@@ -148,6 +148,36 @@ def price_unsettled_usage(usage: SupplyUsage, found: AsOfPrice | None) -> bool:
     return True
 
 
+def rerun_fallback(usage: SupplyUsage, found: AsOfPrice | None) -> bool:
+    """Re-price an estimate after a costed purchase of its supply is deleted. True if written.
+
+    The one time an estimate moves without a purchase on or before its visit
+    (N-6): a mistyped receipt deleted must not strand the price it set. It
+    takes `found` as it is now: a real as-of price settles it, the new
+    all-time average keeps it flagged, and with no costed purchase left it
+    goes back to unpriced, the state a first pricing starts from.
+    """
+    if found is None:
+        usage.unit_cost_snapshot = usage.cost_snapshot = None
+        usage.cost_estimated = False
+        return True
+    price = usage_price(None, usage.quantity, found[0])
+    if price is None:
+        return False
+    usage.unit_cost_snapshot, usage.cost_snapshot = price
+    usage.cost_estimated = found[1]
+    return True
+
+
+def estimate_of(supply_id: int) -> ColumnElement[bool]:
+    """Where-clause: a usage of `supply_id` priced at an estimate (``rerun_fallback``'s rows)."""
+    return and_(
+        SupplyUsage.supply_id == supply_id,
+        SupplyUsage.cost_estimated.is_(True),
+        SupplyUsage.cost_snapshot.isnot(None),
+    )
+
+
 def unsettled_usage(visit_date: SQLColumnExpression[date]) -> ColumnElement[bool]:
     """Where-clause for the usages a pricer may write (D8), ``price_unsettled_usage``'s rule.
 
@@ -427,7 +457,9 @@ class SupplyService:
 
     async def delete_purchase(
         self, supply_id: int, purchase_id: int, current_user: User | None
-    ) -> None:
+    ) -> bool:
+        """Delete a purchase and its receipt. True if it had a cost, so the
+        supply's estimates need their fallback re-run (``price_after_purchase_delete``)."""
         purchase = (
             await self.db.execute(
                 select(SupplyPurchase)
@@ -437,10 +469,16 @@ class SupplyService:
         ).scalar_one_or_none()
         if not purchase:
             raise HTTPException(status_code=404, detail=f"Purchase {purchase_id} not found")
+        # As add_purchase: waits out any usage of it being logged, so the
+        # re-run fallback after this commit sees that usage, or the usage
+        # sees this purchase gone.
+        await self._lock_supply(supply_id, exclusive=True)
+        costed = purchase.total_cost is not None
         old_files = await self._purge_receipt(purchase_id)  # rows now, files after commit (R1-H4)
         await self.db.delete(purchase)
         await self.db.commit()
         self._unlink_files(old_files)
+        return costed
 
     async def _purge_receipt(self, purchase_id: int) -> list[str]:
         """Delete receipt attachment ROWS for a purchase; return their file paths.

@@ -328,3 +328,86 @@ async def test_a_purchase_racing_a_date_change_settles_the_usage(
         )
     *_, stored, fresh = await _state(test_sessionmaker, seeded)
     assert stored == fresh == Decimal("40.00")
+
+
+async def test_a_usage_logged_as_its_receipt_is_deleted_gets_the_new_fallback(
+    seeded: Seeded, test_sessionmaker, monkeypatch: pytest.MonkeyPatch
+):
+    """N-6: a mistyped receipt is deleted while a visit logs a usage priced
+    from it. The fallback re-run after the delete must find the usage, or
+    the usage must see the receipt gone: otherwise it keeps the typo's price."""
+    async with test_sessionmaker() as db:
+        jug = Supply(name=f"{seeded.vin} coolant", unit_type="volume")
+        db.add(jug)
+        await db.flush()
+        jug_id = jug.id
+        # Both after the visit, so a usage on it is an estimate.
+        wrong = SupplyPurchase(
+            supply_id=jug_id,
+            date=date(2026, 11, 20),
+            quantity=Decimal("5"),
+            total_cost=Decimal("374.50"),
+        )
+        db.add(wrong)
+        db.add(
+            SupplyPurchase(
+                supply_id=jug_id,
+                date=date(2026, 11, 20),
+                quantity=Decimal("5"),
+                total_cost=Decimal("37.45"),
+            )
+        )
+        await db.commit()
+        wrong_id = wrong.id
+
+    # Held after the new usage's snapshot reads the price, under its lock.
+    original = SupplyService.as_of_unit_cost
+
+    async def slow(self: SupplyService, supply_id: int, as_of: date) -> AsOfPrice | None:
+        found = await original(self, supply_id, as_of)
+        await asyncio.sleep(0.5)
+        return found
+
+    monkeypatch.setattr(SupplyService, "as_of_unit_cost", slow)
+
+    async def top_up() -> None:
+        async with test_sessionmaker() as db:
+            user = await db.get(User, seeded.user.id)
+            await ServiceVisitService(db).add_line_item(
+                seeded.vin,
+                seeded.visit_id,
+                ServiceLineItemCreate(
+                    description="Coolant top-up",
+                    cost=Decimal("0"),
+                    supplies_used=[SupplyUsageInput(supply_id=jug_id, quantity=Decimal("2"))],
+                ),
+                user,
+            )
+
+    async def unbuy() -> None:
+        await asyncio.sleep(0.1)  # inside the snapshot's hold
+        async with test_sessionmaker() as db:
+            user = await db.get(User, seeded.user.id)
+            assert await SupplyService(db).delete_purchase(jug_id, wrong_id, user)
+            await supply_pricing.price_after_purchase_delete(db, jug_id, seeded.user.id)
+
+    try:
+        await asyncio.gather(top_up(), unbuy())
+        async with test_sessionmaker() as db:
+            usage = (
+                await db.execute(select(SupplyUsage).where(SupplyUsage.supply_id == jug_id))
+            ).scalar_one()
+            # 37.45 over 5: 7.49 a litre, 14.98 for 2, still an estimate.
+            assert (usage.unit_cost_snapshot, usage.cost_snapshot, usage.cost_estimated) == (
+                Decimal("7.4900"),
+                Decimal("14.98"),
+                True,
+            )
+        *_, stored, fresh = await _state(test_sessionmaker, seeded)
+        assert stored == fresh == Decimal("24.98")
+    finally:
+        async with test_sessionmaker() as db:
+            await db.execute(delete(SupplyUsage).where(SupplyUsage.supply_id == jug_id))
+            await db.execute(delete(SupplyPurchase).where(SupplyPurchase.supply_id == jug_id))
+            await db.execute(delete(Supply).where(Supply.id == jug_id))
+            await db.commit()
