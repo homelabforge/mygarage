@@ -2224,6 +2224,67 @@ async def test_an_imported_adjustment_is_never_an_estimate(
     assert (spill["cost_snapshot"], spill["cost_estimated"]) == (Decimal("7.49"), False)
 
 
+async def test_an_unpriced_line_item_usage_flagged_estimated_imports_unflagged(
+    client: AsyncClient, auth_headers, db_session: AsyncSession, new_vehicle
+):
+    # A hand-made file: no cost, yet flagged. An unpriced row is never an
+    # estimate; its first pricing flags it if that falls back.
+    name = f"Oil {_tag()}"
+    vin = await new_vehicle()
+    payload = {
+        **V9,
+        "service_visits": [
+            {
+                "date": "2025-07-17",
+                "line_items": [
+                    {
+                        "description": "Oil change",
+                        "cost": 20,
+                        "supply_usages": [
+                            {
+                                "supply": _shared_ref(name),
+                                "quantity": "5",
+                                "unit_cost_snapshot": None,
+                                "cost_snapshot": None,
+                                "cost_estimated": True,
+                            }
+                        ],
+                    }
+                ],
+            }
+        ],
+    }
+
+    data = await import_json(client, auth_headers, vin, payload)
+
+    assert (data["errors"], data["warnings"]) == ([], [_added(name)])
+    [added] = await _supply_ids(db_session, name)
+    # 80a8b4d7: True, stored as read.
+    assert await _usage_rows(db_session, added) == [(None, None, False)]
+
+
+async def test_an_unpriced_use_elsewhere_flagged_estimated_imports_unflagged(
+    client: AsyncClient, auth_headers, db_session: AsyncSession, new_vehicle
+):
+    a, b = await new_vehicle(), await new_vehicle()
+    await _july_oil(db_session, a, b, settled=False)
+    backup_a = await export_json(client, auth_headers, a)
+    # Hand-edited: no costed purchase to price it, and the use has no cost
+    # but still says estimated.
+    [supply] = backup_a["supplies"]
+    supply["purchases"] = []
+    [use] = supply["used_elsewhere"]
+    use.update(unit_cost_snapshot=None, cost_snapshot=None, cost_estimated=True)
+
+    # Deleting A takes B's use with it; the restore writes it back.
+    await _start_over(db_session, a)
+    data = await import_json(client, auth_headers, a, backup_a)
+
+    assert (data["errors"], data["warnings"]) == ([], [])
+    # 80a8b4d7: True, stored as read.
+    assert await _usage_rows(db_session, await _pinned_copy(db_session, a)) == [(None, None, False)]
+
+
 async def test_a_restored_use_elsewhere_keeps_its_estimate(
     client: AsyncClient, auth_headers, db_session: AsyncSession, new_vehicle
 ):

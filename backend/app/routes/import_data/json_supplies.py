@@ -169,6 +169,16 @@ def _snapshots(row: Mapping[str, Any]) -> tuple[Decimal | None, Decimal | None]:
     return unit_cost, cost
 
 
+def _estimated(row: Mapping[str, Any], cost: Decimal | None) -> bool:
+    """A usage's cost_estimated flag; an older file has none, so it reads frozen.
+
+    Only a priced usage is an estimate. An unpriced one is flagged by its
+    first pricing if that falls back, so a flag beside no cost reads false.
+    """
+    flagged = _json_bool(row, "cost_estimated", default=False)
+    return flagged and cost is not None
+
+
 def _required_quantity(row: Mapping[str, Any]) -> Decimal:
     quantity = _json_decimal(row, "quantity")
     if quantity is None:
@@ -241,7 +251,7 @@ def _used_elsewhere_from_json(row: Mapping[str, Any]) -> UsedElsewhere | Unnamed
         item_index=item_index,
         item_cost=item_cost,
         has_item_cost="item_cost" in row,
-        cost_estimated=_json_bool(row, "cost_estimated", default=False),
+        cost_estimated=_estimated(row, cost),
     )
 
 
@@ -517,7 +527,7 @@ def line_item_usages_from_json(
             quantity = _required_quantity(row)
             _within_api_bounds(SupplyUsageInput, quantity=quantity)
             unit_cost, cost = _snapshots(row)
-            estimated = _json_bool(row, "cost_estimated", default=False)
+            estimated = _estimated(row, cost)
         except _RowError as e:
             raise _RowError(f"line item {position}, supply usage {k}: {e.reason}") from e
         usages.append(LineItemUsage(ref, quantity, unit_cost, cost, owner, estimated))
