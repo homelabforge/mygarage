@@ -3,7 +3,8 @@
  * registered, and it asks /auth/users/count, which answers has_users.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, waitFor } from '../../../__tests__/test-utils'
+import { render, screen, waitFor } from '../../../__tests__/test-utils'
+import { expectSafeOverlay } from '../../../__tests__/safeOverlay'
 
 const { get } = vi.hoisted(() => ({ get: vi.fn() }))
 vi.mock('@/services/api', () => ({ default: { get, put: vi.fn(), post: vi.fn(), delete: vi.fn() } }))
@@ -54,5 +55,13 @@ describe('FamilyManagementModal outside multi-user mode', () => {
     await waitFor(() => expect(vi.mocked(familyService.getDashboardMembers)).toHaveBeenCalled())
     expect(get).toHaveBeenCalledWith('/auth/users/count')
     expect(get).not.toHaveBeenCalledWith('/auth/users')
+  })
+})
+
+describe('FamilyManagementModal layout', () => {
+  it('centres inside the iPhone safe area (#305)', async () => {
+    get.mockResolvedValue({ data: {} })
+    render(<FamilyManagementModal isOpen onClose={vi.fn()} />)
+    expectSafeOverlay(await screen.findByRole('heading', { name: 'modal.familyManagement' }))
   })
 })

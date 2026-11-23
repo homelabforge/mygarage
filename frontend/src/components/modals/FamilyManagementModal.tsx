@@ -392,7 +392,7 @@ export default function FamilyManagementModal({ isOpen, onClose }: FamilyManagem
 
   return (
     <>
-      <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 pt-[calc(1rem+var(--spacing-safe-top))] pr-[calc(1rem+var(--spacing-safe-right))] pb-[calc(1rem+var(--spacing-safe-bottom))] pl-[calc(1rem+var(--spacing-safe-left))]">
+      <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 modal-safe-pad">
         <div className="bg-garage-surface border border-garage-border rounded-lg max-w-6xl w-full max-h-full flex flex-col">
           {/* Header */}
           <div className="p-6 border-b border-garage-border flex items-center justify-between flex-shrink-0">

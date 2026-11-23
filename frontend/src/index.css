@@ -429,6 +429,14 @@
   padding-right: calc(0.75rem + var(--affix-end) + 0.375rem);
 }
 
+/* The old centred modals' overlay (#305): their p-4 plus the iPhone safe-area
+   insets, so the box centres inside the safe area instead of under the status
+   bar. Put max-h-full on the box so the cap is the safe box too. */
+@utility modal-safe-pad {
+  padding: calc(1rem + var(--spacing-safe-top)) calc(1rem + var(--spacing-safe-right))
+    calc(1rem + var(--spacing-safe-bottom)) calc(1rem + var(--spacing-safe-left));
+}
+
 @utility ui-disabled {
   &:disabled,
   &[aria-disabled='true'] {

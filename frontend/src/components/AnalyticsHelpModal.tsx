@@ -21,7 +21,7 @@ export default function AnalyticsHelpModal({ isOpen, onClose }: AnalyticsHelpMod
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 pt-[calc(1rem+var(--spacing-safe-top))] pr-[calc(1rem+var(--spacing-safe-right))] pb-[calc(1rem+var(--spacing-safe-bottom))] pl-[calc(1rem+var(--spacing-safe-left))]">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 modal-safe-pad">
       <div className="bg-garage-surface border border-garage-border rounded-lg max-w-4xl w-full max-h-full overflow-y-auto">
         {/* Header */}
         <div className="sticky top-0 bg-garage-surface border-b border-garage-border p-6 flex items-center justify-between">
