@@ -75,7 +75,7 @@ const type = (el: HTMLElement, value: string) => fireEvent.change(el, { target: 
 // red on main for the parsing and not for the missing label wiring.
 const description = () => screen.getByPlaceholderText('lineItemEditor.misc.selectCategoryFirst')
 const cost = () =>
-  screen.getByText('lineItemEditor.cost').parentElement?.querySelector('input') as HTMLInputElement
+  screen.getByText('lineItemEditor.costPartsLabor').parentElement?.querySelector('input') as HTMLInputElement
 
 type Posted = {
   odometer_km?: number
@@ -110,7 +110,7 @@ describe('ServiceVisitForm: numbers read in the user language', () => {
   it('finds the line-item description and cost by their labels', () => {
     render(<ServiceVisitForm vin="TEST123" onClose={vi.fn()} onSuccess={vi.fn()} />)
     expect(screen.getByLabelText(/lineItemEditor\.misc\.descriptionLabel/)).toBe(description())
-    expect(screen.getByLabelText('lineItemEditor.cost')).toHaveAttribute('inputmode', 'decimal')
+    expect(screen.getByLabelText('lineItemEditor.costPartsLabor')).toHaveAttribute('inputmode', 'decimal')
   })
 
   it('de: a 12,50 line-item cost saves 12.5', async () => {

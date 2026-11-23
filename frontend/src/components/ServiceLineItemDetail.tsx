@@ -104,7 +104,7 @@ export default function ServiceLineItemDetail({
           <h4 className="text-xs font-medium text-text-mute uppercase tracking-wide">{t('serviceList.detail.cost')}</h4>
           <div className="bg-surface-2/50 rounded-md p-3 space-y-1 text-sm">
             <div className="flex justify-between text-text-mute">
-              <span>{t('serviceList.detail.labor')}</span>
+              <span>{t('serviceList.detail.partsLabor')}</span>
               <Mono size="sm">{fmt(laborCost)}</Mono>
             </div>
             <div className="flex justify-between text-text-mute">

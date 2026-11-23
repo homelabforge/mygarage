@@ -269,7 +269,7 @@ export default function LineItemEditor({
 
             <div>
               <label htmlFor={`line-item-${index}-cost`} className="block text-sm font-medium text-garage-text mb-1">
-                {t('lineItemEditor.cost')}
+                {t('lineItemEditor.costPartsLabor')}
               </label>
               <CurrencyInput
                 id={`line-item-${index}-cost`}

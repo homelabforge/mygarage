@@ -823,6 +823,7 @@
     "suppliesLoadFailed": "Couldn't load supplies. Saving is disabled to avoid losing this visit's recorded supplies — please retry.",
     "suppliesLoading": "Loading supplies…",
     "suppliesNone": "No supplies used for this item.",
+    "suppliesOwnStockHint": "Supplies come out of your own stock. Parts the shop supplied go in the cost.",
     "suppliesQuantityOf": "Quantity, {{supply}}",
     "suppliesRemoveNamed": "Remove {{supply}}",
     "suppliesUsed": "Supplies Used",

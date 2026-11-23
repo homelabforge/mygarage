@@ -124,6 +124,7 @@ export default function SupplyUsedPicker({
           {t('service.suppliesAddRow')}
         </button>
       </div>
+      <p className="text-xs text-garage-text-muted">{t('service.suppliesOwnStockHint')}</p>
 
       {value.length === 0 ? (
         <p className="text-xs text-garage-text-muted">{t('service.suppliesNone')}</p>

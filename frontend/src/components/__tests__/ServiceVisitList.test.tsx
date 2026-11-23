@@ -309,11 +309,13 @@ describe('ServiceVisitList: a service line shows what it cost and opens its deta
   }
   const detailOpen = (): boolean => document.querySelector('[data-testid="drawer-backdrop"]') !== null
 
-  it('the line total is labor plus parts, with the split underneath', () => {
+  it('the line total is the line cost plus supplies, with the split underneath', () => {
     openVisit()
 
     expect(screen.getAllByText('$49.52')).toHaveLength(2)
-    expect(screen.getByText(/serviceList\.laborCost/)).toBeInTheDocument()
+    // The line cost is parts + labor (#302/#306/#307), not labor alone.
+    expect(screen.getByText(/serviceList\.partsLaborCost/)).toBeInTheDocument()
+    expect(screen.queryByText(/serviceList\.laborCost/)).not.toBeInTheDocument()
     expect(screen.getByText(/serviceList\.partsCost/)).toBeInTheDocument()
   })
 

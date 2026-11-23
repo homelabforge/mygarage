@@ -111,7 +111,7 @@ const describeTheWork = () =>
     target: { value: 'Oil change' },
   })
 
-const costField = (): HTMLInputElement => screen.getByLabelText('lineItemEditor.cost') as HTMLInputElement
+const costField = (): HTMLInputElement => screen.getByLabelText('lineItemEditor.costPartsLabor') as HTMLInputElement
 
 const addSupplyRow = () => fireEvent.click(screen.getByRole('button', { name: /suppliesAddRow/ }))
 

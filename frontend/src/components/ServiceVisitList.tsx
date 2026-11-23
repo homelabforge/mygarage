@@ -298,7 +298,7 @@ export default function ServiceVisitList({
           {lineTotal > 0 ? <Mono size="sm">{fmt(lineTotal)}</Mono> : '-'}
           {laborCost > 0 && partsCost > 0 && (
             <p className="text-xs text-text-mute">
-              {t('serviceList.laborCost', { amount: fmt(laborCost) })} · {t('serviceList.partsCost', { amount: fmt(partsCost) })}
+              {t('serviceList.partsLaborCost', { amount: fmt(laborCost) })} · {t('serviceList.partsCost', { amount: fmt(partsCost) })}
             </p>
           )}
         </div>
