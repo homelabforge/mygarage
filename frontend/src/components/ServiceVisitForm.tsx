@@ -1166,7 +1166,7 @@ function ServiceVisitForm({
               <p className="text-right text-xs text-text-mute">{t('service.partsUnpriced')}</p>
             )}
             {partsEstimated && partsSupplies > 0 && (
-              <p className="text-right text-xs text-text-mute">{t('service.partsEstimated')}</p>
+              <p className="text-right text-xs text-text-mute">{t('service.partsEstimated', { label: t('common:supplies.estimated') })}</p>
             )}
           </div>
 

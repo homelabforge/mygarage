@@ -346,7 +346,7 @@ function UsageRow({ entry, supply, unit }: LedgerRowProps) {
   }
 
   return (
-    <div className="flex items-center justify-between gap-3 p-3 bg-garage-bg border border-garage-border rounded-md">
+    <div data-testid={`ledger-usage-${entry.id}`} className="flex items-center justify-between gap-3 p-3 bg-garage-bg border border-garage-border rounded-md">
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 text-sm">
           <span className="font-medium text-garage-text">{formatDateForDisplay(entry.ledger_date)}</span>

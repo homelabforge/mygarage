@@ -216,10 +216,10 @@ describe('SupplyHistoryModal', () => {
     })
     render(<SupplyHistoryModal supply={mockSupply} onClose={vi.fn()} />)
 
-    const marks = screen.getAllByText('supplies.estimated')
-    expect(marks).toHaveLength(1)
-    // On the job usage's row (visit 2026-01-10), not the adjustment's.
-    expect(marks[0].closest('.rounded-md')).toHaveTextContent('supplies.history.job')
+    expect(screen.getAllByText('supplies.estimated')).toHaveLength(1)
+    // On the job usage's row (id 20), not the adjustment's (id 21).
+    expect(within(screen.getByTestId('ledger-usage-20')).getByText('supplies.estimated')).toBeInTheDocument()
+    expect(within(screen.getByTestId('ledger-usage-21')).queryByText('supplies.estimated')).not.toBeInTheDocument()
     expect(screen.getByText('supplies.estimatedHint')).toBeInTheDocument()
   })
 
