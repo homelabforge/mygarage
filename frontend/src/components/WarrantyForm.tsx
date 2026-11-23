@@ -146,7 +146,7 @@ function WarrantyForm({ vin, record, onClose, onSuccess }: WarrantyFormProps) {
             </Field>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field id="start_date" label={t('common:startDate')} required error={errors.start_date}>
               <Input id="start_date" type="date" {...register('start_date')} invalid={!!errors.start_date} disabled={isSubmitting} />
             </Field>

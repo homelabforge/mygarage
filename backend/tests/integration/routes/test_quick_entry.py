@@ -3,7 +3,8 @@
 Covers:
 - PUT /auth/me: preference updates (show_both, mobile_quick_entry)
 - PUT /auth/me: rejects is_active and is_admin self-escalation
-- GET /quick-entry/vehicles: returns owned and write-shared vehicles
+- GET /quick-entry/vehicles: an admin gets every non-archived vehicle; anyone
+  else gets owned and write-shared ones
 - Service visit write: 403 for read-only shared vehicle
 - Odometer write: 403 for read-only shared vehicle
 
@@ -12,9 +13,12 @@ tests/integration/routes/test_unit_preferences.py, which also pins the fact
 that the old payload is rejected.
 """
 
+from datetime import UTC, datetime
+
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import select
+from sqlalchemy import delete, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import User
 from app.models.vehicle import Vehicle
@@ -208,17 +212,71 @@ class TestUpdateCurrentUserPreferences:
 @pytest.mark.integration
 @pytest.mark.asyncio
 class TestQuickEntryVehicles:
-    """Test GET /quick-entry/vehicles."""
+    """Test GET /quick-entry/vehicles.
 
-    async def test_returns_owned_vehicles(self, client: AsyncClient, auth_headers, test_vehicle):
-        """Test that owned vehicles are returned."""
-        response = await client.get(
-            "/api/quick-entry/vehicles",
-            headers=auth_headers,
+    `test_user` (behind `auth_headers`) is an ADMIN, and an admin sees every
+    vehicle. So the owner/share rules are tested as `non_admin_user`; under the
+    admin headers they would pass whether or not the rule held.
+    """
+
+    async def _add_user(self, db_session: AsyncSession, username: str) -> int:
+        """Add a plain non-admin user and return its id."""
+        user = User(
+            username=username,
+            email=f"{username}@example.com",
+            hashed_password="x",
+            is_active=True,
+            is_admin=False,
         )
+        db_session.add(user)
+        await db_session.flush()
+        return user.id
+
+    async def _add_vehicle(
+        self,
+        db_session: AsyncSession,
+        vin: str,
+        user_id: int | None,
+        *,
+        archived: bool = False,
+        created_at: datetime | None = None,
+    ) -> None:
+        """Add a bare vehicle. `user_id=None` is a vehicle created under auth_mode=none."""
+        vehicle = Vehicle(
+            vin=vin,
+            user_id=user_id,
+            nickname=f"QE {vin[-4:]}",
+            vehicle_type="Car",
+            year=2020,
+            make="Test",
+            model="Car",
+            archived_at=datetime.now(UTC) if archived else None,
+        )
+        # Only when asked: an explicit None would skip the server default.
+        if created_at is not None:
+            vehicle.created_at = created_at
+        db_session.add(vehicle)
+        await db_session.flush()
+
+    async def _cleanup(
+        self,
+        db_session: AsyncSession,
+        vins: list[str],
+        user_ids: list[int] | None = None,
+    ) -> None:
+        """Delete the shares, vehicles and users a test added, by key."""
+        await db_session.rollback()
+        await db_session.execute(delete(VehicleShare).where(VehicleShare.vehicle_vin.in_(vins)))
+        await db_session.execute(delete(Vehicle).where(Vehicle.vin.in_(vins)))
+        if user_ids:
+            await db_session.execute(delete(User).where(User.id.in_(user_ids)))
+        await db_session.commit()
+
+    async def _vins(self, client: AsyncClient, headers: dict[str, str] | None) -> list[str]:
+        """GET the Quick Entry list and return its VINs."""
+        response = await client.get("/api/quick-entry/vehicles", headers=headers)
         assert response.status_code == 200
-        vins = [v["vin"] for v in response.json()["vehicles"]]
-        assert test_vehicle["vin"] in vins
+        return [v["vin"] for v in response.json()["vehicles"]]
 
     async def test_carries_what_decides_the_actions(
         self, client: AsyncClient, auth_headers, test_vehicle
@@ -236,151 +294,209 @@ class TestQuickEntryVehicles:
             None,
         )
 
-    async def test_auth_disabled_returns_all_vehicles(self, client: AsyncClient, test_vehicle):
+    async def test_auth_disabled_returns_all_vehicles(
+        self, client: AsyncClient, test_vehicle, db_session
+    ):
         """auth_mode='none' → require_auth returns None → all non-archived
         vehicles, without dereferencing current_user (regression: the endpoint
-        used to 500 with AttributeError on current_user.id)."""
+        used to 500 with AttributeError on current_user.id). That includes an
+        unowned vehicle, which is what auth_mode='none' creates.
+
+        Regression control: passes on 3.11.2 too.
+        """
         from app.main import app
         from app.services.auth import require_auth
 
+        vins = ["QEAUTHNONE0000001", "QEAUTHNONE0000002"]
+        await self._add_vehicle(db_session, vins[0], None)
+        await self._add_vehicle(db_session, vins[1], None, archived=True)
+        await db_session.commit()
+
         app.dependency_overrides[require_auth] = lambda: None
         try:
-            response = await client.get("/api/quick-entry/vehicles")  # no auth headers
+            listed = await self._vins(client, None)  # no auth headers
         finally:
             app.dependency_overrides.pop(require_auth, None)
+            await self._cleanup(db_session, vins)
 
-        assert response.status_code == 200
-        vins = [v["vin"] for v in response.json()["vehicles"]]
-        assert test_vehicle["vin"] in vins
+        assert test_vehicle["vin"] in listed
+        assert vins[0] in listed
+        assert vins[1] not in listed
 
-    async def test_excludes_archived_vehicles(
+    async def test_admin_sees_unowned_vehicle(self, client: AsyncClient, auth_headers, db_session):
+        """#308: a vehicle created under auth_mode=none has no owner. The admin
+        can open it everywhere else, so Quick Entry must list it too."""
+        vin = "QEADMINUNOWNED001"
+        await self._add_vehicle(db_session, vin, None)
+        await db_session.commit()
+        try:
+            listed = await self._vins(client, auth_headers)
+        finally:
+            await self._cleanup(db_session, [vin])
+
+        assert vin in listed
+
+    async def test_admin_sees_other_users_vehicle(
+        self, client: AsyncClient, auth_headers, test_vehicle, db_session
+    ):
+        """An admin can write to every vehicle, so Quick Entry lists another
+        user's unshared vehicle beside the admin's own."""
+        vin = "QEADMINOTHER00001"
+        other_id = await self._add_user(db_session, "qe_admin_other")
+        await self._add_vehicle(db_session, vin, other_id)
+        await db_session.commit()
+        try:
+            listed = await self._vins(client, auth_headers)
+        finally:
+            await self._cleanup(db_session, [vin], [other_id])
+
+        assert vin in listed
+        assert test_vehicle["vin"] in listed
+
+    async def test_admin_excludes_archived_vehicles(
         self, client: AsyncClient, auth_headers, test_user, db_session
     ):
-        """Test that archived vehicles are not returned."""
-        from datetime import UTC, datetime
+        """Seeing everything still stops at archived, owned by the admin or not.
 
-        # Create an archived vehicle
-        archived_vehicle = Vehicle(
-            vin="ARCHIVEDVIN000001",
-            user_id=test_user["id"],
-            nickname="Archived Car",
-            vehicle_type="Car",
-            year=2000,
-            make="Old",
-            model="Car",
-            archived_at=datetime.now(UTC),
+        Only `live in listed` fails on 3.11.2. The two archived assertions are
+        regression controls.
+        """
+        live, archived_unowned, archived_own = (
+            "QEADMINLIVE000001",
+            "QEADMINARCHIVED01",
+            "QEADMINARCHIVED02",
         )
-        db_session.add(archived_vehicle)
+        await self._add_vehicle(db_session, live, None)
+        await self._add_vehicle(db_session, archived_unowned, None, archived=True)
+        await self._add_vehicle(db_session, archived_own, test_user["id"], archived=True)
         await db_session.commit()
+        try:
+            listed = await self._vins(client, auth_headers)
+        finally:
+            await self._cleanup(db_session, [live, archived_unowned, archived_own])
 
-        response = await client.get(
-            "/api/quick-entry/vehicles",
-            headers=auth_headers,
-        )
-        assert response.status_code == 200
-        vins = [v["vin"] for v in response.json()["vehicles"]]
-        assert "ARCHIVEDVIN000001" not in vins
+        assert live in listed
+        assert archived_unowned not in listed
+        assert archived_own not in listed
 
-        # Cleanup
-        await db_session.delete(archived_vehicle)
-        await db_session.commit()
-
-    async def test_includes_write_shared_vehicles(
-        self, client: AsyncClient, auth_headers, test_user, db_session
+    async def test_lists_newest_first_like_the_garage(
+        self, client: AsyncClient, auth_headers, db_session
     ):
-        """Test that write-shared vehicles are included."""
-        # Create a second user and vehicle
-        other_user = User(
-            username="otheruser_qe",
-            email="otheruser_qe@example.com",
-            hashed_password="x",
-            is_active=True,
-        )
-        db_session.add(other_user)
-        await db_session.flush()
+        """The picker uses the garage page's order: newest first, vin breaking a
+        created_at tie (`VehicleService.list_vehicles`).
 
-        shared_vehicle = Vehicle(
-            vin="SHAREDWRITEVIN001",
-            user_id=other_user.id,
-            nickname="Shared Write Vehicle",
-            vehicle_type="Car",
-            year=2021,
-            make="Toyota",
-            model="Camry",
+        Inserted oldest first and the tie in reverse vin order, so the old
+        unsorted query (insertion order) gets every position wrong.
+        """
+        old, tie_b, tie_a, new = (
+            "QEORDEROLD0000001",
+            "QEORDERTIE000000B",
+            "QEORDERTIE000000A",
+            "QEORDERNEW0000001",
         )
-        db_session.add(shared_vehicle)
-        await db_session.flush()
-
-        share = VehicleShare(
-            vehicle_vin="SHAREDWRITEVIN001",
-            user_id=test_user["id"],
-            permission="write",
-            shared_by=other_user.id,
-        )
-        db_session.add(share)
+        await self._add_vehicle(db_session, old, None, created_at=datetime(2019, 1, 1))
+        await self._add_vehicle(db_session, tie_b, None, created_at=datetime(2020, 6, 1))
+        await self._add_vehicle(db_session, tie_a, None, created_at=datetime(2020, 6, 1))
+        await self._add_vehicle(db_session, new, None, created_at=datetime(2022, 1, 1))
         await db_session.commit()
+        try:
+            listed = await self._vins(client, auth_headers)
+        finally:
+            await self._cleanup(db_session, [old, tie_b, tie_a, new])
 
-        response = await client.get(
-            "/api/quick-entry/vehicles",
-            headers=auth_headers,
-        )
-        assert response.status_code == 200
-        vins = [v["vin"] for v in response.json()["vehicles"]]
-        assert "SHAREDWRITEVIN001" in vins
+        ours = [vin for vin in listed if vin.startswith("QEORDER")]
+        assert ours == [new, tie_a, tie_b, old]
 
-        # Cleanup
-        await db_session.delete(share)
-        await db_session.delete(shared_vehicle)
-        await db_session.delete(other_user)
-        await db_session.commit()
-
-    async def test_excludes_read_only_shared_vehicles(
-        self, client: AsyncClient, auth_headers, test_user, db_session
+    async def test_non_admin_sees_owned_vehicles(
+        self, client: AsyncClient, non_admin_headers, non_admin_user, db_session
     ):
-        """Test that read-only shared vehicles are not returned."""
-        other_user = User(
-            username="otheruser_ro",
-            email="otheruser_ro@example.com",
-            hashed_password="x",
-            is_active=True,
-        )
-        db_session.add(other_user)
-        await db_session.flush()
-
-        readonly_vehicle = Vehicle(
-            vin="SHAREDREADVIN0001",
-            user_id=other_user.id,
-            nickname="Read-Only Vehicle",
-            vehicle_type="Car",
-            year=2020,
-            make="Honda",
-            model="Civic",
-        )
-        db_session.add(readonly_vehicle)
-        await db_session.flush()
-
-        share = VehicleShare(
-            vehicle_vin="SHAREDREADVIN0001",
-            user_id=test_user["id"],
-            permission="read",
-            shared_by=other_user.id,
-        )
-        db_session.add(share)
+        """Regression control: a non-admin's own vehicle is listed."""
+        vin = "QENONADMINOWN0001"
+        await self._add_vehicle(db_session, vin, non_admin_user["id"])
         await db_session.commit()
+        try:
+            listed = await self._vins(client, non_admin_headers)
+        finally:
+            await self._cleanup(db_session, [vin])
 
-        response = await client.get(
-            "/api/quick-entry/vehicles",
-            headers=auth_headers,
-        )
-        assert response.status_code == 200
-        vins = [v["vin"] for v in response.json()["vehicles"]]
-        assert "SHAREDREADVIN0001" not in vins
+        assert vin in listed
 
-        # Cleanup
-        await db_session.delete(share)
-        await db_session.delete(readonly_vehicle)
-        await db_session.delete(other_user)
+    async def test_non_admin_excludes_archived_vehicles(
+        self, client: AsyncClient, non_admin_headers, non_admin_user, db_session
+    ):
+        """Regression control: a non-admin's archived vehicle is not listed."""
+        vin = "QENONADMINARCH001"
+        await self._add_vehicle(db_session, vin, non_admin_user["id"], archived=True)
         await db_session.commit()
+        try:
+            listed = await self._vins(client, non_admin_headers)
+        finally:
+            await self._cleanup(db_session, [vin])
+
+        assert vin not in listed
+
+    async def test_non_admin_sees_write_shared_vehicles(
+        self, client: AsyncClient, non_admin_headers, non_admin_user, db_session
+    ):
+        """Regression control: a vehicle write-shared to a non-admin is listed."""
+        vin = "SHAREDWRITEVIN001"
+        owner_id = await self._add_user(db_session, "otheruser_qe")
+        await self._add_vehicle(db_session, vin, owner_id)
+        db_session.add(
+            VehicleShare(
+                vehicle_vin=vin,
+                user_id=non_admin_user["id"],
+                permission="write",
+                shared_by=owner_id,
+            )
+        )
+        await db_session.commit()
+        try:
+            listed = await self._vins(client, non_admin_headers)
+        finally:
+            await self._cleanup(db_session, [vin], [owner_id])
+
+        assert vin in listed
+
+    async def test_non_admin_excludes_read_only_shared_vehicles(
+        self, client: AsyncClient, non_admin_headers, non_admin_user, db_session
+    ):
+        """Regression control: Quick Entry only writes, so a read share is not listed."""
+        vin = "SHAREDREADVIN0001"
+        owner_id = await self._add_user(db_session, "otheruser_ro")
+        await self._add_vehicle(db_session, vin, owner_id)
+        db_session.add(
+            VehicleShare(
+                vehicle_vin=vin,
+                user_id=non_admin_user["id"],
+                permission="read",
+                shared_by=owner_id,
+            )
+        )
+        await db_session.commit()
+        try:
+            listed = await self._vins(client, non_admin_headers)
+        finally:
+            await self._cleanup(db_session, [vin], [owner_id])
+
+        assert vin not in listed
+
+    async def test_non_admin_excludes_unowned_and_unshared_vehicles(
+        self, client: AsyncClient, non_admin_headers, test_vehicle, db_session
+    ):
+        """Regression control: the admin rule must not leak to everyone. A
+        non-admin sees neither an unowned vehicle nor someone else's unshared one
+        (here the admin's)."""
+        vin = "QENONADMINUNOWN01"
+        await self._add_vehicle(db_session, vin, None)
+        await db_session.commit()
+        try:
+            listed = await self._vins(client, non_admin_headers)
+        finally:
+            await self._cleanup(db_session, [vin])
+
+        assert vin not in listed
+        assert test_vehicle["vin"] not in listed
 
 
 @pytest.mark.integration

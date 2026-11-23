@@ -293,7 +293,7 @@ export default function SpotRentalForm({ vin, rental, onClose, onSuccess }: Spot
             />
           </Field>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field id="check_in_date" label={t('spotRental.checkInDate')} required error={errors.check_in_date}>
               <Input id="check_in_date" type="date" {...register('check_in_date')} invalid={!!errors.check_in_date} disabled={isSubmitting} />
             </Field>

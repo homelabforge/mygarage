@@ -309,12 +309,16 @@ describe('ServiceVisitList: a service line shows what it cost and opens its deta
   }
   const detailOpen = (): boolean => document.querySelector('[data-testid="drawer-backdrop"]') !== null
 
-  it('the line total is labor plus parts, with the split underneath', () => {
+  it('the line total is the line cost plus supplies, with the split underneath', () => {
     openVisit()
 
     expect(screen.getAllByText('$49.52')).toHaveLength(2)
-    expect(screen.getByText(/serviceList\.laborCost/)).toBeInTheDocument()
-    expect(screen.getByText(/serviceList\.partsCost/)).toBeInTheDocument()
+    // The line cost is parts + labor (#302/#306/#307), not labor alone.
+    expect(screen.getByText(/serviceList\.partsLaborCost/)).toBeInTheDocument()
+    expect(screen.queryByText(/serviceList\.laborCost/)).not.toBeInTheDocument()
+    // ...and the supply side says Supplies, so "Parts" doesn't read twice.
+    expect(screen.getByText(/serviceList\.suppliesCost/)).toBeInTheDocument()
+    expect(screen.queryByText(/serviceList\.partsCost/)).not.toBeInTheDocument()
   })
 
   it("clicking the line opens its detail; ending a selection in it doesn't (#179)", () => {
@@ -332,8 +336,9 @@ describe('ServiceVisitList: a service line shows what it cost and opens its deta
     expect(detailOpen()).toBe(true)
   })
 
-  it('the cost breakdown lists the parts, so its rows add up to the total', () => {
-    // Subtotal is labor only; without a parts row, $40 + $3 tax reads as $52.52.
+  it('the cost breakdown lists the supplies, so its rows add up to the total', () => {
+    // The subtotal is the line costs (parts + labor) without supplies. Without
+    // a supplies row, $40 + $3 tax reads as $52.52.
     useServiceVisitsMock.mockReturnValue({
       data: { visits: [{ ...partsVisit, tax_amount: '3.00', parts_supplies_cost: '9.52', calculated_total_cost: '52.52' }] },
       isLoading: false,
@@ -341,7 +346,7 @@ describe('ServiceVisitList: a service line shows what it cost and opens its deta
     })
     openVisit()
 
-    const partsRow = screen.getByText('serviceList.detail.parts:').parentElement
+    const partsRow = screen.getByText('serviceList.detail.suppliesCost:').parentElement
     expect(partsRow).toHaveTextContent('$9.52')
   })
 

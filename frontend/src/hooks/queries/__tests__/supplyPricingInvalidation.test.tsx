@@ -9,7 +9,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
-import { useAddPurchase } from '../useSupplies'
+import { useAddPurchase, useDeletePurchase } from '../useSupplies'
 import {
   useCreateServiceVisit,
   useDeleteServiceVisit,
@@ -96,6 +96,22 @@ describe('a purchase marks the visits that use the supply stale', () => {
     expect(stale(qc, VISITS)).toBe(false)
     expect(stale(qc, USAGES)).toBe(false)
     expect(stale(qc, STATS)).toBe(false)
+  })
+})
+
+describe('a purchase delete marks the visits it may re-price stale', () => {
+  it('visit lists, every usage tab and the vehicle stats', async () => {
+    // The 204 doesn't say whether any estimate re-ran, so it's always all of them.
+    const qc = await run(() => useDeletePurchase(7), 3)
+
+    expect(stale(qc, VISITS)).toBe(true)
+    expect(stale(qc, VISIT_PAGES)).toBe(true)
+    expect(stale(qc, USAGES)).toBe(true)
+    expect(stale(qc, OTHER_USAGES)).toBe(true)
+    expect(stale(qc, STATS)).toBe(true)
+    expect(stale(qc, SUPPLIES)).toBe(true)
+    expect(stale(qc, HISTORY)).toBe(true)
+    expect(stale(qc, OTHER_HISTORY)).toBe(true)
   })
 })
 

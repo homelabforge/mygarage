@@ -118,7 +118,7 @@ export default function QuickEntry() {
   return (
     <div className="min-h-screen bg-garage-bg flex flex-col">
       {/* Minimal header */}
-      <header className="bg-garage-surface border-b border-garage-border px-4 py-3 flex items-center justify-between">
+      <header className="bg-garage-surface border-b border-garage-border pt-[calc(0.75rem+var(--spacing-safe-top))] pr-[calc(1rem+var(--spacing-safe-right))] pb-3 pl-[calc(1rem+var(--spacing-safe-left))] flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Car className="w-5 h-5 text-(--accent-fg)" />
           <span className="font-semibold text-garage-text">{t('common:appName')}</span>

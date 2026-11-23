@@ -1,19 +1,21 @@
 """Service visit business logic service layer."""
 
+import datetime as dt
 import logging
 from collections.abc import Mapping, Sequence
 
 from fastapi import HTTPException
-from sqlalchemy import delete, func, select
+from sqlalchemy import ColumnElement, Exists, delete, func, or_, select
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import joinedload, selectinload
+from sqlalchemy.orm import InstrumentedAttribute, joinedload, selectinload
 
 from app.constants.service_vocab import ServiceCategory, is_service_category
 from app.models.service_line_item import ServiceLineItem
 from app.models.service_visit import ServiceVisit
-from app.models.supply import SupplyUsage
+from app.models.supply import SupplyPurchase, SupplyUsage
 from app.models.user import User
+from app.schemas._money import UNIT_COST_MAX
 from app.schemas.service_visit import (
     FLAGGED_LINKS,
     LinkedRecall,
@@ -31,7 +33,10 @@ from app.services import maintenance_service, recall_links
 from app.services.attachment_cleanup import purge_record_attachments, remove_attachment_files
 from app.services.supply_service import (
     SupplyService,
-    price_unpriced_usage,
+    estimate_of,
+    price_unsettled_usage,
+    rerun_fallback,
+    unsettled_usage,
     usage_cost,
     usage_cost_subject,
 )
@@ -57,6 +62,25 @@ _KEPT_WHEN_OMITTED = (
     "inspection_result",
     "inspection_severity",
 )
+
+
+def _bought_between(
+    supply_id: InstrumentedAttribute[int] | ColumnElement[int] | int,
+    low: dt.date,
+    high: dt.date,
+) -> Exists:
+    """A costed purchase of the supply dated in (low, high]. That's exactly when
+    moving a visit between the two dates changes what its usage is priced on."""
+    return (
+        select(SupplyPurchase.id)
+        .where(
+            SupplyPurchase.supply_id == supply_id,
+            SupplyPurchase.total_cost.isnot(None),
+            SupplyPurchase.date > low,
+            SupplyPurchase.date <= high,
+        )
+        .exists()
+    )
 
 
 def drop_stray_links(items: Sequence[ServiceLineItem]) -> None:
@@ -401,7 +425,9 @@ class ServiceVisitService:
         # Pass 3: sync supply usages for each created line item
         for item_data, line_item in created_items:
             if item_data.supplies_used:
-                await self._sync_line_item_supplies(line_item, item_data.supplies_used, vin)
+                await self._sync_line_item_supplies(
+                    line_item, item_data.supplies_used, vin, visit.date
+                )
 
         # Always recompute total_cost from line items + supplies + fees (denormalized cache)
         await self._recompute_visit_total(visit.id)
@@ -435,8 +461,9 @@ class ServiceVisitService:
 
     async def price_and_recompute_visit_total(self, visit_id: int) -> ServiceVisit:
         """What every visit write ends with: price its supplies that had no cost
-        yet (#301), then recompute the total. Vehicle lock held, no commit."""
-        await self.price_unpriced_on_visit(visit_id)
+        yet (#301) and settle the estimates it can (#307), then recompute the
+        total. Vehicle lock held, no commit."""
+        await self.price_unsettled_on_visit(visit_id)
         return await self._recompute_visit_total(visit_id)
 
     async def update_service_visit(
@@ -556,7 +583,13 @@ class ServiceVisitService:
                         # Omitted = keep (G1-D5): an API client that leaves the
                         # field out must not delete the item's usages. [] clears.
                         if "supplies_used" in sent:
-                            await self._sync_line_item_supplies(row, item_data.supplies_used, vin)
+                            await self._sync_line_item_supplies(
+                                row,
+                                item_data.supplies_used,
+                                vin,
+                                visit.date,
+                                moved_from=old_date if visit.date != old_date else None,
+                            )
                         # Skip one the visit's CHECK would refuse.
                         if is_service_category(row.category):
                             effective_cats.append(row.category)
@@ -620,7 +653,9 @@ class ServiceVisitService:
                 )
 
                 for item_data, line_item in new_items:
-                    await self._sync_line_item_supplies(line_item, item_data.supplies_used, vin)
+                    await self._sync_line_item_supplies(
+                        line_item, item_data.supplies_used, vin, visit.date
+                    )
                     if item_data.reminder:
                         await maintenance_service.create_reminder_for_line_item(
                             self.db, vin, line_item, visit, item_data.reminder
@@ -634,6 +669,12 @@ class ServiceVisitService:
                 await recall_links.link_recalls(
                     self.db, [(rid, visit.date) for rid in linked_before if rid is not None]
                 )
+
+            # A new date can change which purchases count for each usage's
+            # price (#307). After the item sync, so it sees every usage the
+            # visit keeps at its new quantity.
+            if visit.date != old_date:
+                await self._reprice_for_new_date(visit_id, old_date, visit.date)
 
             # Always recompute total_cost from line items + supplies + fees (denormalized cache)
             await self.db.flush()
@@ -901,7 +942,9 @@ class ServiceVisitService:
                 )
 
             if item_data.supplies_used:
-                await self._sync_line_item_supplies(line_item, item_data.supplies_used, vin)
+                await self._sync_line_item_supplies(
+                    line_item, item_data.supplies_used, vin, visit.date
+                )
 
             # Recompute total_cost (denormalized cache)
             await self.price_and_recompute_visit_total(visit.id)
@@ -1018,26 +1061,49 @@ class ServiceVisitService:
             )
             raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
-    async def price_unpriced_on_visit(self, visit_id: int) -> None:
-        """Price the visit's usages that have no cost yet, if their supply has one now (#301).
+    async def price_unsettled_on_visit(self, visit_id: int) -> None:
+        """Price the visit's usages that have no cost yet, and settle its estimates
+        that a costed purchase on or before the visit can settle now (#301, #307).
 
         Called by every visit write after its edits are flushed and before the
-        total recompute, with the vehicle lock held. The pricing runs in a
-        savepoint: if it would push the total past the money column, only the
-        pricing rolls back and the edit still saves (the caller's own recompute
-        then judges the edit alone). A priced usage is never touched.
+        total recompute, with the vehicle lock held, and by the pricing after a
+        purchase or an import. Prices are as of the visit's date
+        (``price_unsettled_usage`` has the rule). It runs in a savepoint: if it
+        would push the total past the money column, only the pricing rolls
+        back and the edit still saves (the caller's own recompute then judges
+        the edit alone). A settled usage is never touched here; a date change
+        re-prices in the edit itself (``_reprice_for_new_date``).
         """
+        await self._price_visit(visit_id, rerun_supply_id=None)
+
+    async def rerun_fallback_on_visit(self, visit_id: int, supply_id: int) -> None:
+        """After a costed purchase of `supply_id` is deleted: re-run the fallback
+        for the visit's estimates of it (``rerun_fallback``), and price the rest
+        as ``price_unsettled_on_visit`` does. Same lock, savepoint and total."""
+        await self._price_visit(visit_id, rerun_supply_id=supply_id)
+
+    async def _price_visit(self, visit_id: int, *, rerun_supply_id: int | None) -> None:
+        """The visit pricer behind ``price_unsettled_on_visit`` and ``rerun_fallback_on_visit``."""
         # Sessions don't autoflush; the edits must be in before the select, and
         # outside the savepoint so its rollback can't take them.
         await self.db.flush()
+        visit_date = (
+            await self.db.execute(select(ServiceVisit.date).where(ServiceVisit.id == visit_id))
+        ).scalar_one()
+        wanted = unsettled_usage(ServiceVisit.date)
+        if rerun_supply_id is not None:
+            wanted = or_(wanted, estimate_of(rerun_supply_id))
         usages = (
             (
                 await self.db.execute(
                     select(SupplyUsage)
                     .join(ServiceLineItem, SupplyUsage.service_line_item_id == ServiceLineItem.id)
-                    .where(
-                        ServiceLineItem.visit_id == visit_id, SupplyUsage.cost_snapshot.is_(None)
-                    )
+                    .join(ServiceVisit, ServiceLineItem.visit_id == ServiceVisit.id)
+                    .where(ServiceVisit.id == visit_id, wanted)
+                    .order_by(SupplyUsage.id)
+                    # The rule reads the row's cost and flag: the database's, not
+                    # whatever an earlier load left in the identity map (flushed above).
+                    .execution_options(populate_existing=True)
                 )
             )
             .scalars()
@@ -1045,10 +1111,22 @@ class ServiceVisitService:
         )
         if not usages:
             return
-        avgs = await SupplyService(self.db).avg_unit_costs(sorted({u.supply_id for u in usages}))
+        found = await SupplyService(self.db).as_of_unit_costs(
+            sorted({u.supply_id for u in usages}), visit_date
+        )
+
+        def price(usage: SupplyUsage) -> bool:
+            rerun = (
+                usage.supply_id == rerun_supply_id
+                and usage.cost_estimated
+                and usage.cost_snapshot is not None
+            )
+            pricer = rerun_fallback if rerun else price_unsettled_usage
+            return pricer(usage, found.get(usage.supply_id))
+
         try:
             async with self.db.begin_nested():
-                priced = [u for u in usages if price_unpriced_usage(u, avgs.get(u.supply_id))]
+                priced = [u for u in usages if price(u)]
                 if priced:
                     await self._recompute_visit_total(visit_id)
         except HTTPException as e:
@@ -1057,6 +1135,88 @@ class ServiceVisitService:
             logger.info(
                 "Left visit %s's supplies unpriced: %s", visit_id, sanitize_for_log(e.detail)
             )
+
+    async def _reprice_for_new_date(
+        self, visit_id: int, old_date: dt.date, new_date: dt.date
+    ) -> None:
+        """Re-price the visit's usages whose purchases on or before it changed
+        with its date (#307). Vehicle lock held, no commit.
+
+        A usage is re-priced, estimated or not, frozen, imported or from before
+        3.11.3, when a costed purchase of its supply is dated in
+        (min(old, new), max(old, new)]: exactly when the set dated on or before
+        the visit changed. Otherwise it's left alone. It takes the price as of
+        the new date, else the all-time fallback, flagged. An explicit date
+        edit is the user asking for it, and nothing else tells those rows apart.
+
+        Part of the edit, not the pricer's savepoint: a unit or cost that won't
+        fit is a 422 and the date change is refused with it. In the savepoint a
+        rollback would keep the new date and lose the re-price for good.
+        """
+        low, high = sorted((old_date, new_date))
+        await self.db.flush()
+        supply_ids = (
+            (
+                await self.db.execute(
+                    select(SupplyUsage.supply_id)
+                    .join(ServiceLineItem, SupplyUsage.service_line_item_id == ServiceLineItem.id)
+                    .where(ServiceLineItem.visit_id == visit_id)
+                    .distinct()
+                )
+            )
+            .scalars()
+            .all()
+        )
+        if not supply_ids:
+            return
+        supplies = SupplyService(self.db)
+        # Before the read: a purchase racing this edit lands after its commit,
+        # and the pricing after that purchase sees the new date.
+        await supplies.hold_prices(supply_ids)
+        moved_between = _bought_between(SupplyUsage.supply_id, low, high)
+        usages = (
+            (
+                await self.db.execute(
+                    select(SupplyUsage)
+                    .join(ServiceLineItem, SupplyUsage.service_line_item_id == ServiceLineItem.id)
+                    .where(ServiceLineItem.visit_id == visit_id, moved_between)
+                    .order_by(SupplyUsage.id)
+                    .execution_options(populate_existing=True)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        if not usages:
+            return
+        found = await supplies.as_of_unit_costs(sorted({u.supply_id for u in usages}), new_date)
+        for usage in usages:
+            price = found.get(usage.supply_id)
+            if price is None:
+                # Can't happen: the range test found a costed purchase, and a purchase's
+                # quantity is gt=0 in the API and the import. The sync may have set a
+                # new quantity already, so skipping here would leave its cost stale.
+                continue
+            unit, estimated = price
+            ensure_fits(unit, f"The unit cost of supply {usage.supply_id}", UNIT_COST_MAX)
+            cost = usage_cost(unit, usage.quantity)
+            ensure_fits(cost, usage_cost_subject(usage.supply_id))
+            usage.unit_cost_snapshot, usage.cost_snapshot = unit, cost
+            usage.cost_estimated = estimated
+        await self.db.flush()
+
+    async def _repriced_by_move(
+        self, supply_id: int, moved_from: dt.date | None, new_date: dt.date
+    ) -> bool:
+        """Whether `_reprice_for_new_date` will re-price this supply's usage
+        when the visit moves from `moved_from` to `new_date`."""
+        if moved_from is None:
+            return False
+        # The same lock the re-price takes, so a purchase can't land or go
+        # between this answer and that one.
+        await SupplyService(self.db).hold_prices([supply_id])
+        low, high = sorted((moved_from, new_date))
+        return bool(await self.db.scalar(select(_bought_between(supply_id, low, high))))
 
     async def _reload_visit_full(self, visit_id: int) -> ServiceVisit:
         """Reload a visit with line_items → supply_usages eager-loaded — just
@@ -1103,6 +1263,9 @@ class ServiceVisitService:
         line_item: ServiceLineItem,
         supplies_used: Sequence[SupplyUsageInput] | None,
         vin: str,
+        visit_date: dt.date,
+        *,
+        moved_from: dt.date | None = None,
     ) -> None:
         """Diff a line item's supply usages by supply_id — PRESERVE frozen snapshots.
 
@@ -1112,8 +1275,14 @@ class ServiceVisitService:
           - supply_id present before AND now → keep the row (id, created_at). If only
             the quantity changed, RETAIN the original unit_cost_snapshot and recompute
             cost_snapshot = unit_cost_snapshot × new_quantity (cost stays frozen).
-          - supply_id newly added → validate active/pinned NOW + snapshot current avg.
+          - supply_id newly added → validate active/pinned NOW + snapshot the price as
+            of `visit_date` (the visit's date as this write leaves it), flagged
+            when it's the all-time fallback (#307).
+          A kept row keeps its unit and its flag through a quantity change.
           - supply_id removed → delete the row.
+        `moved_from` is the visit's old date when this edit moves it. A kept row
+        the move re-prices skips the frozen-price check, since
+        `_reprice_for_new_date` checks its new quantity at the final price.
         Only NEW associations are validated, so editing an unrelated field on a
         historical visit never fails because a supply was archived/repinned since.
         """
@@ -1151,7 +1320,13 @@ class ServiceVisitService:
             prior = existing.get(u.supply_id)
             if prior is not None:
                 # Unchanged association: keep frozen unit cost; recompute cost only if qty moved.
-                if prior.quantity != u.quantity:
+                if prior.quantity != u.quantity and await self._repriced_by_move(
+                    u.supply_id, moved_from, visit_date
+                ):
+                    # The date move re-prices this row next and checks the new
+                    # quantity there, so the old price doesn't get a say.
+                    prior.quantity = u.quantity
+                elif prior.quantity != u.quantity:
                     cost = (
                         usage_cost(prior.unit_cost_snapshot, u.quantity)
                         if prior.unit_cost_snapshot is not None
@@ -1163,10 +1338,10 @@ class ServiceVisitService:
                     prior.cost_snapshot = cost
                 # fully unchanged → leave the row (and its created_at) untouched
             else:
-                # New association: validate + snapshot at current average cost.
+                # New association: validate + snapshot as of the visit's date.
                 await supply_service.get_supply_for_use(u.supply_id, vin)  # 400 if not usable
-                unit_cost, cost = await supply_service.create_usage_snapshot(
-                    u.supply_id, u.quantity
+                unit_cost, cost, estimated = await supply_service.create_usage_snapshot(
+                    u.supply_id, u.quantity, as_of=visit_date
                 )
                 self.db.add(
                     SupplyUsage(
@@ -1174,6 +1349,7 @@ class ServiceVisitService:
                         quantity=u.quantity,
                         unit_cost_snapshot=unit_cost,
                         cost_snapshot=cost,
+                        cost_estimated=estimated,
                         service_line_item_id=line_item.id,
                     )
                 )

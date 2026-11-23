@@ -114,3 +114,14 @@ describe('UnitSetEditor, page layout', () => {
     expect(grid).not.toHaveClass('sm:grid-cols-2')
   })
 })
+
+describe('UnitSetEditor, page', () => {
+  it('keeps the preset confirm overlay inside the safe area (#305)', async () => {
+    renderEditor('custom', false)
+
+    await userEvent.click(screen.getByRole('button', { name: 'units.metric' }))
+
+    const overlay = screen.getByText('units.presetConfirmMessage').closest('.fixed')
+    expect(overlay).toHaveClass('modal-safe-inset')
+  })
+})

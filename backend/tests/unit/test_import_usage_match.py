@@ -9,13 +9,19 @@ from collections import Counter
 from decimal import Decimal
 from typing import Any
 
-from app.routes.import_data._service import _items_match, _usages_match, usage_counts
+from app.routes.import_data._service import (
+    UsageCounts,
+    _items_match,
+    _usages_match,
+    usage_counts,
+)
+
+#: (name, quantity, unit cost, cost), and an estimate flag when `_est` adds one.
+_Row = tuple[Any, ...]
 
 
-def _usages(
-    *rows: tuple[str, str, str | None, str | None],
-) -> frozenset[tuple[tuple[Any, ...], int]]:
-    """(name, quantity, unit cost, cost) rows as one item's usage counts."""
+def _usages(*rows: _Row) -> UsageCounts:
+    """(name, quantity, unit cost, cost[, estimated]) rows as one item's usage counts."""
     return usage_counts(
         (
             name,
@@ -24,9 +30,15 @@ def _usages(
             Decimal(quantity),
             None if unit is None else Decimal(unit),
             None if cost is None else Decimal(cost),
+            bool(estimated and estimated[0]),
         )
-        for name, quantity, unit, cost in rows
+        for name, quantity, unit, cost, *estimated in rows
     )
+
+
+def _est(row: _Row) -> _Row:
+    """`row` priced at an estimate (#307)."""
+    return (*row, True)
 
 
 OIL_UNPRICED = ("oil", "4.4", None, None)
@@ -59,7 +71,7 @@ def test_priced_and_unpriced_copies_pair_up():
     assert _usages_match(_usages(OIL_UNPRICED, OIL_PRICED), _usages(OIL_DEARER, OIL_PRICED))
 
 
-def _item(usages: frozenset[tuple[tuple[Any, ...], int]]) -> tuple[Any, ...]:
+def _item(usages: UsageCounts) -> tuple[Any, ...]:
     return ("Oil change", Decimal("10.00"), usages)
 
 
@@ -76,3 +88,39 @@ def test_items_with_nothing_to_pair_are_no_match():
     stored = Counter([_item(_usages(OIL_PRICED)), _item(_usages(OIL_DEARER))])
     assert not _items_match(file, stored)
     assert not _items_match(Counter([_item(_usages(OIL_UNPRICED))]), Counter())
+
+
+# -- #307: an estimate is a snapshot that moves, so either side estimated takes any price (D7)
+
+
+def test_an_estimated_file_usage_matches_the_stored_one_at_another_price():
+    # The backup was taken before the estimate settled.
+    assert _usages_match(_usages(_est(OIL_DEARER)), _usages(OIL_PRICED))
+
+
+def test_a_stored_estimate_matches_the_file_usage_at_another_price():
+    # The stored row went back to an estimate after the backup was taken.
+    assert _usages_match(_usages(OIL_PRICED), _usages(_est(OIL_DEARER)))
+
+
+def test_an_estimate_still_needs_the_same_supply_and_quantity():
+    assert not _usages_match(_usages(_est(OIL_DEARER)), _usages(("oil", "5", "6.3401", "31.70")))
+    assert not _usages_match(_usages(OIL_PRICED), _usages(_est(("coolant", "4.4", "7.0", "30.80"))))
+
+
+def test_an_estimate_stands_in_for_one_usage_only():
+    assert not _usages_match(_usages(_est(OIL_DEARER)), _usages(OIL_PRICED, OIL_PRICED))
+    assert not _usages_match(_usages(OIL_PRICED, OIL_DEARER), _usages(_est(OIL_PRICED)))
+
+
+def test_a_file_usage_takes_its_own_price_before_a_stored_estimate():
+    # Had the first 27.90 taken the stored estimate, 31.00 would find only the
+    # frozen 27.90 left.
+    assert _usages_match(_usages(OIL_PRICED, OIL_DEARER), _usages(_est(OIL_PRICED), OIL_PRICED))
+
+
+def test_twin_items_that_differ_only_in_the_flag_stay_two():
+    # Counted as one key, both would read as estimates and take the 27.90s.
+    file = Counter([_item(_usages(_est(OIL_DEARER))), _item(_usages(OIL_DEARER))])
+    stored = Counter([_item(_usages(OIL_PRICED)), _item(_usages(OIL_PRICED))])
+    assert not _items_match(file, stored)

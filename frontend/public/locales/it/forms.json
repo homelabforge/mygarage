@@ -737,7 +737,6 @@
     "lineItemCostNegative": "Voce {{number}}: il costo non può essere negativo",
     "lineItemCostTooLarge": "Voce {{number}}: importo costo troppo grande",
     "miscFees": "Spese varie",
-    "partsSupplies": "Ricambi e materiali",
     "reminderIntervalTooSmall": "Voce {{number}}: l'intervallo del promemoria deve essere almeno 1",
     "saveAction": "salvare l'intervento",
     "servicesPerformed": "Interventi eseguiti",

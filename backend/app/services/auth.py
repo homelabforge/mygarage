@@ -436,6 +436,29 @@ def visible_vehicles_filter(current_user: User | None) -> ColumnElement[bool] | 
     return or_(Vehicle.user_id == current_user.id, Vehicle.vin.in_(shared_vins))
 
 
+def writable_vehicles_filter(current_user: User | None) -> ColumnElement[bool] | None:
+    """The WHERE that scopes a vehicle query to the vehicles this caller may write to.
+
+    The write half of `visible_vehicles_filter`, and `None` means the same as
+    there: no restriction, for `auth_mode='none'` and for an admin, who can write
+    to every vehicle (`get_vehicle_or_403` lets them). Everyone else gets owned
+    plus write-shared; a read share drops out.
+
+    Quick Entry's list was the third hand-rolled copy of this rule to lose the
+    admin branch: an admin could log against any vehicle from that vehicle's
+    page, but Quick Entry hid unowned ones (anything created under
+    `auth_mode='none'`) and other users' (#308).
+    """
+    if current_user is None or current_user.is_admin:
+        return None
+    write_shared_vins = (
+        select(VehicleShare.vehicle_vin)
+        .where(VehicleShare.user_id == current_user.id, VehicleShare.permission == "write")
+        .scalar_subquery()
+    )
+    return or_(Vehicle.user_id == current_user.id, Vehicle.vin.in_(write_shared_vins))
+
+
 async def accessible_vehicles(db: AsyncSession, current_user: User | None) -> list[Vehicle]:
     """Every non-archived vehicle this caller may see, in one query.
 

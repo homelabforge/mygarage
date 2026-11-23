@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import asyncio
 import uuid
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Sequence
 from dataclasses import dataclass, replace
 from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
@@ -37,7 +37,7 @@ from app.models.vehicle import Vehicle
 from app.schemas.service_visit import ServiceLineItemCreate, ServiceVisitUpdate
 from app.schemas.supply import SupplyPurchaseCreate, SupplyUsageInput
 from app.services.service_visit_service import ServiceVisitService
-from app.services.supply_service import SupplyService
+from app.services.supply_service import AsOfPrice, SupplyService
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
@@ -94,25 +94,25 @@ def _hold_after_the_averages(monkeypatch: pytest.MonkeyPatch) -> list[int]:
     finds nothing; without it both read unpriced and both price. A hold, not a
     barrier: the loser blocks inside the driver on the lock and would never
     reach one."""
-    original_avgs = SupplyService.avg_unit_costs
+    original_prices = SupplyService.as_of_unit_costs
 
-    async def slow(self: SupplyService, supply_ids: list[int]):
-        result = await original_avgs(self, supply_ids)
+    async def slow(self: SupplyService, supply_ids: Sequence[int], as_of: date):
+        result = await original_prices(self, supply_ids, as_of)
         await asyncio.sleep(0.5)
         return result
 
-    monkeypatch.setattr(SupplyService, "avg_unit_costs", slow)
+    monkeypatch.setattr(SupplyService, "as_of_unit_costs", slow)
 
     priced: list[int] = []
-    original_price = service_visit_service.price_unpriced_usage
+    original_price = service_visit_service.price_unsettled_usage
 
-    def counted(usage: SupplyUsage, avg: Decimal | None) -> bool:
-        did = original_price(usage, avg)
+    def counted(usage: SupplyUsage, found: AsOfPrice | None) -> bool:
+        did = original_price(usage, found)
         if did:
             priced.append(usage.id)
         return did
 
-    monkeypatch.setattr(service_visit_service, "price_unpriced_usage", counted)
+    monkeypatch.setattr(service_visit_service, "price_unsettled_usage", counted)
     return priced
 
 
@@ -215,15 +215,18 @@ async def test_a_usage_logged_as_the_first_cost_lands_is_priced(
         await db.commit()
         jug_id = jug.id
 
-    # Held after the visit's pricing pass reads the averages, its usage in.
-    original = SupplyService.avg_unit_costs
+    # Held after the visit's pricing pass reads the prices, its usage in. Not
+    # the snapshot's read (as_of_unit_cost): that one is under the supply lock.
+    original = SupplyService.as_of_unit_costs
 
-    async def slow(self: SupplyService, supply_ids: list[int]) -> dict[int, Decimal | None]:
-        avgs = await original(self, supply_ids)
+    async def slow(
+        self: SupplyService, supply_ids: Sequence[int], as_of: date
+    ) -> dict[int, AsOfPrice | None]:
+        found = await original(self, supply_ids, as_of)
         await asyncio.sleep(0.5)
-        return avgs
+        return found
 
-    monkeypatch.setattr(SupplyService, "avg_unit_costs", slow)
+    monkeypatch.setattr(SupplyService, "as_of_unit_costs", slow)
 
     async def top_up() -> None:
         async with test_sessionmaker() as db:
@@ -256,6 +259,152 @@ async def test_a_usage_logged_as_the_first_cost_lands_is_priced(
             )
         *_, stored, fresh = await _state(test_sessionmaker, seeded)
         assert stored == fresh == Decimal("14.00")
+    finally:
+        async with test_sessionmaker() as db:
+            await db.execute(delete(SupplyUsage).where(SupplyUsage.supply_id == jug_id))
+            await db.execute(delete(SupplyPurchase).where(SupplyPurchase.supply_id == jug_id))
+            await db.execute(delete(Supply).where(Supply.id == jug_id))
+            await db.commit()
+
+
+async def test_a_purchase_racing_a_date_change_settles_the_usage(
+    seeded: Seeded, test_sessionmaker, monkeypatch: pytest.MonkeyPatch
+):
+    """#307: the visit is priced from a later receipt, then its date moves back
+    before it while a costed purchase dated before the new date lands. The
+    edit re-prices to an estimate and is held after its own pricing pass,
+    before it commits; the purchase lands in that hold. Its pricing must see
+    the edit's estimate, or the edit must see the purchase: otherwise the usage
+    keeps an estimate that purchase should have settled."""
+    async with test_sessionmaker() as db:
+        user = await db.get(User, seeded.user.id)
+        await SupplyService(db).add_purchase(
+            seeded.supply_id,
+            SupplyPurchaseCreate(
+                date=date(2026, 6, 2), quantity=Decimal("5"), total_cost=Decimal("37.45")
+            ),
+            user,
+        )
+        await supply_pricing.price_after_purchase(db, seeded.supply_id, seeded.user.id)
+    assert (await _state(test_sessionmaker, seeded))[:2] == (Decimal("7.4900"), Decimal("37.45"))
+
+    original = ServiceVisitService.price_unsettled_on_visit
+
+    async def slow(self: ServiceVisitService, visit_id: int) -> None:
+        await original(self, visit_id)
+        await asyncio.sleep(0.5)
+
+    monkeypatch.setattr(ServiceVisitService, "price_unsettled_on_visit", slow)
+
+    async def move() -> None:
+        async with test_sessionmaker() as db:
+            user = await db.get(User, seeded.user.id)
+            await ServiceVisitService(db).update_service_visit(
+                seeded.vin, seeded.visit_id, ServiceVisitUpdate(date=date(2025, 7, 17)), user
+            )
+
+    async def buy() -> None:
+        await asyncio.sleep(0.2)  # inside the edit's hold
+        async with test_sessionmaker() as db:
+            user = await db.get(User, seeded.user.id)
+            await SupplyService(db).add_purchase(
+                seeded.supply_id,
+                SupplyPurchaseCreate(
+                    date=date(2025, 7, 10), quantity=Decimal("5"), total_cost=Decimal("30.00")
+                ),
+                user,
+            )
+            await supply_pricing.price_after_purchase(db, seeded.supply_id, seeded.user.id)
+
+    await asyncio.gather(move(), buy())
+    async with test_sessionmaker() as db:
+        usage = (
+            await db.execute(select(SupplyUsage).where(SupplyUsage.supply_id == seeded.supply_id))
+        ).scalar_one()
+        assert (usage.unit_cost_snapshot, usage.cost_snapshot, usage.cost_estimated) == (
+            Decimal("6.0000"),
+            Decimal("30.00"),
+            False,
+        )
+    *_, stored, fresh = await _state(test_sessionmaker, seeded)
+    assert stored == fresh == Decimal("40.00")
+
+
+async def test_a_usage_logged_as_its_receipt_is_deleted_gets_the_new_fallback(
+    seeded: Seeded, test_sessionmaker, monkeypatch: pytest.MonkeyPatch
+):
+    """N-6: a mistyped receipt is deleted while a visit logs a usage priced
+    from it. The fallback re-run after the delete must find the usage, or
+    the usage must see the receipt gone: otherwise it keeps the typo's price."""
+    async with test_sessionmaker() as db:
+        jug = Supply(name=f"{seeded.vin} coolant", unit_type="volume")
+        db.add(jug)
+        await db.flush()
+        jug_id = jug.id
+        # Both after the visit, so a usage on it is an estimate.
+        wrong = SupplyPurchase(
+            supply_id=jug_id,
+            date=date(2026, 11, 20),
+            quantity=Decimal("5"),
+            total_cost=Decimal("374.50"),
+        )
+        db.add(wrong)
+        db.add(
+            SupplyPurchase(
+                supply_id=jug_id,
+                date=date(2026, 11, 20),
+                quantity=Decimal("5"),
+                total_cost=Decimal("37.45"),
+            )
+        )
+        await db.commit()
+        wrong_id = wrong.id
+
+    # Held after the new usage's snapshot reads the price, under its lock.
+    original = SupplyService.as_of_unit_cost
+
+    async def slow(self: SupplyService, supply_id: int, as_of: date) -> AsOfPrice | None:
+        found = await original(self, supply_id, as_of)
+        await asyncio.sleep(0.5)
+        return found
+
+    monkeypatch.setattr(SupplyService, "as_of_unit_cost", slow)
+
+    async def top_up() -> None:
+        async with test_sessionmaker() as db:
+            user = await db.get(User, seeded.user.id)
+            await ServiceVisitService(db).add_line_item(
+                seeded.vin,
+                seeded.visit_id,
+                ServiceLineItemCreate(
+                    description="Coolant top-up",
+                    cost=Decimal("0"),
+                    supplies_used=[SupplyUsageInput(supply_id=jug_id, quantity=Decimal("2"))],
+                ),
+                user,
+            )
+
+    async def unbuy() -> None:
+        await asyncio.sleep(0.1)  # inside the snapshot's hold
+        async with test_sessionmaker() as db:
+            user = await db.get(User, seeded.user.id)
+            assert await SupplyService(db).delete_purchase(jug_id, wrong_id, user)
+            await supply_pricing.price_after_purchase_delete(db, jug_id, seeded.user.id)
+
+    try:
+        await asyncio.gather(top_up(), unbuy())
+        async with test_sessionmaker() as db:
+            usage = (
+                await db.execute(select(SupplyUsage).where(SupplyUsage.supply_id == jug_id))
+            ).scalar_one()
+            # 37.45 over 5: 7.49 a litre, 14.98 for 2, still an estimate.
+            assert (usage.unit_cost_snapshot, usage.cost_snapshot, usage.cost_estimated) == (
+                Decimal("7.4900"),
+                Decimal("14.98"),
+                True,
+            )
+        *_, stored, fresh = await _state(test_sessionmaker, seeded)
+        assert stored == fresh == Decimal("24.98")
     finally:
         async with test_sessionmaker() as db:
             await db.execute(delete(SupplyUsage).where(SupplyUsage.supply_id == jug_id))

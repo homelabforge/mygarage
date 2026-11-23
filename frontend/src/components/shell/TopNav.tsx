@@ -22,7 +22,7 @@ export default function TopNav() {
   const [menuOpen, setMenuOpen] = useState(false)
 
   return (
-    <header className="sticky top-0 z-nav border-b border-hair bg-(--color-nav) backdrop-blur-[12px]">
+    <header className="sticky top-0 z-nav border-b border-hair bg-(--color-nav) pt-safe-top pr-safe-right pl-safe-left backdrop-blur-[12px]">
       <div className="mx-auto flex h-[62px] max-w-[1320px] items-center gap-6 px-[clamp(16px,3vw,30px)]">
         <Logo />
         <nav className="hidden items-center gap-0.5 nav:flex">

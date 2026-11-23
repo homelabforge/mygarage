@@ -203,6 +203,32 @@ describe('SupplyHistoryModal', () => {
     expect(screen.getAllByText('supplies.history.purchase')).toHaveLength(1)
   })
 
+  it('marks a usage whose cost the server flagged as an estimate, and says why (#307)', () => {
+    useSupplyHistoryMock.mockReturnValue({
+      data: {
+        supply_id: 1,
+        on_hand: '3.500',
+        avg_unit_cost: '5.25',
+        entries: mockEntries.map((e) => (e.id === 20 ? { ...e, cost_estimated: true } : { ...e, cost_estimated: false })),
+      },
+      isLoading: false,
+      error: null,
+    })
+    render(<SupplyHistoryModal supply={mockSupply} onClose={vi.fn()} />)
+
+    expect(screen.getAllByText('supplies.estimated')).toHaveLength(1)
+    // On the job usage's row (id 20), not the adjustment's (id 21).
+    expect(within(screen.getByTestId('ledger-usage-20')).getByText('supplies.estimated')).toBeInTheDocument()
+    expect(within(screen.getByTestId('ledger-usage-21')).queryByText('supplies.estimated')).not.toBeInTheDocument()
+    expect(screen.getByText('supplies.estimatedHint')).toBeInTheDocument()
+  })
+
+  it('marks nothing when no cost is an estimate (regression control)', () => {
+    render(<SupplyHistoryModal supply={mockSupply} onClose={vi.fn()} />)
+    expect(screen.queryByText('supplies.estimated')).not.toBeInTheDocument()
+    expect(screen.queryByText('supplies.estimatedHint')).not.toBeInTheDocument()
+  })
+
   it('only shows a delete action for the standalone adjustment, not the job-tied usage', () => {
     render(<SupplyHistoryModal supply={mockSupply} onClose={vi.fn()} />)
 

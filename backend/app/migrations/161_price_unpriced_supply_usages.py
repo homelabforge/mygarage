@@ -7,7 +7,11 @@ prices those at the next costed purchase or visit edit; this catches up the
 rows already stranded:
 
 - a usage with a frozen unit cost and no cost gets cost = unit × quantity;
-- one with neither gets its supply's average over costed purchases, if any;
+- a standalone adjustment with neither gets its supply's average over costed
+  purchases, if any (it has no visit date to price as of);
+- a visit usage with neither is left for 163, which prices it as of its
+  visit's date (#307). Averaged here, a purchase dated after the visit set its
+  price, and 162 then froze it as not estimated;
 - a usage with a cost is never touched.
 
 Each visit it prices gets its cached ``total_cost`` recomputed, the same sum as
@@ -151,8 +155,11 @@ def upgrade(conn: Connection) -> None:
 
     # visit id (None for a standalone adjustment) -> {usage id: (unit, cost)}
     by_visit: dict[int | None, dict[int, tuple[Decimal, Decimal]]] = defaultdict(dict)
-    skipped = 0
+    skipped = left_for_163 = 0
     for usage_id, supply_id, quantity, unit_snapshot, visit_id in rows:
+        if unit_snapshot is None and visit_id is not None:
+            left_for_163 += 1
+            continue
         price = _price(
             None if unit_snapshot is None else Decimal(unit_snapshot),
             Decimal(quantity),
@@ -184,8 +191,9 @@ def upgrade(conn: Connection) -> None:
             visits_done += 1
 
     logger.info(
-        "161: priced %d supply usages, left %d unpriced, refreshed %d visit totals",
+        "161: priced %d supply usages, left %d unpriced and %d for 163, refreshed %d visit totals",
         priced,
         skipped,
+        left_for_163,
         visits_done,
     )

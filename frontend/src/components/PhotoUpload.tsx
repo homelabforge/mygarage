@@ -113,7 +113,7 @@ export default function PhotoUpload({ vin, onSuccess, onClose }: PhotoUploadProp
   }
 
   return (
-    <div className="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50">
+    <div className="fixed inset-0 modal-overlay flex items-center justify-center modal-safe-pad z-50">
       <div className="bg-surface rounded-lg shadow-2xl max-w-2xl w-full border border-border">
         <div className="bg-surface border-b border-border px-6 py-4 flex justify-between items-center rounded-t-lg">
           <h2 className="text-xl font-semibold text-text">{t('photoUpload.title')}</h2>

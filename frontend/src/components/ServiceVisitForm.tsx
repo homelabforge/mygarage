@@ -32,7 +32,7 @@ import { getUsageTracking } from '../utils/usageTracking'
 import api from '../services/api'
 import { actionErrorMessage } from '../utils/httpErrorHandler'
 import { applyControlledFieldErrors, withoutFieldError } from '../utils/apiFormErrors'
-import { Button, Chip, Field, Input, NumberInput, Textarea, Mono, type SelectOption } from './ui'
+import { Badge, Button, Chip, Field, Input, NumberInput, Textarea, Mono, type SelectOption } from './ui'
 import CurrencyInput from './common/CurrencyInput'
 import { formatCurrency, formatCurrencyZero } from '../utils/formatUtils'
 import { useCurrencyPreference } from '../hooks/useCurrencyPreference'
@@ -373,10 +373,16 @@ function ServiceVisitForm({
     return formData.line_items.reduce((sum, item) => sum + (item.cost || 0), 0)
   }, [formData.line_items])
 
+  // A date change can re-price any saved usage, frozen ones too (#307), so
+  // while it differs from the stored date every saved usage is an estimate.
+  const dateChanged = visit != null && formData.date !== visit.date.split('T')[0]
+
   // What each item's supplies will cost once saved, priced the way the server
   // prices them: a saved usage keeps its stored cost, and only one with no
   // cost yet takes the current average (#301). Backfills are kept apart: the
   // server drops them all when they'd take the total past the money column.
+  // The server prices as of the visit date, so what it may still move is
+  // marked estimated (#307).
   const partsEstimate = useMemo(() => {
     let unpriced = false
     let hasBackfill = false
@@ -386,37 +392,46 @@ function ServiceVisitForm({
         : []
       let edit = 0
       let backfill = 0
+      let editEstimated = false
+      let backfillEstimated = false
       // Same conversion as submit, so the estimate prices exactly what gets sent.
       for (const usage of convertSupplyUsages(item.supplies_used ?? [], unitsBySupplyId, toCanonical)) {
         const estimate = estimateUsageCost(
           usage.quantity,
           saved.find((u) => u.supply_id === usage.supply_id),
           suppliesById.get(usage.supply_id)?.avg_unit_cost,
+          { dateChanged },
         )
         if (estimate.backfill) {
           backfill += estimate.cost
+          backfillEstimated ||= estimate.estimated
           hasBackfill = true
         } else {
           edit += estimate.cost
+          editEstimated ||= estimate.estimated
         }
         unpriced ||= estimate.unpriced
       }
-      return { edit, backfill }
+      return { edit, backfill, editEstimated, backfillEstimated }
     })
     return { items, unpriced, hasBackfill }
-  }, [formData.line_items, suppliesById, unitsBySupplyId, visit])
+  }, [formData.line_items, suppliesById, unitsBySupplyId, visit, dateChanged])
 
-  const { partsByItem, partsSupplies, partsUnpriced, totalCost } = useMemo(() => {
+  const { partsByItem, partsEstimatedByItem, partsSupplies, partsUnpriced, partsEstimated, totalCost } = useMemo(() => {
     const fees = (formData.tax_amount || 0) + (formData.shop_supplies || 0) + (formData.misc_fees || 0)
     const edited = subtotal + fees + partsEstimate.items.reduce((sum, i) => sum + i.edit, 0)
     const backfills = partsEstimate.items.reduce((sum, i) => sum + i.backfill, 0)
     // Past the column the save keeps the edit and leaves every backfill unpriced.
     const fits = edited + backfills <= MONEY_MAX
     const partsByItem = partsEstimate.items.map((i) => i.edit + (fits ? i.backfill : 0))
+    // Only what's in the total counts; a dropped backfill is unpriced instead.
+    const partsEstimatedByItem = partsEstimate.items.map((i) => i.editEstimated || (fits && i.backfillEstimated))
     return {
       partsByItem,
+      partsEstimatedByItem,
       partsSupplies: partsByItem.reduce((sum, cost) => sum + cost, 0),
       partsUnpriced: partsEstimate.unpriced || (!fits && partsEstimate.hasBackfill),
+      partsEstimated: partsEstimatedByItem.some(Boolean),
       totalCost: edited + (fits ? backfills : 0),
     }
   }, [subtotal, formData.tax_amount, formData.shop_supplies, formData.misc_fees, partsEstimate])
@@ -1035,6 +1050,8 @@ function ServiceVisitForm({
                 {t('service.addItem')}
               </Button>
             </div>
+            {/* Said once for the whole visit, so collapsing or deleting an item can't hide it. */}
+            <p className="text-xs text-garage-text-muted">{t('service.suppliesOwnStockHint')}</p>
 
             <div className="space-y-3">
               {formData.line_items.map((item, index) => (
@@ -1046,6 +1063,7 @@ function ServiceVisitForm({
                     supplies={supplies}
                     unitsBySupplyId={unitsBySupplyId}
                     partsCost={partsByItem[index] ?? 0}
+                    partsEstimated={partsEstimatedByItem[index] ?? false}
                     failedInspections={failedInspections.filter((fi) => fi.refId !== (item.id ?? item.tempId ?? 0))}
                     onChange={handleLineItemChange}
                     onRemove={handleRemoveLineItem}
@@ -1135,8 +1153,9 @@ function ServiceVisitForm({
                 )}
                 {partsSupplies > 0 && (
                   <div className="flex items-center justify-end gap-2 text-sm text-text-mute">
-                    <span>{t('service.partsSupplies')}:</span>
+                    <span>{t('service.suppliesTotal')}:</span>
                     <Mono>{formatCurrency(partsSupplies, { currencyCode, locale })}</Mono>
+                    {partsEstimated && <Badge tone="muted">{t('common:supplies.estimated')}</Badge>}
                   </div>
                 )}
               </>
@@ -1147,6 +1166,9 @@ function ServiceVisitForm({
             </div>
             {partsUnpriced && (
               <p className="text-right text-xs text-text-mute">{t('service.partsUnpriced')}</p>
+            )}
+            {partsEstimated && partsSupplies > 0 && (
+              <p className="text-right text-xs text-text-mute">{t('service.partsEstimated', { label: t('common:supplies.estimated') })}</p>
             )}
           </div>
 

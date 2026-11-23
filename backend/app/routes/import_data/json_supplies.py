@@ -19,7 +19,7 @@ from typing import Any, Literal, get_args
 
 from fastapi import HTTPException
 from pydantic import Field
-from sqlalchemy import ColumnElement, and_, exists, func, or_, select, update
+from sqlalchemy import ColumnElement, and_, case, exists, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
@@ -50,7 +50,7 @@ from app.routes.import_data._families import (
     within_figure_bounds,
 )
 from app.routes.import_data._matching import _matches, _same_figure, _text_matches
-from app.routes.import_data._service import usage_counts
+from app.routes.import_data._service import UsageCounts, UsageEntry, usage_counts
 from app.schemas._money import UNIT_COST_MAX, OptionalMoney
 from app.schemas.supply import (
     SupplyAdjustmentCreate,
@@ -95,6 +95,9 @@ class UsedElsewhere:
     item_index: int | None = None
     item_cost: Decimal | None = None
     has_item_cost: bool = False
+    #: Priced at the all-time average, so a purchase on or before the visit
+    #: still settles it (#307). An older file has no flag: frozen.
+    cost_estimated: bool = False
 
 
 @dataclass(frozen=True)
@@ -133,6 +136,8 @@ class LineItemUsage:
     cost_snapshot: Decimal | None
     #: The vehicle a key's supply is kept for, when the exporter could read it.
     owner: str | None = None
+    #: As `UsedElsewhere.cost_estimated`.
+    cost_estimated: bool = False
 
 
 def _supply_key(row: Mapping[str, Any], name_missing: str) -> SupplyKey:
@@ -164,6 +169,16 @@ def _snapshots(row: Mapping[str, Any]) -> tuple[Decimal | None, Decimal | None]:
     return unit_cost, cost
 
 
+def _estimated(row: Mapping[str, Any], cost: Decimal | None) -> bool:
+    """A usage's cost_estimated flag; an older file has none, so it reads frozen.
+
+    Only a priced usage is an estimate. An unpriced one is flagged by its
+    first pricing if that falls back, so a flag beside no cost reads false.
+    """
+    flagged = _json_bool(row, "cost_estimated", default=False)
+    return flagged and cost is not None
+
+
 def _required_quantity(row: Mapping[str, Any]) -> Decimal:
     quantity = _json_decimal(row, "quantity")
     if quantity is None:
@@ -192,7 +207,11 @@ def _standalone_usage_from_json(row: Mapping[str, Any]) -> SupplyUsage:
     quantity = _required_quantity(row)
     _within_api_bounds(SupplyAdjustmentCreate, quantity=quantity)
     unit_cost, cost = _snapshots(row)
-    usage = SupplyUsage(quantity=quantity, unit_cost_snapshot=unit_cost, cost_snapshot=cost)
+    # Never an estimate, whatever the file says: an adjustment has no visit to
+    # date it, so it's priced date-blind and only while it has no cost (D3).
+    usage = SupplyUsage(
+        quantity=quantity, unit_cost_snapshot=unit_cost, cost_snapshot=cost, cost_estimated=False
+    )
     created_at = _json_row_datetime(row, "created_at")
     # Missing keeps the column's default, the import's own now.
     if created_at is not None:
@@ -232,6 +251,7 @@ def _used_elsewhere_from_json(row: Mapping[str, Any]) -> UsedElsewhere | Unnamed
         item_index=item_index,
         item_cost=item_cost,
         has_item_cost="item_cost" in row,
+        cost_estimated=_estimated(row, cost),
     )
 
 
@@ -387,15 +407,19 @@ async def _place_used_elsewhere(db: AsyncSession, pinned: PinnedSupply, use: Use
         ServiceLineItem.description == use.description,
         *([_same_figure(ServiceLineItem.cost, use.item_cost)] if use.has_item_cost else []),
     ]
-    # A use exported with no cost may be priced since (#301): any price.
-    at_its_price = (
-        [
-            _same_figure(SupplyUsage.unit_cost_snapshot, use.unit_cost_snapshot),
-            _same_figure(SupplyUsage.cost_snapshot, use.cost_snapshot),
-        ]
-        if use.cost_snapshot is not None
-        else []
+    # A use exported with no cost may be priced since (#301), and an estimate
+    # moves when it settles (#307): either side estimated takes any price, as
+    # `_usages_match` does (D7). A move keeps the stored snapshot.
+    priced = use.cost_snapshot is not None and not use.cost_estimated
+    exact = and_(
+        _same_figure(SupplyUsage.unit_cost_snapshot, use.unit_cost_snapshot),
+        _same_figure(SupplyUsage.cost_snapshot, use.cost_snapshot),
     )
+    at_its_price = [or_(SupplyUsage.cost_estimated.is_(True), exact)] if priced else []
+    # The twin with the file's own figures goes first, whatever the file says
+    # about pricing. Otherwise a lower-id decoy on a twin item takes the move
+    # and the two items swap snapshots. A None figure matches a stored NULL.
+    exact_first = case((exact, 0), else_=1)
     # Shared only: nothing else is pinned here yet, and a supply pinned to
     # another vehicle is a different supply (K12). A moved one leaves the pool.
     usage_id = (
@@ -411,7 +435,7 @@ async def _place_used_elsewhere(db: AsyncSession, pinned: PinnedSupply, use: Use
                 _same_figure(SupplyUsage.quantity, use.quantity),
                 *at_its_price,
             )
-            .order_by(SupplyUsage.id)
+            .order_by(exact_first, SupplyUsage.id)
             .limit(1)
         )
     ).scalar_one_or_none()
@@ -459,6 +483,7 @@ async def _place_used_elsewhere(db: AsyncSession, pinned: PinnedSupply, use: Use
             quantity=use.quantity,
             unit_cost_snapshot=use.unit_cost_snapshot,
             cost_snapshot=use.cost_snapshot,
+            cost_estimated=use.cost_estimated,
         )
     )
     # That visit's cached total dropped this use if it was edited after the
@@ -499,9 +524,10 @@ def line_item_usages_from_json(
             quantity = _required_quantity(row)
             _within_api_bounds(SupplyUsageInput, quantity=quantity)
             unit_cost, cost = _snapshots(row)
+            estimated = _estimated(row, cost)
         except _RowError as e:
             raise _RowError(f"line item {position}, supply usage {k}: {e.reason}") from e
-        usages.append(LineItemUsage(ref, quantity, unit_cost, cost, owner))
+        usages.append(LineItemUsage(ref, quantity, unit_cost, cost, owner, estimated))
     return usages
 
 
@@ -518,9 +544,9 @@ def file_supply_key(file_supplies: list[Any], ref: int | SupplyKey) -> SupplyKey
 
 def line_item_usage_counts(
     position: int, usages: list[LineItemUsage], file_supplies: list[Any]
-) -> frozenset[tuple[tuple[Any, ...], int]]:
+) -> UsageCounts:
     """A file line item's `usage_counts`, each usage named by its supply's key."""
-    entries: list[tuple[str, str | None, str, Decimal | None, Decimal | None, Decimal | None]] = []
+    entries: list[UsageEntry] = []
     for k, usage in enumerate(usages):
         try:
             key = file_supply_key(file_supplies, usage.ref)
@@ -534,6 +560,7 @@ def line_item_usage_counts(
                 usage.quantity,
                 usage.unit_cost_snapshot,
                 usage.cost_snapshot,
+                usage.cost_estimated,
             )
         )
     return usage_counts(entries)

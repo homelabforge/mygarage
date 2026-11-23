@@ -10,7 +10,7 @@ import CurrencyInput from './common/CurrencyInput'
 import SupplyUsedPicker from './SupplyUsedPicker'
 import MaintenanceTypeSelect from './MaintenanceTypeSelect'
 import RecurrenceFields from './RecurrenceFields'
-import { Chip, Select, useCombobox, type SelectOption } from './ui'
+import { Badge, Chip, Select, useCombobox, type SelectOption } from './ui'
 import { useCurrencyPreference } from '../hooks/useCurrencyPreference'
 import { readTypedNumber } from '../utils/decimalInput'
 
@@ -41,6 +41,8 @@ interface LineItemEditorProps {
   failedInspections: { refId: number; description: string }[]
   // Estimated cost of the supplies on this line; informational, the server snapshots the real figure.
   partsCost?: number
+  /** The save may price those supplies differently (#307). */
+  partsEstimated?: boolean
   onChange: (index: number, field: keyof ServiceVisitFormLineItem, value: unknown) => void
   onRemove: (index: number) => void
   disabled?: boolean
@@ -62,6 +64,7 @@ export default function LineItemEditor({
   supplies,
   unitsBySupplyId,
   partsCost = 0,
+  partsEstimated = false,
   failedInspections,
   onChange,
   onRemove,
@@ -266,7 +269,7 @@ export default function LineItemEditor({
 
             <div>
               <label htmlFor={`line-item-${index}-cost`} className="block text-sm font-medium text-garage-text mb-1">
-                {t('lineItemEditor.cost')}
+                {t('lineItemEditor.costPartsLabor')}
               </label>
               <CurrencyInput
                 id={`line-item-${index}-cost`}
@@ -281,7 +284,8 @@ export default function LineItemEditor({
               />
               {partsCost > 0 && (
                 <p className="text-xs text-garage-text-muted mt-1">
-                  {t('lineItemEditor.partsCost', { amount: formatCurrency(partsCost) })}
+                  {t('lineItemEditor.suppliesCost', { amount: formatCurrency(partsCost) })}
+                  {partsEstimated && <Badge tone="muted" className="ml-2">{t('common:supplies.estimated')}</Badge>}
                 </p>
               )}
             </div>

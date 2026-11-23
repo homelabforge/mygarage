@@ -77,11 +77,29 @@ describe('ServiceLineItemDetail supplies used', () => {
   })
 })
 
+describe('ServiceLineItemDetail estimated supply cost (#307)', () => {
+  it('marks a cost the server flagged as an estimate, in the link, and says why', () => {
+    render(<ServiceLineItemDetail visit={visit} item={withUsage({ unit_type: 'count', quantity: '1', cost_estimated: true })} {...DISTANCE} onClose={vi.fn()} />)
+    expect(screen.getByRole('link')).toHaveTextContent('common:supplies.estimated')
+    expect(screen.getByText('common:supplies.estimatedHint')).toBeInTheDocument()
+  })
+
+  it('leaves a settled cost unmarked (regression control)', () => {
+    render(<ServiceLineItemDetail visit={visit} item={withUsage({ unit_type: 'count', quantity: '1', cost_estimated: false })} {...DISTANCE} onClose={vi.fn()} />)
+    expect(screen.queryByText('common:supplies.estimated')).not.toBeInTheDocument()
+    expect(screen.queryByText('common:supplies.estimatedHint')).not.toBeInTheDocument()
+  })
+})
+
 describe('ServiceLineItemDetail cost', () => {
-  it('total is labor plus the supplies used', () => {
+  it('total is the line cost plus the supplies used', () => {
     render(<ServiceLineItemDetail visit={visit} item={withUsage({ unit_type: 'count', quantity: '1' })} {...DISTANCE} onClose={vi.fn()} />)
 
-    expect(screen.getByText('$40.00')).toBeInTheDocument()
+    // The line cost is parts + labor (#302/#306/#307), not labor alone.
+    expect(screen.getByText('serviceList.detail.partsLabor').nextElementSibling).toHaveTextContent('$40.00')
+    expect(screen.queryByText('serviceList.detail.labor')).not.toBeInTheDocument()
+    expect(screen.getByText('serviceList.detail.suppliesCost').nextElementSibling).toHaveTextContent('$9.52')
+    expect(screen.queryByText('serviceList.detail.parts')).not.toBeInTheDocument()
     // Once in the parts row, once on the supply itself.
     expect(screen.getAllByText('$9.52')).toHaveLength(2)
     expect(screen.getByText('$49.52')).toBeInTheDocument()

@@ -310,8 +310,6 @@
     "title": "Polisy ubezpieczeniowe"
   },
   "lineItemEditor": {
-    "cost": "Koszt robocizny / warsztatu",
-    "partsCost": "Części i materiały: {{amount}}",
     "notes": "Notatki"
   },
   "livelink": {
@@ -544,21 +542,17 @@
     "logVisit": "Zarejestruj wizytę",
     "detail": {
       "cost": "Koszt",
-      "labor": "Robocizna / warsztat",
       "noSupplies": "Nie zapisano materiałów dla tej usługi.",
       "openSupply": "Otwórz {{name}} w materiałach eksploatacyjnych",
-      "parts": "Części i materiały",
       "supplies": "Zużyte materiały",
       "viewDetails": "Pokaż szczegóły: {{name}}"
     },
-    "laborCost": "Robocizna {{amount}}",
     "miscFees": "Opłaty różne",
     "noMatchingVisits": "Brak pasujących wizyt",
     "noRecords": "Brak rekordów",
     "noRecordsDesc": "Przycisk braku rekordów",
     "searchPlaceholder": "Szukaj...",
     "serviceCount": "{{count}} usług",
-    "partsCost": "Części {{amount}}",
     "servicesPerformed": "Wykonane usługi",
     "shopSupplies": "Materiały warsztatowe",
     "showingResults": "Wyświetlanie {{shown}} z {{total}} wizyt",

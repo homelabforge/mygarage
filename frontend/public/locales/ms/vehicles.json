@@ -612,8 +612,6 @@
     "loadAction": "memuatkan polisi insurans"
   },
   "lineItemEditor": {
-    "cost": "Kos upah / bengkel",
-    "partsCost": "Alat ganti & bekalan: {{amount}}",
     "notes": "Nota",
     "misc": {
       "lineItem": "Item Baris {{number}}",
@@ -1089,21 +1087,17 @@
     "logVisit": "Rekod Lawatan Servis",
     "detail": {
       "cost": "Kos",
-      "labor": "Upah / bengkel",
       "noSupplies": "Tiada bekalan direkodkan untuk servis ini.",
       "openSupply": "Buka {{name}} dalam Bekalan",
-      "parts": "Alat ganti & bekalan",
       "supplies": "Bekalan digunakan",
       "viewDetails": "Lihat butiran untuk {{name}}"
     },
-    "laborCost": "Upah {{amount}}",
     "miscFees": "Yuran Lain-lain",
     "noMatchingVisits": "Tiada lawatan sepadan ditemui",
     "noRecords": "Belum ada servis visits",
     "noRecordsDesc": "Mula jejaki penyelenggaraan dan pembaikan kenderaan anda",
     "searchPlaceholder": "Cari services...",
     "serviceCount": "{{count}} servis",
-    "partsCost": "Alat ganti {{amount}}",
     "servicesPerformed": "Servis Dilakukan",
     "shopSupplies": "Bekalan Bengkel",
     "showingResults": "Memaparkan {{shown}} daripada {{total}} lawatan",

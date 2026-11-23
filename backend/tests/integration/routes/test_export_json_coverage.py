@@ -462,14 +462,16 @@ SECTIONS = [
         "supplies.usages",
         SupplyUsage,
         # created_at is a standalone usage's ledger date.
-        keys=frozenset({"quantity", "unit_cost_snapshot", "cost_snapshot", "created_at"}),
+        keys=frozenset(
+            {"quantity", "unit_cost_snapshot", "cost_snapshot", "cost_estimated", "created_at"}
+        ),
         # Standalone only; a line item's usage travels under its line item.
         exclude=frozenset({"id", "supply_id", "service_line_item_id"}),
     ),
     JsonSection(
         "supplies.used_elsewhere",
         SupplyUsage,
-        keys=frozenset({"quantity", "unit_cost_snapshot", "cost_snapshot"}),
+        keys=frozenset({"quantity", "unit_cost_snapshot", "cost_snapshot", "cost_estimated"}),
         # The other vehicle's line item is named by its visit and description;
         # the visit dates it.
         exclude=frozenset({"id", "supply_id", "service_line_item_id", "created_at"}),
@@ -478,7 +480,7 @@ SECTIONS = [
     JsonSection(
         "service_visits.line_items.supply_usages",
         SupplyUsage,
-        keys=frozenset({"quantity", "unit_cost_snapshot", "cost_snapshot"}),
+        keys=frozenset({"quantity", "unit_cost_snapshot", "cost_snapshot", "cost_estimated"}),
         # The line item is the parent; the supply travels as an index or a name key.
         exclude=frozenset({"id", "supply_id", "service_line_item_id", "created_at"}),
         portable=frozenset({"supply"}),

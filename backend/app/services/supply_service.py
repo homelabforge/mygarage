@@ -5,10 +5,12 @@ so editing or deleting a purchase / job self-heals the balance.
 """
 
 import logging
+from collections.abc import Sequence
+from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
 
 from fastapi import HTTPException
-from sqlalchemy import case, func, select
+from sqlalchemy import ColumnElement, SQLColumnExpression, and_, case, func, or_, select
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -59,6 +61,39 @@ def usage_cost(unit_cost: Decimal, quantity: Decimal) -> Decimal:
     return (unit_cost * quantity).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 
+#: A usage's (unit cost, estimated) as of its visit's date. Estimated means no
+#: costed purchase on or before that day existed, so the unit is the all-time
+#: average (#307).
+AsOfPrice = tuple[Decimal, bool]
+
+#: One costed purchase of a supply: (date, quantity, total_cost).
+CostedPurchase = tuple[date, Decimal, Decimal]
+
+
+def _average(purchases: Sequence[CostedPurchase]) -> Decimal | None:
+    """Σ cost / Σ quantity at 4 places, half up, as every average rounds. None with no quantity."""
+    cost = sum((c for _, _, c in purchases), _ZERO)
+    qty = sum((q for _, q, _ in purchases), _ZERO)
+    if qty <= 0:
+        return None
+    return (cost / qty).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP)
+
+
+def as_of_price(purchases: Sequence[CostedPurchase], as_of: date) -> AsOfPrice | None:
+    """A usage's price as of `as_of` from its supply's costed purchases, or None.
+
+    The average of the purchases dated on or before `as_of`; with none, the
+    all-time average, estimated. None with no costed purchase at all. Migration
+    163 prices stranded rows with the same rule, so the two must agree.
+    """
+    on_or_before = [p for p in purchases if p[0] <= as_of]
+    unit = _average(on_or_before) if on_or_before else None
+    if unit is not None:
+        return unit, False
+    fallback = _average(purchases)
+    return None if fallback is None else (fallback, True)
+
+
 def usage_price(
     unit_cost_snapshot: Decimal | None, quantity: Decimal, avg: Decimal | None
 ) -> tuple[Decimal, Decimal] | None:
@@ -77,20 +112,94 @@ def usage_price(
     return unit, cost
 
 
-def price_unpriced_usage(usage: SupplyUsage, avg: Decimal | None) -> bool:
-    """Price a usage that has no cost yet; leave a priced one alone. True if priced.
+def price_unsettled_usage(usage: SupplyUsage, found: AsOfPrice | None) -> bool:
+    """Price a usage whose price isn't settled yet; leave the rest alone. True if written.
 
-    A NULL cost means the cost was unknown when it was logged (its supply had no
-    costed purchase yet), not that it was free: a free purchase prices at 0.00.
-    A priced usage stays frozen, whatever the average does later.
+    `found` is its supply's price as of the usage's visit (``as_of_price``).
+
+    - No cost yet: priced at the first chance. A NULL cost means the cost was
+      unknown when it was logged (no costed purchase yet), not that it was
+      free: a free purchase prices at 0.00. Its own frozen unit wins if it has
+      one and isn't flagged: an imported row can carry a unit and no cost, and
+      that unit was the price at the time (#301). Otherwise `found`, flagged
+      when it's the all-time fallback (#307).
+    - An estimate settles only on a real as-of price, which clears the flag
+      even when the amount doesn't move. A later receipt never moves it, and
+      its own unit doesn't count: that unit IS the estimate.
+    - Any other priced usage is frozen, whatever the averages do later.
     """
-    if usage.cost_snapshot is not None:
+    if usage.cost_snapshot is None:
+        own = None if usage.cost_estimated else usage.unit_cost_snapshot
+        if own is not None:
+            unit, estimated = own, False
+        elif found is not None:
+            unit, estimated = found
+        else:
+            return False
+    elif usage.cost_estimated and found is not None and not found[1]:
+        unit, estimated = found[0], False
+    else:
         return False
-    price = usage_price(usage.unit_cost_snapshot, usage.quantity, avg)
+    price = usage_price(None, usage.quantity, unit)
     if price is None:
         return False
     usage.unit_cost_snapshot, usage.cost_snapshot = price
+    usage.cost_estimated = estimated
     return True
+
+
+def rerun_fallback(usage: SupplyUsage, found: AsOfPrice | None) -> bool:
+    """Re-price an estimate after a costed purchase of its supply is deleted. True if written.
+
+    The one time an estimate moves without a purchase on or before its visit
+    (N-6): a mistyped receipt deleted must not strand the price it set. It
+    takes `found` as it is now: a real as-of price settles it, the new
+    all-time average keeps it flagged, and with no costed purchase left it
+    goes back to unpriced, the state a first pricing starts from.
+    """
+    if found is None:
+        usage.unit_cost_snapshot = usage.cost_snapshot = None
+        usage.cost_estimated = False
+        return True
+    price = usage_price(None, usage.quantity, found[0])
+    if price is None:
+        return False
+    usage.unit_cost_snapshot, usage.cost_snapshot = price
+    usage.cost_estimated = found[1]
+    return True
+
+
+def estimate_of(supply_id: int) -> ColumnElement[bool]:
+    """Where-clause: a usage of `supply_id` priced at an estimate (``rerun_fallback``'s rows)."""
+    return and_(
+        SupplyUsage.supply_id == supply_id,
+        SupplyUsage.cost_estimated.is_(True),
+        SupplyUsage.cost_snapshot.isnot(None),
+    )
+
+
+def unsettled_usage(visit_date: SQLColumnExpression[date]) -> ColumnElement[bool]:
+    """Where-clause for the usages a pricer may write (D8), ``price_unsettled_usage``'s rule.
+
+    A usage with no cost (always priced), or an estimate that a costed
+    purchase dated on or before its visit can settle now. That second half is
+    here, not just in the rule, so a purchase that can't settle an estimate
+    doesn't walk and lock its vehicle. `visit_date` is the usage's visit's
+    date, joined in by the caller; NULL (a standalone adjustment) settles nothing.
+    """
+    settles = (
+        select(SupplyPurchase.id)
+        .where(
+            SupplyPurchase.supply_id == SupplyUsage.supply_id,
+            SupplyPurchase.total_cost.isnot(None),
+            SupplyPurchase.date <= visit_date,
+        )
+        .exists()
+    )
+    return or_(
+        SupplyUsage.cost_snapshot.is_(None),
+        and_(SupplyUsage.cost_estimated.is_(True), settles),
+    )
 
 
 class SupplyService:
@@ -160,10 +269,44 @@ class SupplyService:
         """Current weighted average unit cost for a single supply (for snapshots)."""
         return (await self._compute_balances([supply_id]))[supply_id][1]
 
-    async def avg_unit_costs(self, supply_ids: list[int]) -> dict[int, Decimal | None]:
-        """Current weighted average unit cost for each of several supplies."""
-        balances = await self._compute_balances(supply_ids)
-        return {sid: avg for sid, (_on_hand, avg) in balances.items()}
+    async def _as_of_prices(
+        self, supply_ids: Sequence[int], as_of: date
+    ) -> dict[int, AsOfPrice | None]:
+        """{supply_id: its price as of `as_of`} (see ``as_of_price``)."""
+        if not supply_ids:
+            return {}
+        rows = await self.db.execute(
+            select(
+                SupplyPurchase.supply_id,
+                SupplyPurchase.date,
+                SupplyPurchase.quantity,
+                SupplyPurchase.total_cost,
+            ).where(SupplyPurchase.supply_id.in_(supply_ids))
+        )
+        costed: dict[int, list[CostedPurchase]] = {sid: [] for sid in supply_ids}
+        for sid, day, quantity, total_cost in rows.all():
+            if total_cost is not None:  # an uncosted purchase is in no average
+                costed[sid].append((day, quantity, total_cost))
+        return {sid: as_of_price(purchases, as_of) for sid, purchases in costed.items()}
+
+    async def as_of_unit_cost(self, supply_id: int, as_of: date) -> AsOfPrice | None:
+        """One supply's price as of a visit's date (for a new usage's snapshot).
+
+        Kept apart from ``as_of_unit_costs`` on purpose: the concurrency tests
+        hold that read and not this one, so folding the two together would
+        silently disarm ``test_a_usage_logged_as_the_first_cost_lands_is_priced``.
+        """
+        return (await self._as_of_prices([supply_id], as_of))[supply_id]
+
+    async def as_of_unit_costs(
+        self, supply_ids: Sequence[int], as_of: date
+    ) -> dict[int, AsOfPrice | None]:
+        """Several supplies' prices as of one visit's date (for the visit pricer).
+
+        Not merged with ``as_of_unit_cost``: see there (the concurrency tests
+        patch this read only).
+        """
+        return await self._as_of_prices(supply_ids, as_of)
 
     def _to_supply_response(
         self, supply: Supply, on_hand: Decimal, avg: Decimal | None
@@ -318,7 +461,9 @@ class SupplyService:
 
     async def delete_purchase(
         self, supply_id: int, purchase_id: int, current_user: User | None
-    ) -> None:
+    ) -> bool:
+        """Delete a purchase and its receipt. True if it had a cost, so the
+        supply's estimates need their fallback re-run (``price_after_purchase_delete``)."""
         purchase = (
             await self.db.execute(
                 select(SupplyPurchase)
@@ -328,10 +473,16 @@ class SupplyService:
         ).scalar_one_or_none()
         if not purchase:
             raise HTTPException(status_code=404, detail=f"Purchase {purchase_id} not found")
+        # As add_purchase: waits out any usage of it being logged, so the
+        # re-run fallback after this commit sees that usage, or the usage
+        # sees this purchase gone.
+        await self._lock_supply(supply_id, exclusive=True)
+        costed = purchase.total_cost is not None
         old_files = await self._purge_receipt(purchase_id)  # rows now, files after commit (R1-H4)
         await self.db.delete(purchase)
         await self.db.commit()
         self._unlink_files(old_files)
+        return costed
 
     async def _purge_receipt(self, purchase_id: int) -> list[str]:
         """Delete receipt attachment ROWS for a purchase; return their file paths.
@@ -370,9 +521,14 @@ class SupplyService:
     # ---- usages / adjustments ----------------------------------------------
 
     async def create_usage_snapshot(
-        self, supply_id: int, quantity: Decimal
-    ) -> tuple[Decimal | None, Decimal | None]:
-        """Freeze (unit_cost, cost) for a usage from the supply's current avg cost.
+        self, supply_id: int, quantity: Decimal, as_of: date | None
+    ) -> tuple[Decimal | None, Decimal | None, bool]:
+        """Freeze (unit_cost, cost, estimated) for a new usage.
+
+        `as_of` is the visit's date: the price as of that day, else the all-time
+        average flagged as an estimate (#307). None, for a standalone adjustment,
+        is the current average and never an estimate. No costed purchase at all
+        is (None, None, False).
 
         Both are computed, so both are checked against their columns here: a
         huge purchase over a tiny quantity makes a unit cost no column holds.
@@ -380,13 +536,24 @@ class SupplyService:
         # Held to commit: a purchase landing between this read and the usage's
         # commit would price before the usage exists and leave it unpriced (#301).
         await self._lock_supply(supply_id, exclusive=False)
-        avg = await self.compute_avg_unit_cost(supply_id)
-        if avg is None:
-            return None, None
-        ensure_fits(avg, f"The unit cost of supply {supply_id}", UNIT_COST_MAX)
-        cost = usage_cost(avg, quantity)
+        if as_of is None:
+            unit, estimated = await self.compute_avg_unit_cost(supply_id), False
+        else:
+            found = await self.as_of_unit_cost(supply_id, as_of)
+            unit, estimated = found if found is not None else (None, False)
+        if unit is None:
+            return None, None, False
+        ensure_fits(unit, f"The unit cost of supply {supply_id}", UNIT_COST_MAX)
+        cost = usage_cost(unit, quantity)
         ensure_fits(cost, usage_cost_subject(supply_id))
-        return avg, cost
+        return unit, cost, estimated
+
+    async def hold_prices(self, supply_ids: Sequence[int]) -> None:
+        """Lock the supplies' rows shared to commit, in id order, before reading
+        their prices for a write: a purchase of one waits for this commit, and
+        the pricing after it then sees what this transaction wrote."""
+        for supply_id in sorted(supply_ids):
+            await self._lock_supply(supply_id, exclusive=False)
 
     async def _lock_supply(self, supply_id: int, *, exclusive: bool) -> None:
         """Lock the supply's row to commit: shared for a usage, exclusive for a purchase.
@@ -405,7 +572,10 @@ class SupplyService:
         self, supply_id: int, data: SupplyAdjustmentCreate, current_user: User | None
     ) -> SupplyUsage:
         await self.get_supply(supply_id)
-        unit_cost, cost = await self.create_usage_snapshot(supply_id, data.quantity)
+        # No visit, no date to price as of: today's average, never an estimate.
+        unit_cost, cost, _estimated = await self.create_usage_snapshot(
+            supply_id, data.quantity, as_of=None
+        )
         usage = SupplyUsage(
             supply_id=supply_id,
             quantity=data.quantity,
@@ -471,6 +641,7 @@ class SupplyService:
             quantity=usage.quantity,
             unit_cost_snapshot=usage.unit_cost_snapshot,
             cost_snapshot=usage.cost_snapshot,
+            cost_estimated=usage.cost_estimated,
             service_line_item_id=usage.service_line_item_id,
             service_visit_id=visit.id if visit else None,
             service_visit_date=visit.date if visit else None,
@@ -589,6 +760,7 @@ class SupplyService:
                         quantity=-obj.quantity,
                         running_balance=ledger_balance(balance),
                         cost=obj.cost_snapshot,
+                        cost_estimated=obj.cost_estimated,
                         service_line_item_id=obj.service_line_item_id,
                         service_visit_id=visit.id if visit else None,
                         service_visit_date=visit.date if visit else None,

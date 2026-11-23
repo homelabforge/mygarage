@@ -174,8 +174,8 @@ export default function AddEditUserModal({ isOpen, onClose, user, onSave, curren
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-      <div className="bg-garage-surface border border-garage-border rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-[60] modal-safe-pad">
+      <div className="bg-garage-surface border border-garage-border rounded-lg max-w-md w-full max-h-[min(90vh,100%)] overflow-y-auto">
         {/* Header */}
         <div className="p-6 border-b border-garage-border flex items-center justify-between sticky top-0 bg-garage-surface">
           <h2 className="text-xl font-bold text-garage-text">

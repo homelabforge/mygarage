@@ -39,6 +39,7 @@ const mockUsages: SupplyUsage[] = [
     quantity: '4.500',
     cost_snapshot: '22.50',
     unit_cost_snapshot: '5.00',
+    cost_estimated: false,
     service_line_item_id: 3,
     service_visit_id: 7,
     service_visit_date: '2026-01-10',
@@ -52,6 +53,7 @@ const mockUsages: SupplyUsage[] = [
     quantity: '1.000',
     cost_snapshot: null,
     unit_cost_snapshot: null,
+    cost_estimated: false,
     service_line_item_id: 4,
     service_visit_id: null,
     service_visit_date: null,
@@ -81,6 +83,25 @@ describe('SuppliesUsedTab', () => {
     expect(screen.getByText('Oil Filter')).toBeInTheDocument()
     expect(screen.getByText('$22.50')).toBeInTheDocument()
     expect(screen.getByText(/4\.5/)).toBeInTheDocument()
+  })
+
+  it('marks a cost the server flagged as an estimate, and says why (#307)', () => {
+    useVehicleSupplyUsagesMock.mockReturnValue({
+      data: { usages: [{ ...mockUsages[0], cost_estimated: true }, mockUsages[1]], total: 2 },
+      isLoading: false,
+      error: null,
+    })
+    render(<SuppliesUsedTab vin="1HGCM82633A004352" />)
+
+    expect(screen.getAllByText('supplies.estimated')).toHaveLength(1)
+    expect(screen.getByText('$22.50').parentElement).toHaveTextContent('supplies.estimated')
+    expect(screen.getByText('supplies.estimatedHint')).toBeInTheDocument()
+  })
+
+  it('marks nothing when no cost is an estimate (regression control)', () => {
+    render(<SuppliesUsedTab vin="1HGCM82633A004352" />)
+    expect(screen.queryByText('supplies.estimated')).not.toBeInTheDocument()
+    expect(screen.queryByText('supplies.estimatedHint')).not.toBeInTheDocument()
   })
 
   it('links a usage with a service_visit_id to the service tab, guards rows without one', () => {
@@ -138,6 +159,7 @@ describe('SuppliesUsedTab', () => {
       quantity: '0.250',
       cost_snapshot: '3.00',
       unit_cost_snapshot: '12.00',
+      cost_estimated: false,
       service_line_item_id: 5,
       service_visit_id: 8,
       service_visit_date: '2026-02-01',

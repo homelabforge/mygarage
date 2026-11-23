@@ -239,7 +239,7 @@ export default function ReportsPanel({ vin }: ReportsPanelProps) {
       </Card>
 
       {isGenerating && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 modal-safe-inset">
           <div className="bg-surface rounded-lg p-6 max-w-sm border border-border">
             <div className="flex items-center gap-3">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-(--accent-solid)"></div>

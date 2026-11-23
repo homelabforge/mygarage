@@ -26,7 +26,9 @@ type Corner = 'top-left' | 'bottom-left'
  * sonner's list, and a toast you were hovering never gets its mouseleave, so it
  * stays paused for good. A toast that's already up keeps its corner until it goes.
  *
- * --toast-lift (index.css) keeps bottom toasts above the phone tab bar.
+ * --toast-lift (index.css) keeps bottom toasts above the phone tab bar, and the
+ * top offsets add the status-bar inset, or a top-left toast lands under it in
+ * the installed iPhone app (sonner's default top is the bare 24px/16px).
  *
  * Portalled to document.body on purpose. Rendered in place it is a child of
  * #root, which Drawer marks `inert` while open (Drawer.tsx:46) — and `inert`
@@ -45,8 +47,8 @@ export default function AppToaster() {
   return createPortal(
     <Toaster
       position={position}
-      offset={{ bottom: 'calc(24px + var(--toast-lift))' }}
-      mobileOffset={{ bottom: 'calc(16px + var(--toast-lift))' }}
+      offset={{ top: 'calc(24px + var(--spacing-safe-top))', bottom: 'calc(24px + var(--toast-lift))' }}
+      mobileOffset={{ top: 'calc(16px + var(--spacing-safe-top))', bottom: 'calc(16px + var(--toast-lift))' }}
       theme={theme}
       toastOptions={{
         classNames: {

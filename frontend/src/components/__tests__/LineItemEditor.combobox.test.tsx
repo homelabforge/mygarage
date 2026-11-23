@@ -126,7 +126,7 @@ describe('LineItemEditor description suggestions (G-4)', () => {
     const first = screen.getByText(OIL)
     expect(first).toHaveAttribute('tabindex', '-1')
     // Tab hands focus to the next field.
-    fireEvent.blur(description(), { relatedTarget: screen.getByLabelText('lineItemEditor.cost') })
+    fireEvent.blur(description(), { relatedTarget: screen.getByLabelText('lineItemEditor.costPartsLabor') })
     expect(screen.queryByText(OIL)).not.toBeInTheDocument()
   })
 
@@ -146,7 +146,7 @@ describe('LineItemEditor description suggestions (G-4)', () => {
     renderEditor()
     fireEvent.focus(description())
     expect(screen.getByText(OIL)).toBeInTheDocument()
-    fireEvent.pointerDown(screen.getByLabelText('lineItemEditor.cost'))
+    fireEvent.pointerDown(screen.getByLabelText('lineItemEditor.costPartsLabor'))
     expect(screen.queryByText(OIL)).not.toBeInTheDocument()
   })
 

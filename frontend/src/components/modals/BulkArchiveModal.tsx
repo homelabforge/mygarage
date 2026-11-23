@@ -87,8 +87,8 @@ export default function BulkArchiveModal({ isOpen, vins, onClose, onConfirm }: B
   const showFinancialFields = showsSaleFields(archiveReason)
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-garage-surface border border-garage-border rounded-lg max-w-lg w-full max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 modal-safe-pad">
+      <div className="bg-garage-surface border border-garage-border rounded-lg max-w-lg w-full max-h-[min(90vh,100%)] overflow-y-auto">
         <div className="p-6 space-y-4">
           <div className="flex items-center gap-3">
             <div className="rounded-full bg-primary/10 p-2">

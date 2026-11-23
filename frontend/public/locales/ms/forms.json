@@ -737,7 +737,6 @@
     "lineItemCostNegative": "Item baris {{number}}: kos tidak boleh negatif",
     "lineItemCostTooLarge": "Item baris {{number}}: kos terlalu besar",
     "miscFees": "Caj Lain-lain",
-    "partsSupplies": "Alat Ganti/Bekalan",
     "reminderIntervalTooSmall": "Item baris {{number}}: selang peringatan mestilah sekurang-kurangnya 1",
     "saveAction": "simpan lawatan servis",
     "servicesPerformed": "Servis Dilakukan",

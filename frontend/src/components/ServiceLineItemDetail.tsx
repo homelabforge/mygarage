@@ -5,7 +5,7 @@ import { Calendar, ExternalLink, Gauge, Store } from 'lucide-react'
 import type { ServiceVisit, ServiceLineItem } from '../types/serviceVisit'
 import FormModalWrapper from './FormModalWrapper'
 import LineItemLinkChips from './LineItemLinkChips'
-import { Button, Chip, Mono } from './ui'
+import { Badge, Button, Chip, Mono } from './ui'
 import { formatDateForDisplay } from '../utils/dateUtils'
 import { formatCurrency } from '../utils/formatUtils'
 import { useCurrencyPreference } from '../hooks/useCurrencyPreference'
@@ -45,7 +45,7 @@ export default function ServiceLineItemDetail({
   const fmt = (n: number) => formatCurrency(n, { currencyCode, locale })
 
   const usages = item.supply_usages ?? []
-  const laborCost = item.cost ? Number(item.cost) : 0
+  const lineCost = item.cost ? Number(item.cost) : 0
   const partsCost = usages.reduce((sum, usage) => sum + Number(usage.cost_snapshot ?? 0), 0)
 
   return (
@@ -104,16 +104,16 @@ export default function ServiceLineItemDetail({
           <h4 className="text-xs font-medium text-text-mute uppercase tracking-wide">{t('serviceList.detail.cost')}</h4>
           <div className="bg-surface-2/50 rounded-md p-3 space-y-1 text-sm">
             <div className="flex justify-between text-text-mute">
-              <span>{t('serviceList.detail.labor')}</span>
-              <Mono size="sm">{fmt(laborCost)}</Mono>
+              <span>{t('serviceList.detail.partsLabor')}</span>
+              <Mono size="sm">{fmt(lineCost)}</Mono>
             </div>
             <div className="flex justify-between text-text-mute">
-              <span>{t('serviceList.detail.parts')}</span>
+              <span>{t('serviceList.detail.suppliesCost')}</span>
               <Mono size="sm">{fmt(partsCost)}</Mono>
             </div>
             <div className="flex justify-between font-medium text-text border-t border-border pt-1 mt-1">
               <span>{t('serviceList.total')}</span>
-              <Mono size="sm" weight="semibold">{fmt(laborCost + partsCost)}</Mono>
+              <Mono size="sm" weight="semibold">{fmt(lineCost + partsCost)}</Mono>
             </div>
           </div>
         </section>
@@ -142,11 +142,15 @@ export default function ServiceLineItemDetail({
                         {formatSupplyQuantity(Number(usage.quantity), supplyDisplayUnit(usage, system), locale)}
                       </Mono>
                       <Mono size="sm">{usage.cost_snapshot != null ? fmt(Number(usage.cost_snapshot)) : '-'}</Mono>
+                      {usage.cost_estimated && <Badge tone="muted">{t('common:supplies.estimated')}</Badge>}
                     </span>
                   </Link>
                 </li>
               ))}
             </ul>
+          )}
+          {usages.some((usage) => usage.cost_estimated) && (
+            <p className="text-xs text-text-mute">{t('common:supplies.estimatedHint')}</p>
           )}
         </section>
 

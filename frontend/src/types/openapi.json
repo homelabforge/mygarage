@@ -23207,6 +23207,12 @@
             "description": "purchase total_cost or usage cost_snapshot",
             "title": "Cost"
           },
+          "cost_estimated": {
+            "default": false,
+            "description": "A usage whose cost is an estimate (see SupplyUsageResponse)",
+            "title": "Cost Estimated",
+            "type": "boolean"
+          },
           "entry_type": {
             "enum": [
               "purchase",
@@ -23817,6 +23823,11 @@
       },
       "SupplyUsageResponse": {
         "properties": {
+          "cost_estimated": {
+            "description": "The cost is the supply's all-time average because no costed purchase on or before the visit existed; it settles once one does (#307)",
+            "title": "Cost Estimated",
+            "type": "boolean"
+          },
           "cost_snapshot": {
             "anyOf": [
               {
@@ -23934,6 +23945,7 @@
           "supply_name",
           "unit_type",
           "quantity",
+          "cost_estimated",
           "created_at"
         ],
         "title": "SupplyUsageResponse",
@@ -44907,7 +44919,7 @@
     },
     "/api/quick-entry/vehicles": {
       "get": {
-        "description": "Return writable, non-archived vehicles for the Quick Entry page.\n\nReturns vehicles the current user:\n- Owns (user_id matches), OR\n- Has write-share access to\n\nExcludes archived vehicles in both cases.\n\nWhen auth is disabled (``auth_mode='none'`` \u2014 ``require_auth`` returns\n``None``), there is no user to scope to, so all non-archived vehicles are\nreturned, matching ``VehicleService.list_vehicles``.",
+        "description": "Return writable, non-archived vehicles for the Quick Entry page.\n\nQuick Entry only writes, so the rule is `writable_vehicles_filter`: an admin\n(and `auth_mode='none'`, where ``require_auth`` returns ``None``) gets every\nvehicle, anyone else what they own plus what is write-shared to them.\nArchived vehicles are left out either way. Sorted like the garage page\n(`VehicleService.list_vehicles`) so the picker reads the same.",
         "operationId": "list_quick_entry_vehicles_api_quick_entry_vehicles_get",
         "responses": {
           "200": {
@@ -46526,7 +46538,7 @@
     },
     "/api/supplies/{supply_id}/purchases/{purchase_id}": {
       "delete": {
-        "description": "Delete a purchase (and its receipt, if any) from the ledger.",
+        "description": "Delete a purchase (and its receipt, if any) from the ledger.\n\nA costed one also re-runs the fallback for the supply's estimated usages\n(#307), on the vehicles this user can write.",
         "operationId": "delete_purchase_api_supplies__supply_id__purchases__purchase_id__delete",
         "parameters": [
           {

@@ -220,3 +220,19 @@ describe('ReportsPanel: one year control for the yearly reports (D4)', () => {
     expect(screen.queryByRole('heading', { name: 'Date Range Selection' })).toBeNull()
   })
 })
+
+describe('ReportsPanel generating overlay', () => {
+  it('keeps its box inside the safe area (#305)', async () => {
+    // Never settles, so the overlay stays up.
+    apiGet.mockReturnValue(new Promise(() => {}))
+    render(<ReportsPanel vin="V1" />)
+    fireEvent.click(screen.getByRole('button', { name: SERVICE_PDF }))
+    const overlay = await waitFor(() => {
+      const found = document.querySelector('.fixed.inset-0')
+      expect(found).not.toBeNull()
+      return found
+    })
+    // No padding of its own before, so the insets alone.
+    expect(overlay).toHaveClass('modal-safe-inset')
+  })
+})

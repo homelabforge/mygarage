@@ -411,3 +411,61 @@ class TestFullVehicleJSONExportHours:
         assert matching[0]["engine_hours"] == 321.9
         assert matching[0]["notes"] == "JSON export check"
         assert matching[0]["source"] == "manual"
+
+
+async def _same_day_visits(db_session, vin: str) -> None:
+    """Three visits on one day and one later, each named in its notes by id order."""
+    from datetime import date
+
+    from app.models.service_visit import ServiceVisit
+
+    for notes, day in (
+        ("first", date(2026, 3, 1)),
+        ("second", date(2026, 3, 1)),
+        ("later", date(2026, 4, 1)),
+        ("third", date(2026, 3, 1)),
+    ):
+        db_session.add(ServiceVisit(vin=vin, date=day, service_category="Maintenance", notes=notes))
+        await db_session.flush()
+    await db_session.commit()
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+class TestServiceVisitExportOrder:
+    """Latest day first, and a day's visits in id order (R1-H2).
+
+    The duplicate check pairs file visits with stored ones lowest id first, so
+    same-day twins have to come out in the order they were stored.
+    """
+
+    async def test_json_export_writes_a_days_visits_in_id_order(
+        self, client: AsyncClient, auth_headers, db_session, new_vehicle
+    ):
+        vin = await new_vehicle()
+        await _same_day_visits(db_session, vin)
+
+        response = await client.get(f"/api/export/vehicles/{vin}/json", headers=auth_headers)
+
+        assert response.status_code == 200, response.text
+        assert [v["notes"] for v in response.json()["service_visits"]] == [
+            "later",
+            "first",
+            "second",
+            "third",
+        ]
+
+    async def test_csv_export_writes_a_days_visits_in_id_order(
+        self, client: AsyncClient, auth_headers, db_session, new_vehicle
+    ):
+        import csv
+        import io
+
+        vin = await new_vehicle()
+        await _same_day_visits(db_session, vin)
+
+        response = await client.get(f"/api/export/vehicles/{vin}/service/csv", headers=auth_headers)
+
+        assert response.status_code == 200, response.text
+        rows = list(csv.DictReader(io.StringIO(response.text)))
+        assert [r["Visit Notes"] for r in rows] == ["later", "first", "second", "third"]

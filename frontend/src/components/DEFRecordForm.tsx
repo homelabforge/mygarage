@@ -267,7 +267,7 @@ function DEFRecordForm({
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field id="date" label={t('common:date')} required error={errors.date}>
               <Input type="date" id="date" {...register('date')} invalid={!!errors.date} disabled={isSubmitting} />
             </Field>

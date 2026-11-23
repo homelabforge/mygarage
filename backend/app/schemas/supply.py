@@ -195,6 +195,10 @@ class SupplyUsageResponse(BaseModel):
     quantity: Decimal
     unit_cost_snapshot: Decimal | None = None
     cost_snapshot: Decimal | None = None
+    cost_estimated: bool = Field(
+        description="The cost is the supply's all-time average because no costed purchase "
+        "on or before the visit existed; it settles once one does (#307)"
+    )
     service_line_item_id: int | None = None
     service_visit_id: int | None = Field(
         default=None, description="Owning service visit (null for standalone adjustments) — R1-H3"
@@ -225,6 +229,9 @@ class SupplyLedgerEntry(BaseModel):
     running_balance: Decimal
     cost: Decimal | None = Field(
         default=None, description="purchase total_cost or usage cost_snapshot"
+    )
+    cost_estimated: bool = Field(
+        default=False, description="A usage whose cost is an estimate (see SupplyUsageResponse)"
     )
     supplier_id: int | None = None
     service_line_item_id: int | None = None

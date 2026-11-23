@@ -487,6 +487,9 @@ def _used_elsewhere_json(usage: SupplyUsage, readable_vins: set[str]) -> dict[st
         "quantity": _json_quantity(usage.quantity),
         "unit_cost_snapshot": _json_value(usage.unit_cost_snapshot),
         "cost_snapshot": _json_value(usage.cost_snapshot),
+        # An estimate settles once an earlier purchase is in, so a restore has
+        # to know this price can move (#307).
+        "cost_estimated": usage.cost_estimated,
     }
 
 
@@ -555,7 +558,9 @@ async def export_service_records_csv(
         select(ServiceVisit)
         .where(ServiceVisit.vin == vin)
         .options(*_SERVICE_VISIT_EXPORT_LOADS)
-        .order_by(ServiceVisit.date.desc())
+        # A day's visits in id order, so same-day twins pair up with the
+        # stored ones on a re-import (R1-H2).
+        .order_by(ServiceVisit.date.desc(), ServiceVisit.id)
     )
     visits = result.scalars().all()
 
@@ -1237,7 +1242,9 @@ async def export_vehicle_json(
         select(ServiceVisit)
         .where(ServiceVisit.vin == vin)
         .options(*_SERVICE_VISIT_JSON_LOADS)
-        .order_by(ServiceVisit.date.desc())
+        # Same-day visits in id order. The duplicate check takes the lowest
+        # unspent id, so an estimate listed first could steal a frozen twin's match.
+        .order_by(ServiceVisit.date.desc(), ServiceVisit.id)
     )
     service_visits = service_result.scalars().all()
 

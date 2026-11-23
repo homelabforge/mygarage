@@ -23,9 +23,16 @@ describe('AppToaster', () => {
     render(<AppToaster />)
     expect(captured?.theme).toBe('dark')
     expect(captured?.position).toBe('bottom-left')
-    // Bottom toasts ride above the phone tab bar; index.css sets the lift.
-    expect(captured?.offset).toEqual({ bottom: 'calc(24px + var(--toast-lift))' })
-    expect(captured?.mobileOffset).toEqual({ bottom: 'calc(16px + var(--toast-lift))' })
+    // Bottom toasts ride above the phone tab bar (index.css sets the lift), and
+    // top ones (while a drawer is open) below the iPhone status bar.
+    expect(captured?.offset).toEqual({
+      top: 'calc(24px + var(--spacing-safe-top))',
+      bottom: 'calc(24px + var(--toast-lift))',
+    })
+    expect(captured?.mobileOffset).toEqual({
+      top: 'calc(16px + var(--spacing-safe-top))',
+      bottom: 'calc(16px + var(--toast-lift))',
+    })
     expect(captured?.richColors).toBeUndefined()
     const classNames = (captured?.toastOptions as { classNames: Record<string, string> }).classNames
     expect(classNames.error).toContain('bg-danger')

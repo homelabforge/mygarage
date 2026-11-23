@@ -4,7 +4,7 @@ import logging
 from collections.abc import AsyncGenerator
 from pathlib import Path
 
-from sqlalchemy import event, text
+from sqlalchemy import Connection, event, inspect, text
 from sqlalchemy.engine import URL, make_url
 from sqlalchemy.engine.interfaces import DBAPIConnection
 from sqlalchemy.ext.asyncio import (
@@ -209,6 +209,8 @@ async def init_db():
 
     # Whatever happened above, PG doesn't start until the timestamp repair is in.
     await require_timestamp_repair()
+    # Neither dialect starts without cost_estimated, which a failed 161 leaves unadded.
+    await require_supply_usage_flag()
 
 
 async def require_timestamp_repair() -> None:
@@ -243,4 +245,36 @@ async def require_timestamp_repair() -> None:
         raise RuntimeError(
             f"The PostgreSQL timestamp repair ({stem}) hasn't run, so startup stops. "
             "Fix the migration error logged above and restart."
+        )
+
+
+async def require_supply_usage_flag() -> None:
+    """Refuse to start unless ``supply_usages.cost_estimated`` exists (#307).
+
+    Migration 162 adds it and is FATAL, but the runner stops at the first failed
+    migration and only a FATAL failure stops startup. A failing 161, which isn't
+    FATAL, would leave 162 unrun and the app serving every usage query against a
+    column that isn't there. Checked on both dialects.
+
+    Raises:
+        RuntimeError: the column is missing, or the table can't be read.
+    """
+
+    def columns(sync_conn: Connection) -> set[str]:
+        return {c["name"] for c in inspect(sync_conn).get_columns("supply_usages")}
+
+    try:
+        async with engine.connect() as conn:
+            found = await conn.run_sync(columns)
+    except Exception as e:
+        raise RuntimeError(
+            f"Couldn't check supply_usages for cost_estimated, so startup stops: {e}"
+        ) from e
+    if "cost_estimated" not in found:
+        raise RuntimeError(
+            "supply_usages.cost_estimated is missing, so startup stops. Migration "
+            "162_add_supply_usage_cost_estimated adds it, and the runner stops at the "
+            "first failure: a migration before 162 failed, most likely "
+            "161_price_unpriced_supply_usages. Fix the migration error logged above "
+            "and restart."
         )

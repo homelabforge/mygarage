@@ -31,7 +31,7 @@ import { formatDateForDisplay, formatDateForInput } from '@/utils/dateUtils'
 import { FormError } from '@/components/FormError'
 import FormModalWrapper from '@/components/FormModalWrapper'
 import CurrencyInput from '@/components/common/CurrencyInput'
-import { NumberInput, Select, registerDecimal } from '@/components/ui'
+import { Badge, NumberInput, Select, registerDecimal } from '@/components/ui'
 import type { Supply } from '@/types/supplies'
 import type { AddressBookEntry } from '@/types/addressBook'
 import type { components } from '@/types/api.generated'
@@ -128,6 +128,9 @@ function SupplyHistoryModal({ supply, onClose, initialForm }: SupplyHistoryModal
                 )
               )}
             </div>
+          )}
+          {entries.some((entry) => entry.cost_estimated) && (
+            <p className="text-xs text-garage-text-muted mt-2">{t('supplies.estimatedHint')}</p>
           )}
         </div>
 
@@ -343,7 +346,7 @@ function UsageRow({ entry, supply, unit }: LedgerRowProps) {
   }
 
   return (
-    <div className="flex items-center justify-between gap-3 p-3 bg-garage-bg border border-garage-border rounded-md">
+    <div data-testid={`ledger-usage-${entry.id}`} className="flex items-center justify-between gap-3 p-3 bg-garage-bg border border-garage-border rounded-md">
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 text-sm">
           <span className="font-medium text-garage-text">{formatDateForDisplay(entry.ledger_date)}</span>
@@ -357,6 +360,7 @@ function UsageRow({ entry, supply, unit }: LedgerRowProps) {
           {t('supplies.history.balance')}: {formatQuantity(entry.running_balance, unit)}
           {' · '}
           {formatCurrency(entry.cost)}
+          {entry.cost_estimated && <Badge tone="muted" className="ml-1.5">{t('supplies.estimated')}</Badge>}
           {isJob && entry.service_visit_date && (
             <>
               {' · '}
@@ -525,7 +529,7 @@ function PurchaseForm({
         <div className="bg-danger/10 border border-danger rounded-lg p-2 text-sm text-danger">{error}</div>
       )}
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <label htmlFor="purchase-date" className="block text-xs font-medium text-garage-text mb-1">
             {t('date')} <span className="text-danger">*</span>

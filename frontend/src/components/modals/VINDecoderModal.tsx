@@ -27,8 +27,8 @@ export default function VINDecoderModal({ isOpen, onClose }: VINDecoderModalProp
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-garage-surface border border-garage-border rounded-lg max-w-3xl w-full max-h-[90vh] flex flex-col">
+    <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 modal-safe-pad">
+      <div className="bg-garage-surface border border-garage-border rounded-lg max-w-3xl w-full max-h-[min(90vh,100%)] flex flex-col">
         {/* Header */}
         <div className="p-6 border-b border-garage-border flex items-center justify-between flex-shrink-0">
           <div className="flex items-center gap-2">

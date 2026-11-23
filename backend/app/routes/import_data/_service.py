@@ -417,24 +417,51 @@ _USAGE_STEPS = (
 )
 
 
-def usage_counts(
-    entries: Iterable[tuple[str, str | None, str, Decimal | None, Decimal | None, Decimal | None]],
-) -> frozenset[tuple[tuple[Any, ...], int]]:
-    """One line item's usages as an order-free multiset: (name, part number, unit type, quantity, unit cost, cost).
+#: One usage as `usage_counts` reads it: name, part number, unit type,
+#: quantity, unit cost, cost, and whether that cost is an estimate.
+UsageEntry = tuple[str, str | None, str, Decimal | None, Decimal | None, Decimal | None, bool]
+
+
+@dataclass(frozen=True)
+class UsageCounts:
+    """One line item's usages as an order-free multiset, and which are estimates.
+
+    `counts` holds each (name, part number, unit type, quantity, unit cost,
+    cost) key and how many usages have it; `estimated` how many of those are
+    priced at an estimate (#307). The flag rides beside the key, not in it, so
+    `_USAGE_COST` and `_USAGE_NAMED_BY` keep their places (D7). It still counts
+    toward equality: two twin items that differ only in it stay two keys in an
+    item Counter, each with its own flags.
+    """
+
+    counts: frozenset[tuple[tuple[Any, ...], int]]
+    estimated: frozenset[tuple[tuple[Any, ...], int]]
+
+
+def usage_counts(entries: Iterable[UsageEntry]) -> UsageCounts:
+    """One line item's usages as an order-free multiset (`UsageCounts`).
 
     No volume unit: it's how the supply shows, and the quantity is canonical.
     A blank part number reads as none, as the file's does.
     """
-    counts = Counter(
+    keyed = [
         (
-            name,
-            _blank_to_none(part_number),
-            unit_type,
-            *(_at_scale(value, step) for value, step in zip(figures, _USAGE_STEPS, strict=True)),
+            (
+                name,
+                _blank_to_none(part_number),
+                unit_type,
+                *(
+                    _at_scale(value, step)
+                    for value, step in zip((quantity, unit_cost, cost), _USAGE_STEPS, strict=True)
+                ),
+            ),
+            estimated,
         )
-        for name, part_number, unit_type, *figures in entries
-    )
-    return frozenset(counts.items())
+        for name, part_number, unit_type, quantity, unit_cost, cost, estimated in entries
+    ]
+    counts = Counter(key for key, _estimated in keyed)
+    estimates = Counter(key for key, estimated in keyed if estimated)
+    return UsageCounts(frozenset(counts.items()), frozenset(estimates.items()))
 
 
 #: A usage key's cost snapshot, and the fields before it that name the usage:
@@ -443,29 +470,45 @@ _USAGE_COST = 5
 _USAGE_NAMED_BY = 4
 
 
-def _usages_match(
-    file: frozenset[tuple[tuple[Any, ...], int]], stored: frozenset[tuple[tuple[Any, ...], int]]
-) -> bool:
-    """Whether a stored item's usages are the file's, where the file's has no cost, at any price.
+def _usages_match(file: UsageCounts, stored: UsageCounts) -> bool:
+    """Whether a stored item's usages are the file's; one with no cost or an estimate at any price.
 
     A usage exported before its supply had a cost gets priced once it has one
     (#301: migration 161, or the import's own pass), so the stored row reads
-    priced while the file still says unpriced. A priced file usage needs its
-    exact match; an unpriced one takes any usage of its supply and quantity left.
+    priced while the file still says unpriced. An estimate moves too: it
+    settles once a purchase on or before its visit is in, and deleting a
+    receipt can put it back (#307). So when either side is an estimate it
+    takes any price, and the stored row stays as it is (D7). Everything else
+    needs its exact match, and a file usage takes its own price before a
+    stored estimate, which could stand in for any price.
     """
-    left = Counter(dict(stored))
-    unpriced: Counter[tuple[Any, ...]] = Counter()
-    for key, count in file:
+    file_estimated = Counter(dict(file.estimated))
+    stored_estimated = Counter(dict(stored.estimated))
+    # Stored usages a frozen file usage has to meet at its price, and the
+    # stored estimates by supply and quantity.
+    left = Counter(dict(stored.counts)) - stored_estimated
+    stand_ins: Counter[tuple[Any, ...]] = Counter()
+    for key, count in stored_estimated.items():
+        stand_ins[key[:_USAGE_NAMED_BY]] += count
+    any_price: Counter[tuple[Any, ...]] = Counter()
+    for key, count in file.counts:
+        named = key[:_USAGE_NAMED_BY]
         if key[_USAGE_COST] is None:
-            unpriced[key[:_USAGE_NAMED_BY]] += count
-        elif left[key] < count:
+            any_price[named] += count
+            continue
+        any_price[named] += file_estimated[key]
+        frozen = count - file_estimated[key]
+        taken = min(frozen, left[key])
+        left[key] -= taken
+        short = frozen - taken
+        if short > stand_ins[named]:
             return False
-        else:
-            left[key] -= count
+        stand_ins[named] -= short
     rest: Counter[tuple[Any, ...]] = Counter()
     for key, count in left.items():
         rest[key[:_USAGE_NAMED_BY]] += count
-    return +rest == unpriced
+    rest.update(stand_ins)
+    return +rest == +any_price
 
 
 def _items_match(file: Counter[tuple[Any, ...]], stored: Counter[tuple[Any, ...]]) -> bool:
@@ -536,7 +579,7 @@ def _same_visit(
     return stored == items or (compare_usages and _items_match(items, stored))
 
 
-def _stored_usage_counts(item: ServiceLineItem) -> frozenset[tuple[tuple[Any, ...], int]]:
+def _stored_usage_counts(item: ServiceLineItem) -> UsageCounts:
     """A stored line item's `usage_counts`, its usages and their supplies loaded."""
     return usage_counts(
         (
@@ -546,6 +589,7 @@ def _stored_usage_counts(item: ServiceLineItem) -> frozenset[tuple[tuple[Any, ..
             u.quantity,
             u.unit_cost_snapshot,
             u.cost_snapshot,
+            u.cost_estimated,
         )
         for u in item.supply_usages
     )
