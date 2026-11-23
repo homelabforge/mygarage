@@ -259,9 +259,9 @@ export default function ServiceVisitList({
     ].filter((ref): ref is { key: string; label: string; value: string } => !!ref.value)
 
   const renderLineItem = (visit: ServiceVisit, item: ServiceLineItem, index: number) => {
-    const laborCost = item.cost ? Number(item.cost) : 0
+    const lineCost = item.cost ? Number(item.cost) : 0
     const partsCost = (item.supply_usages ?? []).reduce((sum, usage) => sum + Number(usage.cost_snapshot ?? 0), 0)
-    const lineTotal = laborCost + partsCost
+    const lineTotal = lineCost + partsCost
     const fmt = (n: number) => formatCurrency(n, { currencyCode, locale })
     return (
       <ClickableCard
@@ -296,9 +296,9 @@ export default function ServiceVisitList({
         </div>
         <div className="flex-shrink-0 text-sm text-text text-right">
           {lineTotal > 0 ? <Mono size="sm">{fmt(lineTotal)}</Mono> : '-'}
-          {laborCost > 0 && partsCost > 0 && (
+          {lineCost > 0 && partsCost > 0 && (
             <p className="text-xs text-text-mute">
-              {t('serviceList.partsLaborCost', { amount: fmt(laborCost) })} · {t('serviceList.partsCost', { amount: fmt(partsCost) })}
+              {t('serviceList.partsLaborCost', { amount: fmt(lineCost) })} · {t('serviceList.partsCost', { amount: fmt(partsCost) })}
             </p>
           )}
         </div>

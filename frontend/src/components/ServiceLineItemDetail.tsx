@@ -45,7 +45,7 @@ export default function ServiceLineItemDetail({
   const fmt = (n: number) => formatCurrency(n, { currencyCode, locale })
 
   const usages = item.supply_usages ?? []
-  const laborCost = item.cost ? Number(item.cost) : 0
+  const lineCost = item.cost ? Number(item.cost) : 0
   const partsCost = usages.reduce((sum, usage) => sum + Number(usage.cost_snapshot ?? 0), 0)
 
   return (
@@ -105,7 +105,7 @@ export default function ServiceLineItemDetail({
           <div className="bg-surface-2/50 rounded-md p-3 space-y-1 text-sm">
             <div className="flex justify-between text-text-mute">
               <span>{t('serviceList.detail.partsLabor')}</span>
-              <Mono size="sm">{fmt(laborCost)}</Mono>
+              <Mono size="sm">{fmt(lineCost)}</Mono>
             </div>
             <div className="flex justify-between text-text-mute">
               <span>{t('serviceList.detail.parts')}</span>
@@ -113,7 +113,7 @@ export default function ServiceLineItemDetail({
             </div>
             <div className="flex justify-between font-medium text-text border-t border-border pt-1 mt-1">
               <span>{t('serviceList.total')}</span>
-              <Mono size="sm" weight="semibold">{fmt(laborCost + partsCost)}</Mono>
+              <Mono size="sm" weight="semibold">{fmt(lineCost + partsCost)}</Mono>
             </div>
           </div>
         </section>
