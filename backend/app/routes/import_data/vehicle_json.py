@@ -857,6 +857,7 @@ async def _import_service_visits(run: _ImportRun) -> None:
                                 quantity=usage.quantity,
                                 unit_cost_snapshot=usage.unit_cost_snapshot,
                                 cost_snapshot=usage.cost_snapshot,
+                                cost_estimated=usage.cost_estimated,
                             )
                         )
                 await db.flush()

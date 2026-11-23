@@ -95,6 +95,9 @@ class UsedElsewhere:
     item_index: int | None = None
     item_cost: Decimal | None = None
     has_item_cost: bool = False
+    #: Priced at the all-time average, so a purchase on or before the visit
+    #: still settles it (#307). An older file has no flag: frozen.
+    cost_estimated: bool = False
 
 
 @dataclass(frozen=True)
@@ -133,6 +136,8 @@ class LineItemUsage:
     cost_snapshot: Decimal | None
     #: The vehicle a key's supply is kept for, when the exporter could read it.
     owner: str | None = None
+    #: As `UsedElsewhere.cost_estimated`.
+    cost_estimated: bool = False
 
 
 def _supply_key(row: Mapping[str, Any], name_missing: str) -> SupplyKey:
@@ -192,7 +197,11 @@ def _standalone_usage_from_json(row: Mapping[str, Any]) -> SupplyUsage:
     quantity = _required_quantity(row)
     _within_api_bounds(SupplyAdjustmentCreate, quantity=quantity)
     unit_cost, cost = _snapshots(row)
-    usage = SupplyUsage(quantity=quantity, unit_cost_snapshot=unit_cost, cost_snapshot=cost)
+    # Never an estimate, whatever the file says: an adjustment has no visit to
+    # date it, so it's priced date-blind and only while it has no cost (D3).
+    usage = SupplyUsage(
+        quantity=quantity, unit_cost_snapshot=unit_cost, cost_snapshot=cost, cost_estimated=False
+    )
     created_at = _json_row_datetime(row, "created_at")
     # Missing keeps the column's default, the import's own now.
     if created_at is not None:
@@ -232,6 +241,7 @@ def _used_elsewhere_from_json(row: Mapping[str, Any]) -> UsedElsewhere | Unnamed
         item_index=item_index,
         item_cost=item_cost,
         has_item_cost="item_cost" in row,
+        cost_estimated=_json_bool(row, "cost_estimated", default=False),
     )
 
 
@@ -459,6 +469,7 @@ async def _place_used_elsewhere(db: AsyncSession, pinned: PinnedSupply, use: Use
             quantity=use.quantity,
             unit_cost_snapshot=use.unit_cost_snapshot,
             cost_snapshot=use.cost_snapshot,
+            cost_estimated=use.cost_estimated,
         )
     )
     # That visit's cached total dropped this use if it was edited after the
@@ -499,9 +510,10 @@ def line_item_usages_from_json(
             quantity = _required_quantity(row)
             _within_api_bounds(SupplyUsageInput, quantity=quantity)
             unit_cost, cost = _snapshots(row)
+            estimated = _json_bool(row, "cost_estimated", default=False)
         except _RowError as e:
             raise _RowError(f"line item {position}, supply usage {k}: {e.reason}") from e
-        usages.append(LineItemUsage(ref, quantity, unit_cost, cost, owner))
+        usages.append(LineItemUsage(ref, quantity, unit_cost, cost, owner, estimated))
     return usages
 
 

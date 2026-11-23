@@ -2005,3 +2005,240 @@ async def test_an_imported_adjustment_with_no_cost_is_priced_too(
         Decimal("6.3401"),
         Decimal("1.59"),
     )
+
+
+# -- #307: an estimate travels as one, and matches at any price (D7, D8) ----------
+
+
+async def _july_oil(
+    db_session: AsyncSession, supply_vin: str, visit_vin: str, *, settled: bool
+) -> dict[str, Any]:
+    """Oil pinned to `supply_vin`, 5 of it used on `visit_vin`'s 2025-07-17 visit.
+
+    Bought 5 for 37.45 in June 2026, after the visit, so the usage is an
+    estimate: 7.49 each, 37.45. Settled, a July 2025 purchase of 5 for 30.00 is
+    there too, and the usage took its as-of price: 6.00 each, 30.00.
+    """
+    name = f"Oil {_tag()}"
+    # Bought while shared, then pinned, as `_jug_used_on_b` does.
+    oil = Supply(name=name, unit_type="count")
+    visit = ServiceVisit(
+        vin=visit_vin,
+        date=date(2025, 7, 17),
+        service_category="Maintenance",
+        total_cost=Decimal("57.45"),
+    )
+    db_session.add_all([oil, visit])
+    await db_session.flush()
+    item = ServiceLineItem(visit_id=visit.id, description="Oil change", cost=Decimal("20.00"))
+    db_session.add(item)
+    await db_session.flush()
+    usage = SupplyUsage(
+        supply_id=oil.id,
+        service_line_item_id=item.id,
+        quantity=Decimal("5"),
+        unit_cost_snapshot=Decimal("7.4900"),
+        cost_snapshot=Decimal("37.45"),
+        cost_estimated=True,
+    )
+    db_session.add_all(
+        [
+            SupplyPurchase(
+                supply_id=oil.id,
+                date=date(2026, 6, 1),
+                quantity=Decimal("5"),
+                total_cost=Decimal("37.45"),
+            ),
+            usage,
+        ]
+    )
+    await db_session.flush()
+    oil.vin = supply_vin
+    await db_session.commit()
+    ids = {"name": name, "oil": oil.id, "usage": usage.id, "visit": visit.id}
+    if settled:
+        await _settle(db_session, ids)
+    return ids
+
+
+async def _settle(db_session: AsyncSession, ids: dict[str, Any]) -> None:
+    """Enter the July 2025 purchase, and the estimate settles on it: 6.00 each, 30.00."""
+    db_session.add(
+        SupplyPurchase(
+            supply_id=ids["oil"],
+            date=date(2025, 7, 1),
+            quantity=Decimal("5"),
+            total_cost=Decimal("30.00"),
+        )
+    )
+    await db_session.execute(
+        update(SupplyUsage)
+        .where(SupplyUsage.id == ids["usage"])
+        .values(
+            unit_cost_snapshot=Decimal("6.0000"),
+            cost_snapshot=Decimal("30.00"),
+            cost_estimated=False,
+        )
+    )
+    await db_session.execute(
+        update(ServiceVisit)
+        .where(ServiceVisit.id == ids["visit"])
+        .values(total_cost=Decimal("50.00"))
+    )
+    await db_session.commit()
+
+
+_ESTIMATE = (Decimal("7.4900"), Decimal("37.45"), True)
+_SETTLED = (Decimal("6.0000"), Decimal("30.00"), False)
+
+
+async def _usage_rows(
+    db_session: AsyncSession, supply_id: int
+) -> list[tuple[Decimal | None, Decimal | None, bool]]:
+    """Each usage of the supply as (unit cost, cost, estimated), in id order."""
+    db_session.expire_all()
+    rows = await db_session.execute(
+        select(
+            SupplyUsage.unit_cost_snapshot, SupplyUsage.cost_snapshot, SupplyUsage.cost_estimated
+        )
+        .where(SupplyUsage.supply_id == supply_id)
+        .order_by(SupplyUsage.id)
+    )
+    return [(unit, cost, estimated) for unit, cost, estimated in rows.all()]
+
+
+async def _pinned_copy(db_session: AsyncSession, vin: str) -> int:
+    [copy_id] = (
+        (await db_session.execute(select(Supply.id).where(Supply.vin == vin))).scalars().all()
+    )
+    return copy_id
+
+
+async def _visit_count(db_session: AsyncSession, vin: str) -> int:
+    return (
+        await db_session.execute(
+            select(func.count()).select_from(ServiceVisit).where(ServiceVisit.vin == vin)
+        )
+    ).scalar_one()
+
+
+def _strip_flags(backup: dict[str, Any]) -> dict[str, Any]:
+    """`backup` as 3.11.2 wrote it: no usage says whether it's an estimate."""
+    for visit in backup["service_visits"]:
+        for item in visit["line_items"]:
+            for usage in item["supply_usages"]:
+                del usage["cost_estimated"]
+    for supply in backup["supplies"]:
+        for usage in supply["usages"]:
+            del usage["cost_estimated"]
+        for use in supply["used_elsewhere"]:
+            del use["cost_estimated"]
+    return backup
+
+
+async def test_an_estimate_restores_as_an_estimate(
+    client: AsyncClient, auth_headers, db_session: AsyncSession, new_vehicle
+):
+    source, target = await new_vehicle(), await new_vehicle()
+    await _july_oil(db_session, source, source, settled=False)
+    backup = await export_json(client, auth_headers, source)
+    [usage] = backup["service_visits"][0]["line_items"][0]["supply_usages"]
+    assert usage["cost_estimated"] is True
+
+    data = await import_json(client, auth_headers, target, backup)
+
+    assert data["errors"] == []
+    # Still only the June purchase here, so it stays an estimate.
+    # 10f6e9d7: False, the flag was dropped and the estimate froze.
+    assert await _usage_rows(db_session, await _pinned_copy(db_session, target)) == [_ESTIMATE]
+
+
+async def test_an_imported_estimate_settles_on_an_earlier_purchase_in_the_file(
+    client: AsyncClient, auth_headers, db_session: AsyncSession, new_vehicle
+):
+    # Nothing in the file is unpriced: the estimate alone sends the import's
+    # pricing pass to the oil.
+    source, target = await new_vehicle(), await new_vehicle()
+    await _july_oil(db_session, source, source, settled=False)
+    backup = await export_json(client, auth_headers, source)
+    backup["supplies"][0]["purchases"].append(
+        {
+            "date": "2025-07-01",
+            "quantity": "5",
+            "total_cost": 30.0,
+            "part_number": None,
+            "notes": None,
+            "supplier_name": None,
+        }
+    )
+
+    data = await import_json(client, auth_headers, target, backup)
+
+    assert data["errors"] == []
+    # 10f6e9d7: 37.45 frozen, the flag was dropped so nothing re-priced it.
+    assert await _usage_rows(db_session, await _pinned_copy(db_session, target)) == [_SETTLED]
+    # The item and the oil at its as-of price.
+    assert (await _visit(db_session, target)).total_cost == Decimal("50.00")
+
+
+async def test_a_legacy_file_with_no_flag_reads_frozen(
+    client: AsyncClient, auth_headers, db_session: AsyncSession, new_vehicle
+):
+    # Regression control: an older file never carried the flag, and its
+    # prices were frozen when it was written.
+    source, target = await new_vehicle(), await new_vehicle()
+    await _july_oil(db_session, source, source, settled=False)
+    backup = _strip_flags(await export_json(client, auth_headers, source))
+
+    data = await import_json(client, auth_headers, target, backup)
+
+    assert data["errors"] == []
+    assert await _usage_rows(db_session, await _pinned_copy(db_session, target)) == [
+        (Decimal("7.4900"), Decimal("37.45"), False)
+    ]
+
+
+async def test_an_imported_adjustment_is_never_an_estimate(
+    client: AsyncClient, auth_headers, db_session: AsyncSession, new_vehicle
+):
+    # Regression control (C3): an adjustment has no visit to date it, so it's
+    # priced date-blind and never flagged, whatever the file says.
+    source, target = await new_vehicle(), await new_vehicle()
+    await _july_oil(db_session, source, source, settled=False)
+    backup = await export_json(client, auth_headers, source)
+    backup["supplies"][0]["usages"].append(
+        {
+            "quantity": "1",
+            "unit_cost_snapshot": 7.49,
+            "cost_snapshot": 7.49,
+            "cost_estimated": True,
+            "created_at": "2026-06-02T10:00:00",
+        }
+    )
+
+    data = await import_json(client, auth_headers, target, backup)
+
+    assert data["errors"] == []
+    [oil] = await _pinned(db_session, target)
+    [spill] = oil["adjustments"]
+    assert (spill["cost_snapshot"], spill["cost_estimated"]) == (Decimal("7.49"), False)
+
+
+async def test_a_restored_use_elsewhere_keeps_its_estimate(
+    client: AsyncClient, auth_headers, db_session: AsyncSession, new_vehicle
+):
+    a, b = await new_vehicle(), await new_vehicle()
+    await _july_oil(db_session, a, b, settled=False)
+    backup_a = await export_json(client, auth_headers, a)
+    [use] = backup_a["supplies"][0]["used_elsewhere"]
+    # 10f6e9d7: KeyError, the hand-built reference left the flag behind.
+    assert use["cost_estimated"] is True
+
+    # Deleting A takes its oil, and B's use of it, with it.
+    await _start_over(db_session, a)
+    data = await import_json(client, auth_headers, a, backup_a)
+
+    assert (data["errors"], data["warnings"]) == ([], [])
+    # 10f6e9d7: False, the use came back frozen at its estimate.
+    assert await _usage_rows(db_session, await _pinned_copy(db_session, a)) == [_ESTIMATE]
+    assert await _visit_count(db_session, b) == 1
