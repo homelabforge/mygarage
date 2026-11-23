@@ -61,7 +61,7 @@ bun run generate:api   # needs uv + backend deps (see DEVELOPMENT.md)
 
 Commit both `src/types/openapi.json` and `src/types/api.generated.ts`.
 
-To run every gate exactly as CI does (needs Docker + Bun): `bin/ci-check`.
+To run every gate exactly as CI does (needs Docker, Bun and Node at the major in `.nvmrc`): `bin/ci-check`.
 
 ## Commits
 
