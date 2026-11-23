@@ -353,7 +353,11 @@ class TestQuickEntryVehicles:
     async def test_admin_excludes_archived_vehicles(
         self, client: AsyncClient, auth_headers, test_user, db_session
     ):
-        """Seeing everything still stops at archived, owned by the admin or not."""
+        """Seeing everything still stops at archived, owned by the admin or not.
+
+        Only `live in listed` fails on 3.11.2. The two archived assertions are
+        regression controls.
+        """
         live, archived_unowned, archived_own = (
             "QEADMINLIVE000001",
             "QEADMINARCHIVED01",
