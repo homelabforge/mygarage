@@ -1193,7 +1193,10 @@ class ServiceVisitService:
         for usage in usages:
             price = found.get(usage.supply_id)
             if price is None:
-                continue  # only with no costed quantity, which the range test rules out
+                # Can't happen: the range test found a costed purchase, and a purchase's
+                # quantity is gt=0 in the API and the import. The sync may have set a
+                # new quantity already, so skipping here would leave its cost stale.
+                continue
             unit, estimated = price
             ensure_fits(unit, f"The unit cost of supply {usage.supply_id}", UNIT_COST_MAX)
             cost = usage_cost(unit, usage.quantity)
