@@ -14,7 +14,8 @@
  *     either. `t('installPrompt.title')` shipped through both blind spots and
  *     rendered raw to users.
  *
- *  2. Every `labelKey` / `descriptionKey` on an option-list constant, AND every
+ *  2. Every `labelKey` / `descriptionKey` / `descKey` / `titleKey` / `hintKey` on
+ *     an option-list or section constant, AND every
  *     `negativeKey` / `tooLargeKey` / `invalidKey` / `requiredKey` /
  *     `integerKey` passed to `makeNumericField` (schemas/shared.ts), must
  *     resolve too. Both are read back as t(...) at the render/validation
@@ -91,9 +92,9 @@ function walk(dir: string): string[] {
 function stringConstsFor(text: string): Map<string, string> {
   const out = new Map<string, string>()
   for (const m of text.matchAll(
-    /^(?:export\s+)?const\s+([A-Za-z_$][\w$]*)\s*(?::[^=\n]+)?=\s*'([^'\\\n]*)'/gm
+    /^(?:export\s+)?const\s+([A-Za-z_$][\w$]*)\s*(?::[^=\n]+)?=\s*(['"])([^'"\\\n]*)\2/gm
   )) {
-    out.set(m[1], m[2])
+    out.set(m[1], m[3])
   }
   return out
 }
@@ -101,9 +102,9 @@ function stringConstsFor(text: string): Map<string, string> {
 /** Namespaces a file binds via useTranslation('x') / useTranslation(['x','y']) / useTranslation(). */
 function namespacesFor(text: string): string[] {
   const found = new Set<string>()
-  for (const m of text.matchAll(/useTranslation\(\s*'([^']+)'/g)) found.add(m[1])
+  for (const m of text.matchAll(/useTranslation\(\s*['"]([^'"]+)['"]/g)) found.add(m[1])
   for (const m of text.matchAll(/useTranslation\(\s*\[([^\]]+)\]/g)) {
-    for (const q of m[1].matchAll(/'([^']+)'/g)) found.add(q[1])
+    for (const q of m[1].matchAll(/['"]([^'"]+)['"]/g)) found.add(q[1])
   }
   if (/useTranslation\(\s*\)/.test(text)) found.add(DEFAULT_NS)
   return [...found]
@@ -115,7 +116,7 @@ for (const ns of namespaces) {
   englishKeys.set(ns, new Set(flattenKeys(loadJson(join(EN_DIR, `${ns}.json`)))))
 }
 
-interface Violation {
+export interface Violation {
   file: string
   line: number
   key: string
@@ -126,10 +127,10 @@ interface Violation {
   field?: string
 }
 
-const violations: Violation[] = []
 
 /** Resolve one key literal against the namespaces available to its file. */
 function record(
+  violations: Violation[],
   file: string,
   text: string,
   index: number,
@@ -158,12 +159,16 @@ function record(
   })
 }
 
-for (const file of walk(SRC)) {
-  const text = readFileSync(file, 'utf-8')
+/**
+ * Check 1 for one source file. Exported so the gate's own tests can feed it
+ * fixtures; `file` only shapes the reported path.
+ */
+export function scanFile(text: string, file: string): Violation[] {
+  const violations: Violation[] = []
   const bound = namespacesFor(text)
   const consts = stringConstsFor(text)
 
-  // Literal t('key') / t('key', { ... }) only. Template literals are dynamic and
+  // Literal t('key') / t("key") / t('key', { ... }) only. Template literals are dynamic and
   // every one in the codebase carries a defaultValue, so they can't render raw.
   //
   // Note this runs even when the file binds no namespace. Skipping bound-less
@@ -180,7 +185,7 @@ for (const file of walk(SRC)) {
     // { ns: 'forms' } option. Only honouring the prefix made every
     // { ns } call a false positive once its defaultValue was removed —
     // the key exists, just not in the namespace this file binds.
-    const nsOpt = opts.match(/\bns:\s*'([^']+)'/)
+    const nsOpt = opts.match(/\bns:\s*['"]([^'"]+)['"]/)
     const scope = nsOpt && !rawKey.includes(':') ? [nsOpt[1]] : bound
 
     if (scope.length === 0 && !rawKey.includes(':')) {
@@ -194,11 +199,11 @@ for (const file of walk(SRC)) {
       return
     }
 
-    record(file, text, index, rawKey, scope, 'call')
+    record(violations, file, text, index, rawKey, scope, 'call')
   }
 
-  for (const m of text.matchAll(/\bt\(\s*'([^']+)'\s*(,\s*\{[^}]*\})?\s*\)/g)) {
-    scanCall(m[1], m[2] ?? '', m.index ?? 0)
+  for (const m of text.matchAll(/\bt\(\s*(['"])([^'"]+)\1\s*(,\s*\{[^}]*\})?\s*\)/g)) {
+    scanCall(m[2], m[3] ?? '', m.index ?? 0)
   }
 
   // The same call, with the key held in a module-level constant. Resolved
@@ -213,7 +218,8 @@ for (const file of walk(SRC)) {
     scanCall(resolved, m[2] ?? '', m.index ?? 0)
   }
 
-  // `labelKey` / `descriptionKey` fields on option-list constants (resolved at
+  // `labelKey` / `descriptionKey` / `descKey` / `titleKey` / `hintKey` fields on
+  // option-list and section constants (resolved at
   // the render site as t(option.labelKey)), and `negativeKey` / `tooLargeKey` /
   // `invalidKey` / `requiredKey` / `integerKey` passed to `makeNumericField`
   // (resolved inside its superRefine as t(opts.negativeKey) etc.). Both
@@ -226,7 +232,7 @@ for (const file of walk(SRC)) {
   // call useTranslation, so a bare key there has no namespace to resolve
   // against and is reported — such a key MUST be written namespace-qualified.
   for (const m of text.matchAll(
-    /\b(labelKey|descriptionKey|negativeKey|tooLargeKey|invalidKey|requiredKey|integerKey):\s*['"]([^'"]+)['"]/g
+    /\b(labelKey|descriptionKey|descKey|titleKey|hintKey|negativeKey|tooLargeKey|invalidKey|requiredKey|integerKey):\s*['"]([^'"]+)['"]/g
   )) {
     const field = m[1]
     const rawKey = m[2]
@@ -241,42 +247,49 @@ for (const file of walk(SRC)) {
       })
       continue
     }
-    record(file, text, m.index ?? 0, rawKey, bound, 'field', field)
+    record(violations, file, text, m.index ?? 0, rawKey, bound, 'field', field)
   }
+  return violations
 }
 
-// Check 2: every shipped locale directory must be a language the app can load.
-// `en` lives in src/ (bundled), so it is never a public/locales directory.
-const loadable = new Set(SUPPORTED_LANGUAGES.map(l => l.code).filter(c => c !== 'en'))
-const orphans = discoverLanguages().filter(lang => !loadable.has(lang))
+function main(): void {
+  const violations = walk(SRC).flatMap(file => scanFile(readFileSync(file, 'utf-8'), file))
 
-let failed = false
+  // Check 2: every shipped locale directory must be a language the app can load.
+  // `en` lives in src/ (bundled), so it is never a public/locales directory.
+  const loadable = new Set(SUPPORTED_LANGUAGES.map(l => l.code).filter(c => c !== 'en'))
+  const orphans = discoverLanguages().filter(lang => !loadable.has(lang))
 
-if (violations.length > 0) {
-  failed = true
-  console.log(`✗ ${violations.length} translation key(s) used in code but missing from English:\n`)
-  for (const v of violations) {
-    console.log(`  ${v.file}:${v.line}`)
-    const shown = v.via === 'call' ? `t('${v.key}')` : `${v.field ?? 'labelKey'}: '${v.key}'`
-    console.log(`    ${shown} — not in ${v.searched.map(n => `${n}.json`).join(' or ')}`)
+  let failed = false
+
+  if (violations.length > 0) {
+    failed = true
+    console.log(`✗ ${violations.length} translation key(s) used in code but missing from English:\n`)
+    for (const v of violations) {
+      console.log(`  ${v.file}:${v.line}`)
+      const shown = v.via === 'call' ? `t('${v.key}')` : `${v.field ?? 'labelKey'}: '${v.key}'`
+      console.log(`    ${shown} — not in ${v.searched.map(n => `${n}.json`).join(' or ')}`)
+    }
+    console.log('\nThese render as the raw key to users — English has no fallback.')
+    console.log(`Add them to ${relative(ROOT, EN_DIR)}/<namespace>.json.`)
   }
-  console.log('\nThese render as the raw key to users — English has no fallback.')
-  console.log(`Add them to ${relative(ROOT, EN_DIR)}/<namespace>.json.`)
+
+  if (orphans.length > 0) {
+    failed = true
+    console.log(`\n✗ ${orphans.length} locale director(ies) the app can never load:\n`)
+    for (const lang of orphans) {
+      console.log(`  ${relative(ROOT, join(LOCALES_DIR, lang))}`)
+    }
+    console.log('\nSUPPORTED_LANGUAGES in src/constants/i18n.ts does not list them, so')
+    console.log('i18next never requests them. Either add the language there (and to')
+    console.log("backend/app/constants/i18n.py + i18n.ts's supportedLngs), or delete it.")
+  }
+
+  if (failed) process.exit(1)
+
+  console.log('✓ All translation keys used in code exist in English.')
+  console.log('✓ All locale directories are loadable languages.')
+  process.exit(0)
 }
 
-if (orphans.length > 0) {
-  failed = true
-  console.log(`\n✗ ${orphans.length} locale director(ies) the app can never load:\n`)
-  for (const lang of orphans) {
-    console.log(`  ${relative(ROOT, join(LOCALES_DIR, lang))}`)
-  }
-  console.log('\nSUPPORTED_LANGUAGES in src/constants/i18n.ts does not list them, so')
-  console.log('i18next never requests them. Either add the language there (and to')
-  console.log("backend/app/constants/i18n.py + i18n.ts's supportedLngs), or delete it.")
-}
-
-if (failed) process.exit(1)
-
-console.log('✓ All translation keys used in code exist in English.')
-console.log('✓ All locale directories are loadable languages.')
-process.exit(0)
+if (import.meta.main) main()
