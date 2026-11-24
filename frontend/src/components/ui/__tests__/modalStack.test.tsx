@@ -257,6 +257,107 @@ describe('modal stack', () => {
     expect(document.activeElement).toBe(action)
   })
 
+  it('a confirm closing with its drawer in one commit hands focus back to the page trigger', () => {
+    // The drawer releases first while not top, so its panel stays inert and the
+    // Dialog's restoreTo (Delete, inside it) is dead. The Dialog has to inherit
+    // the drawer's restoreTo instead.
+    const ui = (drawerOpen: boolean, dialogOpen: boolean, mounted = true): ReactElement => (
+      <>
+        <button>Page trigger</button>
+        {mounted ? (
+          <>
+            <Drawer open={drawerOpen} onClose={() => {}} title="Record"><button>Delete</button></Drawer>
+            <Dialog open={dialogOpen} onClose={() => {}} title="Confirm"><button>Yes</button></Dialog>
+          </>
+        ) : null}
+      </>
+    )
+    const { rerender } = render(ui(false, false), { container: root })
+    const trigger = screen.getByRole('button', { name: 'Page trigger' })
+    const openBoth = (): void => {
+      trigger.focus()
+      rerender(ui(true, false))
+      screen.getByRole('button', { name: 'Delete' }).focus()
+      rerender(ui(true, true))
+    }
+    openBoth()
+    rerender(ui(false, false))
+    expect(document.activeElement).toBe(trigger)
+
+    // Same again, but both unmount: the drawer's nodes are already gone when it releases.
+    rerender(ui(false, false, false))
+    rerender(ui(false, false))
+    openBoth()
+    rerender(ui(true, true, false))
+    expect(document.activeElement).toBe(trigger)
+  })
+
+  it('a parent and nested drawer mounted together hand focus back to the page trigger', () => {
+    // The child pushes first and grabs the trigger; the parent pushes second
+    // with the child's field. The parent has to end up with the trigger.
+    const ui = (mounted: boolean, parentOpen: boolean, childOpen: boolean): ReactElement => (
+      <>
+        <button>Page trigger</button>
+        {mounted ? (
+          <Drawer open={parentOpen} onClose={() => {}} title="Parent">
+            <input aria-label="Parent field" />
+            <Drawer open={childOpen} nested onClose={() => {}} title="Child">
+              <input aria-label="Child field" />
+            </Drawer>
+          </Drawer>
+        ) : null}
+      </>
+    )
+    const { rerender } = render(ui(false, false, false), { container: root })
+    const trigger = screen.getByRole('button', { name: 'Page trigger' })
+    trigger.focus()
+    rerender(ui(true, true, true))
+    const child = screen.getByRole('dialog', { name: 'Child' })
+    expect(child).toContainElement(document.activeElement as HTMLElement)
+
+    rerender(ui(true, true, false))
+    fireEvent.transitionEnd(child)
+    expect(screen.queryByRole('dialog', { name: 'Child' })).not.toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: 'Parent' })).toContainElement(document.activeElement as HTMLElement)
+
+    rerender(ui(true, false, false))
+    expect(document.activeElement).toBe(trigger)
+  })
+
+  it('closing in order walks focus back one trigger at a time', () => {
+    // Releasing a layer only hands its restoreTo to layers pointing into it,
+    // so the ones below keep their own triggers.
+    const ui = (drawer: boolean, nested: boolean, dialog: boolean): ReactElement => (
+      <>
+        <button>Page trigger</button>
+        <Drawer open={drawer} onClose={() => {}} title="Parent">
+          <button>Open nested</button>
+          <Drawer open={nested} nested onClose={() => {}} title="Child">
+            <button>Open confirm</button>
+          </Drawer>
+        </Drawer>
+        <Dialog open={dialog} onClose={() => {}} title="Confirm"><button>Yes</button></Dialog>
+      </>
+    )
+    const { rerender } = render(ui(false, false, false), { container: root })
+    const page = screen.getByRole('button', { name: 'Page trigger' })
+    page.focus()
+    rerender(ui(true, false, false))
+    const openNested = screen.getByRole('button', { name: 'Open nested' })
+    openNested.focus()
+    rerender(ui(true, true, false))
+    const openConfirm = screen.getByRole('button', { name: 'Open confirm' })
+    openConfirm.focus()
+    rerender(ui(true, true, true))
+
+    rerender(ui(true, true, false))
+    expect(document.activeElement).toBe(openConfirm)
+    rerender(ui(true, false, false))
+    expect(document.activeElement).toBe(openNested)
+    rerender(ui(false, false, false))
+    expect(document.activeElement).toBe(page)
+  })
+
   it('the toaster is never inert', () => {
     const section = document.createElement('section')
     section.setAttribute('aria-label', 'Notifications')

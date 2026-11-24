@@ -411,7 +411,7 @@ export default function Gallery() {
             </>
           }
         >
-          <p className="text-sm text-text-mute">Shift+Tab from Cancel wraps to the header X. Backdrop click closes.</p>
+          <p className="text-sm text-text-mute">Shift+Tab from Cancel goes back to the header X. Backdrop click closes.</p>
         </Dialog>
       </Section>
 

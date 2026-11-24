@@ -119,6 +119,16 @@ export function pushLayer(layer: ModalLayer): () => void {
     if (released) return
     released = true
     const wasTop = isTopLayer(layer)
+    // Anyone still pointing into this layer (or at something already gone)
+    // takes its restoreTo, so closing out of order still ends on the trigger.
+    // Covers a parent that pushed after its nested drawer too: its restoreTo
+    // is the child's field until the child goes.
+    const nodes = layer.nodes()
+    for (const other of stack) {
+      const target = other.restoreTo
+      if (other === layer || !target) continue
+      if (!target.isConnected || nodes.some((node) => node.contains(target))) other.restoreTo = layer.restoreTo
+    }
     stack.splice(stack.indexOf(layer), 1)
     if (stack.length === 0) {
       document.body.style.overflow = savedOverflow

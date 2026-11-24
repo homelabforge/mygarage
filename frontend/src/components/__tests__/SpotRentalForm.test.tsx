@@ -165,8 +165,8 @@ describe('SpotRentalForm — nested Save-to-Address-Book confirm (LD8 wiring net
     render(<SpotRentalForm vin="V1" onClose={onClose} onSuccess={onSuccess} />)
     await reachPrompt(user)
     // Escape on the NESTED dialog (scoped by its accessible name so it never resolves the outer form Drawer). The
-    // nested Drawer's capture-phase keydown listener stopImmediatePropagation()s, so ONLY its onClose
-    // (skipSaveToAddressBook) runs — proving the Drawer close mechanism itself, not just the footer button.
+    // modal stack sends Escape to the top layer only, and a nested drawer outranks the form Drawer, so ONLY its
+    // onClose (skipSaveToAddressBook) runs. That proves the Drawer close mechanism itself, not just the footer button.
     const nestedDialog = screen.getByRole('dialog', { name: 'spotRental.saveToAddressBook' })
     fireEvent.keyDown(nestedDialog, { key: 'Escape' })
     await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))

@@ -1354,8 +1354,8 @@
     {
       "path": "src/components/AppToaster.tsx",
       "disposition": "no unit behaviour",
-      "digest": "0060636740c929d92463fbf56f8065ae30676a75ddd07708aceacc8aaecb6838",
-      "reason": "no unit behaviour: dispositioned under the CORRECTED scan: every unit stem, token, quantity name and canonical field suffix this codebase uses, matched case-insensitively with NO word boundary. The earlier word-boundary version was a floor (it called AnalyticsHelpModal.tsx clean while it renders \"Average MPG:\" to every user) and it was superseded before any disposition in this file was written. This file matched NONE of them. Re-reviewed for batch 3a (2026-10): toast descriptions render pre-line so the import toast's error and warning lines stay apart; no quantity is read, formatted or converted. 2026-11-22 (#305, #308 iOS safe area): sonner's top offsets add --spacing-safe-top. Class names and CSS offsets only; no quantity, unit label or conversion touched. 2026-11-24 (ui-primitives): useAnyDrawerOpen now comes from ui/modalStack (openDrawers.ts is gone) and the portal comment names the stack. Same drawers-only signal; no unit behaviour moved."
+      "digest": "d74244aa15cf62f0250483ebd22e7589e19b4c852193098d53dda8176a345a55",
+      "reason": "no unit behaviour: dispositioned under the CORRECTED scan: every unit stem, token, quantity name and canonical field suffix this codebase uses, matched case-insensitively with NO word boundary. The earlier word-boundary version was a floor (it called AnalyticsHelpModal.tsx clean while it renders \"Average MPG:\" to every user) and it was superseded before any disposition in this file was written. This file matched NONE of them. Re-reviewed for batch 3a (2026-10): toast descriptions render pre-line so the import toast's error and warning lines stay apart; no quantity is read, formatted or converted. 2026-11-22 (#305, #308 iOS safe area): sonner's top offsets add --spacing-safe-top. Class names and CSS offsets only; no quantity, unit label or conversion touched. 2026-11-24 (ui-primitives): useAnyDrawerOpen now comes from ui/modalStack (openDrawers.ts is gone) and the portal comment names the stack. Same drawers-only signal; no unit behaviour moved. 2026-11-24 (ui-primitives fix 1): the portal comment is reflowed. Comment only; no unit behaviour moved."
     },
     {
       "path": "src/components/ApplyPackDialog.tsx",
@@ -3162,8 +3162,8 @@
     {
       "path": "src/components/ui/gallery/Gallery.tsx",
       "disposition": "domain exemption",
-      "digest": "e37a0f8afd48da13863e17df1f336bc2452db6b251e9a8066d5adeeb6963f4bb",
-      "reason": "the dev-only component gallery. Its '89,230 mi' and 'Litres' are static sample copy with no canonical value behind them, and Rollup strips the route from production. A unit decision needs a quantity to convert; this has none. The #192 ProgressMeter section adds '1,240 mi left' and '300 mi over', static sample copy of the same kind. 2026-10-31 (b11 T5): the sample Field label and DataTable header read 'Liters', not 'Litres' (R6, en is US English). Static demo copy in the dev-only gallery; the exemption stands. 2026-11-24 (ui-primitives): one Dialog demo (Remove vehicle confirm, Cancel focused). Fixed demo copy, no quantity; no unit behaviour moved."
+      "digest": "c0aca8466e8dd78cc000a92dada093a366eea3444c8046431239323f921c3758",
+      "reason": "the dev-only component gallery. Its '89,230 mi' and 'Litres' are static sample copy with no canonical value behind them, and Rollup strips the route from production. A unit decision needs a quantity to convert; this has none. The #192 ProgressMeter section adds '1,240 mi left' and '300 mi over', static sample copy of the same kind. 2026-10-31 (b11 T5): the sample Field label and DataTable header read 'Liters', not 'Litres' (R6, en is US English). Static demo copy in the dev-only gallery; the exemption stands. 2026-11-24 (ui-primitives): one Dialog demo (Remove vehicle confirm, Cancel focused). Fixed demo copy, no quantity; no unit behaviour moved. 2026-11-24 (ui-primitives fix 1): the Dialog demo note says Shift+Tab goes back to the header X. Demo copy only; no unit behaviour moved."
     },
     {
       "path": "src/components/ui/gallery/Section.tsx",
@@ -3180,8 +3180,8 @@
     {
       "path": "src/components/ui/modalStack.ts",
       "disposition": "no unit behaviour",
-      "digest": "7b94f27a7d963506632bb5b0b22e9e38ff36c960a24b889479b80f4fccf62ba4",
-      "reason": "2026-11-24 (ui-primitives): new. Read in full: the single modal stack for drawers and dialogs (replaces openDrawers.ts). Ranks layers, owns body scroll lock, #root and lower-layer inert, one window keydown router for Escape and Tab, focus restore on release, and the useAnyDrawerOpen hook AppToaster reads. Layer bookkeeping only; it holds no quantity, unit, conversion or formatting."
+      "digest": "ae819efd75d9c78240ab4e7b3be03a7b990c14193e1741fe508efc2996e03a07",
+      "reason": "2026-11-24 (ui-primitives): new. Read in full: the single modal stack for drawers and dialogs (replaces openDrawers.ts). Ranks layers, owns body scroll lock, #root and lower-layer inert, one window keydown router for Escape and Tab, focus restore on release, and the useAnyDrawerOpen hook AppToaster reads. Layer bookkeeping only; it holds no quantity, unit, conversion or formatting. 2026-11-24 (ui-primitives fix 1): a released layer hands its restoreTo to any remaining layer whose restoreTo is inside it or already gone, so out-of-order closes still end on the trigger. Focus bookkeeping only; no unit behaviour moved."
     },
     {
       "path": "src/components/ui/types.ts",

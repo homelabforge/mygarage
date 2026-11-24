@@ -543,8 +543,8 @@ describe('Drawer — nested overlay', () => {
         <Drawer open nested onClose={childClose} title="Child">c</Drawer>
       </>
     )
-    // Dispatch from inside the child so the capture-phase listener runs first,
-    // matching a real keypress on a focused field in the child panel.
+    // Dispatch from inside the child, like a real keypress on a focused field.
+    // The modal stack routes Escape to the top layer by rank, and nested wins.
     fireEvent.keyDown(screen.getByRole('dialog', { name: 'Child' }), { key: 'Escape' })
     expect(childClose).toHaveBeenCalledOnce()
     expect(parentClose).not.toHaveBeenCalled()
