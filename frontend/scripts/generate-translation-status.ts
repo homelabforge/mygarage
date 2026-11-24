@@ -15,15 +15,11 @@ import { join } from 'path'
 import {
   LANGUAGE_FLAGS,
   LANGUAGE_NAMES,
-  LOCALES_DIR,
   PROJECT_ROOT,
+  analyzeLocale,
   discoverLanguages,
   discoverNamespaces,
-  flattenKeys,
-  getNestedValue,
-  isTranslationInvariant,
   loadEnglishData,
-  loadJson,
 } from './translation-utils'
 
 interface LanguageStats {
@@ -39,53 +35,22 @@ interface LanguageStats {
 
 const namespaces = discoverNamespaces()
 const languages = discoverLanguages()
-const { totalKeys, keysByNamespace, valuesByNamespace } = loadEnglishData(namespaces)
+const english = loadEnglishData(namespaces)
+const { totalKeys } = english
 
-// Calculate per-language stats
+// Per-language stats, from the same comparison the gate uses.
 const stats: LanguageStats[] = languages.map(lang => {
-  let translated = 0
-  let missing = 0
-  let empty = 0
-
-  for (const ns of namespaces) {
-    const enKeys = keysByNamespace.get(ns)!
-    const enValues = valuesByNamespace.get(ns)!
-    const langPath = join(LOCALES_DIR, lang, `${ns}.json`)
-
-    if (!existsSync(langPath)) {
-      missing += enKeys.length
-      continue
-    }
-
-    const langData = loadJson(langPath)
-    const langKeys = new Set(flattenKeys(langData))
-
-    for (const key of enKeys) {
-      if (!langKeys.has(key)) {
-        missing++
-      } else {
-        const enVal = enValues.get(key)
-        const langVal = getNestedValue(langData, key)
-        if (langVal === '' || langVal === null) {
-          empty++
-        } else if (langVal !== enVal || isTranslationInvariant(enVal)) {
-          translated++
-        }
-      }
-    }
-  }
-
-  const percentage = totalKeys > 0 ? Math.round((translated / totalKeys) * 100) : 0
-
+  const report = analyzeLocale(lang, namespaces, english)
+  const { translated, total } = report
   return {
     code: lang,
     name: LANGUAGE_NAMES[lang] ?? lang,
     flag: LANGUAGE_FLAGS[lang] ?? '🏳️',
     translated,
-    total: totalKeys,
-    percentage,
-    missing,
-    empty,
+    total,
+    percentage: total > 0 ? Math.round((translated / total) * 100) : 0,
+    missing: report.issues.filter(i => i.type === 'missing').length,
+    empty: report.issues.filter(i => i.type === 'empty').length,
   }
 }).sort((a, b) => {
   // Primary: completion descending. Secondary: language code ascending for

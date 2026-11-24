@@ -425,7 +425,6 @@
     "uploading": "Téléversement en cours…",
     "misc": {
       "invalidFileType": "Type de fichier invalide. Autorisés : PDF, DOC, DOCX, TXT, JPG, PNG, WEBP, XLS, XLSX, CSV",
-      "fileTooLarge": "La taille du fichier doit être inférieure à 25 Mo",
       "sizeZero": "0 octet",
       "unitBytes": "octets",
       "unitKb": "Ko",
@@ -1380,7 +1379,6 @@
     "viewMode": "Mode affichage",
     "misc": {
       "invalidFileType": "Veuillez sélectionner un fichier valide (PDF, JPG ou PNG)",
-      "fileTooLarge": "La taille du fichier doit être inférieure à 10 Mo",
       "uploadSuccess": "Window Sticker téléversé avec succès ! Vérifiez les données extraites ci-dessous.",
       "saveSuccess": "Données du Window Sticker enregistrées avec succès !",
       "errorOccurred": "Une erreur s’est produite",

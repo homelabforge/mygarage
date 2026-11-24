@@ -448,7 +448,6 @@
     "uploading": "Sedang memuat naik...",
     "misc": {
       "invalidFileType": "Jenis fail tidak sah. Dibenarkan: PDF, DOC, DOCX, TXT, JPG, PNG, WEBP, XLS, XLSX, CSV",
-      "fileTooLarge": "Saiz fail mesti kurang daripada 25MB",
       "sizeZero": "0 Bait",
       "unitBytes": "Bait",
       "unitKb": "KB",
@@ -795,7 +794,6 @@
       "legacyBadge": "Pengesanan terdahulu",
       "stationaryHiddenTitle": "Belum ada pemanduan direkodkan",
       "stationaryHiddenDesc": "Pemanduan direkodkan apabila kenderaan bergerak. {{count, number}} sesi terdahulu direkodkan ketika kenderaan diparkir kerana peranti tersambung.",
-      "stationaryHiddenDesc_one": "Pemanduan direkodkan apabila kenderaan bergerak. {{count, number}} sesi terdahulu direkodkan ketika kenderaan diparkir kerana peranti tersambung.",
       "stationaryHiddenDesc_other": "Pemanduan direkodkan apabila kenderaan bergerak. {{count, number}} sesi terdahulu direkodkan ketika kenderaan diparkir kerana peranti tersambung.",
       "showStationary": "Tunjukkan sesi ketika diparkir",
       "hideStationary": "Sembunyikan sesi ketika diparkir"
@@ -1068,10 +1066,8 @@
     "supersededBy": "Digantikan oleh {{title}}",
     "review": "Semak",
     "duplicatesFound": "{{count}} item penyelenggaraan mempunyai lebih daripada satu peringatan belum selesai.",
-    "duplicatesFound_one": "{{count}} item penyelenggaraan mempunyai lebih daripada satu peringatan belum selesai.",
     "duplicatesFound_other": "{{count}} item penyelenggaraan mempunyai lebih daripada satu peringatan belum selesai.",
     "duplicateCount": "{{count}} peringatan",
-    "duplicateCount_one": "{{count}} peringatan",
     "duplicateCount_other": "{{count}} peringatan"
   },
   "serviceList": {
@@ -1499,10 +1495,8 @@
     "storedHint": "Terus disimpan tanpa posisi tertentu. Pasangkannya apabila tiba musim yang sesuai.",
     "suggestion": "Bacaan terdekat: {{odometer}} pada {{date}} ({{offset}})",
     "suggestionEarlier": "{{count}} hari lebih awal",
-    "suggestionEarlier_one": "{{count}} hari lebih awal",
     "suggestionEarlier_other": "{{count}} hari lebih awal",
     "suggestionLater": "{{count}} hari kemudian",
-    "suggestionLater_one": "{{count}} hari kemudian",
     "suggestionLater_other": "{{count}} hari kemudian",
     "suggestionNone": "Belum ada odometer bacaan",
     "suggestionSameDay": "hari yang sama",
@@ -1560,7 +1554,6 @@
     "viewMode": "Lihat Mode",
     "misc": {
       "invalidFileType": "Sila pilih fail yang sah (PDF, JPG atau PNG)",
-      "fileTooLarge": "Saiz fail mesti kurang daripada 10MB",
       "uploadSuccess": "Pelekat tingkap berjaya dimuat naik! Semak data yang diekstrak di bawah.",
       "saveSuccess": "Data pelekat tingkap berjaya disimpan!",
       "errorOccurred": "Ralat berlaku",
@@ -1911,7 +1904,6 @@
       "baseline": "Tiada servis padanan dalam rekod; pengiraan bermula dari hari ini."
     },
     "supersedes": "{{count}} peringatan lain untuk item yang sama akan ditandakan sebagai digantikan.",
-    "supersedes_one": "{{count}} peringatan lain untuk item yang sama akan ditandakan sebagai digantikan.",
     "supersedes_other": "{{count}} peringatan lain untuk item yang sama akan ditandakan sebagai digantikan.",
     "recalculating": "Mengira semula pelan…"
   },

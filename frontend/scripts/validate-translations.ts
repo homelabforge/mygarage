@@ -4,7 +4,9 @@
  *
  * Compares each non-English language's JSON keys against the canonical
  * English reference in src/locales/en/. Reports missing, extra, and
- * empty-value keys.
+ * empty-value keys. Plural sets follow the language: pl needs _few and _many
+ * on top of English's _one/_other, ms only reads _other. A missing category
+ * renders English for that count, so it's reported as missing.
  *
  * Usage: bun run scripts/validate-translations.ts
  * Exit code: 1 if any {{interpolation}} placeholders are broken, 0 otherwise.
@@ -12,37 +14,19 @@
  * English), so this can gate PRs without blocking new English strings.
  */
 
-import { existsSync } from 'fs'
-import { join } from 'path'
 import {
-  LOCALES_DIR,
+  analyzeLocale,
   discoverLanguages,
   discoverNamespaces,
-  flattenKeys,
-  getNestedValue,
-  isTranslationInvariant,
   loadEnglishData,
-  loadJson,
+  type LocaleIssue,
 } from './translation-utils'
-
-/** Extract {{variable}} interpolation placeholders from a string. */
-function extractInterpolations(value: string): Set<string> {
-  const matches = value.match(/\{\{(\w+)\}\}/g) || []
-  return new Set(matches)
-}
-
-interface Issue {
-  lang: string
-  namespace: string
-  type: 'missing' | 'extra' | 'empty' | 'interpolation'
-  key: string
-  detail?: string
-}
 
 const namespaces = discoverNamespaces()
 const languages = discoverLanguages()
-const { totalKeys, keysByNamespace, valuesByNamespace } = loadEnglishData(namespaces)
-const issues: Issue[] = []
+const english = loadEnglishData(namespaces)
+const reports = new Map(languages.map(lang => [lang, analyzeLocale(lang, namespaces, english)]))
+const issues: LocaleIssue[] = [...reports.values()].flatMap(r => r.issues)
 
 console.log('Translation Validation Report')
 console.log('═'.repeat(50))
@@ -50,63 +34,6 @@ console.log(`Canonical language: en (${namespaces.length} namespaces)`)
 console.log(`Target languages: ${languages.join(', ') || 'none'}`)
 console.log()
 
-for (const ns of namespaces) {
-  const enKeys = keysByNamespace.get(ns)!
-  const enValues = valuesByNamespace.get(ns)!
-
-  for (const lang of languages) {
-    const langPath = join(LOCALES_DIR, lang, `${ns}.json`)
-
-    if (!existsSync(langPath)) {
-      for (const key of enKeys) {
-        issues.push({ lang, namespace: ns, type: 'missing', key })
-      }
-      continue
-    }
-
-    const langData = loadJson(langPath)
-    const langKeys = new Set(flattenKeys(langData))
-
-    for (const key of enKeys) {
-      if (!langKeys.has(key)) {
-        issues.push({ lang, namespace: ns, type: 'missing', key })
-      } else {
-        const val = getNestedValue(langData, key)
-        const enVal = enValues.get(key)
-        if (val === '' || val === null) {
-          issues.push({ lang, namespace: ns, type: 'empty', key })
-        }
-
-        // Check interpolation variables are preserved
-        if (typeof enVal === 'string' && typeof val === 'string') {
-          const enVars = extractInterpolations(enVal)
-          const trVars = extractInterpolations(val)
-          if (enVars.size > 0) {
-            const missing: string[] = []
-            for (const v of enVars) {
-              if (!trVars.has(v)) missing.push(v)
-            }
-            if (missing.length > 0) {
-              issues.push({
-                lang, namespace: ns, type: 'interpolation', key,
-                detail: `missing {{${missing.join('}}, {{')}}}`
-              })
-            }
-          }
-        }
-      }
-    }
-
-    // Check for extra keys not in English
-    for (const key of langKeys) {
-      if (!enKeys.includes(key)) {
-        issues.push({ lang, namespace: ns, type: 'extra', key })
-      }
-    }
-  }
-}
-
-// Print per-language summary
 for (const lang of languages) {
   const langIssues = issues.filter(i => i.lang === lang)
   const missing = langIssues.filter(i => i.type === 'missing')
@@ -116,25 +43,10 @@ for (const lang of languages) {
 
   // Count translated keys: values that differ from English, plus values that
   // are correctly identical because they contain nothing translatable.
-  let actuallyTranslated = 0
-  for (const ns of namespaces) {
-    const enKeys = keysByNamespace.get(ns)!
-    const enValues = valuesByNamespace.get(ns)!
-    const langPath = join(LOCALES_DIR, lang, `${ns}.json`)
-    if (!existsSync(langPath)) continue
-    const langData = loadJson(langPath)
-    for (const key of enKeys) {
-      const enVal = enValues.get(key)
-      const langVal = getNestedValue(langData, key)
-      if (langVal && langVal !== '' && (langVal !== enVal || isTranslationInvariant(enVal))) {
-        actuallyTranslated++
-      }
-    }
-  }
+  const { translated, total } = reports.get(lang)!
+  const pct = total > 0 ? Math.round((translated / total) * 100) : 0
 
-  const pct = totalKeys > 0 ? Math.round((actuallyTranslated / totalKeys) * 100) : 0
-
-  console.log(`[${lang}] ${pct}% translated (${actuallyTranslated}/${totalKeys} keys)`)
+  console.log(`[${lang}] ${pct}% translated (${translated}/${total} keys)`)
 
   if (missing.length > 0) {
     console.log(`  Missing (${missing.length}):`)
@@ -157,9 +69,9 @@ for (const lang of languages) {
     }
   }
   if (interpolation.length > 0) {
-    console.log(`  Missing interpolation variables (${interpolation.length}):`)
+    console.log(`  Broken interpolation variables (${interpolation.length}):`)
     for (const i of interpolation.slice(0, 10)) {
-      console.log(`    - ${i.namespace}:${i.key} — ${i.detail}`)
+      console.log(`    - ${i.namespace}:${i.key}: ${i.detail}`)
     }
     if (interpolation.length > 10) console.log(`    ... and ${interpolation.length - 10} more`)
   }
@@ -171,11 +83,11 @@ const interpolationCount = issues.filter(i => i.type === 'interpolation').length
 
 // Only broken {{interpolation}} placeholders are a hard failure: they're a
 // real bug in a provided translation and can't be caught by eye across every
-// key. Missing keys are a non-blocking warning — untranslated keys fall back
+// key. Missing keys are a non-blocking warning; untranslated keys fall back
 // to English, which is expected while a language is still in progress and
 // lets new English strings land without translating every language first.
 if (interpolationCount > 0) {
-  console.log(`✗ ${interpolationCount} interpolation variable(s) missing — these break rendering.`)
+  console.log(`✗ ${interpolationCount} broken interpolation variable(s): these break rendering.`)
   if (missingCount > 0) {
     console.log(`  (${missingCount} missing key(s) also found; those fall back to English and don't block.)`)
   }
@@ -183,7 +95,7 @@ if (interpolationCount > 0) {
 }
 
 if (missingCount > 0) {
-  console.log(`⚠ ${missingCount} missing key(s) — will fall back to English (non-blocking).`)
+  console.log(`⚠ ${missingCount} missing key(s), they will fall back to English (non-blocking).`)
 } else {
   console.log('✓ All translation keys present across all languages.')
 }

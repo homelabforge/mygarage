@@ -20,7 +20,6 @@
   "fuel": {
     "addStation": "Tankstelle hinzufügen",
     "autoCalculatedHint": "Automatisch berechnet aus Preis, Volumen und Rabatt",
-    "autoPopulatedHint": "Automatisch aus den Fahrzeugdaten ausgefüllt",
     "rebate": "Rabatt",
     "rebateHint": "Punkte, Rabatte oder Cashback — wird von den Gesamtkosten abgezogen",
     "createTitle": "Kraftstoffeintrag hinzufügen",
@@ -28,7 +27,6 @@
     "defTankLevel": "DEF-Tankfüllstand",
     "editTitle": "Kraftstoffeintrag bearbeiten",
     "energy": "Energie",
-    "fuelType": "Kraftstoffart",
     "fullTankFillup": "Vollbetankung",
     "missedChargingSession": "Ladevorgang ausgelassen",
     "missedFillup": "Betankung ausgelassen",
@@ -832,7 +830,6 @@
   },
   "fuelRecordForm": {
     "fillLevelFull": "Voll",
-    "fuelTypePlaceholder": "Benzin, Diesel etc.",
     "obcDurationPlaceholder": "HH:MM oder Sekunden"
   },
   "noteForm": {

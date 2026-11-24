@@ -97,12 +97,6 @@
     "comparisonTable": {
       "title": "Vergleichstabelle der Fahrzeugkosten",
       "intro": "Die detaillierte Tabelle unten bietet einen direkten Vergleich aller Fahrzeuge:",
-      "purchasePriceLabel": "Kaufpreis:",
-      "purchasePriceDesc": "Anfangsinvestition für jedes Fahrzeug.",
-      "maintenanceLabel": "Wartung:",
-      "maintenanceDesc": "Gesamte Servicekosten bis heute.",
-      "fuelLabel": "Kraftstoff:",
-      "fuelDesc": "Gesamte Kraftstoffausgaben.",
       "totalCostLabel": "Gesamtkosten:",
       "totalCostDesc": "Kombinierte Gesamtbetriebskosten über die gesamte Lebensdauer.",
       "sortIntro": "Sortiere diese Daten gedanklich, um Folgendes zu identifizieren:",

@@ -350,7 +350,6 @@
       "unknownCode": "Código desconhecido",
       "willAppear": "Aparecerá aqui"
     },
-    "ensureDeviceLinked": "Certifique-se de que o dispositivo está conectado",
     "fetchStatusError": "Erro ao buscar status",
     "lastUpdate": "Última atualização",
     "noData": "Sem dados",
@@ -387,9 +386,7 @@
       "pointCount": "{{count}} GPS points",
       "tripCount": "{{count}} trips recorded"
     },
-    "vehicleParked": "Veículo estacionado",
     "vehicleRunning": "Veículo funcionando",
-    "wicanOffline": "WiCAN offline",
     "widget": {
       "title": "LiveLink"
     }

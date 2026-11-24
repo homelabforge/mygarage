@@ -18,13 +18,11 @@
   "fuel": {
     "addStation": "Додати станцію",
     "autoCalculatedHint": "Підказка про автоматичний розрахунок",
-    "autoPopulatedHint": "Підказка про автоматичне заповнення",
     "createTitle": "Додати заправку",
     "defAutoCreatesHint": "Підказка про автостворення DEF",
     "defTankLevel": "Рівень бака DEF",
     "editTitle": "Редагувати заправку",
     "energy": "Енергія",
-    "fuelType": "Тип пального",
     "fullTankFillup": "Заправка до повного бака",
     "missedChargingSession": "Пропущена сесія зарядки",
     "missedFillup": "Пропущена заправка",

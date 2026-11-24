@@ -379,7 +379,6 @@
     "uploading": "Wird hochgeladen...",
     "misc": {
       "invalidFileType": "Ungültiger Dateityp. Erlaubt sind: PDF, DOC, DOCX, TXT, JPG, PNG, WEBP, XLS, XLSX, CSV",
-      "fileTooLarge": "Die Dateigröße muss weniger als 25 MB betragen",
       "sizeZero": "0 Bytes",
       "unitBytes": "Bytes",
       "unitKb": "KB",
@@ -670,7 +669,6 @@
       "fixGuidance": "Anleitung zur Behebung",
       "symptoms": "Symptome"
     },
-    "ensureDeviceLinked": "Stelle sicher, dass ein WiCAN-Gerät mit diesem Fahrzeug verknüpft ist",
     "fetchStatusError": "Status konnte nicht abgerufen werden",
     "lastUpdate": "Letztes Update",
     "noData": "Keine LiveLink-Daten verfügbar",
@@ -710,9 +708,7 @@
       "pointCount": "{{count}} GPS-Punkte",
       "tripCount": "{{count}} Fahrt(en) aufgezeichnet"
     },
-    "vehicleParked": "Fahrzeug geparkt — WiCAN verbunden",
     "vehicleRunning": "Fahrzeug läuft",
-    "wicanOffline": "WiCAN Offline",
     "widget": {
       "title": "LiveLink"
     }
@@ -1179,7 +1175,6 @@
     "viewMode": "Anzeigemodus",
     "misc": {
       "invalidFileType": "Bitte wähle eine gültige Datei aus (PDF, JPG oder PNG)",
-      "fileTooLarge": "Die Dateigröße muss weniger als 10 MB betragen",
       "uploadSuccess": "Window Sticker erfolgreich hochgeladen! Überprüfe die extrahierten Daten unten.",
       "saveSuccess": "Window Sticker Daten erfolgreich gespeichert!",
       "errorOccurred": "Ein Fehler ist aufgetreten",
@@ -1348,7 +1343,6 @@
     "title": "Versicherungspolice aus PDF importieren",
     "uploadDifferent": "Andere PDF hochladen",
     "useThisData": "Diese Daten verwenden",
-    "vehiclesFound": "{{count}} Fahrzeug(e) gefunden: {{vehicles}}",
     "warnings": "Warnungen:",
     "parseAction": "Versicherungs-PDF auslesen"
   },

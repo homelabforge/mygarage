@@ -18,13 +18,11 @@
   "fuel": {
     "addStation": "Dodaj stację",
     "autoCalculatedHint": "Automatycznie obliczana wskazówka",
-    "autoPopulatedHint": "Automatycznie wypełniana wskazówka",
     "createTitle": "Dodaj tankowanie",
     "defAutoCreatesHint": "Wskazówka o automatycznym tworzeniu DEF",
     "defTankLevel": "Poziom w zbiorniku DEF",
     "editTitle": "Edytuj tankowanie",
     "energy": "Energia",
-    "fuelType": "Rodzaj paliwa",
     "fullTankFillup": "Tankowanie do pełna",
     "missedChargingSession": "Pominięta sesja ładowania",
     "missedFillup": "Pominięte tankowanie",

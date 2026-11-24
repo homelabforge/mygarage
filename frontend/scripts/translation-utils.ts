@@ -2,7 +2,7 @@
  * Shared utilities for translation scripts.
  */
 
-import { existsSync, readdirSync, readFileSync } from 'fs'
+import { existsSync, readdirSync, readFileSync, writeFileSync } from 'fs'
 import { join, resolve } from 'path'
 
 export const ROOT = resolve(import.meta.dirname, '..')
@@ -76,6 +76,32 @@ export function loadJson(path: string): Record<string, unknown> {
   return JSON.parse(readFileSync(path, 'utf-8'))
 }
 
+/** Write a locale file the way they're all formatted: 2-space JSON, trailing newline. */
+export function writeJson(path: string, data: Record<string, unknown>): void {
+  writeFileSync(path, JSON.stringify(data, null, 2) + '\n')
+}
+
+/** Delete a dotted key, then any parent objects it leaves empty. */
+export function deleteNestedKey(obj: Record<string, unknown>, path: string): boolean {
+  const parts = path.split('.')
+  const parents: Record<string, unknown>[] = [obj]
+  let current = obj
+  for (const part of parts.slice(0, -1)) {
+    const next = current[part]
+    if (!next || typeof next !== 'object' || Array.isArray(next)) return false
+    current = next as Record<string, unknown>
+    parents.push(current)
+  }
+  const leaf = parts[parts.length - 1]
+  if (!(leaf in current)) return false
+  delete current[leaf]
+  for (let i = parents.length - 1; i > 0; i--) {
+    if (Object.keys(parents[i]).length > 0) break
+    delete parents[i - 1][parts[i - 1]]
+  }
+  return true
+}
+
 /**
  * Tokens that are correctly identical in every language: product and protocol
  * names, abbreviations, document field codes and unit abbreviations. See
@@ -142,4 +168,161 @@ export function loadEnglishData(namespaces: string[]): {
   }
 
   return { totalKeys, keysByNamespace, valuesByNamespace }
+}
+
+/**
+ * The plural categories a language actually asks i18next for. A locale that's
+ * missing one falls back to ENGLISH for that count, not to its own `_other`
+ * (checked 2026-11: pl with only one/other rendered English for 2, 5 and 22).
+ */
+export function pluralCategories(lang: string): string[] {
+  return new Intl.PluralRules(lang).resolvedOptions().pluralCategories
+}
+
+const PLURAL_SUFFIX = /^(.*)_(zero|one|two|few|many|other)$/
+
+/** The plural base of `key` when English has `<base>_other`, else null. */
+export function pluralBase(key: string, enKeys: ReadonlySet<string>): string | null {
+  const m = key.match(PLURAL_SUFFIX)
+  return m && enKeys.has(`${m[1]}_other`) ? m[1] : null
+}
+
+export interface ExpectedKey {
+  key: string
+  /** The English text this key translates (a plural form reads `_other` when English lacks it). */
+  enValue: unknown
+}
+
+/**
+ * The keys one language must carry for a namespace: English's, in English
+ * order, with each plural set swapped for the language's own categories.
+ */
+export function expectedKeys(
+  enKeys: readonly string[],
+  enValues: ReadonlyMap<string, unknown>,
+  lang: string,
+): ExpectedKey[] {
+  const enSet = new Set(enKeys)
+  const done = new Set<string>()
+  const out: ExpectedKey[] = []
+  for (const key of enKeys) {
+    const base = pluralBase(key, enSet)
+    if (base === null) {
+      out.push({ key, enValue: enValues.get(key) })
+      continue
+    }
+    if (done.has(base)) continue
+    done.add(base)
+    for (const cat of pluralCategories(lang)) {
+      out.push({
+        key: `${base}_${cat}`,
+        enValue: enValues.get(`${base}_${cat}`) ?? enValues.get(`${base}_other`),
+      })
+    }
+  }
+  return out
+}
+
+/** Variable names in {{name}} and {{name, format}} placeholders. */
+export function interpolationNames(value: string): Set<string> {
+  return new Set([...value.matchAll(/\{\{\s*(\w+)\s*(?:,[^}]*)?\}\}/g)].map(m => m[1]))
+}
+
+export type LocaleIssueType = 'missing' | 'extra' | 'empty' | 'interpolation'
+
+export interface LocaleIssue {
+  lang: string
+  namespace: string
+  type: LocaleIssueType
+  key: string
+  detail?: string
+}
+
+export interface LocaleReport {
+  lang: string
+  /** Keys this language should carry (English's, plural sets expanded). */
+  total: number
+  /** Present, non-empty, and not a copy of English that has something to translate. */
+  translated: number
+  issues: LocaleIssue[]
+}
+
+/** True when a present value still reads as English (nothing was translated). */
+export function isEnglishCopy(value: unknown, enValue: unknown): boolean {
+  return value === enValue && !isTranslationInvariant(enValue)
+}
+
+/**
+ * Compare one namespace of one language against English. Pure, so the gate's
+ * tests can hand it fixtures.
+ */
+export function compareNamespace(
+  lang: string,
+  ns: string,
+  enKeys: readonly string[],
+  enValues: ReadonlyMap<string, unknown>,
+  langData: Record<string, unknown>,
+): LocaleReport {
+  const issues: LocaleIssue[] = []
+  let translated = 0
+  const expected = expectedKeys(enKeys, enValues, lang)
+  const langKeys = new Set(flattenKeys(langData))
+  const expectedSet = new Set(expected.map(e => e.key))
+
+  for (const { key, enValue } of expected) {
+    if (!langKeys.has(key)) {
+      issues.push({ lang, namespace: ns, type: 'missing', key })
+      continue
+    }
+    const value = getNestedValue(langData, key)
+    if (value === '' || value === null) {
+      issues.push({ lang, namespace: ns, type: 'empty', key })
+      continue
+    }
+    if (typeof enValue === 'string' && typeof value === 'string') {
+      const enVars = interpolationNames(enValue)
+      const trVars = interpolationNames(value)
+      const lost = [...enVars].filter(v => !trVars.has(v))
+      const added = [...trVars].filter(v => !enVars.has(v))
+      if (lost.length > 0 || added.length > 0) {
+        const parts: string[] = []
+        if (lost.length > 0) parts.push(`missing {{${lost.join('}}, {{')}}}`)
+        if (added.length > 0) parts.push(`unknown {{${added.join('}}, {{')}}}`)
+        issues.push({ lang, namespace: ns, type: 'interpolation', key, detail: parts.join('; ') })
+      }
+    }
+    if (!isEnglishCopy(value, enValue)) translated++
+  }
+
+  for (const key of langKeys) {
+    if (!expectedSet.has(key)) issues.push({ lang, namespace: ns, type: 'extra', key })
+  }
+  return { lang, total: expected.length, translated, issues }
+}
+
+/**
+ * Compare one language against English, every namespace. Shared by
+ * validate-translations.ts and generate-translation-status.ts so the gate and
+ * the badge can't disagree.
+ */
+export function analyzeLocale(
+  lang: string,
+  namespaces: readonly string[],
+  english: ReturnType<typeof loadEnglishData>,
+): LocaleReport {
+  const report: LocaleReport = { lang, total: 0, translated: 0, issues: [] }
+  for (const ns of namespaces) {
+    const langPath = join(LOCALES_DIR, lang, `${ns}.json`)
+    const part = compareNamespace(
+      lang,
+      ns,
+      english.keysByNamespace.get(ns)!,
+      english.valuesByNamespace.get(ns)!,
+      existsSync(langPath) ? loadJson(langPath) : {},
+    )
+    report.total += part.total
+    report.translated += part.translated
+    report.issues.push(...part.issues)
+  }
+  return report
 }

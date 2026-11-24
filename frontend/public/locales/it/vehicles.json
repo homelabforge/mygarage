@@ -450,7 +450,6 @@
     "uploading": "Caricamento...",
     "misc": {
       "invalidFileType": "Tipo di file non valido. Consentiti: PDF, DOC, DOCX, TXT, JPG, PNG, WEBP, XLS, XLSX, CSV",
-      "fileTooLarge": "La dimensione del file deve essere inferiore a 25 MB",
       "sizeZero": "0 Byte",
       "unitBytes": "Byte",
       "unitKb": "KB",
@@ -1562,7 +1561,6 @@
     "viewMode": "Modalità visualizzazione",
     "misc": {
       "invalidFileType": "Seleziona un file valido (PDF, JPG o PNG)",
-      "fileTooLarge": "La dimensione del file deve essere inferiore a 10 MB",
       "uploadSuccess": "Scheda tecnica caricata con successo! Verifica i dati estratti qui sotto.",
       "saveSuccess": "Dati della scheda tecnica salvati con successo!",
       "errorOccurred": "Si è verificato un errore",

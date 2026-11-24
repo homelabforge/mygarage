@@ -350,7 +350,6 @@
       "unknownCode": "Невідомий код",
       "willAppear": "З'явиться тут"
     },
-    "ensureDeviceLinked": "Переконайтеся, що пристрій прив'язано",
     "fetchStatusError": "Помилка отримання статусу",
     "lastUpdate": "Останнє оновлення",
     "noData": "Немає даних",
@@ -387,9 +386,7 @@
       "pointCount": "{{count}} GPS points",
       "tripCount": "{{count}} trips recorded"
     },
-    "vehicleParked": "Транспортний засіб припарковано",
     "vehicleRunning": "Транспортний засіб заведено",
-    "wicanOffline": "Wican не в мережі",
     "widget": {
       "title": "LiveLink"
     }
