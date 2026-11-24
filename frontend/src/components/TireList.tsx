@@ -1049,7 +1049,7 @@ export default function TireList({ vin, onLogBrakes }: TireListProps) {
         ...hoursKey('engine_hours', readingForm.engine_hours),
         tread_depth_mm: tread,
         pressure_kpa: pressure,
-        notes: readingForm.notes || null,
+        notes: readingForm.notes.trim() || null,
       },
       {
         onSuccess: () => {
@@ -2226,6 +2226,13 @@ export default function TireList({ vin, onLogBrakes }: TireListProps) {
                   />
                 </Field>
               )}
+              <Field id="reading-notes" label={t('tireList.notes')}>
+                <Input
+                  id="reading-notes"
+                  value={readingForm.notes}
+                  onChange={(e) => setReadingForm({ ...readingForm, notes: e.target.value })}
+                />
+              </Field>
             </div>
           </Drawer>
         )}
