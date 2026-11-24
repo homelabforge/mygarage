@@ -62,15 +62,15 @@
       "defLabel": "DEF / AdBlue:",
       "defDesc": "Costi totali per l'additivo diesel DEF/AdBlue (visibile quando almeno un veicolo ne fa uso).",
       "financingLabel": "Finanziamento:",
-      "financingDesc": "Totale rate leasing, finanziamenti e spese anticipate (visibile se sono presenti registrazioni finanziarie).",
+      "financingDesc": "Totale rate leasing, finanziamenti e spese anticipate (visibile se almeno un veicolo ha costi di finanziamento).",
       "insuranceLabel": "Assicurazione:",
-      "insuranceDesc": "Costi assicurativi complessivi per tutti i veicoli.",
+      "insuranceDesc": "Costi assicurativi complessivi per tutti i veicoli (visibile se almeno un veicolo ha costi assicurativi).",
       "taxesLabel": "Tasse e bolli:",
-      "taxesDesc": "Spese complessive per immatricolazione, bolli e tasse."
+      "taxesDesc": "Spese complessive per immatricolazione, bolli e tasse (visibile se almeno un veicolo ha costi di tasse o immatricolazione)."
     },
     "categoryBreakdown": {
       "title": "Ripartizione dei costi per categoria",
-      "body": "Il grafico ad anello mostra come le spese del garage sono distribuite tra le categorie, con il totale complessivo al centro. La lista a fianco dettaglia ciascuna categoria — la sua quota percentuale, una barra proporzionale e l'importo — ordinata dalla voce più consistente, per capire a colpo d'occhio dove si concentrano i costi."
+      "body": "Il grafico ad anello mostra come le spese del garage sono distribuite tra le categorie, con il totale complessivo al centro. La lista a fianco dettaglia ciascuna categoria (la sua quota percentuale, una barra proporzionale e l'importo), ordinata dalla voce più consistente, per capire a colpo d'occhio dove si concentrano i costi."
     },
     "costByVehicle": {
       "title": "Costo per veicolo",
@@ -82,7 +82,7 @@
       "item5": "Pianificare il budget per le spese di ciascun veicolo"
     },
     "monthlyTrend": {
-      "title": "Andamento mensile della spesa",
+      "title": "Andamento spesa mensile",
       "intro": "Le barre impilate mostrano la spesa mensile dell'intero garage, suddivisa in manutenzione, carburante, DEF e finanziamento. Passa sopra una barra (o tocca su mobile) per vedere gli importi esatti. Due linee tratteggiate sovrapposte indicano le medie mobili:",
       "rolling3Label": "Media mobile a 3 mesi:",
       "rolling3Desc": "Attenua le fluttuazioni a breve termine (linea tratteggiata verde).",
@@ -100,7 +100,7 @@
       "categoryColumnsLabel": "Colonne di categoria:",
       "categoryColumnsDesc": "La spesa di ogni veicolo suddivisa per Manutenzione, Migliorie, Revisione, Sinistri, Detailing, Carburante, DEF e Finanziamento.",
       "totalCostLabel": "Totale:",
-      "totalCostDesc": "Costi operativi combinati — interventi, carburante e DEF. Non include il prezzo d'acquisto del veicolo. Finanziamento e assicurazione sono mostrati separatamente, non essendo costi vivi di guida.",
+      "totalCostDesc": "Costi di gestione combinati: interventi, carburante e DEF. Non include il prezzo d'acquisto del veicolo. Finanziamento e assicurazione sono mostrati separatamente, non essendo costi vivi di guida.",
       "sortIntro": "La tabella è ordinata per costo operativo totale decrescente. Usala per individuare:",
       "item1": "I veicoli più/meno costosi da guidare e mantenere",
       "item2": "Veicoli con costi di manutenzione sproporzionati",
@@ -189,7 +189,7 @@
     "totalCost": "Costo totale",
     "monthsTracked": "{{count}} mese/i monitorato/i",
     "avgMonthly": "Media mensile",
-    "recordsCount": "{{count}} registrazione/i",
+    "recordsCount": "{{count}} record",
     "avgFuelEconomy": "Consumo medio carburante",
     "distanceDriven": "{{distance}} percorsi",
     "spendingTrends": "Tendenze di spesa",
@@ -215,9 +215,9 @@
     "legendDescActual": "Costo effettivo mensile (blu continuo)",
     "legendDesc3m": "Media a 3 mesi (verde tratteggiato)",
     "legendDesc6m": "Media a 6 mesi (arancione tratteggiato)",
-    "maintenancePredictions": "Previsioni manutenzione",
+    "maintenancePredictions": "Previsioni di manutenzione",
     "scheduleSet": "PIANIFICAZIONE IMPOSTATA",
-    "aiPredicts": "L'AI prevede:",
+    "aiPredicts": "L'IA prevede:",
     "scheduled": "Pianificato:",
     "overdue": "Scaduto",
     "dueToday": "In scadenza oggi",
@@ -243,10 +243,10 @@
     "worst": "Peggiore",
     "latestFillUp": "Ultimo rifornimento",
     "fuelEconomyTrendTitle": "Andamento consumi nel tempo",
-    "fuelEconomyUnitLabel": "Consumi ({{unit}})",
+    "fuelEconomyUnitLabel": "Consumo carburante ({{unit}})",
     "table": {
       "date": "Data",
-      "fuelEconomy": "Consumi",
+      "fuelEconomy": "Consumo carburante",
       "mileage": "Chilometraggio ({{unit}})",
       "volume": "Volume ({{unit}})",
       "cost": "Costo"
@@ -303,7 +303,7 @@
     "servicesLabel": "Interventi:",
     "vsAnnualAvg": "rispetto alla media annua:",
     "commonServices": "Interventi frequenti:",
-    "periodComparison": "Confronto periodi",
+    "periodComparison": "Confronto tra periodi",
     "hide": "Nascondi",
     "comparePeriods": "Confronta periodi",
     "period1": "Periodo 1",
@@ -321,8 +321,8 @@
     "costChangesByCategory": "Variazioni di costo per categoria",
     "period1Value": "Periodo 1: {{value}}",
     "period2Value": "Periodo 2: {{value}}",
-    "anomalyAbove": "Spesi {{spent}} — {{deviation}}% sopra la tua media di {{avg}}.",
-    "anomalyBelow": "Spesi {{spent}} — {{deviation}}% sotto la tua media di {{avg}}.",
+    "anomalyAbove": "Spesi {{spent}}, {{deviation}}% sopra la tua media di {{avg}}.",
+    "anomalyBelow": "Spesi {{spent}}, {{deviation}}% sotto la tua media di {{avg}}.",
     "severity": {
       "critical": "Critico",
       "info": "Info",
@@ -449,7 +449,7 @@
       "pdfDesc": "Genera un report professionale con grafici e riepiloghi da conservare o utilizzare a fini fiscali."
     },
     "fuelEconomy": {
-      "title": "Efficienza carburante",
+      "title": "Consumo carburante",
       "economyCalcLabel": "Calcolo {{unit}}:",
       "economyCalcDesc": "Calcolato per ciascun pieno. I rifornimenti parziali vengono conteggiati nel pieno successivo.",
       "averageEconomyLabel": "Media {{unit}}:",
@@ -568,9 +568,9 @@
     "csvAction": "esportare i dati"
   },
   "confidenceLevels": {
-    "high": "Alto",
-    "medium": "Medio",
-    "low": "Basso",
-    "unknown": "Sconosciuto"
+    "high": "Alta",
+    "medium": "Media",
+    "low": "Bassa",
+    "unknown": "Sconosciuta"
   }
 }

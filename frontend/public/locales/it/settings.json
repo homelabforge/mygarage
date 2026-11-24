@@ -150,7 +150,7 @@
     "noneDetected": "Autenticatore esterno rilevato",
     "noneDetectedDescription": "MyGarage è in esecuzione dietro un reverse proxy con autenticazione. Le modalità interne sono necessarie solo se desideri un controllo accessi aggiuntivo rispetto alla configurazione esistente.",
     "noneWarning": "Nessuna autenticazione abilitata",
-    "noneWarningDescription": "Chiunque abbia accesso alla rete può visualizzare e modificare i dati in MyGarage. Si consiglia di abilitare l'autenticazione locale o di proteggere MyGarage dietro un autenticatore come Authelia o Authentik.",
+    "noneWarningDescription": "Chiunque abbia accesso alla rete può visualizzare e modificare i dati in MyGarage. Valuta di abilitare l'autenticazione locale o di proteggere MyGarage dietro un autenticatore come Authelia o Authentik.",
     "checking": "Verifica autenticatori in corso...",
     "localTitle": "Autenticazione locale",
     "localConfigured": "L'autenticazione locale è configurata.",
@@ -208,7 +208,7 @@
       "telegramBotToken": "Token bot Telegram",
       "emailSmtpPassword": "Password SMTP email",
       "webhookIngestToken": "Token ricezione webhook",
-      "llmApiKey": "Chiave API del fornitore AI",
+      "llmApiKey": "Chiave API del fornitore IA",
       "autorefApiKey": "Chiave API AutoRef",
       "livelinkMqttPassword": "Password MQTT LiveLink",
       "tomtomApiKey": "Chiave API TomTom",
@@ -218,7 +218,7 @@
     }
   },
   "stats": {
-    "serviceRecords": "Registrazioni interventi",
+    "serviceRecords": "Registrazioni di manutenzione",
     "fuelRecords": "Registrazioni carburante",
     "maintenanceItems": "Voci di manutenzione",
     "documents": "Documenti",
@@ -256,13 +256,13 @@
     "photosDirectory": "Cartella foto",
     "attachmentsDirectory": "Cartella allegati",
     "documentsDirectory": "Cartella documenti",
-    "windowSticker": "Scheda informativa veicolo",
-    "windowStickerDesc": "Configura il caricamento della scheda tecnica d'acquisto (etichetta Monroney) e l'elaborazione OCR.",
-    "enableWindowSticker": "Abilita caricamento scheda veicolo",
-    "enableWindowStickerDesc": "Consenti agli utenti di caricare la scheda del veicolo per l'estrazione automatica dei dati.",
+    "windowSticker": "Scheda tecnica",
+    "windowStickerDesc": "Configura il caricamento della scheda tecnica (etichetta Monroney) e l'elaborazione OCR.",
+    "enableWindowSticker": "Abilita caricamento scheda tecnica",
+    "enableWindowStickerDesc": "Consenti agli utenti di caricare la scheda tecnica per l'estrazione automatica dei dati.",
     "enableOCR": "Abilita elaborazione OCR",
-    "enableOCRDesc": "Estrai automaticamente prezzi e specifiche tecniche dalle schede caricate.",
-    "aboutWindowStickers": "Informazioni sulle schede veicolo"
+    "enableOCRDesc": "Estrai automaticamente prezzi e specifiche tecniche dalle schede tecniche caricate.",
+    "aboutWindowStickers": "Informazioni sulle schede tecniche"
   },
   "integrations": {
     "loading": "Caricamento impostazioni integrazioni...",
@@ -322,7 +322,7 @@
     "webhookHeaderHint": "Invia l'intestazione X-Webhook-Token corrispondente al valore indicato.",
     "llmSection": "Funzionalità LLM",
     "llmSectionDesc": "Assistenti opzionali locali o compatibili con OpenAI per la lettura degli scontrini e per Chiedi a MyGarage (specifiche e diagnostica).",
-    "enableLlmReceipt": "Abilita lettura scontrini da ricevuta",
+    "enableLlmReceipt": "Abilita la lettura degli scontrini in bozza",
     "enableLlmAssistant": "Abilita l'assistente Chiedi a MyGarage",
     "enableLlmAssistantDesc": "Risponde a domande su olio, coppie di serraggio, storico interventi e risoluzione codici DTC basandosi solo sui dati del tuo garage.",
     "llmBaseUrl": "URL base API",
@@ -489,14 +489,14 @@
       "subtitle": "Notifiche push self-hosted o tramite ntfy.sh",
       "serverUrlHint": "URL del tuo server ntfy (es. https://ntfy.sh o istanza self-hosted)",
       "topicLabel": "Nome del topic",
-      "topicHint": "Iscriviti a questo topic nella tua app ntfy per ricevere le notifiche",
+      "topicHint": "Iscriviti a questo topic nella tua app ntfy. Chiunque ne conosca il nome può leggerlo su un server pubblico, quindi scegline uno difficile da indovinare.",
       "apiTokenLabel": "Token API",
       "apiTokenOptional": "(opzionale)",
       "apiTokenHint": "Richiesto per topic protetti o server con autenticazione attiva",
       "sending": "Invio in corso...",
       "testConnection": "Test connessione",
       "securityTipTitle": "Consiglio di sicurezza:",
-      "securityTipBody": "Usa nomi di topic univoci e difficili da indovinare per le notifiche riservate. I topic su ntfy.sh sono pubblici per impostazione predefinita a meno che non si abiliti l'autenticazione."
+      "securityTipBody": "Usa nomi di topic univoci e difficili da indovinare per le notifiche riservate. I topic su ntfy.sh sono pubblici per impostazione predefinita a meno che non abiliti l'autenticazione."
     }
   },
   "gotify": {
@@ -607,7 +607,7 @@
         "off": "Disattivato",
         "botTokenRejected": "Telegram ha rifiutato il token del bot",
         "conflict": "Un altro programma sta leggendo i messaggi di questo bot",
-        "rateLimited": "Telegram ha richiesto di ridurre la frequenza",
+        "rateLimited": "Telegram ha chiesto a MyGarage di rallentare",
         "unreachable": "Impossibile raggiungere Telegram",
         "databaseError": "Impossibile connettersi al database",
         "unexpected": "Si è verificato un errore imprevisto; consulta il registro del server"
@@ -815,11 +815,11 @@
     "postgresRestoreMessage": "Il ripristino completo tramite interfaccia non è disponibile per PostgreSQL. Ferma l'applicazione ed esegui: pg_restore --clean --if-exists --no-owner --no-privileges -d <dbname> mygarage.pgdump"
   },
   "filesTab": {
-    "aboutWindowStickersBody": "La scheda tecnica d'acquisto (Monroney label) è l'etichetta che la legge federale degli Stati Uniti impone sui veicoli nuovi, con prezzo di listino (MSRP), consumi dichiarati, equipaggiamento di serie e optional. Carica la scheda del tuo veicolo per popolare automaticamente i dati tecnici ed economici.",
+    "aboutWindowStickersBody": "La scheda tecnica (Monroney label) è l'etichetta che la legge federale degli Stati Uniti impone sui veicoli nuovi, con prezzo di listino (MSRP), consumi dichiarati, equipaggiamento di serie e optional. Carica la scheda tecnica del tuo veicolo per popolare automaticamente i dati tecnici ed economici.",
     "supportedFormatsLabel": "Formati supportati:",
     "supportedFormatsValue": "PDF, JPG, PNG (fino a 10MB)",
     "noteLabel": "Nota:",
-    "windowStickerVehicleNote": "Le schede informative sono disponibili solo per autovetture e furgoni, non per camper, rimorchi o ralle (fifth wheel)."
+    "windowStickerVehicleNote": "Le schede tecniche sono disponibili solo per autovetture e furgoni, non per camper, rimorchi o ralle (fifth wheel)."
   },
   "fuel": {
     "title": "Valori predefiniti carburante",

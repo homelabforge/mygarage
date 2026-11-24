@@ -10,8 +10,9 @@
  *
  * Usage: bun run scripts/validate-translations.ts
  * Exit code: 1 if any {{interpolation}} placeholder (formatter included) is
- * broken, a protected span (a command, flag, env name or URL) is missing, or
- * an English value uses an em-dash or en-dash; 0 otherwise.
+ * broken, a protected span (a command, flag, env name or URL) is missing, a
+ * translation uses letters from the wrong alphabet, or an English value uses
+ * an em-dash or en-dash; 0 otherwise.
  * Missing keys are reported as a non-blocking warning (they fall back to
  * English), so this can gate PRs without blocking new English strings.
  */
@@ -46,6 +47,7 @@ function main(): void {
     const extra = langIssues.filter(i => i.type === 'extra')
     const interpolation = langIssues.filter(i => i.type === 'interpolation')
     const protectedSpans = langIssues.filter(i => i.type === 'protected')
+    const script = langIssues.filter(i => i.type === 'script')
     const stale = langIssues.filter(i => i.type === 'stale')
     const unrecorded = langIssues.filter(i => i.type === 'unrecorded')
     const drafts = langIssues.filter(i => i.type === 'draft')
@@ -96,6 +98,10 @@ function main(): void {
     if (drafts.length > 0) {
       console.log(`  Machine drafts nobody has reviewed yet (${drafts.length}): bun run i18n:stamp --list draft ${lang}`)
     }
+    if (script.length > 0) {
+      console.log(`  Letters from the wrong alphabet (${script.length}):`)
+      for (const i of script) console.log(`    - ${i.namespace}:${i.key}`)
+    }
     if (protectedSpans.length > 0) {
       console.log(`  Changed commands, flags or names (${protectedSpans.length}):`)
       for (const i of protectedSpans) console.log(`    - ${i.namespace}:${i.key}: ${i.detail}`)
@@ -106,6 +112,7 @@ function main(): void {
   const missingCount = issues.filter(i => i.type === 'missing').length
   const interpolationCount = issues.filter(i => i.type === 'interpolation').length
   const protectedCount = issues.filter(i => i.type === 'protected').length
+  const scriptCount = issues.filter(i => i.type === 'script').length
   const dashes = englishDashes(english.valuesByNamespace)
 
   // The hard failures: a broken placeholder or a changed command is a real bug
@@ -116,12 +123,15 @@ function main(): void {
     console.log(`✗ ${dashes.length} English value(s) use an em-dash or en-dash (house style is none):`)
     for (const key of dashes) console.log(`    - ${key}`)
   }
-  if (interpolationCount > 0 || protectedCount > 0 || dashes.length > 0) {
+  if (interpolationCount > 0 || protectedCount > 0 || scriptCount > 0 || dashes.length > 0) {
     if (interpolationCount > 0) {
       console.log(`✗ ${interpolationCount} broken interpolation variable(s): these break rendering.`)
     }
     if (protectedCount > 0) {
       console.log(`✗ ${protectedCount} translation(s) changed a command, flag or name that has to stay verbatim.`)
+    }
+    if (scriptCount > 0) {
+      console.log(`✗ ${scriptCount} translation(s) use letters from another language's alphabet.`)
     }
     if (missingCount > 0) {
       console.log(`  (${missingCount} missing key(s) also found; those fall back to English and don't block.)`)

@@ -59,6 +59,15 @@ const STATUS_TABS: { id: ReminderStatus | 'all'; labelKey: string }[] = [
   { id: 'dismissed', labelKey: 'reminderList.statusDismissed' },
 ]
 
+// One sentence per status: the status used to go in as the raw enum, which
+// read "No done reminders" in every language.
+const EMPTY_KEYS: Record<ReminderStatus | 'all', string> = {
+  pending: 'reminderList.noRemindersPending',
+  done: 'reminderList.noRemindersDone',
+  dismissed: 'reminderList.noRemindersDismissed',
+  all: 'reminderList.noRemindersAll',
+}
+
 const TYPE_ICONS: Record<string, typeof Bell> = {
   date: Clock,
   mileage: Gauge,
@@ -391,7 +400,7 @@ export default function ReminderList({ vehicle }: ReminderListProps) {
         <EmptyState
           icon={Bell}
           size="sm"
-          title={t('reminderList.noReminders', { status: activeStatus !== 'all' ? activeStatus : '' })}
+          title={t(EMPTY_KEYS[activeStatus])}
         />
       ) : (
         <div className="space-y-3">

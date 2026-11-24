@@ -9,7 +9,7 @@
     "offlineCached": "Offline: exibindo análises salvas em cache.",
     "exportPdfFailed": "Erro ao exportar o PDF. Tente novamente.",
     "empty": {
-      "title": "Nenhum veículo",
+      "title": "Nenhum veículo ainda",
       "body": "Adicione veículos à sua garagem para começar a acompanhar as análises da garagem"
     },
     "cards": {
@@ -98,7 +98,7 @@
       "title": "Tabela comparativa de custos por veículo",
       "intro": "A tabela detalhada abaixo das barras mostra cada veículo lado a lado:",
       "categoryColumnsLabel": "Colunas de categoria:",
-      "categoryColumnsDesc": "Os gastos de cada veículo detalhados por manutenção, melhorias, inspeção, colisão, estética, combustível e DEF.",
+      "categoryColumnsDesc": "Os gastos de cada veículo detalhados por manutenção, melhorias, inspeção, colisão, estética, combustível, DEF e financiamento.",
       "totalCostLabel": "Total:",
       "totalCostDesc": "Custos de uso somados: serviços, combustível e DEF. Não inclui o preço de compra do veículo. Financiamento e seguro aparecem separados, pois não são custos de uso do veículo.",
       "sortIntro": "A tabela é ordenada pelo custo total de uso, do maior para o menor. Use-a para identificar:",
@@ -274,7 +274,7 @@
     "monthlyRate": "Tarifa mensal",
     "electric": "Eletricidade",
     "water": "Água",
-    "waste": "Resíduos / Esgoto",
+    "waste": "Esgoto",
     "defAnalysis": "Análise de DEF",
     "consumptionRate": "Taxa de consumo",
     "serviceHistorySummary": "Resumo do histórico de serviços",
@@ -321,8 +321,8 @@
     "costChangesByCategory": "Variações de custo por categoria",
     "period1Value": "Período 1: {{value}}",
     "period2Value": "Período 2: {{value}}",
-    "anomalyAbove": "Gasto {{spent}} — {{deviation}}% acima da sua média de {{avg}}.",
-    "anomalyBelow": "Gasto {{spent}} — {{deviation}}% abaixo da sua média de {{avg}}.",
+    "anomalyAbove": "Gasto de {{spent}}, {{deviation}}% acima da sua média de {{avg}}.",
+    "anomalyBelow": "Gasto de {{spent}}, {{deviation}}% abaixo da sua média de {{avg}}.",
     "severity": {
       "critical": "Crítico",
       "info": "Informação",
@@ -330,8 +330,8 @@
     },
     "fuelAlert": {
       "economy_dropping": {
-        "body": "A eficiência de combustível piorou {{percent}}% em relação à sua referência.",
-        "title": "Piora o consumo de combustível"
+        "body": "O consumo de combustível piorou {{percent}}% em relação à sua referência.",
+        "title": "Consumo de combustível piorando"
       },
       "trend_declining": {
         "body": "Os últimos abastecimentos mostram piora no consumo. Verifique a pressão dos pneus ou os filtros de ar.",
@@ -372,7 +372,7 @@
       "colProjection": "Vida útil projetada",
       "colDistance": "Distância rodada no pneu",
       "colHours": "Horas no pneu",
-      "retiredOn": "Retirado em {{date}}",
+      "retiredOn": "Retirado de uso em {{date}}",
       "inStorage": "Armazenado"
     },
     "statsTitle": "Estatísticas avançadas",

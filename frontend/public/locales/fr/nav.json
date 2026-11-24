@@ -15,12 +15,12 @@
   "themeToggle": "Changer de thème",
   "allSettings": "Tous les réglages",
   "appearance": "Apparence",
-  "accent": "Accentuation",
-  "accentError": "Impossible d’enregistrer votre accent",
+  "accent": "Couleur d’accentuation",
+  "accentError": "Impossible d’enregistrer votre couleur d’accentuation",
   "accents": {
     "blue": "Bleu",
     "amber": "Ambre",
-    "teal": "Sarcelle",
+    "teal": "Bleu canard",
     "red": "Rouge",
     "violet": "Violet",
     "green": "Vert"

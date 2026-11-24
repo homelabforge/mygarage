@@ -22,7 +22,7 @@
       "taxes": "Podatki"
     },
     "costByCategory": "Koszty według kategorii",
-    "donutTotal": "Suma",
+    "donutTotal": "Razem",
     "noCostData": "Brak danych o kosztach",
     "runningCostsByVehicle": "Koszty eksploatacji według pojazdu",
     "noVehicleData": "Brak danych o pojazdach",
@@ -98,7 +98,7 @@
       "title": "Tabela porównania kosztów pojazdów",
       "intro": "Szczegółowa tabela pod słupkami zestawia pojazdy obok siebie:",
       "categoryColumnsLabel": "Kolumny kategorii:",
-      "categoryColumnsDesc": "Wydatki każdego pojazdu w podziale na konserwację, ulepszenia, przegląd, kolizje, detailing, paliwo i DEF.",
+      "categoryColumnsDesc": "Wydatki każdego pojazdu w podziale na konserwację, ulepszenia, przegląd, kolizje, detailing, paliwo, DEF i finansowanie.",
       "totalCostLabel": "Razem:",
       "totalCostDesc": "Łączne koszty eksploatacji: serwis, paliwo i DEF. Nie obejmują ceny zakupu pojazdu. Finansowanie i ubezpieczenie są pokazane osobno, bo nie są kosztami jazdy pojazdem.",
       "sortIntro": "Tabela jest posortowana według łącznych kosztów eksploatacji, od najwyższych. Pozwala wychwycić:",
@@ -189,7 +189,7 @@
     "totalCost": "Koszt całkowity",
     "monthsTracked": "Śledzone miesiące: {{count}}",
     "avgMonthly": "Średnio miesięcznie",
-    "recordsCount": "Liczba wpisów: {{count}}",
+    "recordsCount": "Wpisy: {{count}}",
     "avgFuelEconomy": "Średnie zużycie paliwa",
     "distanceDriven": "Przejechano {{distance}}",
     "spendingTrends": "Trendy wydatków",
@@ -248,7 +248,7 @@
       "date": "Data",
       "fuelEconomy": "Zużycie paliwa",
       "mileage": "Przebieg ({{unit}})",
-      "volume": "Ilość ({{unit}})",
+      "volume": "Objętość ({{unit}})",
       "cost": "Koszt"
     },
     "hoursEconomyAnalysis": "Analiza wydajności wg motogodzin",
@@ -272,7 +272,7 @@
     "monthlyAverage": "Średnia miesięczna",
     "monthlySpotRentalCosts": "Miesięczne koszty wynajmu miejsca",
     "monthlyRate": "Stawka miesięczna",
-    "electric": "Elektryczność",
+    "electric": "Prąd",
     "water": "Woda",
     "waste": "Odpady",
     "defAnalysis": "Analiza DEF",
@@ -321,8 +321,8 @@
     "costChangesByCategory": "Zmiany kosztów według kategorii",
     "period1Value": "Okres 1: {{value}}",
     "period2Value": "Okres 2: {{value}}",
-    "anomalyAbove": "Wydano {{spent}} — {{deviation}}% powyżej średniej {{avg}}.",
-    "anomalyBelow": "Wydano {{spent}} — {{deviation}}% poniżej średniej {{avg}}.",
+    "anomalyAbove": "Wydano {{spent}}, {{deviation}}% powyżej Twojej średniej {{avg}}.",
+    "anomalyBelow": "Wydano {{spent}}, {{deviation}}% poniżej Twojej średniej {{avg}}.",
     "severity": {
       "critical": "Krytyczne",
       "info": "Informacja",
@@ -330,11 +330,11 @@
     },
     "fuelAlert": {
       "economy_dropping": {
-        "body": "Ekonomia paliwa pogorszyła się o {{percent}}% względem wartości bazowej.",
-        "title": "Spadek ekonomii paliwa"
+        "body": "Zużycie paliwa pogorszyło się o {{percent}}% względem punktu odniesienia.",
+        "title": "Pogarsza się zużycie paliwa"
       },
       "trend_declining": {
-        "body": "Ostatnie tankowania wskazują na pogarszającą się ekonomię paliwa. Sprawdź ciśnienie w oponach lub filtry powietrza.",
+        "body": "Ostatnie tankowania wskazują na rosnące zużycie paliwa. Sprawdź ciśnienie w oponach lub filtry powietrza.",
         "title": "Trend wydajności spada"
       },
       "insufficient_data": {

@@ -19,7 +19,7 @@
   },
   "timezone": {
     "label": "Fuso horário",
-    "description": "Afeta os carimbos de data/hora nos logs, tarefas agendadas e a exibição de datas em todo o aplicativo.",
+    "description": "O dia do calendário que o MyGarage usa para vencimentos, indicadores de atraso, notificações e as datas preenchidas nos formulários. Os carimbos de data/hora dos logs continuam em UTC.",
     "serverDefault": "Padrão do servidor",
     "serverDefaultZone": "Padrão do servidor ({{zone}})"
   },
@@ -120,7 +120,7 @@
     "label": "Moeda",
     "preview": "Visualização: {{amount}}",
     "saved": "Preferências de moeda salvas!",
-    "error": "Não foi possível salvar las preferências de moeda",
+    "error": "Não foi possível salvar as preferências de moeda",
     "confirmTitle": "Alterar moeda?",
     "confirmMessage": "Isso alterará a forma como todos os custos são exibidos. Os valores existentes não serão convertidos entre moedas.",
     "confirmAction": "Alterar moeda"
@@ -178,7 +178,7 @@
   },
   "archive": {
     "title": "Veículos arquivados",
-    "description": "Visualize e gerencie os veículos que você adicionou ao arquivo (vendidos, destruídos, doados, etc.). Os veículos arquivados permanecem nas análises, mas podem ser ocultados da lista principal.",
+    "description": "Visualize e gerencie os veículos que você arquivou (vendidos, com perda total, doados etc.). Os veículos arquivados permanecem nas análises, mas podem ser ocultados da lista principal.",
     "autoArchiveLabel": "Arquivar automaticamente veículos inativos",
     "autoArchiveDescription": "Arquiva veículos sem atividade de abastecimento, serviço, odômetro ou horas após N dias. 0 desativa. É executado diariamente quando o agendador está ativado e se aplica a todos os veículos desta instância, inclusive os de outros usuários.",
     "autoArchiveDays": "Dias de inatividade",
@@ -256,7 +256,7 @@
     "photosDirectory": "Diretório de fotos",
     "attachmentsDirectory": "Diretório de anexos",
     "documentsDirectory": "Diretório de documentos",
-    "windowSticker": "Etiqueta do vidro (Window Sticker)",
+    "windowSticker": "Etiqueta do vidro",
     "windowStickerDesc": "Configuração de envio e processamento OCR de etiquetas de vidro veiculares (etiquetas Monroney).",
     "enableWindowSticker": "Ativar envio de etiqueta do vidro",
     "enableWindowStickerDesc": "Permitir que os usuários enviem etiquetas de vidro para extração automática de dados.",
@@ -321,14 +321,14 @@
     "webhookTokenDesc": "Obrigatório em toda requisição de webhook recebida. Deixe em branco para desativar a ingestão.",
     "webhookHeaderHint": "Envie o cabeçalho X-Webhook-Token com o valor acima.",
     "llmSection": "Recursos de LLM",
-    "llmSectionDesc": "Assistentes opcionais, locais ou compatíveis com OpenAI, para rascunhos de recibos e o Ask My Garage (especificações + diagnósticos).",
+    "llmSectionDesc": "Assistentes opcionais, locais ou compatíveis com OpenAI, para rascunhos de recibos e o Pergunte ao MyGarage (especificações + diagnósticos).",
     "enableLlmReceipt": "Ativar leitura de recibos como rascunho",
-    "enableLlmAssistant": "Ativar o assistente Ask My Garage",
+    "enableLlmAssistant": "Ativar o assistente Pergunte ao MyGarage",
     "enableLlmAssistantDesc": "Responde a perguntas sobre óleo, torque, histórico de serviços e diagnóstico de DTCs usando apenas os dados da sua garagem.",
     "llmBaseUrl": "URL base da API",
     "llmModel": "Modelo",
     "llmApiKey": "Chave API (opcional)",
-    "llmHint": "O padrão é um endpoint local do Ollama. Compartilhado pela leitura de recibos e pelo Ask My Garage.",
+    "llmHint": "O padrão é um endpoint local do Ollama. Compartilhado pela leitura de recibos e pelo Pergunte ao MyGarage.",
     "llmPreset": "Predefinição de provedor",
     "llmPresetCustom": "Personalizado",
     "llmPresetOpenRouter": "OpenRouter",
@@ -686,7 +686,7 @@
     "uploadSettingsBackup": "Enviar backup de configurações",
     "filename": "Nome do arquivo",
     "size": "Tamanho",
-    "created": "Criado",
+    "created": "Criado em",
     "actions": "Ações",
     "download": "Baixar",
     "restore": "Restaurar",
@@ -704,8 +704,8 @@
   },
   "timeFormat": {
     "label": "Formato de hora",
-    "twelveHour": "12 horas",
-    "twentyFourHour": "24 horas"
+    "twelveHour": "12 horas (2:30 PM)",
+    "twentyFourHour": "24 horas (14:30)"
   },
   "dateFormat": {
     "label": "Formato de data",
@@ -768,7 +768,7 @@
     "nhtsaRecallsApiUrl": "URL da API de recalls da NHTSA",
     "aboutCarComplaintsBody": "O CarComplaints.com oferece um banco de dados de reclamações de consumidores, problemas comuns e tendências de defeitos em veículos. Esta integração adiciona links práticos para pesquisar problemas conhecidos da marca, do modelo e do ano do seu veículo.",
     "noteLabel": "Observação:",
-    "carComplaintsVehicleNote": "Esta integração está disponível apenas para carros e caminhonetes, não para motorhomes, reboques ou trailers fifth wheel.",
+    "carComplaintsVehicleNote": "Esta integração está disponível apenas para carros e caminhonetes, não para motorhomes, reboques ou trailers quinta roda.",
     "providerDefault": "{{name}} (padrão)",
     "unlimited": "Ilimitado",
     "edit": "Editar",
@@ -819,7 +819,7 @@
     "supportedFormatsLabel": "Formatos compatíveis:",
     "supportedFormatsValue": "PDF, JPG, PNG (até 10MB)",
     "noteLabel": "Observação:",
-    "windowStickerVehicleNote": "Etiquetas do vidro estão disponíveis apenas para carros de passeio e caminhonetes, não para motorhomes, reboques ou trailers fifth wheel."
+    "windowStickerVehicleNote": "Etiquetas do vidro estão disponíveis apenas para carros de passeio e caminhonetes, não para motorhomes, reboques ou trailers quinta roda."
   },
   "fuel": {
     "title": "Valores padrão de abastecimento",

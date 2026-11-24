@@ -7,7 +7,7 @@
     "integrations": "Integrationen",
     "notifications": "Benachrichtigungen",
     "backupRestore": "Sichern & Wiederherstellen",
-    "sections": "Einstellungen-Bereiche"
+    "sections": "Einstellungsbereiche"
   },
   "systemConfig": {
     "title": "Systemkonfiguration",
@@ -25,9 +25,9 @@
   },
   "garageSections": {
     "title": "Garage-Bereiche",
-    "description": "Aktiviere leicht zugängliche Referenzfahrzeuge von Familie/Freunden. Standardmäßig deaktiviert. Freigegebene Fahrzeuge werden immer in einem eigenen Bereich angezeigt.",
+    "description": "Aktiviere einfache Referenzfahrzeuge von Familie und Freunden. Standardmäßig deaktiviert. Freigegebene Fahrzeuge werden immer in einem eigenen Bereich angezeigt.",
     "familyFriends": "Familie & Freunde anzeigen",
-    "familyFriendsDesc": "Leicht zugängliche Referenzfahrzeuge von Familie/Freunden. Freigegebene Haushaltsfahrzeuge werden immer in der Garage angezeigt, auch wenn dies deaktiviert ist."
+    "familyFriendsDesc": "Einfache Referenzfahrzeuge von Familie und Freunden. Freigegebene Haushaltsfahrzeuge werden immer in der Garage angezeigt, auch wenn dies deaktiviert ist."
   },
   "units": {
     "label": "Einheitensystem",
@@ -275,13 +275,13 @@
     "enableAutoCheck": "Automatische Rückrufprüfung",
     "enableAutoCheckDesc": "Automatisch in einem festgelegten Intervall nach neuen Rückrufen suchen.",
     "daily": "Täglich",
-    "weeklyRecommended": "Wöchentlich (Empfohlen)",
+    "weeklyRecommended": "Wöchentlich (empfohlen)",
     "biWeekly": "Zweiwöchentlich",
     "monthly": "Monatlich",
     "quarterly": "Vierteljährlich",
     "recallCheckIntervalDesc": "Wie oft automatisch nach neuen Rückrufen gesucht werden soll.",
     "nhtsaApiUrlDesc": "Der NHTSA-API-Endpunkt für die Rückrufsuche. Nur ändern, wenn ein Proxy oder ein benutzerdefinierter Endpunkt verwendet wird.",
-    "testingConnection": "Testen...",
+    "testingConnection": "Wird getestet...",
     "testNHTSA": "NHTSA-Verbindung testen",
     "testNHTSADesc": "Testet die Konnektivität zur NHTSA-API durch Decodieren einer Beispiel-VIN.",
     "autoref": "AutoRef (Decodierung europäischer VINs)",
@@ -485,10 +485,10 @@
     "serverUrl": "Server-URL",
     "misc": {
       "title": "ntfy-Konfiguration",
-      "subtitle": "Self-hosted oder ntfy.sh Push-Benachrichtigungen",
+      "subtitle": "Push-Benachrichtigungen über ntfy.sh oder einen eigenen Server",
       "serverUrlHint": "URL deines ntfy-Servers (z. B. https://ntfy.sh oder selbst gehostet)",
-      "topicLabel": "Themenname (Topic Name)",
-      "topicHint": "Abonniere dieses Thema in deiner ntfy-App, um Benachrichtigungen zu erhalten",
+      "topicLabel": "Themenname",
+      "topicHint": "Abonniere dieses Thema in deiner ntfy-App. Auf einem öffentlichen Server kann jeder mitlesen, der den Namen kennt, wähle also einen schwer zu erratenden.",
       "apiTokenLabel": "API-Token",
       "apiTokenOptional": "(optional)",
       "apiTokenHint": "Erforderlich für passwortgeschützte Themen oder selbst gehostete Server mit Authentifizierung",
@@ -500,7 +500,7 @@
   },
   "gotify": {
     "enable": "Gotify-Benachrichtigungen aktivieren",
-    "appToken": "Application-Token",
+    "appToken": "App-Token",
     "serverUrl": "Server-URL",
     "misc": {
       "title": "Gotify-Konfiguration",
@@ -513,7 +513,7 @@
   },
   "pushover": {
     "enable": "Pushover-Benachrichtigungen aktivieren",
-    "userKey": "User-Key",
+    "userKey": "Benutzerschlüssel",
     "misc": {
       "title": "Pushover-Konfiguration",
       "subtitle": "Plattformübergreifende Push-Benachrichtigungen",
@@ -553,10 +553,10 @@
       "testConnection": "Verbindung testen",
       "setupTitle": "So erstellst du einen Discord-Webhook:",
       "step1": "Klicke mit der rechten Maustaste auf den Kanal, in dem du Benachrichtigungen erhalten möchtest",
-      "step2": "Wähle \"Kanal bearbeiten\" > \"Integrationen\"",
-      "step3": "Klicke auf \"Webhook erstellen\"",
+      "step2": "Wähle „Kanal bearbeiten“ > „Integrationen“",
+      "step3": "Klicke auf „Webhook erstellen“",
       "step4": "Kopiere die Webhook-URL",
-      "docsLink": "Discord Webhooks Handbuch"
+      "docsLink": "Anleitung zu Discord-Webhooks"
     }
   },
   "matrix": {
@@ -674,22 +674,22 @@
   "backup": {
     "loading": "Backup-Daten werden geladen...",
     "loadError": "Backup-Daten konnten nicht geladen werden",
-    "settingsBackup": "Einstellungen-Backup",
-    "settingsBackupDesc": "Sichere und wiederherstelle deine Anwendungseinstellungen als JSON-Dateien.",
+    "settingsBackup": "Einstellungs-Backup",
+    "settingsBackupDesc": "Sichere deine Anwendungseinstellungen als JSON-Dateien und stelle sie wieder her.",
     "databaseSize": "Datenbankgröße",
-    "settingsBackups": "Einstellungen-Backups",
+    "settingsBackups": "Einstellungs-Backups",
     "lastModified": "Zuletzt geändert",
     "never": "Nie",
     "creatingBackup": "Wird erstellt...",
-    "createSettingsBackup": "Einstellungen-Backup erstellen",
-    "uploadSettingsBackup": "Einstellungen-Backup hochladen",
+    "createSettingsBackup": "Einstellungs-Backup erstellen",
+    "uploadSettingsBackup": "Einstellungs-Backup hochladen",
     "filename": "Dateiname",
     "size": "Größe",
     "created": "Erstellt",
     "actions": "Aktionen",
     "download": "Herunterladen",
     "restore": "Wiederherstellen",
-    "noSettingsBackups": "Noch keine Einstellungen-Backups vorhanden. Erstelle eines, um loszulegen.",
+    "noSettingsBackups": "Noch keine Einstellungs-Backups vorhanden. Erstelle eines, um loszulegen.",
     "fullDataBackup": "Vollständiges Daten-Backup",
     "fullDataBackupDesc": "Sichere deine gesamte Datenbank, Fotos, Dokumente und Anhänge.",
     "fullBackups": "Vollständige Backups",
@@ -743,7 +743,7 @@
       "loadError": "Schlüssel konnten nicht geladen werden. Versuche, die Seite zu aktualisieren.",
       "noKeysYet": "Noch keine API-Schlüssel vorhanden. Erstelle einen, um deine Garage von einem Dashboard aus abzufragen.",
       "revokedBadge": "widerrufen",
-      "staleBadge": "abgelaufen",
+      "staleBadge": "ungenutzt",
       "scopeAll": "Alle Fahrzeuge",
       "vehicleCount": "{{count}} Fahrzeug(e)",
       "createdAgo": "erstellt {{when}}",
@@ -767,7 +767,7 @@
     "nhtsaRecallsApiUrl": "NHTSA-Rückruf-API-URL",
     "aboutCarComplaintsBody": "CarComplaints.com bietet eine Datenbank mit Verbraucherbeschwerden, häufigen Problemen und Mängeltrends für Fahrzeuge. Diese Integration fügt praktische Links hinzu, um bekannte Probleme für deine spezifische Fahrzeugmarke, dein Modell und dein Baujahr zu recherchieren.",
     "noteLabel": "Hinweis:",
-    "carComplaintsVehicleNote": "Diese Integration ist nur für PKW und LKW verfügbar, nicht für Wohnmobile, Anhänger oder Sattelauflieger (Fifth Wheels).",
+    "carComplaintsVehicleNote": "Diese Integration ist nur für Pkw und Lkw verfügbar, nicht für Wohnmobile, Anhänger oder Fifth-Wheel-Wohnwagen.",
     "providerDefault": "{{name}} (Standard)",
     "unlimited": "Unbegrenzt",
     "edit": "Bearbeiten",
@@ -782,7 +782,7 @@
     "livelinkFirmwareRequirement": "WiCAN PRO mit Firmware v4.40 oder neuer"
   },
   "backupTab": {
-    "createSettingsSuccess": "Einstellungen-Backup erfolgreich erstellt!",
+    "createSettingsSuccess": "Einstellungs-Backup erfolgreich erstellt!",
     "createSettingsAction": "Einstellungs-Backup erstellen",
     "createFullSuccess": "Vollständiges Backup erfolgreich erstellt!",
     "createFullAction": "vollständiges Backup erstellen",
@@ -802,7 +802,7 @@
     "uploadSuccess": "Backup erfolgreich hochgeladen!",
     "uploadAction": "Backup hochladen",
     "safetyBadge": "Sicherheit",
-    "totalSize": "{{size}} Gesamt",
+    "totalSize": "{{size}} gesamt",
     "dataIncludedList": "Datenbank, Fotos, Dokumente, Anhänge",
     "infoIncludesEverything": "Vollständige Backups beinhalten deine gesamte Datenbank und alle hochgeladenen Dateien",
     "infoSizeDepends": "Die Backup-Größe hängt von der Menge der von dir hochgeladenen Fotos und Dokumente ab",
@@ -815,9 +815,9 @@
   "filesTab": {
     "aboutWindowStickersBody": "Window Sticker (Monroney-Label) sind in den USA gesetzlich vorgeschriebene Aufkleber auf Neuwagen, die den Listenpreis (MSRP), den Kraftstoffverbrauch, die Standardausstattung und optionale Extras ausweisen. Lade den Window Sticker deines Fahrzeugs hoch, um Preis- und Spezifikationsdaten automatisch auszufüllen.",
     "supportedFormatsLabel": "Unterstützte Formate:",
-    "supportedFormatsValue": "PDF, JPG, PNG (bis zu 10MB)",
+    "supportedFormatsValue": "PDF, JPG, PNG (bis zu 10 MB)",
     "noteLabel": "Hinweis:",
-    "windowStickerVehicleNote": "Window Sticker sind nur für PKW und LKW verfügbar, nicht für Wohnmobile, Anhänger oder Sattelauflieger (Fifth Wheels)."
+    "windowStickerVehicleNote": "Window Sticker sind nur für Pkw und Lkw verfügbar, nicht für Wohnmobile, Anhänger oder Fifth-Wheel-Wohnwagen."
   },
   "fuel": {
     "title": "Standardwerte für die Kraftstofferfassung",

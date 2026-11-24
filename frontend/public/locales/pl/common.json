@@ -63,7 +63,7 @@
   },
   "addressBook": {
     "title": "Książka adresowa",
-    "subtitle": "Warsztaty, dostawcy części, dealerzy i kontakty ubezpieczeniowe",
+    "subtitle": "Warsztaty, dostawcy części, dealerzy i inne kontakty",
     "searchPlaceholder": "Szukaj kontaktów...",
     "categoryService": "Serwis",
     "categoryParts": "Części",
@@ -264,7 +264,7 @@
     "subtitle": "Dowiedz się więcej o MyGarage",
     "tagline": "Samodzielnie hostowany rejestr serwisowania pojazdów dla społeczności homelab",
     "whatIsTitle": "Czym jest MyGarage?",
-    "whatIsDescription1": "MyGarage to samodzielnie hostowany rejestr serwisowania pojazdów, który gromadzi wszystkie szczegóły dotyczące Twojej floty — tankowania, wizyty serwisowe, płyny, rejestracje, gwarancje, akcje serwisowe i notatki — w jednym miejscu pod Twoją kontrolą.",
+    "whatIsDescription1": "MyGarage to samodzielnie hostowany rejestr serwisowania pojazdów, który gromadzi wszystkie szczegóły dotyczące Twojej floty (tankowania, wizyty serwisowe, płyny, rejestracje, gwarancje, akcje serwisowe i notatki) w jednym miejscu pod Twoją kontrolą.",
     "whatIsDescription2": "Zaprojektowany dla społeczności homelab, MyGarage działa na Twojej własnej infrastrukturze, bez udostępniania danych firmom trzecim ani telemetrii. Dane Twoich pojazdów pozostają Twoje.",
     "whyTitle": "Dlaczego MyGarage?",
     "privacyFirst": "Prywatność na pierwszym miejscu",
@@ -274,14 +274,14 @@
     "multiNotifications": "Powiadomienia wielokanałowe",
     "multiNotificationsDesc": "Otrzymuj przypomnienia o konserwacji przez Discord, Slack, Telegram, ntfy, Gotify, Pushover, Matrix lub e-mail, w zależności od tego, co pasuje do Twojego homelabu.",
     "comprehensiveTracking": "Kompleksowe śledzenie",
-    "comprehensiveTrackingDesc": "Zużycie paliwa, AdBlue, historia ciśnienia w oponach, planowy serwis, zdjęcia, dokumenty oraz telemetria OBD-II na żywo — wszystko obsługiwane.",
+    "comprehensiveTrackingDesc": "Zużycie paliwa, AdBlue, historia ciśnienia w oponach, planowy serwis, zdjęcia, dokumenty oraz telemetria OBD-II na żywo: wszystko obsługiwane.",
     "builtWithAI": "Stworzone z pomocą AI",
-    "builtWithAIDesc": "MyGarage jest wynikiem współpracy człowiek-w-pętli między Jameyem a zespołem asystentów AI. Każdy agent specjalizuje się w innej części procesu.",
+    "builtWithAIDesc": "MyGarage powstał dzięki współpracy Jameya z zespołem asystentów AI, w której nad całością czuwa człowiek (human-in-the-loop). Każdy agent specjalizuje się w innej części procesu.",
     "claudeRole": "projektowanie, planowanie, recenzja kodu i implementacja",
     "operatorRole": "automatyzacja przeglądarki i weryfikacja interfejsu",
     "codexRole": "druga opinia w recenzji kodu i walidacja",
     "poweredByNHTSA": "Zasilane przez NHTSA",
-    "nhtsaDesc1": "Dekodowanie VIN, wyszukiwanie akcji serwisowych i dane bezpieczeństwa pochodzą z publicznych API amerykańskiej National Highway Traffic Safety Administration — bezpłatne, oficjalne i wiarygodne.",
+    "nhtsaDesc1": "Dekodowanie VIN, wyszukiwanie akcji serwisowych i dane bezpieczeństwa pochodzą z publicznych API amerykańskiej National Highway Traffic Safety Administration: bezpłatne, oficjalne i wiarygodne.",
     "nhtsaDesc2": "Uwaga: dane NHTSA są najbardziej kompletne dla pojazdów sprzedawanych w Stanach Zjednoczonych.",
     "learnMore": "Dowiedz się więcej",
     "projectWebsite": "Strona projektu",
@@ -294,7 +294,7 @@
   "errors": {
     "generic": "Coś poszło nie tak. Spróbuj ponownie."
   },
-  "footer": "MyGarage v{{version}} — Lokalny system śledzenia konserwacji pojazdów",
+  "footer": "MyGarage v{{version}} - Samodzielnie hostowany rejestr serwisowania pojazdów",
   "active": "Aktywny",
   "additionalNotes": "Dodatkowe notatki",
   "admin": "Administrator",
@@ -309,7 +309,7 @@
   "date": "Data",
   "deleting": "Usuwanie...",
   "enabled": "Włączone",
-  "endDate": "Data końcowa",
+  "endDate": "Data zakończenia",
   "engineHours": "Motogodziny",
   "inactive": "Nieaktywny",
   "installPrompt": {
@@ -327,7 +327,7 @@
   "saving": "Zapisywanie...",
   "select": "Wybierz",
   "selectType": "Wybierz typ",
-  "startDate": "Data początkowa",
+  "startDate": "Data rozpoczęcia",
   "status": "Status",
   "tip": "Wskazówka",
   "title": "Tytuł",
@@ -603,13 +603,13 @@
       "fillLevelInvalid": "Wprowadź prawidłową liczbę"
     },
     "tankPair": {
-      "bothOrNeither": "Wprowadź zarówno pojemność zbiornika, jak i liczbę zbiorników, albo pozostaw oba pola puste"
+      "bothOrNeither": "Wprowadź zarówno pojemność butli, jak i liczbę butli, albo pozostaw oba pola puste"
     },
     "tankQuantity": {
-      "negative": "Liczba zbiorników musi być większa niż 0",
-      "tooLarge": "Liczba zbiorników jest za duża",
+      "negative": "Liczba butli musi być większa niż 0",
+      "tooLarge": "Liczba butli jest za duża",
       "invalid": "Wprowadź prawidłową liczbę",
-      "notWhole": "Liczba zbiorników musi być liczbą całkowitą"
+      "notWhole": "Liczba butli musi być liczbą całkowitą"
     },
     "vehicle": {
       "yearNotWhole": "Rok musi być liczbą całkowitą",
@@ -680,7 +680,7 @@
       "gatewayTimeout": "Upłynął limit czasu żądania. Spróbuj ponownie."
     },
     "database": {
-      "conflict": "Rekord z tymi danymi już istnieje.",
+      "conflict": "Wpis z tymi danymi już istnieje.",
       "unavailable": "Baza danych jest chwilowo niedostępna. Spróbuj ponownie."
     },
     "file": {

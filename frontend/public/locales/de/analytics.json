@@ -5,7 +5,7 @@
     "subtitleCount": "Umfassende Kostenanalyse über {{count}} Fahrzeug(e) hinweg",
     "help": "Hilfe",
     "loading": "Garage-Analyse wird geladen...",
-    "loadingAria": "Analyse wird geladen",
+    "loadingAria": "Analysen werden geladen",
     "offlineCached": "Offline: Es wird eine zwischengespeicherte Momentaufnahme der Analyse angezeigt.",
     "exportPdfFailed": "PDF-Export fehlgeschlagen. Bitte versuche es erneut.",
     "empty": {
@@ -49,7 +49,7 @@
     "gotIt": "Verstanden",
     "overview": {
       "title": "Übersicht",
-      "body": "Die Seite 'Garage-Analyse' bietet eine umfassende Ansicht aller Fahrzeuge in deiner Garage. Sie ermöglicht es dir, Gesamtkosten zu analysieren, Fahrzeugausgaben zu vergleichen, Ausgabenmuster zu erkennen und fundierte Entscheidungen für deine Garagen-Management-Strategie zu treffen."
+      "body": "Die Seite „Garage-Analyse“ bietet eine umfassende Ansicht aller Fahrzeuge in deiner Garage. Damit kannst du Gesamtkosten analysieren, Fahrzeugausgaben vergleichen, Ausgabenmuster erkennen und fundierte Entscheidungen für die Verwaltung deiner Garage treffen."
     },
     "costSummary": {
       "title": "Zusammenfassung der Garagenkosten",
@@ -64,17 +64,17 @@
       "financingLabel": "Finanzierung:",
       "financingDesc": "Summe der Leasingraten, Kreditraten und einmaligen Finanzierungsgebühren (wird angezeigt, wenn ein Fahrzeug Finanzierungskosten hat).",
       "insuranceLabel": "Versicherung:",
-      "insuranceDesc": "Kombinierte Versicherungskosten für alle Fahrzeuge.",
+      "insuranceDesc": "Kombinierte Versicherungskosten für alle Fahrzeuge (wird angezeigt, wenn ein Fahrzeug Versicherungskosten hat).",
       "taxesLabel": "Steuern:",
-      "taxesDesc": "Gesamte Zulassungs- und Steueraufwendungen."
+      "taxesDesc": "Gesamte Zulassungs- und Steuerausgaben (wird angezeigt, wenn ein Fahrzeug Steuer- oder Zulassungskosten hat)."
     },
     "categoryBreakdown": {
       "title": "Kostenaufschlüsselung nach Kategorie",
-      "body": "Das Kreisdiagramm zeigt, wie sich die Ausgaben der Garage auf verschiedene Kategorien verteilen. Nutze dies, um herauszufinden, welche Ausgabenarten den größten Teil deines Budgets verschlingen. Jede Kategorie zeigt ihren prozentualen Anteil an den Gesamtkosten der Garage."
+      "body": "Das Ringdiagramm zeigt, wie sich die Ausgaben der Garage auf die Kategorien verteilen, mit der Gesamtsumme in der Mitte. Die Liste daneben schlüsselt jede Kategorie auf (Anteil an der Gesamtsumme, proportionaler Balken und Betrag), absteigend sortiert, damit du auf einen Blick siehst, wohin das Geld fließt."
     },
     "costByVehicle": {
       "title": "Kosten nach Fahrzeug",
-      "intro": "Das Balkendiagramm und die detaillierte Tabelle vergleichen die Kosten aller Fahrzeuge. Dies hilft dir dabei:",
+      "intro": "Die Balken und die detaillierte Tabelle darunter vergleichen die laufenden Kosten aller Fahrzeuge. Das hilft dir dabei:",
       "item1": "Fahrzeuge zu identifizieren, deren Wartung am teuersten ist",
       "item2": "Die Kraftstoffeffizienz in deiner gesamten Garage zu vergleichen",
       "item3": "Datengestützte Entscheidungen über den Austausch von Fahrzeugen zu treffen",
@@ -83,7 +83,7 @@
     },
     "monthlyTrend": {
       "title": "Monatlicher Ausgabentrend",
-      "intro": "Das gestapelte Balkendiagramm zeigt die garage-weiten Ausgaben im Zeitverlauf, unterteilt in Wartungs- und Kraftstoffkosten. Trendlinien überlagern die Balken, um gleitende Durchschnitte anzuzeigen:",
+      "intro": "Die gestapelten Balken zeigen die garage-weiten Ausgaben pro Monat, aufgeteilt in Service-, Kraftstoff-, DEF- und Finanzierungskosten. Fahre mit der Maus über einen Balken (oder tippe mobil darauf), um die genauen Beträge zu sehen. Zwei gestrichelte Trendlinien über den Balken zeigen gleitende Durchschnitte:",
       "rolling3Label": "Gleitender 3-Monats-Durchschnitt:",
       "rolling3Desc": "Glättet kurzfristige Schwankungen (grüne gestrichelte Linie).",
       "rolling6Label": "Gleitender 6-Monats-Durchschnitt:",
@@ -96,12 +96,12 @@
     },
     "comparisonTable": {
       "title": "Vergleichstabelle der Fahrzeugkosten",
-      "intro": "Die detaillierte Tabelle unten bietet einen direkten Vergleich aller Fahrzeuge:",
+      "intro": "Die detaillierte Tabelle unter den Balken stellt alle Fahrzeuge nebeneinander dar:",
       "categoryColumnsLabel": "Kategoriespalten:",
-      "categoryColumnsDesc": "Die Ausgaben jedes Fahrzeugs, aufgeschlüsselt nach Wartung, Upgrades, Inspektion, Unfall, Aufbereitung, Kraftstoff und DEF.",
-      "totalCostLabel": "Gesamtkosten:",
-      "totalCostDesc": "Kombinierte Gesamtbetriebskosten über die gesamte Lebensdauer.",
-      "sortIntro": "Sortiere diese Daten gedanklich, um Folgendes zu identifizieren:",
+      "categoryColumnsDesc": "Die Ausgaben jedes Fahrzeugs, aufgeschlüsselt nach Wartung, Upgrades, Inspektion, Unfall, Aufbereitung, Kraftstoff, DEF und Finanzierung.",
+      "totalCostLabel": "Gesamt:",
+      "totalCostDesc": "Kombinierte laufende Kosten: Service, Kraftstoff und DEF. Der Kaufpreis des Fahrzeugs ist nicht enthalten. Finanzierung und Versicherung werden separat angezeigt, da sie keine laufenden Kosten des Fahrens sind.",
+      "sortIntro": "Die Tabelle ist nach den gesamten laufenden Kosten sortiert, höchste zuerst. Nutze sie, um Folgendes zu erkennen:",
       "item1": "Die im Betrieb teuersten/günstigsten Fahrzeuge",
       "item2": "Fahrzeuge mit unverhältnismäßig hohen Wartungskosten",
       "item3": "Die besten/schlechtesten Fahrzeuge in Bezug auf den Kraftstoffverbrauch",
@@ -153,7 +153,7 @@
       "item2": "Trage Serviceberichte für alle Fahrzeuge ein",
       "item3": "Erfasse Kraftstoffeinträge für die Kraftstoffkostenanalyse",
       "item4": "Nimm Versicherungs- und Steueraufwendungen in die Serviceberichte auf",
-      "item5": "Halte Daten von mindestens 3–6 Monaten vor, um aussagekräftige Trends zu erhalten",
+      "item5": "Halte Daten von mindestens 3-6 Monaten vor, um aussagekräftige Trends zu erhalten",
       "item6": "Führe die Aufzeichnungen für alle Fahrzeuge einheitlich, um faire Vergleiche zu ermöglichen"
     }
   },
@@ -164,7 +164,7 @@
     "loading": "Analysen werden geladen...",
     "loadingAria": "Analysen werden geladen",
     "notFound": "Analysen nicht gefunden",
-    "notAvailable": "N/V",
+    "notAvailable": "k. A.",
     "offlineCached": "Offline: Es wird eine zwischengespeicherte Momentaufnahme der Analyse angezeigt.",
     "fillAllDates": "Bitte fülle alle Datumsfelder aus",
     "comparisonFailed": "Vergleichsdaten konnten nicht geladen werden",
@@ -253,7 +253,7 @@
     },
     "hoursEconomyAnalysis": "Effizienzanalyse der Motorbetriebsstunden",
     "hoursEconomyTrendTitle": "Trend der Effizienz der Motorbetriebsstunden im Zeitverlauf",
-    "fuelRateUnitLabel": "Kraftstoffverbrauch ({{unit}})",
+    "fuelRateUnitLabel": "Verbrauchsrate ({{unit}})",
     "costPerHourLabel": "Kosten/Stunde",
     "costPerHourAxis": "Kosten/Stunde ({{currency}})",
     "costPerDistance": "Kosten/{{unit}}",
@@ -271,7 +271,7 @@
     "billingPeriods": "Abrechnungszeiträume",
     "monthlyAverage": "Monatlicher Durchschnitt",
     "monthlySpotRentalCosts": "Monatliche Kurzzeitmieten-Kosten",
-    "monthlyRate": "Monatliche Rate",
+    "monthlyRate": "Preis pro Monat",
     "electric": "Elektro",
     "water": "Wasser",
     "waste": "Abfall",
@@ -281,7 +281,7 @@
     "daysSinceLast": "{{count}} Tag(e) seit letztem {{type}}",
     "distanceSinceLast": "{{distance}} seit letztem",
     "vendorAnalysis": "Dienstleister-Analyse",
-    "totalVendors": "Dienstleister Gesamt",
+    "totalVendors": "Dienstleister gesamt",
     "mostUsed": "Am häufigsten genutzt",
     "highestSpending": "Höchste Ausgaben",
     "spendingByVendor": "Ausgaben nach Dienstleister",
@@ -314,15 +314,15 @@
     "runComparison": "Vergleich starten",
     "totalCostLabel": "Gesamtkosten:",
     "avgFuelEconomyLabel": "Durchschnittlicher Kraftstoffverbrauch:",
-    "overallChanges": "Veränderungen Gesamt",
+    "overallChanges": "Veränderungen insgesamt",
     "costChange": "Kostenänderung",
     "serviceCountChange": "Änderung der Serviceanzahl",
     "fuelEconomyChange": "Änderung des Kraftstoffverbrauchs",
     "costChangesByCategory": "Kostenänderungen nach Kategorie",
     "period1Value": "Zeitraum 1: {{value}}",
     "period2Value": "Zeitraum 2: {{value}}",
-    "anomalyAbove": "Ausgaben: {{spent}} — {{deviation}}% über Ihrem Durchschnitt von {{avg}}.",
-    "anomalyBelow": "Ausgaben: {{spent}} — {{deviation}}% unter Ihrem Durchschnitt von {{avg}}.",
+    "anomalyAbove": "Ausgaben: {{spent}}, {{deviation}} % über deinem Durchschnitt von {{avg}}.",
+    "anomalyBelow": "Ausgaben: {{spent}}, {{deviation}} % unter deinem Durchschnitt von {{avg}}.",
     "severity": {
       "critical": "Kritisch",
       "info": "Info",
@@ -330,15 +330,15 @@
     },
     "fuelAlert": {
       "economy_dropping": {
-        "body": "Die Kraftstoffeffizienz hat sich gegenüber Ihrem Ausgangswert um {{percent}} % verschlechtert.",
+        "body": "Die Kraftstoffeffizienz hat sich gegenüber deinem Ausgangswert um {{percent}} % verschlechtert.",
         "title": "Kraftstoffverbrauch verschlechtert sich"
       },
       "trend_declining": {
-        "body": "Die letzten Tankfüllungen zeigen eine sich verschlechternde Kraftstoffeffizienz. Prüfen Sie Reifendruck oder Luftfilter.",
+        "body": "Die letzten Betankungen zeigen eine sich verschlechternde Kraftstoffeffizienz. Prüfe ggf. Reifendruck oder Luftfilter.",
         "title": "Effizienztrend fällt"
       },
       "insufficient_data": {
-        "body": "Erfassen Sie mindestens drei Volltank-Betankungen, um detaillierte Verbrauchsauswertungen freizuschalten.",
+        "body": "Erfasse mindestens drei Volltank-Betankungen, um detaillierte Verbrauchsauswertungen freizuschalten.",
         "title": "Zu wenig Kraftstoffdaten"
       }
     },
@@ -414,7 +414,7 @@
     "statsExpensesPerUnit": "Kosten/{{unit}}",
     "statsNote": "Die Versicherung wird über die Tage gerechnet, an denen sie in Kraft war, daher sind künftige Prämien noch nicht enthalten. Laufende Kosten enthalten Steuern und Zulassung; Kredit- und Leasingraten sind nicht enthalten.",
     "statsToggle": "Erweiterte Statistiken anzeigen",
-    "statsBasisLabel": "Versicherung gerechnet",
+    "statsBasisLabel": "Berechnung der Versicherung",
     "statsBasisAccrued": "Anteilig über die Laufzeit",
     "statsBasisPaid": "Vollständig bei Zahlung",
     "statsNotePaid": "Die Versicherung wird für jeden begonnenen Abrechnungszeitraum vollständig gerechnet, so wie es sich ergibt, wenn jede Zahlung am Tag der Zahlung erfasst wird. Künftige Zeiträume sind nicht enthalten. Laufende Kosten enthalten Steuern und Zulassung; Kredit- und Leasingraten sind nicht enthalten."
@@ -427,7 +427,7 @@
       "warningDesc": "Ausgaben, die 2+ Standardabweichungen vom Durchschnitt abweichen.",
       "criticalLabel": "Kritisch:",
       "criticalDesc": "Ausgaben, die 50%+ über oder unter dem Durchschnitt liegen.",
-      "note": "Anomalien sind nicht zwingend negativ – sie stehen oft für einmalige Ereignisse wie größere Reparaturen, jährliche Zulassungen oder aufgeschobene Wartungen. Überprüfe diese, um ungewöhnliche Ausgabenmuster zu verstehen."
+      "note": "Anomalien sind nicht zwingend negativ: Sie stehen oft für einmalige Ereignisse wie größere Reparaturen, jährliche Zulassungen oder aufgeschobene Wartungen. Überprüfe sie, um ungewöhnliche Ausgabenmuster zu verstehen."
     },
     "close": "Schließen",
     "costAnalysis": {
@@ -504,9 +504,9 @@
       "title": "Tipps für beste Ergebnisse",
       "enterAllRecords": "Trage alle Service- und Kraftstoffeinträge ein, um vollständige Analysen zu erhalten",
       "includeOdometer": "Erfasse Kilometerstände, um die Kosten pro Strecke berechnen zu können",
-      "markFullTank": "Markiere Betankungen als \"Vollbetankung\" für eine genaue Verbrauchserfassung ({{unit}})",
+      "markFullTank": "Markiere Betankungen als „Vollbetankung“ für eine genaue Verbrauchserfassung ({{unit}})",
       "addVendorNames": "Füge Dienstleisternamen hinzu, um Ausgabenmuster zu erkennen",
-      "trackMonths": "Erfasse Daten über mindestens 3–6 Monate, um aussagekräftige Trends zu erhalten",
+      "trackMonths": "Erfasse Daten über mindestens 3-6 Monate, um aussagekräftige Trends zu erhalten",
       "reviewAnomalies": "Überprüfe Anomalien, um ungewöhnliche Ausgaben zu verstehen"
     },
     "tires": {
@@ -541,14 +541,14 @@
     "endDate": "Enddatum",
     "pdfReports": "PDF-Berichte",
     "csvExports": "CSV-Exports",
-    "serviceHistoryTitle": "Servicehistorie-Bericht",
+    "serviceHistoryTitle": "Bericht zur Servicehistorie",
     "serviceHistoryDesc": "Vollständige Service- und Wartungshistorie",
     "annualCostTitle": "Jährliche Kostenübersicht",
     "annualCostDesc": "Aufschlüsselung aller Ausgaben nach Kategorie",
     "taxDeductionTitle": "Steuerabzugs-Bericht",
     "taxDeductionDesc": "Potenziell abzugsfähige Ausgaben (Steuerberater konsultieren)",
     "saleHistoryTitle": "Verkaufshistorie (anonymisiert)",
-    "saleHistoryDesc": "Käufersichere Service-Historie ohne Kosten, Werkstätten oder Kennzeichen",
+    "saleHistoryDesc": "Käufersichere Servicehistorie ohne Kosten, Werkstätten oder Kennzeichen",
     "serviceHistoryCsvTitle": "Servicehistorie (CSV)",
     "serviceHistoryCsvDesc": "Serviceberichte in eine Tabellenkalkulation exportieren",
     "allRecordsCsvTitle": "Alle Einträge (CSV)",

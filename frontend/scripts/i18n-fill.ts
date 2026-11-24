@@ -27,6 +27,7 @@ import {
   EN_DIR,
   LOCALES_DIR,
   SOURCES_DIR,
+  WRONG_SCRIPT,
   discoverLanguages,
   discoverNamespaces,
   expectedKeys,
@@ -145,7 +146,6 @@ export function buildChunks(
 }
 
 const edge = (s: string): [string, string] => [s.match(/^\s*/)![0], s.match(/\s*$/)![0]]
-const WRONG_SCRIPT: Record<string, RegExp> = { uk: /[ыэъё]/i, ru: /[іїєґ]/i }
 
 function checkValue(entry: ChunkEntry, raw: unknown, lang: string): { value: string; same?: string } | string {
   if (typeof raw === 'object' && raw !== null && 'same' in raw) {

@@ -283,6 +283,7 @@ export type LocaleIssueType =
   | 'empty'
   | 'interpolation'
   | 'protected'
+  | 'script'
   | 'stale'
   | 'unrecorded'
   | 'draft'
@@ -438,6 +439,21 @@ export function englishDashes(valuesByNamespace: ReadonlyMap<string, ReadonlyMap
   return out
 }
 
+// Letters that can't belong in a language: Cyrillic in a Latin-script locale,
+// Russian-only letters in uk and Ukrainian-only ones in ru. A pl string once
+// shipped in Ukrainian, so this blocks.
+const LATIN = /\p{Script=Cyrillic}/u
+export const WRONG_SCRIPT: Readonly<Record<string, RegExp>> = {
+  de: LATIN,
+  fr: LATIN,
+  it: LATIN,
+  ms: LATIN,
+  pl: LATIN,
+  'pt-BR': LATIN,
+  uk: /[ыэъёЫЭЪЁ]/,
+  ru: /[іїєґІЇЄҐ]/,
+}
+
 /**
  * Compare one namespace of one language against English. Pure, so the gate's
  * tests can hand it fixtures.
@@ -477,6 +493,7 @@ export function compareNamespace(
         if (added.length > 0) parts.push(`unknown ${added.join(', ')}`)
         issues.push({ lang, namespace: ns, type: 'interpolation', key, detail: parts.join('; ') })
       }
+      if (WRONG_SCRIPT[lang]?.test(value)) issues.push({ lang, namespace: ns, type: 'script', key })
       const dropped = protectedSpans(`${ns}:${key}`, enValue).filter(span => !value.includes(span))
       if (dropped.length > 0) {
         issues.push({ lang, namespace: ns, type: 'protected', key, detail: dropped.map(d => `missing "${d}"`).join('; ') })

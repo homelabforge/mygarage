@@ -34,10 +34,10 @@
     "imperial": "Imperial",
     "metric": "Metrik",
     "resolvedDescription": "Menggunakan unit ini: {{units}}",
-    "instanceDefault": "Unit lalai untuk instance ini",
+    "instanceDefault": "Unit lalai untuk pemasangan ini",
     "instanceDefaultDescription": "Digunakan oleh pelawat yang belum log masuk, semua klien apabila pengesahan dimatikan, dan sebagai unit awal untuk akaun baharu. Ia tidak mengubah akaun yang sudah mempunyai tetapan unit sendiri.",
-    "instanceDefaultSaved": "Unit lalai instance disimpan",
-    "instanceDefaultError": "Gagal menyimpan unit lalai instance",
+    "instanceDefaultSaved": "Unit lalai pemasangan disimpan",
+    "instanceDefaultError": "Gagal menyimpan unit lalai pemasangan",
     "showBoth": "Tunjukkan kedua-dua unit",
     "showBothDescription": "Tunjukkan setiap nilai bersama unit pasangannya dalam kurungan, contohnya {{example}}.",
     "custom": "Tersuai",
@@ -51,7 +51,7 @@
       "distance": "Jarak",
       "speed": "Kelajuan",
       "length": "Panjang",
-      "volume": "Isipadu",
+      "volume": "Isi padu",
       "consumption": "Kecekapan bahan api",
       "pressure": "Tekanan",
       "temperature": "Suhu",
@@ -180,7 +180,7 @@
     "title": "Kenderaan Diarkibkan",
     "description": "Lihat dan urus kenderaan yang telah anda arkibkan (dijual, rosak teruk, dihadiahkan dan sebagainya). Kenderaan yang diarkibkan kekal dalam analitik tetapi boleh disembunyikan daripada senarai utama.",
     "autoArchiveLabel": "Arkibkan kenderaan tidak aktif secara automatik",
-    "autoArchiveDescription": "Arkibkan kenderaan yang tiada aktiviti bahan api, servis, odometer atau jam selepas N hari. Nilai 0 mematikannya. Berjalan setiap hari apabila penjadual diaktifkan dan terpakai kepada semua kenderaan pada instance ini, termasuk milik pengguna lain.",
+    "autoArchiveDescription": "Arkibkan kenderaan yang tiada aktiviti bahan api, servis, odometer atau jam selepas N hari. Nilai 0 mematikannya. Berjalan setiap hari apabila penjadual diaktifkan dan terpakai kepada semua kenderaan pada pemasangan ini, termasuk milik pengguna lain.",
     "autoArchiveDays": "Hari tidak aktif",
     "autoArchiveSaved": "Tetapan auto-arkib disimpan",
     "autoArchiveError": "Gagal menyimpan tetapan auto-arkib",
@@ -469,7 +469,7 @@
     "fuelPrices": "Harga bahan api (Perancis)",
     "fuelPricesDesc": "Harga pam yang dilaporkan oleh setiap stesen di Perancis kepada kerajaan, ditunjukkan pada borang pengisian untuk stesen tersimpan yang anda pilih.",
     "enableFuelPrices": "Aktifkan harga bahan api",
-    "enableFuelPricesDesc": "Hanya koordinat stesen yang diminta, paling kerap kira-kira setiap sepuluh minit; tiada maklumat tentang kenderaan anda yang meninggalkan instance ini.",
+    "enableFuelPricesDesc": "Hanya koordinat stesen yang diminta, paling kerap kira-kira setiap sepuluh minit; tiada maklumat tentang kenderaan anda yang meninggalkan pemasangan ini.",
     "fuelPricesApiUrl": "URL API harga bahan api",
     "fuelPricesApiUrlDesc": "Titik akhir rekod di data.economie.gouv.fr. Ubahnya hanya jika set data berpindah."
   },
@@ -487,7 +487,7 @@
       "subtitle": "Pemberitahuan tolak hos sendiri atau ntfy.sh",
       "serverUrlHint": "URL pelayan ntfy anda (cth. https://ntfy.sh atau hos sendiri)",
       "topicLabel": "Nama Topik",
-      "topicHint": "Langgan topik ini dalam aplikasi ntfy untuk menerima pemberitahuan",
+      "topicHint": "Langgan topik ini dalam aplikasi ntfy anda. Sesiapa yang tahu namanya boleh membacanya pada pelayan awam, jadi pilih nama yang sukar diteka.",
       "apiTokenLabel": "Token API",
       "apiTokenOptional": "(pilihan)",
       "apiTokenHint": "Diperlukan untuk topik yang memerlukan pengesahan atau pelayan hos sendiri dengan pengesahan",
@@ -608,7 +608,7 @@
         "rateLimited": "Telegram meminta MyGarage memperlahankan kadar permintaan",
         "unreachable": "Tidak dapat menghubungi Telegram",
         "databaseError": "Tidak dapat menghubungi pangkalan data",
-        "unexpected": "Sesuatu telah berlaku; semak log pelayan"
+        "unexpected": "Sesuatu tidak kena; semak log pelayan"
       }
     }
   },
@@ -639,7 +639,7 @@
     "defLow": {
       "group": "Paras DEF",
       "label": "Paras DEF Rendah",
-      "description": "Beritahu apabila paras diesel exhaust fluid (DEF) jatuh ke atau di bawah ambang"
+      "description": "Beritahu apabila paras cecair ekzos diesel (DEF) jatuh ke atau di bawah ambang"
     },
     "card": {
       "subtitle": "Pilih peristiwa yang mencetuskan pemberitahuan",
@@ -731,7 +731,7 @@
     "noVehicles": "Anda belum memiliki sebarang kenderaan.",
     "creating": "Sedang mencipta…",
     "submit": "Cipta Kunci",
-    "createAction": "cipta kunci API",
+    "createAction": "mencipta kunci API",
     "panel": {
       "title": "Kunci API",
       "description": "Kunci API baca sahaja untuk integrasi luaran. Setiap kunci memberikan akses kepada kenderaan yang anda pilih.",
@@ -763,13 +763,13 @@
   },
   "integrationsTab": {
     "recallCheckInterval": "Selang Semakan Panggilan Balik",
-    "nhtsaRecallsApiUrl": "URL API Panggilan Semula NHTSA",
+    "nhtsaRecallsApiUrl": "URL API Panggilan Balik NHTSA",
     "aboutCarComplaintsBody": "CarComplaints.com menyediakan pangkalan data aduan pengguna, masalah lazim dan trend isu kenderaan. Integrasi ini menambah pautan mudah untuk menyelidik isu yang diketahui bagi jenama, model dan tahun kenderaan anda.",
     "noteLabel": "Nota:",
     "carComplaintsVehicleNote": "Integrasi ini hanya tersedia untuk kereta dan trak, bukan RV, treler atau fifth wheel.",
     "providerDefault": "{{name}} (Lalai)",
     "unlimited": "Tanpa had",
-    "edit": "Sunting",
+    "edit": "Edit",
     "remove": "Buang",
     "confirmRemoveProvider": "Buang penyedia {{name}}?",
     "devicesLinked": "{{count}} peranti dipautkan",
@@ -781,9 +781,9 @@
   },
   "backupTab": {
     "createSettingsSuccess": "Sandaran tetapan berjaya dicipta!",
-    "createSettingsAction": "cipta sandaran tetapan",
+    "createSettingsAction": "mencipta sandaran tetapan",
     "createFullSuccess": "Sandaran penuh berjaya dicipta!",
-    "createFullAction": "cipta sandaran penuh",
+    "createFullAction": "mencipta sandaran penuh",
     "confirmRestoreFull": "AMARAN: Ini akan menimpa keseluruhan pangkalan data dan semua fail yang dimuat naik! Sandaran keselamatan akan dicipta terlebih dahulu. Adakah anda benar-benar pasti?",
     "confirmRestoreSettings": "Ini akan memulihkan semua tetapan daripada sandaran. Sandaran keselamatan akan dicipta terlebih dahulu. Teruskan?",
     "fullRestoreStaged": "Pemulihan telah disediakan. Mulakan semula MyGarage untuk menyelesaikannya. Sehingga itu, MyGarage terus menggunakan data semasa dan sebarang perubahan sebelum mula semula akan digantikan oleh sandaran.",

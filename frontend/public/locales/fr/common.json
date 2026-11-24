@@ -63,14 +63,14 @@
   },
   "addressBook": {
     "title": "Carnet d’adresses",
-    "subtitle": "Ateliers de service, fournisseurs de pièces, concessionnaires et contacts d’assurance",
+    "subtitle": "Ateliers, fournisseurs de pièces, concessionnaires et autres contacts",
     "searchPlaceholder": "Rechercher des contacts…",
     "categoryService": "Entretien",
     "categoryParts": "Pièces",
     "categoryDealer": "Concessionnaire",
     "categoryInsurance": "Assurance",
     "addContact": "Ajouter un contact",
-    "addFirstContact": "Ajoutez votre premier contact",
+    "addFirstContact": "Ajouter votre premier contact",
     "editContact": "Modifier le contact",
     "loading": "Chargement des contacts…",
     "noContacts": "Aucun contact pour le moment.",
@@ -101,9 +101,9 @@
   },
   "supplies": {
     "title": "Fournitures",
-    "subtitle": "Suivez les fluides, filtres et pièces en stock — achats, utilisation et coût courant",
+    "subtitle": "Suivez les fluides, filtres et pièces en stock : achats, utilisation et coût courant",
     "addSupply": "Ajouter une fourniture",
-    "addFirstSupply": "Ajoutez votre première fourniture",
+    "addFirstSupply": "Ajouter votre première fourniture",
     "editSupply": "Modifier la fourniture",
     "loading": "Chargement des fournitures…",
     "noSupplies": "Aucune fourniture pour le moment.",
@@ -171,11 +171,11 @@
     "history": {
       "title": "Historique : {{name}}",
       "loading": "Chargement de l’historique…",
-      "empty": "Aucun achat ou aucune utilisation enregistrée pour le moment.",
+      "empty": "Aucun achat ni aucune utilisation enregistrés pour le moment.",
       "ledger": "Registre",
       "purchase": "Achat",
       "adjustment": "Ajustement",
-      "job": "Intervention",
+      "job": "Entretien",
       "balance": "Solde",
       "serviceVisitDate": "Date de visite",
       "downloadReceipt": "Télécharger le reçu",
@@ -201,7 +201,7 @@
       "receipt": "Reçu (facultatif)",
       "purchaseLogged": "Achat enregistré",
       "adjustmentLogged": "Ajustement enregistré",
-      "adjustmentHint": "Enregistre le stock retiré en dehors d’une intervention d’entretien (ex. déversement, don, mise au rebut).",
+      "adjustmentHint": "Enregistre le stock retiré en dehors d’une visite d’entretien (ex. déversement, don, mise au rebut).",
       "logPurchaseAction": "d’enregistrer l’achat",
       "logAdjustmentAction": "d’enregistrer l’ajustement",
       "downloadAction": "de télécharger le reçu",
@@ -264,24 +264,24 @@
     "subtitle": "En savoir plus sur MyGarage",
     "tagline": "Suivi auto-hébergé de l’entretien des véhicules pour la communauté homelab",
     "whatIsTitle": "Qu’est-ce que MyGarage ?",
-    "whatIsDescription1": "MyGarage est un outil auto-hébergé de suivi de l’entretien des véhicules qui conserve chaque détail de votre flotte — pleins de carburant, visites d’entretien, fluides, immatriculations, garanties, rappels et notes — en un seul endroit sous votre contrôle.",
+    "whatIsDescription1": "MyGarage est un outil auto-hébergé de suivi de l’entretien des véhicules qui conserve chaque détail de votre flotte (pleins de carburant, visites d’entretien, fluides, immatriculations, garanties, rappels constructeur et notes) en un seul endroit sous votre contrôle.",
     "whatIsDescription2": "Conçu pour la communauté homelab, MyGarage fonctionne sur votre propre infrastructure sans partage de données avec des tiers ni télémétrie. Vos données véhicule restent les vôtres.",
     "whyTitle": "Pourquoi MyGarage ?",
     "privacyFirst": "Confidentialité avant tout",
     "privacyFirstDesc": "Vos données résident sur votre matériel. Aucun serveur externe, aucune analyse, aucune intégration surprise.",
-    "databaseSettings": "Paramètres de base de données",
+    "databaseSettings": "Réglages de la base de données",
     "databaseSettingsDesc": "Choisissez SQLite (par défaut) pour un usage homelab simple ou PostgreSQL pour des déploiements multi-utilisateurs. Les migrations s’appliquent automatiquement au démarrage.",
     "multiNotifications": "Notifications multicanales",
     "multiNotificationsDesc": "Recevez des rappels d’entretien via Discord, Slack, Telegram, ntfy, Gotify, Pushover, Matrix ou par e-mail, selon ce qui convient à votre homelab.",
     "comprehensiveTracking": "Suivi complet",
-    "comprehensiveTrackingDesc": "Consommation de carburant, utilisation de DEF, historique de pression des pneus, entretien planifié, photos, documents et télémétrie OBD-II en direct — tout est couvert.",
+    "comprehensiveTrackingDesc": "Consommation de carburant, utilisation de DEF, historique de pression des pneus, entretien planifié, photos, documents et télémétrie OBD-II en direct : tout est couvert.",
     "builtWithAI": "Conçu avec l’IA",
-    "builtWithAIDesc": "MyGarage est le résultat d’une collaboration humain-dans-la-boucle entre Jamey et une équipe d’assistants IA. Chaque agent est spécialisé dans une partie différente du flux de travail.",
+    "builtWithAIDesc": "MyGarage est le fruit d’une collaboration entre Jamey et une équipe d’assistants IA, avec un humain dans la boucle. Chaque agent est spécialisé dans une partie différente du flux de travail.",
     "claudeRole": "conception, planification, revue de code et implémentation",
     "operatorRole": "automatisation du navigateur et vérification de l’interface utilisateur",
-    "codexRole": "revue de code et validation en second avis",
-    "poweredByNHTSA": "Fourni par NHTSA",
-    "nhtsaDesc1": "Le décodage VIN, les recherches de rappels et les données de sécurité proviennent tous des API publiques de la National Highway Traffic Safety Administration des États-Unis — gratuites, officielles et faisant autorité.",
+    "codexRole": "revue de code et validation en deuxième lecture",
+    "poweredByNHTSA": "Données fournies par la NHTSA",
+    "nhtsaDesc1": "Le décodage VIN, les recherches de rappels constructeur et les données de sécurité proviennent tous des API publiques de la National Highway Traffic Safety Administration des États-Unis : gratuites, officielles et faisant autorité.",
     "nhtsaDesc2": "Remarque : les données NHTSA sont les plus complètes pour les véhicules vendus aux États-Unis.",
     "learnMore": "En savoir plus",
     "projectWebsite": "Site web du projet",
@@ -326,7 +326,7 @@
   "retry": "Réessayer",
   "saving": "Enregistrement…",
   "select": "Sélectionner",
-  "selectType": "Sélectionner le type",
+  "selectType": "Sélectionner un type",
   "startDate": "Date de début",
   "status": "Statut",
   "tip": "Astuce",
@@ -361,7 +361,7 @@
     "moveDown": "Descendre",
     "moveUp": "Monter",
     "noMaintenanceScheduled": "Aucun entretien planifié",
-    "noServiceRecords": "Aucun historique d’entretien",
+    "noServiceRecords": "Aucun enregistrement d’entretien",
     "noVehicles": "Aucun véhicule",
     "relinkOpenUntil": "Nouvelle liaison possible jusqu’à {{time}}",
     "resetPassword": "Réinitialiser le mot de passe",
@@ -402,7 +402,7 @@
     "linking": "Association en cours…",
     "forgotPassword": "Mot de passe oublié ?",
     "returnToLogin": "Retour à la connexion",
-    "missingToken": "Le jeton de liaison est manquant. Veuillez redémarrer le processus de connexion.",
+    "missingToken": "Le jeton de liaison est manquant. Veuillez recommencer la connexion.",
     "passwordRequired": "Le mot de passe est requis",
     "linkAction": "de lier le compte"
   },
@@ -443,9 +443,9 @@
     "placeholder": "Saisissez pour rechercher…",
     "clear": "Effacer la station",
     "helperText": "Saisissez au moins 2 caractères pour rechercher dans le carnet d’adresses",
-    "noMatches": "Aucun contact trouvé correspondant à \"{{query}}\"",
-    "noMatchesInCategory": "Aucun contact trouvé correspondant à \"{{query}}\" dans la catégorie {{category}}",
-    "addToAddressBook": "Ajouter \"{{query}}\" au carnet d’adresses",
+    "noMatches": "Aucun contact trouvé correspondant à « {{query}} »",
+    "noMatchesInCategory": "Aucun contact trouvé correspondant à « {{query}} » dans la catégorie {{category}}",
+    "addToAddressBook": "Ajouter « {{query}} » au carnet d’adresses",
     "searching": "Recherche…",
     "searchFailed": "Impossible de rechercher dans le carnet d’adresses. Continuez à saisir pour réessayer."
   },
@@ -466,7 +466,7 @@
     "categoryPlaceholder": "Fluides"
   },
   "errorBoundary": {
-    "title": "Quelque chose s’est mal passé",
+    "title": "Une erreur s’est produite",
     "description": "Une erreur inattendue s’est produite. Veuillez essayer d’actualiser la page ou contacter le support si le problème persiste.",
     "tryAgain": "Réessayer",
     "goToDashboard": "Aller au tableau de bord"
@@ -502,7 +502,7 @@
       "maxLength": "L’e-mail doit contenir moins de 255 caractères"
     },
     "serviceVisit": {
-      "insuranceClaimNumberTooLong": "Numéro de réclamation d’assurance trop long (max. 50 caractères)",
+      "insuranceClaimNumberTooLong": "Numéro de sinistre trop long (max. 50 caractères)",
       "invoiceNumberTooLong": "Numéro de facture trop long (max. 50 caractères)",
       "poNumberTooLong": "Numéro de bon de commande trop long (max. 50 caractères)",
       "workOrderNumberTooLong": "Numéro d’ordre de réparation trop long (max. 50 caractères)"
@@ -521,17 +521,17 @@
       "systemNameRequired": "Saisissez le nom du système de péage",
       "systemNameTooLong": "Nom du système de péage trop long (max. 50 caractères)",
       "systemRequired": "Le système de péage est requis",
-      "tagNumberRequired": "Le numéro d’étiquette est requis",
-      "tagNumberTooLong": "Numéro d’étiquette trop long (max. 50 caractères)"
+      "tagNumberRequired": "Le numéro de badge est requis",
+      "tagNumberTooLong": "Numéro de badge trop long (max. 50 caractères)"
     },
     "financing": {
       "categoryRequired": "La catégorie est requise"
     },
     "odometer": {
-      "negative": "Le compteur kilométrique ne peut pas être négatif",
-      "tooLarge": "Valeur du compteur kilométrique trop grande",
+      "negative": "Le relevé de compteur ne peut pas être négatif",
+      "tooLarge": "Valeur du compteur trop élevée",
       "invalid": "Saisissez un nombre valide",
-      "required": "Le compteur kilométrique est requis"
+      "required": "Le relevé de compteur est requis"
     },
     "engineHours": {
       "negative": "Les heures moteur ne peuvent pas être négatives",
@@ -557,8 +557,8 @@
       "invalid": "Saisissez un nombre valide"
     },
     "kwh": {
-      "negative": "Le kWh ne peut pas être négatif",
-      "tooLarge": "kWh trop élevé",
+      "negative": "La valeur en kWh ne peut pas être négative",
+      "tooLarge": "Valeur en kWh trop élevée",
       "invalid": "Saisissez un nombre valide"
     },
     "date": {
@@ -579,7 +579,7 @@
       "tooLong": "Description trop longue (max. 500 caractères)"
     },
     "notes": {
-      "tooLong": "Notes trop longues (max. 1000 caractères)"
+      "tooLong": "Notes trop longues (max. 1 000 caractères)"
     },
     "vendorName": {
       "tooLong": "Nom du fournisseur trop long (max. 100 caractères)"
@@ -598,7 +598,7 @@
     },
     "def": {
       "fillLevelNegative": "Le niveau de remplissage ne peut pas être négatif",
-      "fillLevelTooLarge": "Le niveau de remplissage ne peut pas dépasser 100 %",
+      "fillLevelTooLarge": "Le niveau de remplissage ne peut pas dépasser 100 %",
       "fillLevelInvalid": "Saisissez un nombre valide"
     },
     "tankPair": {
@@ -634,7 +634,7 @@
       "co2Invalid": "Saisissez un nombre valide",
       "powerKwNotWhole": "La puissance doit être un nombre entier",
       "powerKwNegative": "La puissance ne peut pas être négative",
-      "powerKwTooLarge": "La puissance ne peut pas dépasser 2000 kW",
+      "powerKwTooLarge": "La puissance ne peut pas dépasser 2 000 kW",
       "powerKwInvalid": "Saisissez un nombre valide"
     },
     "recall": {
@@ -662,7 +662,7 @@
       "nameRequired": "Le nom est requis"
     },
     "document": {
-      "titleRequired": "Le titre est requis"
+      "titleRequired": "Le titre est obligatoire"
     }
   },
   "httpError": {

@@ -99,6 +99,28 @@ describe('translation gate: placeholders', () => {
   })
 })
 
+describe('translation gate: wrong script', () => {
+  const pl = { ...full, days_one: '{{count}} dzień', days_few: '{{count}} dni', days_many: '{{count}} dni', days_other: '{{count}} dni' }
+
+  it('fails Cyrillic in a Latin-script language', () => {
+    expect(keysOf('pl', { ...pl, title: '{{count}} запис(-ів)' }, 'script')).toEqual(['title'])
+    expect(keysOf('de', { ...full, title: 'Meine Garaжe', days_one: 'x', days_other: 'x' }, 'script')).toEqual(['title'])
+  })
+
+  it('fails Russian-only letters in uk and Ukrainian-only letters in ru', () => {
+    const uk = { ...full, title: 'Мой гараж ы', days_one: 'x', days_few: 'x', days_many: 'x', days_other: 'x' }
+    const ru = { ...full, title: 'Мій гараж ї', days_one: 'x', days_few: 'x', days_many: 'x', days_other: 'x' }
+    expect(keysOf('uk', uk, 'script')).toEqual(['title'])
+    expect(keysOf('ru', ru, 'script')).toEqual(['title'])
+  })
+
+  it('passes clean text in each script', () => {
+    expect(keysOf('pl', { ...pl, title: 'Mój garaż' }, 'script')).toEqual([])
+    expect(keysOf('uk', { ...full, title: 'Мій гараж', days_one: 'x', days_few: 'x', days_many: 'x', days_other: 'x' }, 'script')).toEqual([])
+    expect(keysOf('ru', { ...full, title: 'Мой гараж', days_one: 'x', days_few: 'x', days_many: 'x', days_other: 'x' }, 'script')).toEqual([])
+  })
+})
+
 describe('translation gate: protected spans', () => {
   const CMD = 'Run python tools/fix.py --device-id {{id}} --apply, then set MYGARAGE_SECRET_KEY. Use smtp.example.com:587 or https://ntfy.sh, or send /fuel. Costs {{v}}/day.'
 

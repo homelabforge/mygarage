@@ -6,7 +6,7 @@
     "help": "Bantuan",
     "loading": "Memuatkan analitik garaj...",
     "loadingAria": "Memuatkan analitik",
-    "offlineCached": "Luar talian: memaparkan snapshot analitik yang dicache.",
+    "offlineCached": "Luar talian: memaparkan syot kilat analitik dalam cache.",
     "exportPdfFailed": "Gagal mengeksport PDF. Sila cuba lagi.",
     "empty": {
       "title": "Belum Ada Kenderaan",
@@ -64,13 +64,13 @@
       "financingLabel": "Pembiayaan:",
       "financingDesc": "Jumlah bayaran pajakan, bayaran pinjaman dan yuran pembiayaan awal (dipaparkan apabila mana-mana kenderaan mempunyai rekod pembiayaan).",
       "insuranceLabel": "Insurans:",
-      "insuranceDesc": "Jumlah gabungan kos insurans untuk semua kenderaan.",
+      "insuranceDesc": "Jumlah gabungan kos insurans untuk semua kenderaan (dipaparkan apabila mana-mana kenderaan mempunyai kos insurans).",
       "taxesLabel": "Cukai:",
-      "taxesDesc": "Jumlah perbelanjaan pendaftaran dan cukai."
+      "taxesDesc": "Jumlah perbelanjaan pendaftaran dan cukai (dipaparkan apabila mana-mana kenderaan mempunyai kos cukai atau pendaftaran)."
     },
     "categoryBreakdown": {
       "title": "Pecahan Kos mengikut Kategori",
-      "body": "Carta donat menunjukkan bagaimana perbelanjaan garaj diagihkan mengikut kategori, dengan jumlah keseluruhan di tengah. Senarai di sebelah memecahkan setiap kategori — bahagiannya daripada jumlah keseluruhan, bar berkadar dan amaun — disusun daripada terbesar supaya anda dapat melihat dengan pantas ke mana wang dibelanjakan."
+      "body": "Carta donat menunjukkan bagaimana perbelanjaan garaj diagihkan mengikut kategori, dengan jumlah keseluruhan di tengah. Senarai di sebelah memecahkan setiap kategori (bahagiannya daripada jumlah keseluruhan, bar berkadar dan amaun), disusun daripada terbesar supaya anda dapat melihat dengan pantas ke mana wang dibelanjakan."
     },
     "costByVehicle": {
       "title": "Kos mengikut Kenderaan",
@@ -100,7 +100,7 @@
       "categoryColumnsLabel": "Lajur kategori:",
       "categoryColumnsDesc": "Perbelanjaan setiap kenderaan dipecahkan kepada Penyelenggaraan, Naik Taraf, Pemeriksaan, Kemalangan, Detailing, Bahan Api, DEF dan Pembiayaan.",
       "totalCostLabel": "Jumlah:",
-      "totalCostDesc": "Gabungan kos operasi — servis, bahan api dan DEF. Ini tidak termasuk harga pembelian kenderaan. Pembiayaan dan insurans dipaparkan secara berasingan kerana ia bukan kos operasi untuk memandu kenderaan.",
+      "totalCostDesc": "Gabungan kos operasi: servis, bahan api dan DEF. Ini tidak termasuk harga pembelian kenderaan. Pembiayaan dan insurans dipaparkan secara berasingan kerana ia bukan kos operasi untuk memandu kenderaan.",
       "sortIntro": "Jadual disusun mengikut jumlah kos operasi, tertinggi dahulu. Gunakannya untuk mengenal pasti:",
       "item1": "Kenderaan paling mahal/paling murah untuk dikendalikan",
       "item2": "Kenderaan dengan kos penyelenggaraan yang tidak seimbang",
@@ -165,7 +165,7 @@
     "loadingAria": "Memuatkan analitik",
     "notFound": "Analitik tidak ditemui",
     "notAvailable": "T/A",
-    "offlineCached": "Luar talian: memaparkan snapshot analitik yang dicache.",
+    "offlineCached": "Luar talian: memaparkan syot kilat analitik dalam cache.",
     "fillAllDates": "Sila isi semua medan tarikh",
     "comparisonFailed": "Gagal mendapatkan data perbandingan",
     "costProjection": "Unjuran Kos",
@@ -222,7 +222,7 @@
     "overdue": "Lewat",
     "dueToday": "Perlu dibuat hari ini",
     "daysCount": "{{count}} hari",
-    "pastMileage": "Melepasi jarak tempuh",
+    "pastMileage": "Melepasi perbatuan",
     "costByServiceType": "Kos mengikut Jenis Servis",
     "other": "Lain-lain",
     "total": "Jumlah",
@@ -241,14 +241,14 @@
     "average": "Purata",
     "best": "Terbaik",
     "worst": "Terburuk",
-    "latestFillUp": "Isian Terakhir",
+    "latestFillUp": "Pengisian Terakhir",
     "fuelEconomyTrendTitle": "Trend Kecekapan Bahan Api dari Masa ke Masa",
     "fuelEconomyUnitLabel": "Kecekapan Bahan Api ({{unit}})",
     "table": {
       "date": "Tarikh",
       "fuelEconomy": "Kecekapan Bahan Api",
-      "mileage": "Jarak Tempuh ({{unit}})",
-      "volume": "Isipadu ({{unit}})",
+      "mileage": "Perbatuan ({{unit}})",
+      "volume": "Isi Padu ({{unit}})",
       "cost": "Kos"
     },
     "hoursEconomyAnalysis": "Analisis Kecekapan Jam Enjin",
@@ -268,7 +268,7 @@
     "avgPricePerUnit": "Purata Harga/{{unit}}",
     "monthlyPropaneCosts": "Kos Propana Bulanan",
     "spotRentalAnalysis": "Analisis Sewaan Tapak",
-    "billingPeriods": "Tempoh Pengebilan",
+    "billingPeriods": "Tempoh Bil",
     "monthlyAverage": "Purata Bulanan",
     "monthlySpotRentalCosts": "Kos Sewaan Tapak Bulanan",
     "monthlyRate": "Kadar Bulanan",
@@ -280,11 +280,11 @@
     "serviceHistorySummary": "Ringkasan Sejarah Servis",
     "daysSinceLast": "{{count}} hari sejak {{type}} terakhir",
     "distanceSinceLast": "{{distance}} sejak kali terakhir",
-    "vendorAnalysis": "Analisis Vendor",
-    "totalVendors": "Jumlah Vendor",
+    "vendorAnalysis": "Analisis Pembekal",
+    "totalVendors": "Jumlah Pembekal",
     "mostUsed": "Paling Kerap Digunakan",
     "highestSpending": "Perbelanjaan Tertinggi",
-    "spendingByVendor": "Perbelanjaan mengikut Vendor",
+    "spendingByVendor": "Perbelanjaan mengikut Pembekal",
     "totalSpentAxis": "Jumlah Dibelanjakan ({{currency}})",
     "tooltipTotal": "Jumlah: {{value}}",
     "tooltipServices": "Servis: {{count}}",
@@ -321,8 +321,8 @@
     "costChangesByCategory": "Perubahan Kos mengikut Kategori",
     "period1Value": "Tempoh 1: {{value}}",
     "period2Value": "Tempoh 2: {{value}}",
-    "anomalyAbove": "Belanja {{spent}} — {{deviation}}% melebihi purata anda sebanyak {{avg}}.",
-    "anomalyBelow": "Belanja {{spent}} — {{deviation}}% di bawah purata anda sebanyak {{avg}}.",
+    "anomalyAbove": "Belanja {{spent}}, {{deviation}}% melebihi purata anda sebanyak {{avg}}.",
+    "anomalyBelow": "Belanja {{spent}}, {{deviation}}% di bawah purata anda sebanyak {{avg}}.",
     "severity": {
       "critical": "Kritikal",
       "info": "Maklumat",
@@ -334,11 +334,11 @@
         "title": "Kecekapan bahan api menurun"
       },
       "trend_declining": {
-        "body": "Isian bahan api terkini menunjukkan kecekapan bahan api semakin merosot. Pertimbangkan untuk memeriksa tekanan tayar atau penapis udara.",
+        "body": "Pengisian bahan api terkini menunjukkan kecekapan bahan api semakin merosot. Pertimbangkan untuk memeriksa tekanan tayar atau penapis udara.",
         "title": "Trend kecekapan menurun"
       },
       "insufficient_data": {
-        "body": "Rekodkan sekurang-kurangnya tiga isian tangki penuh untuk membuka cerapan kecekapan bahan api yang terperinci.",
+        "body": "Rekodkan sekurang-kurangnya tiga pengisian tangki penuh untuk membuka cerapan kecekapan bahan api yang terperinci.",
         "title": "Data bahan api tidak mencukupi"
       }
     },
@@ -355,24 +355,24 @@
       "actionSecondReading": "Rekodkan bacaan bunga tayar kedua pada {{count}} tayar. Satu bacaan hanyalah satu titik, bukan trend.",
       "actionReadingOdometer": "Tambahkan bacaan odometer pada rekod bunga tayar untuk {{count}} tayar. Kehausan diukur berdasarkan jarak.",
       "actionReadingHours": "Tambahkan bacaan meter jam pada rekod bunga tayar untuk {{count}} tayar. Kehausan diukur berdasarkan jam.",
-      "actionMinimumTread": "Tetapkan bunga minimum pada {{count}} tayar. Tiada unjuran boleh dibuat tanpanya.",
+      "actionMinimumTread": "Tetapkan bunga tayar minimum pada {{count}} tayar. Tiada unjuran boleh dibuat tanpanya.",
       "actionMountOdometer": "Rekodkan odometer semasa pemasangan untuk {{count}} tayar. Jarak pada tayar dijumlahkan sepanjang tempoh tayar itu dipasang.",
       "actionMountHours": "Rekodkan bacaan meter jam semasa pemasangan untuk {{count}} tayar. Jam pada tayar dijumlahkan sepanjang tempoh tayar itu dipasang.",
-      "actionUnderMinimum": "{{count}} tayar berada pada atau di bawah bunga minimum. Gantikan tayar tersebut.",
+      "actionUnderMinimum": "{{count}} tayar berada pada atau di bawah bunga tayar minimum. Gantikan tayar tersebut.",
       "allAnswered": "Semua tayar mempunyai data yang mencukupi untuk menjawab setiap soalan.",
-      "noOdometerRecord": "Kenderaan ini tiada bacaan odometer, jadi jarak bagi tayar yang masih dipasang tidak mempunyai had akhir. Rekodkan bacaan odometer untuk melengkapkan angka ini.",
+      "noOdometerRecord": "Kenderaan ini tiada bacaan odometer, jadi jarak bagi tayar yang masih dipasang tidak mempunyai had atas. Rekodkan bacaan odometer untuk melengkapkan angka ini.",
       "noHoursRecord": "Kenderaan ini tiada bacaan meter jam, jadi jam bagi tayar yang masih dipasang tidak mempunyai had atas. Rekodkan satu bacaan untuk melengkapkan angka ini.",
-      "trendTitle": "Bunga Tayar dari Masa ke Masa",
+      "trendTitle": "Bunga tayar dari masa ke masa",
       "trendEmpty": "Belum ada tayar dengan dua bacaan bunga tayar, jadi tiada data untuk diplot.",
       "trendSeriesDot": "{{label}} (DOT {{dot}})",
       "trendSeriesNumbered": "{{label}} #{{n}}",
       "tableTitle": "Mengikut tayar",
       "colTire": "Tayar",
       "colTread": "Bunga Tayar",
-      "colProjection": "Jangka Hayat Diunjurkan",
-      "colDistance": "Jarak pada Tayar",
+      "colProjection": "Jangka hayat diunjurkan",
+      "colDistance": "Jarak pada tayar",
       "colHours": "Jam pada tayar",
-      "retiredOn": "Ditamatkan penggunaan {{date}}",
+      "retiredOn": "Ditamatkan {{date}}",
       "inStorage": "Dalam simpanan"
     },
     "statsTitle": "Statistik lanjutan",
@@ -427,7 +427,7 @@
       "warningDesc": "Perbelanjaan berada 2 atau lebih sisihan piawai daripada purata.",
       "criticalLabel": "Kritikal:",
       "criticalDesc": "Perbelanjaan 50% atau lebih di atas atau di bawah purata.",
-      "note": "Anomali tidak semestinya sesuatu yang buruk — ia sering mewakili kejadian sekali sahaja seperti pembaikan besar, pendaftaran tahunan atau penyelenggaraan tertangguh. Semak anomali ini untuk memahami corak perbelanjaan yang luar biasa."
+      "note": "Anomali tidak semestinya sesuatu yang buruk - ia sering mewakili kejadian sekali sahaja seperti pembaikan besar, pendaftaran tahunan atau penyelenggaraan tertangguh. Semak anomali ini untuk memahami corak perbelanjaan yang luar biasa."
     },
     "close": "Tutup",
     "costAnalysis": {
@@ -451,7 +451,7 @@
     "fuelEconomy": {
       "title": "Kecekapan Bahan Api",
       "economyCalcLabel": "Pengiraan {{unit}}:",
-      "economyCalcDesc": "Dikira bagi setiap tangki penuh. Isian separa akan dikira bersama tangki penuh seterusnya.",
+      "economyCalcDesc": "Dikira bagi setiap tangki penuh. Pengisian separa akan dikira bersama tangki penuh seterusnya.",
       "averageEconomyLabel": "Purata {{unit}}:",
       "averageEconomyDesc": "Jumlah bahan api berbanding jumlah jarak bagi semua tangki. Tangki dengan nilai di luar julat munasabah tidak diambil kira.",
       "recentEconomyLabel": "{{unit}} Terkini:",
@@ -504,8 +504,8 @@
       "title": "Petua untuk Hasil Terbaik",
       "enterAllRecords": "Masukkan semua rekod servis dan bahan api untuk analitik yang lengkap",
       "includeOdometer": "Sertakan data odometer untuk pengiraan kos per jarak",
-      "markFullTank": "Tandakan isian bahan api sebagai \"tangki penuh\" untuk penjejakan {{unit}} yang tepat",
-      "addVendorNames": "Tambahkan nama vendor untuk mengenal pasti corak perbelanjaan",
+      "markFullTank": "Tandakan pengisian bahan api sebagai \"tangki penuh\" untuk penjejakan {{unit}} yang tepat",
+      "addVendorNames": "Tambahkan nama pembekal untuk mengenal pasti corak perbelanjaan",
       "trackMonths": "Jejaki sekurang-kurangnya 3-6 bulan data untuk trend yang bermakna",
       "reviewAnomalies": "Semak anomali untuk memahami perbelanjaan luar biasa"
     },
@@ -530,8 +530,8 @@
       "stableDesc": "Kos konsisten dari bulan ke bulan dengan variasi minimum."
     },
     "vendorSpending": {
-      "title": "Perbelanjaan mengikut Vendor",
-      "body": "Menunjukkan penyedia servis yang menerima perbelanjaan tertinggi daripada anda. Gunakannya untuk mengenal pasti vendor utama dan membandingkan kos antara bengkel bagi servis yang serupa."
+      "title": "Perbelanjaan mengikut Pembekal",
+      "body": "Menunjukkan penyedia servis yang menerima perbelanjaan tertinggi daripada anda. Gunakannya untuk mengenal pasti pembekal utama dan membandingkan kos antara bengkel bagi servis yang serupa."
     }
   },
   "reports": {
@@ -548,7 +548,7 @@
     "taxDeductionTitle": "Laporan Potongan Cukai",
     "taxDeductionDesc": "Perbelanjaan yang mungkin boleh ditolak cukai (rujuk profesional cukai)",
     "saleHistoryTitle": "Sejarah jualan (disanitasi)",
-    "saleHistoryDesc": "Sejarah servis yang selamat untuk pembeli tanpa kos, vendor atau nombor plat",
+    "saleHistoryDesc": "Sejarah servis yang selamat untuk pembeli tanpa kos, pembekal atau nombor plat",
     "serviceHistoryCsvTitle": "Sejarah Servis (CSV)",
     "serviceHistoryCsvDesc": "Eksport rekod servis ke hamparan",
     "allRecordsCsvTitle": "Semua Rekod (CSV)",
@@ -571,6 +571,6 @@
     "high": "Tinggi",
     "medium": "Sederhana",
     "low": "Rendah",
-    "unknown": "Tidak Diketahui"
+    "unknown": "Tidak diketahui"
   }
 }
