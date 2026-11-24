@@ -177,8 +177,12 @@ async def _dtc_vehicle(
     db_session: AsyncSession,
     test_user: dict[str, object],
     rows: list[tuple[str, bool, datetime, datetime | None]],
+    last_seen: dict[str, datetime] | None = None,
 ) -> str:
-    """A vehicle of the test user's with these DTC rows: (code, active, seen, cleared)."""
+    """A vehicle of the test user's with these DTC rows: (code, active, seen, cleared).
+
+    `last_seen` moves a code's last sighting off its first one, by code.
+    """
     vin = "DTC" + uuid.uuid4().hex[:14].upper()
     db_session.add(
         Vehicle(
@@ -200,7 +204,7 @@ async def _dtc_vehicle(
                 code=code,
                 severity="warning",
                 first_seen=seen,
-                last_seen=seen,
+                last_seen=(last_seen or {}).get(code, seen),
                 is_active=active,
                 cleared_at=cleared,
             )
@@ -285,16 +289,21 @@ class TestVehicleDTCs:
         db_session: AsyncSession,
         test_user: dict[str, object],
     ):
-        """The default (active) view stops at limit too, newest first seen first."""
+        """The default (active) view stops at limit too, newest last seen first.
+
+        P0300 showed up first but is still being seen, so it leads; first-seen
+        order would have dropped it.
+        """
         now = utc_now()
         vin = await _dtc_vehicle(
             db_session,
             test_user,
             [
                 ("P0300", True, now - timedelta(minutes=10), None),
-                ("P0171", True, now, None),
+                ("P0171", True, now - timedelta(minutes=1), None),
                 ("P0128", True, now - timedelta(minutes=5), None),
             ],
+            last_seen={"P0300": now},
         )
 
         r = await client.get(
@@ -302,9 +311,33 @@ class TestVehicleDTCs:
         )
         assert r.status_code == 200, r.text
         body = r.json()
-        assert [d["code"] for d in body["dtcs"]] == ["P0171", "P0128"]
+        assert [d["code"] for d in body["dtcs"]] == ["P0300", "P0171"]
         # The counts still cover every active code.
         assert body["active_count"] == 3
+
+    async def test_same_last_seen_breaks_ties_by_newest_row(
+        self,
+        client: AsyncClient,
+        auth_headers,
+        db_session: AsyncSession,
+        test_user: dict[str, object],
+    ):
+        """Two codes seen at the same instant come back newest row first, in both views."""
+        now = utc_now()
+        vin = await _dtc_vehicle(
+            db_session,
+            test_user,
+            [("P0101", True, now, None), ("P0202", True, now, None)],
+        )
+        url = f"/api/vehicles/{vin}/livelink/dtcs"
+
+        active = await client.get(url, headers=auth_headers)
+        assert active.status_code == 200, active.text
+        assert [d["code"] for d in active.json()["dtcs"]] == ["P0202", "P0101"]
+
+        history = await client.get(url, params={"include_cleared": "true"}, headers=auth_headers)
+        assert history.status_code == 200, history.text
+        assert [d["code"] for d in history.json()["dtcs"]] == ["P0202", "P0101"]
 
 
 @pytest.mark.integration
