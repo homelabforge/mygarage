@@ -1,7 +1,7 @@
-import { type ReactElement } from 'react'
+import { useEffect, type ReactElement } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, render, screen } from '@testing-library/react'
-import { MemoryRouter, useNavigate, type NavigateFunction } from 'react-router-dom'
+import { MemoryRouter, Route, Routes, useNavigate, useParams, type NavigateFunction } from 'react-router-dom'
 import { ConfirmProvider, useConfirm, type ConfirmOptions } from '../ConfirmDialog'
 import { answerConfirm, withConfirm } from '../../../__tests__/confirmHelpers'
 
@@ -88,11 +88,19 @@ describe('ConfirmDialog', () => {
       </ConfirmProvider>,
       { container: root },
     )
+    // The link would take focus if Cancel weren't asked for by name.
     act(() => {
-      void confirm({ ...DELETE, detail: "This can't be undone." })
+      void confirm({
+        ...DELETE,
+        detail: (
+          <>
+            This can't be undone. <a href="#">Details</a>
+          </>
+        ),
+      })
     })
     const dialog = screen.getByRole('alertdialog', { name: 'Delete this fuel record?' })
-    expect(dialog).toHaveAccessibleDescription("This can't be undone.")
+    expect(dialog).toHaveAccessibleDescription("This can't be undone. Details")
     expect(root.contains(dialog)).toBe(false)
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Cancel' }))
     // Danger is the default tone.
@@ -243,6 +251,43 @@ describe('ConfirmDialog', () => {
     expect(outcome).toEqual({ settled: true, value: false })
   })
 
+  it('a page that asks on every route opens its new confirm after the reset', async () => {
+    let navigate: NavigateFunction = () => {}
+    const outcomes: Record<string, Outcome> = {}
+    // Same element for both vins, so it stays mounted and its effect re-runs.
+    function VehiclePage(): null {
+      const { vin = '' } = useParams()
+      const confirm = useConfirm()
+      useEffect(() => {
+        outcomes[vin] = track(confirm({ message: `Leave ${vin}?`, confirmLabel: 'Leave' }))
+      }, [vin, confirm])
+      return null
+    }
+    function Nav({ onReady }: { onReady: (go: NavigateFunction) => void }): null {
+      onReady(useNavigate())
+      return null
+    }
+    render(
+      <MemoryRouter initialEntries={['/vehicles/A']}>
+        <ConfirmProvider>
+          <Nav onReady={(go) => (navigate = go)} />
+          <Routes>
+            <Route path="/vehicles/:vin" element={<VehiclePage />} />
+          </Routes>
+        </ConfirmProvider>
+      </MemoryRouter>,
+      { container: root },
+    )
+    expect(screen.getByRole('alertdialog', { name: 'Leave A?' })).toBeInTheDocument()
+    await act(async () => {
+      await navigate('/vehicles/B')
+    })
+    await flush()
+    expect(outcomes.A).toEqual({ settled: true, value: false })
+    expect(screen.getByRole('alertdialog', { name: 'Leave B?' })).toBeInTheDocument()
+    expect(outcomes.B.settled).toBe(false)
+  })
+
   it("a dead owner's confirm never opens", async () => {
     let release: () => void = () => {}
     const gate = new Promise<void>((resolve) => {
@@ -361,6 +406,32 @@ describe('confirmHelpers', () => {
     render(<Asker onAnswer={() => {}} />, { container: root, wrapper: withConfirm })
     fireEvent.click(screen.getByRole('button', { name: 'Delete record' }))
     await expect(answerConfirm('confirm', 'Remove this vehicle?')).rejects.toThrow()
+  })
+
+  it('answerConfirm rejects when the confirm has more than one other button', async () => {
+    function ExtraButton(): ReactElement {
+      const confirm = useConfirm()
+      const ask = (): void => {
+        void confirm({ ...DELETE, detail: <button>Undo</button> })
+      }
+      return <button onClick={ask}>Delete record</button>
+    }
+    render(<ExtraButton />, { container: root, wrapper: withConfirm })
+    fireEvent.click(screen.getByRole('button', { name: 'Delete record' }))
+    await expect(answerConfirm('confirm')).rejects.toThrow('no single confirm button')
+  })
+
+  it('answerConfirm rejects when the confirm has more than one Cancel', async () => {
+    function ExtraCancel(): ReactElement {
+      const confirm = useConfirm()
+      const ask = (): void => {
+        void confirm({ ...DELETE, detail: <button data-dialog-cancel>Never mind</button> })
+      }
+      return <button onClick={ask}>Delete record</button>
+    }
+    render(<ExtraCancel />, { container: root, wrapper: withConfirm })
+    fireEvent.click(screen.getByRole('button', { name: 'Delete record' }))
+    await expect(answerConfirm('cancel')).rejects.toThrow('no single Cancel')
   })
 
   it('answerConfirm rejects when no confirm is open', async () => {

@@ -3018,8 +3018,8 @@
     {
       "path": "src/components/ui/ConfirmDialog.tsx",
       "disposition": "no unit behaviour",
-      "digest": "dcf6cb2fd1e3da43e77d1f0aac672fe61eae81e39507527a46ec3b741dbb434b",
-      "reason": "2026-11-24 (ui-primitives): new. Read in full: ConfirmProvider and the promise-returning useConfirm hook. Renders one alertdialog on the Dialog primitive (message, optional detail, Cancel plus a danger or primary confirm button), resolves true on confirm and false on cancel, Esc, backdrop, a newer confirm, the caller unmounting or a route change, and refuses to open for an unmounted caller. Prompt plumbing and button labels the caller passes in; it reads, formats and converts no quantity and names no unit. Exercised in ui/__tests__/ConfirmDialog.test.tsx."
+      "digest": "e3b20d4a8d3cb642ec0f0ca6cd4405425995059d088aa1a72d12845d2c82e91a",
+      "reason": "2026-11-24 (ui-primitives): new. Read in full: ConfirmProvider and the promise-returning useConfirm hook. Renders one alertdialog on the Dialog primitive (message, optional detail, Cancel plus a danger or primary confirm button), resolves true on confirm and false on cancel, Esc, backdrop, a newer confirm, the caller unmounting or a route change, and refuses to open for an unmounted caller. Prompt plumbing and button labels the caller passes in; it reads, formats and converts no quantity and names no unit. Exercised in ui/__tests__/ConfirmDialog.test.tsx. 2026-11-24 (ui-primitives, task 2 review fix): message and detail render in divs, and the route reset renders before children so its effect runs first. Markup and effect order only; no unit behaviour moved."
     },
     {
       "path": "src/components/ui/DataTable.tsx",

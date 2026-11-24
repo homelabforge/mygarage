@@ -99,17 +99,19 @@ export function ConfirmProvider({ children }: { children: ReactNode }): ReactEle
     [settle],
   )
 
-  // No unmount cleanup here: every pending request belongs to a mounted
-  // caller inside this provider, and that caller's own cleanup settles it.
   const cancelAll = useCallback((): void => settle(false), [settle])
 
+  // The provider has no unmount useEffect of its own: every pending request
+  // belongs to a mounted caller in here, and that caller's cleanup settles it.
   const api = useMemo(() => ({ request, cancelOwner }), [request, cancelOwner])
   const options = pending?.options
 
   return (
     <ConfirmContext.Provider value={api}>
-      {children}
+      {/* Before children, so its effect runs first in a commit and a page
+          that asks again for the new route doesn't get cancelled on arrival. */}
       {inRouter ? <ConfirmRouteReset onChange={cancelAll} /> : null}
+      {children}
       {/* Keyed per request, so a confirm that replaces another refocuses Cancel. */}
       <Dialog
         key={pending?.id ?? 0}
@@ -131,13 +133,14 @@ export function ConfirmProvider({ children }: { children: ReactNode }): ReactEle
           </>
         }
       >
-        <p id={messageId} className="text-sm font-semibold text-text">
+        {/* divs, not p: message and detail are ReactNodes and may be blocks. */}
+        <div id={messageId} className="text-sm font-semibold text-text">
           {options?.message}
-        </p>
+        </div>
         {options?.detail ? (
-          <p id={detailId} className="mt-2 text-sm text-text-mid">
+          <div id={detailId} className="mt-2 text-sm text-text-mid">
             {options.detail}
-          </p>
+          </div>
         ) : null}
       </Dialog>
     </ConfirmContext.Provider>
