@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - The top navigation folds into the menu button when its links don't fit, instead of scrolling the page sideways.
+- The red Admin badge is hidden from 900px up, so English top links fit for admins on a 1280px screen.
 - The empty reminder list reads "No completed reminders" instead of "No done reminders", and translates in every language.
 - A Polish record count showed in Ukrainian.
 

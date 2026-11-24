@@ -40,6 +40,16 @@ async function resetLanguage(request: APIRequestContext): Promise<void> {
   expect(reset.ok(), `Language reset failed: ${reset.status()}`).toBeTruthy()
 }
 
+/**
+ * Polish never fits the top bar, so its links fold behind the menu button.
+ * Checks that it did fold, then opens it so the links can be read.
+ */
+async function openFoldedNav(page: Page): Promise<void> {
+  const burger = page.locator('[data-nav="hamburger"]')
+  await expect(burger).toBeVisible({ timeout: 10000 })
+  await burger.click()
+}
+
 test.describe('Internationalization', () => {
   // Reset language to English via API after each test to prevent DB contamination
   test.afterEach(async ({ request }) => {
@@ -57,6 +67,7 @@ test.describe('Internationalization', () => {
     await page.keyboard.press('Escape')
 
     // Nav labels should change to Polish
+    await openFoldedNav(page)
     await expect(page.getByRole('link', { name: 'Panel sterowania' })).toBeVisible({ timeout: 10000 })
     await expect(page.getByRole('link', { name: 'Analityka' })).toBeVisible()
     await expect(page.getByRole('link', { name: 'Kalendarz' })).toBeVisible()
@@ -85,11 +96,13 @@ test.describe('Internationalization', () => {
     const languageSelect = drawer.locator('select').filter({ has: page.locator('option[value="pl"]') })
     await languageSelect.selectOption('pl')
     await page.keyboard.press('Escape')
+    await openFoldedNav(page)
     await expect(page.getByRole('link', { name: 'Panel sterowania' })).toBeVisible({ timeout: 10000 })
 
     await page.reload()
 
     // Polish persists: it was saved to the account. The afterEach resets it.
+    await openFoldedNav(page)
     await expect(page.getByRole('link', { name: 'Panel sterowania' })).toBeVisible({ timeout: 15000 })
   })
 
@@ -99,8 +112,10 @@ test.describe('Internationalization', () => {
     // Default should be en
     await expect(page.locator('html')).toHaveAttribute('lang', 'en')
 
-    // Switch to Polish (the select stays reachable: it is inside the drawer)
-    const languageSelect = drawer.locator('select').filter({ has: page.locator('option[value="pl"]') })
+    // Switch to Polish. Found by its options, not through the drawer: the
+    // drawer's own name turns Polish too ("Szybkie ustawienia").
+    await expect(drawer).toBeVisible()
+    const languageSelect = page.locator('select').filter({ has: page.locator('option[value="pl"]') })
     await languageSelect.selectOption('pl')
     await expect(page.locator('html')).toHaveAttribute('lang', 'pl', { timeout: 5000 })
 

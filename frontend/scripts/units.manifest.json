@@ -2722,8 +2722,8 @@
     {
       "path": "src/components/shell/RightCluster.tsx",
       "disposition": "no unit behaviour",
-      "digest": "b8fcdc100ff2f6227ba01eaad8f803ed373f220c754a73b848f8b530523d824d",
-      "reason": "no unit behaviour: dispositioned under the CORRECTED scan: every unit stem, token, quantity name and canonical field suffix this codebase uses, matched case-insensitively with NO word boundary. The earlier word-boundary version was a floor (it called AnalyticsHelpModal.tsx clean while it renders \"Average MPG:\" to every user) and it was superseded before any disposition in this file was written. This file matched NONE of them."
+      "digest": "5d865f1976af10793670fb2df188ca247b2804257dcef035f1ea2ca44d5a6f65",
+      "reason": "no unit behaviour: dispositioned under the CORRECTED scan: every unit stem, token, quantity name and canonical field suffix this codebase uses, matched case-insensitively with NO word boundary. The earlier word-boundary version was a floor (it called AnalyticsHelpModal.tsx clean while it renders \"Average MPG:\" to every user) and it was superseded before any disposition in this file was written. This file matched NONE of them. 2026-11-23 fix wave: admin badge hidden from 900 up (it kept English top links from fitting at 1280); no units."
     },
     {
       "path": "src/components/shell/TopNav.tsx",

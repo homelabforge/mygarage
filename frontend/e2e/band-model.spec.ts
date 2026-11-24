@@ -87,13 +87,6 @@ async function readDisplay(page: Page, key: Affordance): Promise<string> {
   })
 }
 
-// The e2e admin's avatar, badge and logout take about 140px of the bar, which
-// leaves English only ~7px to spare at 1320. These tests are about which nav
-// shows, not about the account block, so take it out of the measurement.
-async function hideAccountBlock(page: Page): Promise<void> {
-  await page.addStyleTag({ content: '[data-nav-cluster] [class~="border-l"] { display: none !important; }' })
-}
-
 const isShown = (display: string): boolean => display !== 'none' && display !== 'hidden'
 
 /** How far the page scrolls sideways, 0 when it doesn't. */
@@ -109,7 +102,6 @@ test.describe('P2 band model', () => {
     // Width-independent readiness: the shell header exists at every
     // viewport, so this doesn't race the desktop-only inline nav.
     await page.waitForSelector('header')
-    await hideAccountBlock(page)
 
     // Vacuous-pass guard (brief): each selector must resolve to exactly one
     // element BEFORE any band assertion runs, so a renamed/removed
@@ -128,21 +120,21 @@ test.describe('P2 band model', () => {
     for (const row of BAND_TABLE) {
       await page.setViewportSize({ width: row.width, height: 900 })
 
+      // The links fold or come back on a ResizeObserver tick, so let the bar
+      // settle before reading it
+      const shownAt = async (): Promise<Record<Affordance, boolean>> => {
+        const out = {} as Record<Affordance, boolean>
+        for (const key of Object.keys(SELECTORS) as Affordance[]) out[key] = isShown(await readDisplay(page, key))
+        return out
+      }
+      const expected = Object.fromEntries((Object.keys(SELECTORS) as Affordance[]).map((key) => [key, row[key]]))
+      await expect.poll(shownAt, { message: `${row.width}px: which affordances show` }).toEqual(expected)
       const displays: Record<Affordance, string> = {
         inlineNav: await readDisplay(page, 'inlineNav'),
         hamburger: await readDisplay(page, 'hamburger'),
         search: await readDisplay(page, 'search'),
         gear: await readDisplay(page, 'gear'),
         bottomBar: await readDisplay(page, 'bottomBar'),
-      }
-
-      for (const key of Object.keys(SELECTORS) as Affordance[]) {
-        const expectedVisible = row[key]
-        const isVisible = isShown(displays[key])
-        expect(
-          isVisible,
-          `${row.width}px ${key}: expected ${expectedVisible ? 'visible' : 'hidden'}, got display="${displays[key]}"`,
-        ).toBe(expectedVisible)
       }
       expect(await sidewaysScroll(page), `${row.width}px: the page scrolls sideways`).toBe(0)
 
@@ -167,7 +159,6 @@ test.describe('Top links that do not fit', () => {
   test('the links come back when the window grows, and nothing scrolls sideways on the way', async ({ page }) => {
     await page.goto('/')
     await page.waitForSelector('header')
-    await hideAccountBlock(page)
     for (const [width, nav] of [[1320, 'inlineNav'], [1000, 'hamburger'], [1320, 'inlineNav'], [900, 'hamburger']] as const) {
       await page.setViewportSize({ width, height: 900 })
       await expect.poll(() => primaries(page), `${width}px`).toEqual([nav])
@@ -180,14 +171,12 @@ test.describe('Top links that do not fit', () => {
       await page.setViewportSize({ width: 1320, height: 900 })
       await page.goto('/')
       await page.waitForSelector('header')
-      await hideAccountBlock(page)
       await expect.poll(() => primaries(page)).toEqual(['inlineNav'])
       // Polish needs more room than the bar ever has. The account's language
       // wins over localStorage, so set it there (same as page-fit.spec.ts).
       await setLanguage(request, 'pl')
       await page.reload()
       await page.waitForSelector('header')
-      await hideAccountBlock(page)
       await expect(page.locator('html')).toHaveAttribute('lang', 'pl')
       await expect.poll(() => primaries(page)).toEqual(['hamburger'])
       expect(await sidewaysScroll(page)).toBe(0)
