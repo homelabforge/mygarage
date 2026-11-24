@@ -517,6 +517,63 @@ describe('SupplyHistoryModal: the supply keeps its own unit', () => {
   })
 })
 
+// S-frac: a counted supply takes whole numbers, so 2.5 oil filters never reaches the API.
+describe('SupplyHistoryModal: counted supplies take whole numbers', () => {
+  const countSupply = { ...mockSupply, unit_type: 'count', volume_unit: null } as Supply
+
+  it('refuses a fractional quantity for a count supply', async () => {
+    const user = userEvent.setup()
+    render(<SupplyHistoryModal supply={countSupply} onClose={vi.fn()} initialForm="purchase" />)
+
+    await user.type(screen.getByLabelText(/supplies\.history\.quantity/), '2.5')
+    await user.click(screen.getByRole('button', { name: 'save' }))
+
+    await waitFor(() => {
+      expect(screen.getByText('supplies.history.quantityWholeNumber')).toBeInTheDocument()
+    })
+    expect(addPurchaseMock).not.toHaveBeenCalled()
+  })
+
+  it('refuses a fractional adjustment for a count supply', async () => {
+    const user = userEvent.setup()
+    render(<SupplyHistoryModal supply={countSupply} onClose={vi.fn()} initialForm="adjustment" />)
+
+    await user.type(screen.getByLabelText(/supplies\.history\.quantity/), '1.5')
+    await user.click(screen.getByRole('button', { name: 'save' }))
+
+    await waitFor(() => {
+      expect(screen.getByText('supplies.history.quantityWholeNumber')).toBeInTheDocument()
+    })
+    expect(addAdjustmentMock).not.toHaveBeenCalled()
+  })
+
+  it('a whole count goes through', async () => {
+    const user = userEvent.setup()
+    render(<SupplyHistoryModal supply={countSupply} onClose={vi.fn()} initialForm="purchase" />)
+
+    await user.type(screen.getByLabelText(/supplies\.history\.quantity/), '3')
+    await user.click(screen.getByRole('button', { name: 'save' }))
+
+    await waitFor(() => {
+      expect(addPurchaseMock).toHaveBeenCalledTimes(1)
+    })
+    expect(addPurchaseMock.mock.calls[0][0].quantity).toBe(3)
+  })
+
+  it('keeps fractions for a volume supply', async () => {
+    const user = userEvent.setup()
+    render(<SupplyHistoryModal supply={mockSupply} onClose={vi.fn()} initialForm="purchase" />)
+
+    await user.type(screen.getByLabelText(/supplies\.history\.quantity/), '2.5')
+    await user.click(screen.getByRole('button', { name: 'save' }))
+
+    await waitFor(() => {
+      expect(addPurchaseMock).toHaveBeenCalledTimes(1)
+    })
+    expect(screen.queryByText('supplies.history.quantityWholeNumber')).not.toBeInTheDocument()
+  })
+})
+
 // The two log forms each keep their own banner, so every query is scoped to the
 // form under test.
 const logForm = (heading: string): HTMLFormElement =>

@@ -365,6 +365,18 @@ export function sourceState(raw: string | undefined, enValue: unknown, value: un
 const isSameRecord = (raw: string | undefined): boolean => raw?.split(':')[1] === '='
 
 /**
+ * What --list, the gate and --draft-stale call a translation. Null is a copy
+ * of English nobody recorded: just untranslated, nothing to track. A "="
+ * record that matched old English, on a value that now equals the new English,
+ * reads stale: the English moved under a kept copy.
+ */
+export function recordState(raw: string | undefined, enValue: unknown, value: unknown): SourceState | null {
+  if (value === enValue && raw === undefined) return null
+  const state = sourceState(raw, enValue, value)
+  return state === 'unrecorded' && value === enValue && isSameRecord(raw) ? 'stale' : state
+}
+
+/**
  * An English copy someone kept on purpose (brand, code), against today's
  * English. A machine draft that kept English counts too, it just still shows
  * as a draft.
@@ -557,14 +569,10 @@ export function compareNamespace(
       }
     }
     const raw = records?.[`${ns}:${key}`]
-    // a copy of English nobody recorded is just untranslated; one with a record
-    // (a kept brand, or a machine draft that kept English) is tracked like any
-    // other translation
-    if (records !== undefined && !(value === enValue && raw === undefined)) {
-      let state = sourceState(raw, enValue, value)
-      if (state === 'unrecorded' && value === enValue && isSameRecord(raw)) state = 'stale'
-      if (state !== 'current') issues.push({ lang, namespace: ns, type: state, key })
-    }
+    // a copy of English with a record (a kept brand, or a machine draft that
+    // kept English) is tracked like any other translation
+    const state = records === undefined ? null : recordState(raw, enValue, value)
+    if (state !== null && state !== 'current') issues.push({ lang, namespace: ns, type: state, key })
     if (!isEnglishCopy(value, enValue) || isApprovedSame(raw, enValue, value)) translated++
   }
 

@@ -24,6 +24,13 @@
 #   bin/ci-check --freshness      # api types freshness only
 #   bin/ci-check --no-tripwire    # skip security tripwire
 #   bin/ci-check --rebuild        # force rebuild of backend test image
+#   CI_CHECK_CPUSET=0-11 bin/ci-check   # any of the above, pinned to CPUs 0-11
+#
+# CI_CHECK_CPUSET pins every test step: the script re-runs itself under taskset,
+# so bun, uv and Playwright stay on those CPUs, and each container gets
+# --cpuset-cpus. Image builds run in the docker daemon and aren't pinned. On a 13600K the P-cores are 0-11; unpinned, local suites land
+# on E-cores and run 1.5-2.4x slow. Unset, nothing changes. For the PG stack,
+# stack docker-compose.test.cpuset.yml after docker-compose.test.yml.
 
 set -euo pipefail
 
@@ -76,10 +83,20 @@ for arg in "$@"; do
     --freshness)   do_backend=0; do_frontend=0; do_freshness=1; do_playwright=0; do_docker_build=0 ;;
     --no-tripwire) do_tripwire=0 ;;
     --rebuild)     rebuild=1 ;;
-    -h|--help)     sed -n '2,25p' "$0"; exit 0 ;;
+    -h|--help)     sed -n '2,/^set -euo pipefail/{/^set -euo pipefail/!p}' "$0"; exit 0 ;;
     *) echo "unknown arg: $arg" >&2; exit 2 ;;
   esac
 done
+
+# Once, so the pin covers this script's own children too. Containers aren't
+# children, so container_flags pins those.
+if [[ -n "${CI_CHECK_CPUSET:-}" && -z "${CI_CHECK_PINNED:-}" ]]; then
+  if ! command -v taskset >/dev/null 2>&1; then
+    echo "ERROR: CI_CHECK_CPUSET is set but taskset isn't on PATH (util-linux)." >&2
+    exit 3
+  fi
+  CI_CHECK_PINNED=1 exec taskset -c "$CI_CHECK_CPUSET" "$0" "$@"
+fi
 
 cd "$REPO_ROOT"
 
@@ -145,6 +162,9 @@ container_flags() {
     local docker_gid
     docker_gid="$(stat -c '%g' /var/run/docker.sock)"
     flags+=(-v /var/run/docker.sock:/var/run/docker.sock --group-add "$docker_gid")
+  fi
+  if [[ -n "${CI_CHECK_CPUSET:-}" ]]; then
+    flags+=(--cpuset-cpus "$CI_CHECK_CPUSET")
   fi
   local kv
   for kv in "${BACKEND_ENV[@]}"; do

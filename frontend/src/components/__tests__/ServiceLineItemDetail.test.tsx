@@ -1,6 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent } from '../../__tests__/test-utils'
 import { presetUnitsFor } from '../../types/units'
+import { setActiveLocale } from '../../constants/i18n'
 import type { ServiceVisit, ServiceLineItem } from '../../types/serviceVisit'
 
 const unitMock = vi.hoisted(() => ({ system: 'metric' as 'metric' | 'imperial' }))
@@ -117,6 +118,18 @@ describe('ServiceLineItemDetail readings follow the vehicle the list resolved', 
     render(<ServiceLineItemDetail visit={visit} item={withUsage({ unit_type: 'count', quantity: '1' })} tracksDistance={false} tracksHours onClose={vi.fn()} />)
     expect(screen.getByText('812.4 hr')).toBeInTheDocument()
     expect(screen.queryByText(/80,467/)).not.toBeInTheDocument()
+  })
+})
+
+describe('ServiceLineItemDetail hours follow the language', () => {
+  afterEach(() => setActiveLocale('en'))
+
+  it('a German user sees 1.234,5 hr', () => {
+    setActiveLocale('de')
+    const hoursVisit = { ...visit, engine_hours: '1234.5' } as unknown as ServiceVisit
+    render(<ServiceLineItemDetail visit={hoursVisit} item={withUsage({ unit_type: 'count', quantity: '1' })} tracksDistance={false} tracksHours onClose={vi.fn()} />)
+    expect(screen.getByText('1.234,5 hr')).toBeInTheDocument()
+    expect(screen.queryByText('1234.5 hr')).not.toBeInTheDocument()
   })
 })
 

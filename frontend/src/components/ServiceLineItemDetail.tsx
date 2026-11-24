@@ -8,6 +8,7 @@ import LineItemLinkChips from './LineItemLinkChips'
 import { Badge, Button, Chip, Mono } from './ui'
 import { formatDateForDisplay } from '../utils/dateUtils'
 import { formatCurrency } from '../utils/formatUtils'
+import { formatHours } from '../utils/hoursFormat'
 import { useCurrencyPreference } from '../hooks/useCurrencyPreference'
 import { useUnitPreference } from '../hooks/useUnitPreference'
 import { useUnitFormat } from '../hooks/useUnitFormat'
@@ -82,7 +83,7 @@ export default function ServiceLineItemDetail({
           {tracksHours && visit.engine_hours != null && (
             <span className="flex items-center gap-1.5">
               <Gauge aria-hidden="true" className="w-4 h-4" />
-              <Mono size="sm">{Number(visit.engine_hours).toFixed(1)} hr</Mono>
+              <Mono size="sm">{formatHours(visit.engine_hours)}</Mono>
             </span>
           )}
           {visit.vendor && (

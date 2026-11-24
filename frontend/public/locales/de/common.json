@@ -196,6 +196,7 @@
       "quantity": "Menge",
       "quantityRequired": "Gib eine Menge größer als 0 ein",
       "quantityTooSmall": "Zu klein zum Speichern: ergibt umgerechnet weniger als 1 mL",
+      "quantityWholeNumber": "Dieser Vorrat wird gezählt, gib also eine ganze Zahl ein",
       "supplier": "Lieferant",
       "noSupplier": "Kein Lieferant",
       "receipt": "Beleg (optional)",

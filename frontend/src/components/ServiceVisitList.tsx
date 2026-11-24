@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router-dom'
 import { formatDateForDisplay } from '../utils/dateUtils'
 import { formatCurrency } from '../utils/formatUtils'
+import { formatHours } from '../utils/hoursFormat'
 import { useCurrencyPreference } from '../hooks/useCurrencyPreference'
 import {
   Wrench,
@@ -444,7 +445,7 @@ export default function ServiceVisitList({
                     {tracksHours && visit.engine_hours != null && (
                       <div className="flex items-center gap-1 text-sm text-text-mute">
                         <Gauge aria-hidden="true" className="w-4 h-4" />
-                        <Mono size="sm">{Number(visit.engine_hours).toFixed(1)} hr</Mono>
+                        <Mono size="sm">{formatHours(visit.engine_hours)}</Mono>
                       </div>
                     )}
 

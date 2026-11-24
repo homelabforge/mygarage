@@ -7,6 +7,9 @@
 #     docker compose -f docker-compose.test.yml -p mygarage-test \
 #       run --rm mygarage-test pytest tests/migrations/ -v
 #
+# To pin both containers to some CPUs, add -f docker-compose.test.cpuset.yml
+# after this file with CI_CHECK_CPUSET set (e.g. 0-11).
+#
 # Integration tests (`tests/integration/`) now run under PG too (issue
 # #77 resolved by aligning pytest-asyncio test loop scope with the
 # session-scoped fixture loop). The CI matrix in shared-workflows

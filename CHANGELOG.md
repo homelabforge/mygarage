@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Log Reading on a tire takes notes, like editing a reading already did.
+
 ### Changed
 - Every language now has every string: missing ones were machine-drafted and reviewed by a second pass, and are marked as drafts for native speakers to check (see TRANSLATING.md).
 - Existing translations got a full review: placeholder text, wrong meanings, typos and mixed terms fixed in all eight languages.
@@ -14,12 +17,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The translation check also blocks empty strings, changed leading or trailing spaces, and placeholders English doesn't have, like `{{user.name}}`.
 - Maintainers can approve reviewed drafts in bulk with `bun run i18n:stamp --accept-drafts <lang>`, and bulk-accepting a translation PR only records the strings that PR changed.
 - Translators can list strings whose English changed since they were translated: `bun run i18n:stamp --list stale <lang>`.
+- `bun run i18n:stamp --draft-stale <lang>` marks a stale translation that still fits as a draft against today's English.
 
 ### Fixed
 - The top navigation folds into the menu button when its links don't fit, instead of scrolling the page sideways.
 - The red Admin badge is hidden from 900px up, so English top links fit for admins on a 1280px screen.
 - The empty reminder list reads "No completed reminders" instead of "No done reminders", and translates in every language.
 - A Polish record count showed in Ukrainian.
+- Supplies counted in units take whole numbers: 2.5 oil filters is refused in the API, the history modal and the visit form. Fractions already saved stay as they are.
+- Engine hours on service visits use the language's number format (1.234,5 hr in German).
+- LiveLink's Active DTC list sorts by last seen, like Cleared and All.
 
 ## [3.11.3] - 2026-11-23
 

@@ -55,6 +55,16 @@ def usage_cost_subject(supply_id: int) -> str:
     return f"The cost of this much of supply {supply_id}"
 
 
+def ensure_whole_count(supply: Supply, quantity: Decimal) -> None:
+    """422 when a counted supply gets a fraction. 2.5 oil filters isn't a thing.
+
+    Only new numbers come through here. Rows already saved with a fraction stay
+    as they were, and imports restore them as is.
+    """
+    if supply.unit_type == "count" and quantity != quantity.to_integral_value():
+        raise HTTPException(status_code=422, detail="A count supply takes whole numbers")
+
+
 def usage_cost(unit_cost: Decimal, quantity: Decimal) -> Decimal:
     """A usage's cost: unit cost times quantity, to the cent, half up. The one rounding
     every server path stores, and the one the editor's estimate mirrors."""
@@ -441,7 +451,8 @@ class SupplyService:
     async def add_purchase(
         self, supply_id: int, data: SupplyPurchaseCreate, current_user: User | None
     ) -> SupplyPurchase:
-        await self.get_supply(supply_id)  # 404 if missing
+        supply = await self.get_supply(supply_id)  # 404 if missing
+        ensure_whole_count(supply, data.quantity)
         # Waits out any usage of it being logged (create_usage_snapshot), so the
         # pricing after this commit sees that usage, or the usage sees this cost.
         await self._lock_supply(supply_id, exclusive=True)
@@ -571,7 +582,7 @@ class SupplyService:
     async def add_adjustment(
         self, supply_id: int, data: SupplyAdjustmentCreate, current_user: User | None
     ) -> SupplyUsage:
-        await self.get_supply(supply_id)
+        ensure_whole_count(await self.get_supply(supply_id), data.quantity)
         # No visit, no date to price as of: today's average, never an estimate.
         unit_cost, cost, _estimated = await self.create_usage_snapshot(
             supply_id, data.quantity, as_of=None

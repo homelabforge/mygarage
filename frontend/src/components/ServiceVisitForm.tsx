@@ -563,9 +563,25 @@ function ServiceVisitForm({
     }))
   }
 
-  // Display -> canonical for the wire payload.
-  const mapSuppliesUsedForSubmit = (item: ServiceVisitFormLineItem): SupplyUsedEntry[] =>
-    convertSupplyUsages(item.supplies_used ?? [], unitsBySupplyId, toCanonical)
+  // What this same line item has saved for this supply, if it's been saved.
+  const savedUsage = (item: ServiceVisitFormLineItem, supplyId: number) =>
+    item.id == null
+      ? undefined
+      : visit?.line_items.find((li) => li.id === item.id)?.supply_usages?.find((su) => su.supply_id === supplyId)
+
+  // A count still at its saved number, the one case the API doesn't recheck.
+  const isUnchangedCount = (item: ServiceVisitFormLineItem, supplyId: number, quantity: number): boolean => {
+    const saved = savedUsage(item, supplyId)
+    return unitsBySupplyId.get(supplyId) === 'count' && saved !== undefined && Number(saved.quantity) === quantity
+  }
+
+  // Display -> canonical for the wire payload. An untouched count goes back as
+  // the saved string: a JS number drops the last digit of a big 13-place count,
+  // and the API would read that as a new fraction.
+  const mapSuppliesUsedForSubmit = (item: ServiceVisitFormLineItem): { supply_id: number; quantity: number | string }[] =>
+    convertSupplyUsages(item.supplies_used ?? [], unitsBySupplyId, toCanonical).map((u) =>
+      isUnchangedCount(item, u.supply_id, u.quantity) ? { ...u, quantity: savedUsage(item, u.supply_id)!.quantity } : u
+    )
 
   /**
    * The replacement for the form's native constraints.
@@ -695,11 +711,11 @@ function ServiceVisitForm({
           return t('service.supplyQuantityInvalid', { number: n })
         }
         const unit = unitsBySupplyId.get(usage.supply_id)
-        // The replaced `step` was `'1'` for count-type supplies and `'0.01'`
-        // otherwise, so a count could not take a fraction. The backend only
-        // enforces `gt=0` (schemas/supply.py:75), so dropping this check
-        // rather than moving it would let "2.5 oil filters" through.
-        if (unit === 'count' && !Number.isInteger(usage.quantity)) {
+        // No "2.5 oil filters". The API refuses it too, this just says so sooner.
+        // An old visit saved with 2.5 before that still saves when edited for
+        // something else: only a number that differs from what's saved on this
+        // same line item and supply gets checked, same as the API.
+        if (unit === 'count' && !Number.isInteger(usage.quantity) && !isUnchangedCount(item, usage.supply_id, usage.quantity)) {
           return t('service.supplyQuantityWholeNumber', { number: n })
         }
         // The API takes nothing under 1 mL, the smallest amount the ledger tracks.

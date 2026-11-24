@@ -250,12 +250,12 @@ class DTCService:
     # =========================================================================
 
     async def get_active_dtcs(self, vin: str, limit: int | None = None) -> list[VehicleDTC]:
-        """Get a vehicle's active DTCs, newest first seen first; at most `limit` when set."""
+        """Get a vehicle's active DTCs, newest last seen first; at most `limit` when set."""
         query = (
             select(VehicleDTC)
             .where(VehicleDTC.vin == vin)
             .where(VehicleDTC.is_active == True)  # noqa: E712
-            .order_by(VehicleDTC.first_seen.desc())
+            .order_by(VehicleDTC.last_seen.desc(), VehicleDTC.id.desc())
         )
         if limit is not None:
             query = query.limit(limit)
@@ -272,7 +272,7 @@ class DTCService:
         query = (
             select(VehicleDTC)
             .where(VehicleDTC.vin == vin)
-            .order_by(VehicleDTC.last_seen.desc())
+            .order_by(VehicleDTC.last_seen.desc(), VehicleDTC.id.desc())
             .limit(limit)
         )
 

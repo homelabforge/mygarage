@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import type { ServiceVisit } from '../../types/serviceVisit'
 import { METRIC_UNITS } from '../../__tests__/factories'
 import { formatDateForDisplay } from '../../utils/dateUtils'
+import { setActiveLocale } from '../../constants/i18n'
 // The list reads its link params from the router, so every render needs one.
 import { render } from '../../__tests__/test-utils'
 
@@ -268,6 +269,22 @@ describe('ServiceVisitList — engine-hours usage tracking (Task 14)', () => {
 
     expect(await screen.findByText(/80,467/)).toBeInTheDocument()
     expect(screen.queryByText(/812\.4/)).not.toBeInTheDocument()
+  })
+})
+
+describe('ServiceVisitList: hours follow the language', () => {
+  afterEach(() => setActiveLocale('en'))
+
+  it('a German user sees 1.234,5 hr', async () => {
+    setActiveLocale('de')
+    const hoursVisit = { ...visit, id: 6, engine_hours: '1234.5' } as unknown as ServiceVisit
+    useServiceVisitsMock.mockReturnValue({ data: { visits: [hoursVisit] }, isLoading: false, error: null })
+    apiGetMock.mockResolvedValueOnce({ data: { usage_unit: 'hours', secondary_usage_enabled: false } })
+    render(<ServiceVisitList {...PROPS} />)
+    await waitFor(() => expect(apiGetMock).toHaveBeenCalled())
+
+    expect(await screen.findByText('1.234,5 hr')).toBeInTheDocument()
+    expect(screen.queryByText('1234.5 hr')).not.toBeInTheDocument()
   })
 })
 

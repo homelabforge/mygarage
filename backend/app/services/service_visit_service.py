@@ -33,6 +33,7 @@ from app.services import maintenance_service, recall_links
 from app.services.attachment_cleanup import purge_record_attachments, remove_attachment_files
 from app.services.supply_service import (
     SupplyService,
+    ensure_whole_count,
     estimate_of,
     price_unsettled_usage,
     rerun_fallback,
@@ -1319,6 +1320,11 @@ class ServiceVisitService:
         for u in submitted:
             prior = existing.get(u.supply_id)
             if prior is not None:
+                # Only a changed number gets checked, so an old 2.5 filters row
+                # still saves when the visit's edited for something else. An old
+                # x.5 balance gets fixed here or by redoing the old purchase.
+                if prior.quantity != u.quantity:
+                    ensure_whole_count(await supply_service.get_supply(u.supply_id), u.quantity)
                 # Unchanged association: keep frozen unit cost; recompute cost only if qty moved.
                 if prior.quantity != u.quantity and await self._repriced_by_move(
                     u.supply_id, moved_from, visit_date
@@ -1339,7 +1345,9 @@ class ServiceVisitService:
                 # fully unchanged → leave the row (and its created_at) untouched
             else:
                 # New association: validate + snapshot as of the visit's date.
-                await supply_service.get_supply_for_use(u.supply_id, vin)  # 400 if not usable
+                # 400 if archived or pinned elsewhere, 422 if a count gets a fraction.
+                supply = await supply_service.get_supply_for_use(u.supply_id, vin)
+                ensure_whole_count(supply, u.quantity)
                 unit_cost, cost, estimated = await supply_service.create_usage_snapshot(
                     u.supply_id, u.quantity, as_of=visit_date
                 )

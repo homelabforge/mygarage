@@ -7,7 +7,12 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.models.supply import Supply, SupplyPurchase, SupplyUsage
-from app.schemas.supply import SupplyCreate, SupplyUpdate
+from app.schemas.supply import (
+    SupplyAdjustmentCreate,
+    SupplyCreate,
+    SupplyPurchaseCreate,
+    SupplyUpdate,
+)
 from app.services.supply_service import SupplyService
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.supplies]
@@ -142,3 +147,57 @@ async def test_usage_response_carries_the_owning_supplys_unit(db_session):
         )
     ).scalar_one()
     assert svc.to_usage_response(usage).volume_unit == "mL"
+
+
+# S-frac: a counted supply takes whole numbers. Old rows aren't touched.
+_WHOLE = "A count supply takes whole numbers"
+
+
+async def _purchases_of(db, supply_id: int) -> list[SupplyPurchase]:
+    rows = await db.execute(select(SupplyPurchase).where(SupplyPurchase.supply_id == supply_id))
+    return list(rows.scalars().all())
+
+
+async def test_purchase_of_a_fractional_count_is_422(db_session):
+    svc = SupplyService(db_session)
+    s = await _make_supply(db_session, unit_type="count")
+    with pytest.raises(HTTPException) as e:
+        await svc.add_purchase(
+            s.id, SupplyPurchaseCreate(date=date(2026, 5, 1), quantity=Decimal("2.5")), None
+        )
+    assert e.value.status_code == 422
+    assert e.value.detail == _WHOLE
+    assert await _purchases_of(db_session, s.id) == []
+
+
+async def test_purchase_of_a_whole_count_with_trailing_zeros_saves(db_session):
+    svc = SupplyService(db_session)
+    s = await _make_supply(db_session, unit_type="count")
+    await svc.add_purchase(
+        s.id,
+        SupplyPurchaseCreate(date=date(2026, 5, 1), quantity=Decimal("2.0000000000000")),
+        None,
+    )
+    [row] = await _purchases_of(db_session, s.id)
+    assert row.quantity == 2
+
+
+async def test_purchase_of_a_fractional_volume_saves(db_session):
+    svc = SupplyService(db_session)
+    s = await _make_supply(db_session)
+    await svc.add_purchase(
+        s.id, SupplyPurchaseCreate(date=date(2026, 5, 1), quantity=Decimal("2.5")), None
+    )
+    [row] = await _purchases_of(db_session, s.id)
+    assert row.quantity == Decimal("2.5")
+
+
+async def test_adjustment_of_a_fractional_count_is_422(db_session):
+    svc = SupplyService(db_session)
+    s = await _make_supply(db_session, unit_type="count")
+    with pytest.raises(HTTPException) as e:
+        await svc.add_adjustment(s.id, SupplyAdjustmentCreate(quantity=Decimal("1.5")), None)
+    assert e.value.status_code == 422
+    assert e.value.detail == _WHOLE
+    rows = await db_session.execute(select(SupplyUsage).where(SupplyUsage.supply_id == s.id))
+    assert rows.scalars().all() == []

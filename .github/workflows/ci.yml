@@ -26,7 +26,9 @@ jobs:
       backend-test-shards: 2
       frontend-test-shards: 3
       e2e-test-shards: 2
-      pg-migrations-shards: 3
+      # PG went from 3 to 5: on main runs 45331436250 and 45156566851 the 3
+      # shards took 315/387/553s and 459/386/562s, about 9.5 min wall time.
+      pg-migrations-shards: 5
       # Closes #77: run both migration and integration tests against the PG
       # sidecar so the asyncpg loop-binding regression that gated this work
       # can't reappear. Pytest accepts multiple positional paths.

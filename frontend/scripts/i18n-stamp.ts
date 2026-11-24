@@ -10,6 +10,7 @@
  *   bun run i18n:stamp --accept de:vehicles:fuelList.title --base <ref>
  *                                                        one key, whatever its state
  *   bun run i18n:stamp --accept-drafts de [ns:key ...]   approve de's drafts, all or the listed ones
+ *   bun run i18n:stamp --draft-stale de [ns:key ...]     re-date de's stale keys as drafts, all or the listed ones
  *
  * --base is the English the translation was made against, read with git show.
  * For a contributor PR that's its merge-base with main, so a key English moved
@@ -21,8 +22,11 @@
  * get listed instead). It skips stale keys (clear those one at a time, or
  * retranslate), drafts, and copies of English (approve one on purpose with a
  * per-key accept, which writes "="). Accepting a draft drops its draft mark.
- * Records for keys that no longer exist are dropped whenever a language is
- * written. Nothing is written until every language and ref checks out.
+ * --draft-stale is for when English moved but someone checked the old
+ * translation still fits: it records the key against today's English as a
+ * draft, so it stays visible until a native speaker accepts it. "Stale" is
+ * exactly what --list stale shows. Records for keys that no longer exist are
+ * dropped whenever a language is written. Nothing is written until every language and ref checks out.
  */
 
 import { spawnSync, type SpawnSyncReturns } from 'child_process'
@@ -34,6 +38,7 @@ import {
   SOURCES_DIR,
   acceptRecords,
   analyzeLocale,
+  hash8,
   discoverLanguages,
   discoverNamespaces,
   expectedKeys,
@@ -43,6 +48,7 @@ import {
   loadJson,
   loadSourceRecords,
   pruneRecords,
+  recordState,
   sourceState,
   writeJson,
   LOCALES_DIR,
@@ -54,7 +60,8 @@ const USAGE = `Usage:
   bun run i18n:stamp --list stale|unrecorded|draft <lang>
   bun run i18n:stamp --accept <lang> [--base <ref>]
   bun run i18n:stamp --accept <lang>:<ns>:<key> [...] [--base <ref>]
-  bun run i18n:stamp --accept-drafts <lang> [<ns>:<key> ...]`
+  bun run i18n:stamp --accept-drafts <lang> [<ns>:<key> ...]
+  bun run i18n:stamp --draft-stale <lang> [<ns>:<key> ...]`
 
 const LIST_STATES = ['stale', 'unrecorded', 'draft']
 
@@ -109,7 +116,7 @@ interface Row {
   nsKey: string
   /** Today's English. */
   enValue: unknown
-  /** The working-tree translation; undefined when missing or empty. */
+  /** The working-tree translation; undefined when missing, empty or null. */
   value: unknown
 }
 
@@ -122,7 +129,7 @@ function currentRows(lang: string, namespaces: readonly string[]): Row[] {
     const data = existsSync(path) ? loadJson(path) : {}
     for (const { key, enValue } of expectedKeys(english.keysByNamespace.get(ns)!, english.valuesByNamespace.get(ns)!, lang)) {
       const value = getNestedValue(data, key)
-      rows.push({ ns, key, nsKey: `${ns}:${key}`, enValue, value: value === '' ? undefined : value })
+      rows.push({ ns, key, nsKey: `${ns}:${key}`, enValue, value: value === '' || value === null ? undefined : value })
     }
   }
   return rows
@@ -212,32 +219,76 @@ function planAccept(lang: string, keys: string[] | 'bulk', ref: string, commit: 
 }
 
 /**
+ * The keys a run acts on: every row in `want` state, or the listed ones, each
+ * of which must be in `want` state or the whole run fails before any write.
+ */
+function targetRows(
+  lang: string,
+  rows: readonly Row[],
+  keys: string[] | 'all',
+  stateOf: (r: Row) => string,
+  want: string,
+  wantLabel: string,
+): Row[] {
+  if (keys === 'all') return rows.filter(r => stateOf(r) === want)
+  const byKey = new Map(rows.map(r => [r.nsKey, r]))
+  const bad = keys.map(k => {
+    const r = byKey.get(k)
+    if (r === undefined) return `${lang}:${k}: not a key ${lang} has`
+    const state = stateOf(r)
+    return state === want ? null : `${lang}:${k}: ${state}, not ${wantLabel}`
+  }).filter(m => m !== null)
+  if (bad.length > 0) fail(`${bad.join('\n✗ ')}\nnothing written`)
+  return keys.map(k => byKey.get(k)!)
+}
+
+/**
  * Drop the draft mark from records whose hashes still match: someone read
  * them. Stale and unrecorded keys never qualify; a listed one that isn't a
  * draft fails the whole run.
  */
 function planDrafts(lang: string, keys: string[] | 'all'): Plan {
   const rows = currentRows(lang, discoverNamespaces())
-  const byKey = new Map(rows.map(r => [r.nsKey, r]))
   const before = loadSourceRecords(lang)
   const stateOf = (r: Row): string =>
     r.value === undefined ? 'missing' : sourceState(before[r.nsKey], r.enValue, r.value)
 
-  const drafts = rows.filter(r => stateOf(r) === 'draft').map(r => r.nsKey)
-  if (keys !== 'all') {
-    const bad = keys.map(k => {
-      const r = byKey.get(k)
-      if (r === undefined) return `${lang}:${k}: not a key ${lang} has`
-      const state = stateOf(r)
-      return state === 'draft' ? null : `${lang}:${k}: ${state}, not a draft`
-    }).filter(m => m !== null)
-    if (bad.length > 0) fail(`${bad.join('\n✗ ')}\nnothing written`)
-  }
-
   const after = { ...before }
-  for (const k of keys === 'all' ? drafts : keys) after[k] = before[k].split(':').slice(0, 2).join(':')
+  for (const r of targetRows(lang, rows, keys, stateOf, 'draft', 'a draft')) {
+    after[r.nsKey] = before[r.nsKey].split(':').slice(0, 2).join(':')
+  }
   const done = finishPlan(rows, before, after)
   return { lang, records: done.records, lines: [`[${lang}] ${done.changed} draft(s) approved, ${done.dropped} dropped`] }
+}
+
+/**
+ * Record stale keys against today's English as drafts: the old translation
+ * still fits, but no native speaker has said so. "Stale" is read off the same
+ * analyzeLocale issues --list stale prints, so the two can't disagree. The
+ * translations themselves aren't touched.
+ */
+function planDraftStale(lang: string, keys: string[] | 'all'): Plan {
+  const namespaces = discoverNamespaces()
+  const rows = currentRows(lang, namespaces)
+  const before = loadSourceRecords(lang)
+  const stale = new Set(
+    analyzeLocale(lang, namespaces, loadEnglishData(namespaces)).issues
+      .filter(i => i.type === 'stale')
+      .map(i => `${i.namespace}:${i.key}`),
+  )
+  const stateOf = (r: Row): string =>
+    stale.has(r.nsKey)
+      ? 'stale'
+      : r.value === undefined
+        ? 'missing'
+        : (recordState(before[r.nsKey], r.enValue, r.value) ?? 'untranslated')
+
+  const after = { ...before }
+  for (const r of targetRows(lang, rows, keys, stateOf, 'stale', 'stale')) {
+    after[r.nsKey] = `${hash8(r.enValue)}:${r.value === r.enValue ? '=' : hash8(r.value)}:d`
+  }
+  const done = finishPlan(rows, before, after)
+  return { lang, records: done.records, lines: [`[${lang}] ${done.changed} stale key(s) re-dated as drafts, ${done.dropped} dropped`] }
 }
 
 function main(): void {
@@ -258,7 +309,7 @@ function main(): void {
       if (next === undefined || next.startsWith('--')) fail('--base needs a ref', true)
       ref = next
       i++
-    } else if (['--list', '--accept', '--accept-drafts'].includes(args[i])) modes.push(args[i])
+    } else if (['--list', '--accept', '--accept-drafts', '--draft-stale'].includes(args[i])) modes.push(args[i])
     else if (args[i].startsWith('--')) fail(`unknown option: ${args[i]}`, true)
     else positional.push(args[i])
   }
@@ -266,7 +317,7 @@ function main(): void {
   const mode = modes[0]
   if (args.includes('--base') && mode !== '--accept') fail('--base only goes with --accept', true)
 
-  if (mode === '--accept' || mode === '--accept-drafts') {
+  if (mode === '--accept' || mode === '--accept-drafts' || mode === '--draft-stale') {
     const plans: Plan[] = []
     if (mode === '--accept') {
       if (positional.length === 0) fail('nothing to accept', true)
@@ -281,11 +332,14 @@ function main(): void {
       for (const [lang, keys] of byLang) plans.push(planAccept(checkLang(lang), keys, ref, commit))
     } else {
       const [lang, ...keys] = positional
-      plans.push(planDrafts(checkLang(lang), keys.length === 0 ? 'all' : keys))
+      const plan = mode === '--accept-drafts' ? planDrafts : planDraftStale
+      plans.push(plan(checkLang(lang), keys.length === 0 ? 'all' : keys))
     }
-    // only write once every language planned cleanly
+    // only write once every language planned cleanly, and never create a
+    // record file from nothing: that would start tracking the language
     for (const p of plans) {
-      writeJson(join(SOURCES_DIR, `${p.lang}.json`), p.records)
+      const path = join(SOURCES_DIR, `${p.lang}.json`)
+      if (existsSync(path) || Object.keys(p.records).length > 0) writeJson(path, p.records)
       for (const line of p.lines) console.log(line)
     }
     return

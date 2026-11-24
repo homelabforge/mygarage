@@ -755,3 +755,154 @@ describe('ServiceVisitForm — footer lift (P3 Task 5)', () => {
     await waitFor(() => expect(mockedApiPost).toHaveBeenCalled())
   })
 })
+
+// S-frac: a visit saved with 2.5 of a counted supply (before the check existed)
+// still saves when edited for something else, but no new fraction gets in.
+describe('ServiceVisitForm: an old fractional count', () => {
+  const FILTER: Supply = { ...MOCK_SUPPLY, id: 3, name: 'Oil filter', unit_type: 'count' }
+  const WIPER: Supply = { ...MOCK_SUPPLY, id: 4, name: 'Wiper', unit_type: 'count' }
+  const OLD_VISIT: ServiceVisit = {
+    id: 910,
+    vin: 'TEST123',
+    date: '2026-07-01',
+    created_at: '2026-07-01T00:00:00',
+    calculated_total_cost: '25.00',
+    has_failed_inspections: false,
+    line_item_count: 1,
+    subtotal: '0',
+    parts_supplies_cost: '25.00',
+    vendor_id: null,
+    odometer_km: null,
+    notes: null,
+    insurance_claim_number: null,
+    tax_amount: null,
+    shop_supplies: null,
+    misc_fees: null,
+    service_category: null,
+    total_cost: '25.00',
+    updated_at: null,
+    vendor: null,
+    line_items: [
+      {
+        id: 601,
+        visit_id: 910,
+        description: 'Filters',
+        category: 'Maintenance',
+        cost: '0',
+        created_at: '2026-07-01T00:00:00',
+        is_failed_inspection: false,
+        is_inspection: false,
+        needs_followup: false,
+        notes: null,
+        triggered_by_inspection_id: null,
+        is_recall: false,
+        is_warranty: false,
+        supply_usages: [
+          {
+            id: 7,
+            supply_id: 3,
+            supply_name: 'Oil filter',
+            unit_type: 'count',
+            quantity: '2.5000000000000',
+            created_at: '2026-07-01T00:00:00',
+            service_line_item_id: 601,
+            service_visit_id: 910,
+            cost_snapshot: '25.00',
+            unit_cost_snapshot: '10.00',
+            cost_estimated: false,
+            service_visit_date: '2026-07-01',
+          },
+        ],
+      },
+    ],
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(useSupplies).mockReturnValue({
+      data: { supplies: [FILTER, WIPER], total: 2 },
+      isSuccess: true,
+      isLoading: false,
+      isError: false,
+    } as unknown as ReturnType<typeof useSupplies>)
+  })
+
+  const quantities = (): HTMLInputElement[] =>
+    screen.getAllByRole('textbox', { name: 'service.suppliesQuantityOf' }) as HTMLInputElement[]
+
+  async function renderHydrated(): Promise<void> {
+    render(<ServiceVisitForm {...DEFAULT_PROPS} visit={OLD_VISIT} />)
+    await waitFor(() => expect(quantities()[0].value).toBe('2.5'))
+  }
+
+  async function expectRefused(): Promise<void> {
+    fireEvent.submit(drawerForm())
+    expect(await screen.findByText(/supplyQuantityWholeNumber/)).toBeTruthy()
+    expect(mockedApiPut).not.toHaveBeenCalled()
+  }
+
+  it("a saved fractional count doesn't block an unrelated edit", async () => {
+    await renderHydrated()
+
+    fireEvent.submit(drawerForm())
+
+    await waitFor(() => expect(mockedApiPut).toHaveBeenCalled())
+    // Sent back as saved, so the API sees no change at all.
+    const body = mockedApiPut.mock.calls.at(-1)?.[1] as {
+      line_items: { id?: number; supplies_used: { supply_id: number; quantity: number | string }[] }[]
+    }
+    expect(body.line_items.find((li) => li.id === 601)?.supplies_used).toEqual([
+      { supply_id: 3, quantity: '2.5000000000000' },
+    ])
+  })
+
+  it('an untouched count too precise for a JS number goes back exactly as saved', async () => {
+    // Number('1234.1234567890123') prints as ...124, which the API would read
+    // as a changed fraction and refuse.
+    const usage = OLD_VISIT.line_items[0].supply_usages![0]
+    const precise: ServiceVisit = {
+      ...OLD_VISIT,
+      line_items: [{ ...OLD_VISIT.line_items[0], supply_usages: [{ ...usage, quantity: '1234.1234567890123' }] }],
+    }
+    render(<ServiceVisitForm {...DEFAULT_PROPS} visit={precise} />)
+    await waitFor(() => expect(quantities()[0].value).not.toBe(''))
+
+    fireEvent.submit(drawerForm())
+
+    await waitFor(() => expect(mockedApiPut).toHaveBeenCalled())
+    const body = mockedApiPut.mock.calls.at(-1)?.[1] as {
+      line_items: { id?: number; supplies_used: { supply_id: number; quantity: number | string }[] }[]
+    }
+    expect(body.line_items.find((li) => li.id === 601)?.supplies_used).toEqual([
+      { supply_id: 3, quantity: '1234.1234567890123' },
+    ])
+  })
+
+  it('changing a saved count to another fraction is still refused', async () => {
+    await renderHydrated()
+    fireEvent.change(quantities()[0], { target: { value: '3.5' } })
+
+    await expectRefused()
+  })
+
+  it('the saved value on a new line item is still refused', async () => {
+    await renderHydrated()
+    fireEvent.click(screen.getByRole('button', { name: 'service.addItem' }))
+    const description = screen.getAllByText('lineItemEditor.misc.descriptionLabel')[1]
+      .parentElement?.querySelector('input[type="text"]') as HTMLInputElement
+    fireEvent.change(description, { target: { value: 'More filters' } })
+    fireEvent.click(screen.getAllByRole('button', { name: /suppliesAddRow/ })[1])
+    fireEvent.change(quantities()[1], { target: { value: '2.5' } })
+
+    await expectRefused()
+  })
+
+  it('the saved value on a switched supply is still refused', async () => {
+    await renderHydrated()
+    fireEvent.change(screen.getAllByRole('combobox', { name: 'service.suppliesUsed' })[0], {
+      target: { value: '4' },
+    })
+
+    await expectRefused()
+  })
+})

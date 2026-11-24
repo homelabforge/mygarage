@@ -196,6 +196,7 @@
       "quantity": "Quantity",
       "quantityRequired": "Enter a quantity greater than 0",
       "quantityTooSmall": "Too small to store: converts to less than 1 mL",
+      "quantityWholeNumber": "This supply is counted, so enter a whole number",
       "supplier": "Supplier",
       "noSupplier": "No supplier",
       "receipt": "Receipt (optional)",
