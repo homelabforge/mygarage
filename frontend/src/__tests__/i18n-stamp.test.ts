@@ -233,3 +233,83 @@ describe('i18n-stamp --accept-drafts', () => {
     expect(f.stamp('--accept-drafts', 'xx').status).toBe(1)
   })
 })
+
+describe('i18n-stamp --draft-stale', () => {
+  // a current, b stale, c an approved copy of English, d unrecorded, e an old
+  // "=" record whose value now equals the new English (reads stale too)
+  const staleScenario = (): Fixture => {
+    const f = fixture()
+    f.write(EN, { a: 'Alpha', b: 'Bravo', c: 'Charlie Model 3', d: 'Delta', e: 'Echo new' })
+    f.write(DE, { a: 'Alfa', b: 'Brabo', c: 'Charlie Model 3', d: 'Delte', e: 'Echo new' })
+    f.writeRecords({
+      'common:a': `${hash8('Alpha')}:${hash8('Alfa')}`,
+      'common:b': `${hash8('Bravo old')}:${hash8('Brabo')}`,
+      'common:c': `${hash8('Charlie Model 3')}:=`,
+      'common:e': `${hash8('Echo old')}:=`,
+    })
+    f.commit('stale')
+    return f
+  }
+  const lines = (res: SpawnSyncReturns<string>): string[] => res.stdout.trim().split('\n').filter(Boolean).sort()
+
+  it('re-dates every stale key as a draft and leaves the translations alone', () => {
+    const f = staleScenario()
+    const de = f.raw(DE)
+    expect(lines(f.stamp('--list', 'stale', 'de'))).toEqual(['common:b', 'common:e'])
+    const res = f.stamp('--draft-stale', 'de')
+    expect(res.status).toBe(0)
+    expect(res.stdout).toContain('2')
+    expect(f.read(REC)['common:b']).toBe(`${hash8('Bravo')}:${hash8('Brabo')}:d`)
+    expect(lines(f.stamp('--list', 'stale', 'de'))).toEqual([])
+    expect(lines(f.stamp('--list', 'draft', 'de'))).toEqual(['common:b', 'common:e'])
+    expect(f.raw(DE)).toBe(de)
+  })
+
+  it('stamps an old "=" record whose value now equals English as a "=" draft', () => {
+    const f = staleScenario()
+    expect(f.stamp('--draft-stale', 'de', 'common:e').status).toBe(0)
+    expect(f.read(REC)['common:e']).toBe(`${hash8('Echo new')}:=:d`)
+    expect(f.read(REC)['common:b']).toBe(`${hash8('Bravo old')}:${hash8('Brabo')}`)
+  })
+
+  it('leaves current, approved and unrecorded keys alone', () => {
+    const f = staleScenario()
+    expect(f.stamp('--draft-stale', 'de').status).toBe(0)
+    const rec = f.read(REC)
+    expect(rec['common:a']).toBe(`${hash8('Alpha')}:${hash8('Alfa')}`)
+    expect(rec['common:c']).toBe(`${hash8('Charlie Model 3')}:=`)
+    expect(rec['common:d']).toBeUndefined()
+  })
+
+  it('refuses a listed key that is not stale, says why, and writes nothing', () => {
+    const f = staleScenario()
+    const before = f.raw(REC)
+    for (const [key, reason] of [
+      ['common:a', 'common:a: current, not stale'],
+      ['common:d', 'common:d: unrecorded, not stale'],
+      ['common:nope', 'common:nope: not a key de has'],
+    ]) {
+      const res = f.stamp('--draft-stale', 'de', 'common:b', key)
+      expect(res.status).toBe(1)
+      expect(res.stderr).toContain(reason)
+      expect(res.stderr).not.toContain('unknown option')
+    }
+    expect(f.raw(REC)).toBe(before)
+  })
+
+  it('refuses --base, which only goes with --accept', () => {
+    const f = staleScenario()
+    const before = f.raw(REC)
+    const res = f.stamp('--draft-stale', 'de', '--base', 'HEAD')
+    expect(res.status).toBe(1)
+    expect(res.stderr).toContain('--base only goes with --accept')
+    expect(f.raw(REC)).toBe(before)
+  })
+
+  it('rejects an unknown language', () => {
+    const f = staleScenario()
+    const res = f.stamp('--draft-stale', 'xx')
+    expect(res.status).toBe(1)
+    expect(res.stderr).toContain('unknown language: xx')
+  })
+})
