@@ -56,6 +56,14 @@ describe('RightCluster', () => {
     expect(await screen.findByRole('dialog', { name: 'quickSettings' })).toBeInTheDocument()
   })
 
+  // At 1280 in English the badge was the 61px that pushed the top links into
+  // the hamburger for every admin, so it only shows in the 768-899 band now.
+  it('shows the admin badge only in the tablet band, never next to the inline links', () => {
+    setup({ isAdmin: true })
+    const badge = screen.getByText('admin').closest('span[aria-hidden]')
+    expect(badge).toHaveClass('max-md:hidden', 'nav:hidden')
+  })
+
   it('renders an avatar from the username', () => {
     setup()
     expect(screen.getByRole('img', { name: 'jamey' })).toBeInTheDocument()

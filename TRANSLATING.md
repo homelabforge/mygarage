@@ -87,12 +87,17 @@ Start with the files users see most:
 
 ### 6. Validate Your Work
 
-Run the validation script to check for missing or extra keys:
+Run the validation script:
 
 ```bash
 cd frontend
 bun run validate:translations
 ```
+
+It fails on a broken `{{placeholder}}`, a changed command or flag, or letters
+from another alphabet (Cyrillic in a Latin-script language, Russian letters in
+Ukrainian and the other way round). Missing keys only warn: they show English
+until someone translates them.
 
 ## Key Naming Conventions
 
@@ -156,6 +161,24 @@ The file is listed in `frontend/scripts/units.manifest.json`, so the Unit Manife
 3. Run `bun run validate:translations` to verify
 4. Open a Pull Request with your changes
 
+## Machine-Drafted Strings
+
+On 2026-11-23 every string a language was missing was machine-drafted, then
+read over by a second machine pass. They're marked as drafts until a person
+checks them, so they're the easiest place to help. List them for your language:
+
+```bash
+cd frontend
+bun run i18n:stamp --list draft de
+```
+
+Fix any you'd word differently and open a PR. A maintainer accepts the
+corrected strings when merging. If you read them all and they're fine as they
+are, say so in an issue or PR: a maintainer approves the lot with
+`bun run i18n:stamp --accept-drafts de`, or only the keys you name with
+`--accept-drafts de common:save vehicles:fuelList.title`. `--list stale de`
+lists translations whose English changed after they were made.
+
 ## Supported Languages
 
 See [TRANSLATIONS.md](TRANSLATIONS.md) for live per-language coverage. A complete
@@ -197,6 +220,40 @@ Two more tables need the language, or parts of the app stay English:
 Use the full region tag (`pt-BR`) only when the language ships as a region
 variant; `load: 'currentOnly'` means a base tag like `pt` will not serve `pt-BR`
 users, and vice versa.
+
+## For Maintainers: Accepting Translations
+
+`frontend/scripts/translation-sources/<lang>.json` records which English each
+translation was made against, so an English edit shows the translation as
+stale. The validator lists stale, unrecorded and draft keys without failing.
+
+- `bun run i18n:stamp` prints the counts per language.
+- `bun run i18n:stamp --accept de --base <merge-base>` records the unrecorded
+  de keys the PR changed (their value differs from the one at the merge-base)
+  against the English at that merge-base, so a key whose English moved after
+  the PR branched stays stale. It skips stale keys, drafts and copies of English.
+  Unrecorded keys the PR didn't touch are skipped and listed: check those and
+  accept them one at a time. A `--base` that isn't a commit fails without
+  writing anything.
+- `bun run i18n:stamp --accept de:vehicles:fuelList.title --base <ref>` records
+  one key whatever its state. That's how a stale key or a draft gets cleared,
+  and how an English copy (a brand name) gets approved.
+- `bun run i18n:stamp --list draft de` lists de's machine drafts. Once someone
+  has read them, `bun run i18n:stamp --accept-drafts de` approves all of them,
+  or `--accept-drafts de <ns:key> ...` only those keys. It only touches drafts
+  whose English hasn't moved; a listed key that isn't one fails the run.
+
+`--base` defaults to `HEAD`, which is right for your own edits. For a PR use
+`git merge-base main <pr-branch>`.
+
+`scripts/i18n-fill.ts` drafts missing strings: `export` writes chunks for
+translators (people or agents) into an empty directory, `merge` takes them back
+and refuses anything that breaks a placeholder, a protected span, edge
+whitespace or the alphabet, or that touches a key it didn't export. Each export
+gets its own run id, so an output from an older export never merges into a new
+one. A key someone translated after the export keeps their translation. Merge
+checks every output before it writes anything, and merged strings are recorded
+as drafts.
 
 ## Questions?
 

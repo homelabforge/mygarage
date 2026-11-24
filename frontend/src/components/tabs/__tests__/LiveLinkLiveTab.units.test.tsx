@@ -16,14 +16,12 @@ import type { ReactNode } from 'react'
 import { render, screen } from '../../../__tests__/test-utils'
 import type { VehicleLiveLinkStatus } from '../../../types/livelink'
 import { binarySystemFor, presetUnitsFor, type UnitSet } from '../../../types/units'
-import vehiclesEn from '../../../locales/en/vehicles.json'
 
-// Resolves ONLY the affordance key from the shipped English bundle, so the
-// assertion below pins the wording a user actually reads. Every other key
-// echoes, matching the global mock.
+// Keys echo, like the global mock. The unknown-unit marker these tests used
+// to resolve from English is gone, so they check that neither the old wording
+// nor the raw key ever comes back.
 vi.mock('react-i18next', () => {
-  const t = (key: string) =>
-    key === 'vehicles:livelink.unknownUnit' ? vehiclesEn.livelink.unknownUnit : key
+  const t = (key: string) => key
   return {
     useTranslation: () => ({
       t,
@@ -113,7 +111,7 @@ describe('LiveLinkLiveTab gauges', () => {
     // km (FB-5), and the tab trusts the label (FW-A-r3): 1000 km -> 621 mi.
     expect(await screen.findByText('621')).toBeInTheDocument()
     expect(screen.getByText('mi')).toBeInTheDocument()
-    expect(screen.queryByText('(unknown unit)')).not.toBeInTheDocument()
+    expect(screen.queryByText(/unknown unit|unknownUnit/)).not.toBeInTheDocument()
   })
 
   it('answers per quantity for a custom set the binary system would call metric', async () => {

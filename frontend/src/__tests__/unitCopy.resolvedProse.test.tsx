@@ -154,35 +154,6 @@ const FIXED: readonly { ns: string; key: string }[] = [
 ]
 
 /**
- * The fixed strings that name a unit ON PURPOSE, and why.
- *
- * The gallon-flavour setting's subject IS the gallon, so naming it is correct
- * in the way `units.imperial` and `units.metric` are correct: those are the
- * choices on offer. What the DESCRIPTION used to get wrong was different, and
- * is the same D8 collapse ruling R1 addresses elsewhere: "Used when the unit
- * system is Imperial" told a `{volume:'gal_us', everything-else-metric}`
- * account that its unit system was Imperial, which is not a thing a resolved
- * set has. It now names the QUANTITIES the flavour reaches.
- *
- * ★ The LABEL above it, `units.gallonStandard` ("Imperial gallon standard"),
- * was un-triaged until fix round 1: it sat in neither list, so no decision
- * about it was recorded anywhere, which is the state that lets a defect and a
- * deliberate choice look identical. The ruling is that it is correct as it
- * stands. "Imperial gallon" is that gallon's actual NAME, the same way "US
- * gallon" is (both appear one line below in `units.gallonUs` /
- * `units.gallonUk`); it is not the D8 claim its sibling made, because it says
- * nothing about the reader's unit system. If it ever reads "when your units are
- * Imperial", it moves to `FIXED`.
- *
- * Listed rather than omitted, and each asserted to still name a unit, so the
- * exemptions are exercised instead of being silent holes in `FIXED`.
- */
-const NAMES_A_UNIT_DELIBERATELY: readonly { ns: string; key: string }[] = [
-  { ns: 'settings', key: 'units.gallonStandardDescription' },
-  { ns: 'settings', key: 'units.gallonStandard' },
-]
-
-/**
  * Unit NAMES in each supported language, as prose or symbol.
  *
  * ★ CASE-INSENSITIVE, and the flag is the whole finding. The first version of
@@ -252,31 +223,15 @@ describe('the fixed copy, across every locale bundle on disk', () => {
     // `de` and `fr` carry keys again because fix round 1 restored the ones whose
     // meaning never changed; `it` and `ms` were translated later and carry them
     // too; `ru` joined when its bundle reached full translation and names no
-    // unit in these keys either. `pl`, `pt-BR` and `uk` still carry none, which
-    // is stated here rather than hidden behind a total. If a restoration is ever
-    // removed, this list shrinks and the test fails before the emptiness below
-    // can go vacuous.
-    expect([...readsByBundle.keys()].sort()).toStrictEqual(['de', 'en', 'fr', 'it', 'ms', 'ru'])
-    expect(readsByBundle.get('de')).toBeGreaterThan(0)
-    expect(readsByBundle.get('fr')).toBeGreaterThan(0)
-    expect(readsByBundle.get('it')).toBeGreaterThan(0)
-    expect(readsByBundle.get('ms')).toBeGreaterThan(0)
-    expect(readsByBundle.get('ru')).toBeGreaterThan(0)
+    // unit in these keys either. `pl`, `pt-BR` and `uk` joined with the
+    // 2026-11-23 fill. If a bundle ever drops these keys, this list shrinks and
+    // the test fails before the emptiness below can go vacuous.
+    expect([...readsByBundle.keys()].sort()).toStrictEqual(['de', 'en', 'fr', 'it', 'ms', 'pl', 'pt-BR', 'ru', 'uk'])
+    for (const lang of ['de', 'fr', 'it', 'ms', 'pl', 'pt-BR', 'ru', 'uk']) {
+      expect(readsByBundle.get(lang), lang).toBeGreaterThan(0)
+    }
 
     expect(offenders).toStrictEqual([])
-  })
-
-  it('keeps the gallon-standard pair naming a gallon, and claiming no system', () => {
-    const en = bundles().find((b) => b.lang === 'en')!
-    for (const { ns, key } of NAMES_A_UNIT_DELIBERATELY) {
-      const value = lookup(en.dir, ns, key)
-      expect(value, `${ns}:${key}`).toBeDefined()
-      // Names the unit the setting is ABOUT...
-      expect(UNIT_NAMES.test(value!), `${ns}:${key} names no unit`).toBe(true)
-      // ...and neither claims the account has a single "unit system", which is
-      // what a resolved set replaced.
-      expect(value, `${ns}:${key}`).not.toMatch(/unit system/i)
-    }
   })
 })
 

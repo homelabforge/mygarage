@@ -1,4 +1,3 @@
-
 {
   "dashboard": "Papan Pemuka",
   "home": "Laman Utama",
@@ -33,8 +32,6 @@
   "searchPlaceholder": "Cari kenderaan, servis, VIN…",
   "openMenu": "Buka menu",
   "closeMenu": "Tutup menu",
-  "searchShellTitle": "Carian akan tersedia tidak lama lagi",
-  "searchShellBody": "Carian menyeluruh untuk kenderaan, sejarah servis dan VIN sedang dibangunkan.",
   "searchLoading": "Sedang mencari…",
   "searchHint": "Taip nama panggilan, VIN, nombor plat, jenama atau tajuk peringatan.",
   "searchNoResultsTitle": "Tiada padanan",

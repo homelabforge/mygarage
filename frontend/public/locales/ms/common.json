@@ -3,40 +3,33 @@
   "cancel": "Batal",
   "close": "Tutup",
   "delete": "Padam",
-  "edit": "Sunting",
+  "edit": "Edit",
   "add": "Tambah",
   "loading": "Memuatkan...",
   "error": "Ralat",
   "success": "Berjaya",
-  "confirm": "Sahkan",
   "back": "Kembali",
   "next": "Seterusnya",
   "search": "Cari",
-  "noResults": "Tiada hasil ditemui",
   "required": "Wajib",
   "optional": "Pilihan",
   "yes": "Ya",
   "no": "Tidak",
   "ok": "OK",
-  "signIn": "Log Masuk",
-  "signOut": "Log Keluar",
+  "unknown": "Tidak diketahui",
   "register": {
-    "title": "Cipta Akaun",
     "subtitle": "Sediakan akaun MyGarage anda",
     "username": "Nama pengguna",
     "email": "E-mel",
     "password": "Kata laluan",
     "submit": "Cipta Akaun",
     "hasAccount": "Sudah mempunyai akaun?",
-    "loginLink": "Log masuk",
-    "success": "Akaun berjaya dicipta!"
+    "loginLink": "Log masuk"
   },
   "username": "Nama pengguna",
   "password": "Kata laluan",
   "email": "E-mel",
-  "fullName": "Nama Penuh",
   "login": {
-    "title": "Log Masuk ke MyGarage",
     "subtitle": "Masukkan maklumat log masuk anda untuk mengakses garaj anda",
     "usernameOrEmail": "Nama pengguna",
     "password": "Kata laluan",
@@ -45,7 +38,6 @@
     "registerLink": "Daftar di sini",
     "oidcSignIn": "Log masuk dengan {{provider}}",
     "continueWithPassword": "Atau teruskan dengan kata laluan",
-    "error": "Nama pengguna atau kata laluan tidak sah",
     "signInAction": "log masuk",
     "ssoError": {
       "account_disabled": "Akaun pengguna dinyahaktifkan",
@@ -61,10 +53,8 @@
     }
   },
   "oidc": {
-    "signingIn": "Sedang log masuk...",
     "success": "Pengesahan berjaya!",
     "redirecting": "Mengalihkan anda ke garaj...",
-    "error": "Pengesahan gagal",
     "linkAccount": "Pautkan Akaun",
     "linkDescription": "Pautkan akaun sedia ada anda dengan identiti SSO anda"
   },
@@ -75,12 +65,10 @@
     "title": "Buku Alamat",
     "subtitle": "Bengkel servis, pembekal alat ganti, pengedar dan kenalan lain",
     "searchPlaceholder": "Cari kenalan...",
-    "allCategories": "Semua Kategori",
     "categoryService": "Servis",
     "categoryParts": "Alat Ganti",
     "categoryDealer": "Pengedar",
     "categoryInsurance": "Insurans",
-    "categoryOther": "Lain-lain",
     "addContact": "Tambah Kenalan",
     "addFirstContact": "Tambah Kenalan Pertama Anda",
     "editContact": "Edit Kenalan",
@@ -88,7 +76,6 @@
     "noContacts": "Belum ada kenalan.",
     "noMatchingContacts": "Tiada kenalan yang sepadan dengan penapis anda.",
     "confirmDelete": "Padam kenalan ini?",
-    "deleteError": "Gagal memadam kenalan",
     "businessName": "Nama Perniagaan",
     "contactName": "Nama Kenalan",
     "category": "Kategori",
@@ -103,37 +90,65 @@
     "zipCode": "Poskod",
     "notes": "Nota",
     "notesPlaceholder": "Nota tambahan tentang kenalan ini...",
-    "gasStationFlag": "Stesen minyak",
-    "gasStations": "Stesen Minyak",
-    "gasStationsFilterHint": "Paparkan hanya stesen minyak yang dicipta daripada rekod bahan api",
     "categoryRvPark": "Taman RV",
     "categoryGasStation": "Stesen Minyak",
     "categoryAll": "Semua",
     "filterByCategory": "Tapis mengikut kategori",
-    "editContactNamed": "Sunting {{name}}",
+    "editContactNamed": "Edit {{name}}",
     "saveChanges": "Simpan Perubahan",
-    "saveAction": "simpan kenalan",
-    "deleteAction": "padam kenalan"
+    "saveAction": "menyimpan kenalan",
+    "deleteAction": "memadam kenalan"
   },
   "supplies": {
     "title": "Bekalan",
-    "subtitle": "Jejak cecair, penapis dan alat ganti yang tersedia — termasuk pembelian, penggunaan dan kos semasa",
+    "subtitle": "Jejak cecair, penapis dan alat ganti yang tersedia: pembelian, penggunaan dan kos operasi",
     "addSupply": "Tambah Bekalan",
     "addFirstSupply": "Tambah Bekalan Pertama Anda",
     "editSupply": "Edit Bekalan",
     "loading": "Memuatkan bekalan...",
-    "loadError": "Gagal memuatkan bekalan",
     "noSupplies": "Belum ada bekalan.",
     "showArchived": "Paparkan Diarkibkan",
     "archived": "Diarkibkan",
+    "searchSupplies": "Cari bekalan...",
+    "showingResults": "Menunjukkan {{shown}} daripada {{total}} bekalan",
+    "clearFilters": "Kosongkan penapis",
+    "filterByCategory": "Tapis mengikut kategori",
+    "allCategories": "Semua kategori",
+    "filterByVehicle": "Tapis mengikut kenderaan",
+    "allVehicles": "Semua kenderaan",
+    "sharedVehicle": "Dikongsi",
+    "outOfStock": "Kehabisan stok",
+    "noMatches": "Tiada bekalan yang sepadan dengan penapis semasa",
+    "sortSupplies": "Susun bekalan",
+    "sortTrigger": "Susun: {{label}}",
+    "sortByName": "Nama",
+    "sortByLowestStock": "Stok terendah dahulu",
+    "sortByCategory": "Kategori",
+    "groupSupplies": "Kumpulkan bekalan",
+    "groupTrigger": "Kumpulan: {{label}}",
+    "groupNone": "Tiada",
+    "groupByCategory": "Kategori",
+    "groupByVehicle": "Kenderaan",
+    "noCategory": "Tiada kategori",
+    "gridView": "Paparan grid",
+    "listView": "Paparan senarai",
+    "tableCaption": "Inventori bekalan",
     "confirmDelete": "Padam bekalan ini?",
     "deleted": "Bekalan dipadam",
-    "deleteError": "Gagal memadam bekalan",
     "name": "Nama",
     "unitType": "Jenis Unit",
     "unitTypeVolume": "Isi Padu",
     "unitTypeCount": "Bilangan",
     "unitTypeImmutable": "Jenis unit tidak boleh diubah selepas bekalan dicipta.",
+    "volumeUnit": "Unit",
+    "volumeUnitHint": "Menukar unit tidak mengubah jumlah dalam stok.",
+    "volumeUnits": {
+      "mL": "Mililiter (mL)",
+      "fl_oz_us": "Auns cecair AS (fl oz)",
+      "fl_oz_uk": "Auns cecair UK (fl oz)",
+      "qt_us": "Kuart AS (qt)",
+      "qt_uk": "Kuart UK (qt)"
+    },
     "partNumber": "Nombor Alat Ganti",
     "barcode": "Kod Bar",
     "scanBarcode": "Imbas",
@@ -145,14 +160,17 @@
     "sharedAcrossVehicles": "Dikongsi untuk semua kenderaan",
     "onHand": "Dalam Stok",
     "avgUnitCost": "Purata Kos Seunit",
+    "avgCostPerUnit": "Purata Kos/{{unit}}",
+    "avgCostValuePerUnit": "{{value}}/{{unit}}",
+    "estimated": "Anggaran",
+    "estimatedHint": "Kos anggaran menggunakan purata bekalan kerana tiada pembelian bertarikh pada atau sebelum lawatan yang direkodkan. Ia dikemas kini sebaik sahaja satu pembelian direkodkan.",
     "negativeWarning": "Penggunaan yang direkodkan melebihi pembelian yang direkodkan",
     "activeToggle": "Aktif (nyahpilih untuk arkibkan)",
     "viewHistory": "Lihat sejarah",
-    "saveAction": "simpan bekalan",
+    "saveAction": "menyimpan bekalan",
     "history": {
       "title": "Sejarah: {{name}}",
       "loading": "Memuatkan sejarah...",
-      "loadError": "Gagal memuatkan sejarah",
       "empty": "Belum ada pembelian atau penggunaan direkodkan.",
       "ledger": "Lejar",
       "purchase": "Pembelian",
@@ -161,54 +179,49 @@
       "balance": "Baki",
       "serviceVisitDate": "Tarikh lawatan",
       "downloadReceipt": "Muat turun resit",
-      "downloadError": "Gagal memuat turun resit",
       "deleteReceipt": "Padam resit",
       "confirmDeleteReceipt": "Padam resit ini?",
       "receiptDeleted": "Resit dipadam",
-      "receiptDeleteError": "Gagal memadam resit",
       "chooseReceipt": "Lampirkan resit",
       "uploadReceipt": "Muat Naik",
       "receiptUploaded": "Resit dimuat naik",
-      "receiptUploadError": "Gagal memuat naik resit",
       "deletePurchase": "Padam pembelian",
       "confirmDeletePurchase": "Padam pembelian ini? Resitnya juga akan dipadam.",
       "purchaseDeleted": "Pembelian dipadam",
-      "purchaseDeleteError": "Gagal memadam pembelian",
       "deleteAdjustment": "Padam pelarasan",
       "confirmDeleteAdjustment": "Padam pelarasan ini?",
       "adjustmentDeleted": "Pelarasan dipadam",
-      "adjustmentDeleteError": "Gagal memadam pelarasan",
       "logPurchase": "Rekod Pembelian",
       "logAdjustment": "Rekod Pelarasan",
       "quantity": "Kuantiti",
       "quantityRequired": "Masukkan kuantiti lebih daripada 0",
+      "quantityTooSmall": "Terlalu kecil untuk disimpan: ditukar kepada kurang daripada 1 mL",
       "supplier": "Pembekal",
       "noSupplier": "Tiada pembekal",
       "receipt": "Resit (pilihan)",
       "purchaseLogged": "Pembelian direkodkan",
       "adjustmentLogged": "Pelarasan direkodkan",
       "adjustmentHint": "Merekod stok yang dikeluarkan di luar kerja servis (contohnya tertumpah, diberikan atau dibuang).",
-      "logPurchaseAction": "rekod pembelian",
-      "logAdjustmentAction": "rekod pelarasan",
-      "downloadAction": "muat turun resit",
-      "purchaseDeleteAction": "padam pembelian",
-      "receiptDeleteAction": "padam resit",
-      "receiptUploadAction": "muat naik resit",
-      "adjustmentDeleteAction": "padam pelarasan",
-      "loadAction": "muatkan sejarah"
+      "logPurchaseAction": "merekod pembelian",
+      "logAdjustmentAction": "merekod pelarasan",
+      "downloadAction": "memuat turun resit",
+      "purchaseDeleteAction": "memadam pembelian",
+      "receiptDeleteAction": "memadam resit",
+      "receiptUploadAction": "memuat naik resit",
+      "adjustmentDeleteAction": "memadam pelarasan",
+      "loadAction": "memuatkan sejarah"
     },
     "usedTab": {
       "title": "Bekalan Digunakan",
       "count": "{{count}} penggunaan bekalan direkodkan",
       "loading": "Memuatkan bekalan yang digunakan...",
-      "loadError": "Gagal memuatkan bekalan yang digunakan",
       "empty": "Belum ada bekalan direkodkan untuk kenderaan ini.",
       "quantity": "Kuantiti",
       "viewVisit": "Lihat lawatan servis",
-      "loadAction": "muatkan bekalan yang digunakan"
+      "loadAction": "memuatkan bekalan yang digunakan"
     },
-    "deleteAction": "padam bekalan",
-    "loadAction": "muatkan bekalan"
+    "deleteAction": "memadam bekalan",
+    "loadAction": "memuatkan bekalan"
   },
   "poiFinder": {
     "title": "Cari Tempat Menarik",
@@ -228,8 +241,7 @@
     "searchByAddress": "Cari mengikut alamat",
     "addressTooShort": "Masukkan alamat (≥2 aksara)",
     "addressNotFound": "Tiada hasil untuk alamat tersebut",
-    "geocodeFailed": "Geokod gagal",
-    "geocodeAction": "geokod alamat",
+    "geocodeAction": "menggeokod alamat",
     "categoryAutoShops": "Bengkel Kereta",
     "categoryEvCharging": "Pengecasan EV",
     "categoryGasStations": "Stesen Minyak",
@@ -243,10 +255,8 @@
     "locationDenied": "Kebenaran lokasi ditolak. Sila benarkan akses lokasi dalam tetapan pelayar anda.",
     "locationUnavailable": "Maklumat lokasi tidak tersedia.",
     "locationTimeout": "Permintaan lokasi tamat masa.",
-    "searchFailed": "Gagal mencari POI",
-    "searchAction": "cari tempat menarik",
-    "saveFailed": "Gagal menyimpan POI",
-    "saveAction": "simpan tempat menarik",
+    "searchAction": "mencari tempat menarik",
+    "saveAction": "menyimpan tempat menarik",
     "savedToAddressBook": "{{name}} disimpan ke buku alamat!"
   },
   "about": {
@@ -254,7 +264,7 @@
     "subtitle": "Ketahui lebih lanjut tentang MyGarage",
     "tagline": "Penjejak penyelenggaraan kenderaan hos sendiri untuk komuniti homelab",
     "whatIsTitle": "Apakah MyGarage?",
-    "whatIsDescription1": "MyGarage ialah penjejak penyelenggaraan kenderaan hos sendiri yang menyimpan setiap butiran kenderaan anda — pengisian bahan api, lawatan servis, cecair, pendaftaran, waranti, panggilan balik dan nota — di satu tempat di bawah kawalan anda.",
+    "whatIsDescription1": "MyGarage ialah penjejak penyelenggaraan kenderaan hos sendiri yang menyimpan setiap butiran kenderaan anda (pengisian bahan api, lawatan servis, cecair, pendaftaran, waranti, panggilan balik dan nota) di satu tempat di bawah kawalan anda.",
     "whatIsDescription2": "Direka untuk komuniti homelab, MyGarage berjalan pada infrastruktur anda sendiri tanpa perkongsian data pihak ketiga atau telemetri. Data kenderaan anda kekal milik anda.",
     "whyTitle": "Mengapa MyGarage?",
     "privacyFirst": "Privasi Diutamakan",
@@ -262,16 +272,16 @@
     "databaseSettings": "Tetapan Pangkalan Data",
     "databaseSettingsDesc": "Pilih SQLite (lalai) untuk kegunaan homelab ringkas atau PostgreSQL untuk penggunaan berbilang pengguna. Migrasi digunakan secara automatik semasa aplikasi bermula.",
     "multiNotifications": "Pemberitahuan Pelbagai Saluran",
-    "multiNotificationsDesc": "Dapatkan peringatan penyelenggaraan melalui Ntfy, Apprise, e-mel atau webhook — mengikut kesesuaian homelab anda.",
+    "multiNotificationsDesc": "Dapatkan peringatan tentang penyelenggaraan melalui Discord, Slack, Telegram, ntfy, Gotify, Pushover, Matrix atau e-mel, mengikut kesesuaian homelab anda.",
     "comprehensiveTracking": "Penjejakan Menyeluruh",
-    "comprehensiveTrackingDesc": "Ekonomi bahan api, penggunaan DEF, sejarah tekanan tayar, penyelenggaraan berjadual, foto, dokumen dan telemetri OBD-II langsung — semuanya disokong.",
+    "comprehensiveTrackingDesc": "Kecekapan bahan api, penggunaan DEF, sejarah tekanan tayar, penyelenggaraan berjadual, foto, dokumen dan telemetri OBD-II langsung, semuanya disokong.",
     "builtWithAI": "Dibina dengan AI",
     "builtWithAIDesc": "MyGarage ialah hasil kerjasama human-in-the-loop antara Jamey dan sekumpulan pembantu AI. Setiap ejen mengkhusus dalam bahagian aliran kerja yang berbeza.",
     "claudeRole": "reka bentuk, perancangan, semakan kod dan pelaksanaan",
     "operatorRole": "automasi pelayar dan pengesahan UI",
     "codexRole": "semakan kod pendapat kedua dan pengesahan",
     "poweredByNHTSA": "Dikuasakan oleh NHTSA",
-    "nhtsaDesc1": "Penyahkodan VIN, semakan panggilan balik dan data keselamatan semuanya diperoleh daripada API awam National Highway Traffic Safety Administration (NHTSA) A.S. — percuma, rasmi dan berautoriti.",
+    "nhtsaDesc1": "Penyahkodan VIN, semakan panggilan balik dan data keselamatan semuanya diperoleh daripada API awam National Highway Traffic Safety Administration (NHTSA) A.S.: percuma, rasmi dan berautoriti.",
     "nhtsaDesc2": "Nota: Data NHTSA paling lengkap untuk kenderaan yang dijual di Amerika Syarikat.",
     "learnMore": "Ketahui Lebih Lanjut",
     "projectWebsite": "Laman Web Projek",
@@ -282,12 +292,7 @@
     "forCommunity": "untuk komuniti homelab"
   },
   "errors": {
-    "generic": "Sesuatu tidak kena. Sila cuba lagi.",
-    "network": "Ralat rangkaian. Sila semak sambungan anda.",
-    "unauthorized": "Sila log masuk untuk meneruskan.",
-    "forbidden": "Anda tidak mempunyai kebenaran untuk melakukan perkara itu.",
-    "notFound": "Sumber yang diminta tidak ditemui.",
-    "validation": "Sila semak input anda dan cuba lagi."
+    "generic": "Sesuatu tidak kena. Sila cuba lagi."
   },
   "footer": "MyGarage v{{version}} - Penjejak penyelenggaraan kenderaan hos sendiri",
   "active": "Aktif",
@@ -295,7 +300,7 @@
   "admin": "Pentadbir",
   "amount": "Amaun",
   "appName": "MyGarage",
-  "autoCalculated": "Dikira secara automatik",
+  "autoCalculated": "Dikira automatik",
   "characters": "aksara",
   "checkFields": "Sila semak medan berikut: {{fields}}",
   "clear": "Kosongkan",
@@ -306,7 +311,7 @@
   "enabled": "Diaktifkan",
   "endDate": "Tarikh Tamat",
   "engineHours": "Jam Enjin",
-  "inactive": "Tidak Aktif",
+  "inactive": "Tidak aktif",
   "installPrompt": {
     "title": "Pasang MyGarage",
     "description": "Tambah MyGarage ke skrin utama anda untuk akses pantas.",
@@ -342,6 +347,7 @@
     "other": "Lain-lain"
   },
   "familyCard": {
+    "actionFor": "{{action}}: {{name}}",
     "allowSsoRelink": "Benarkan pautan semula SSO selama 30 minit",
     "cancelSsoRelink": "Batalkan pautan semula SSO",
     "columnLastService": "Servis Terakhir",
@@ -371,13 +377,12 @@
     "passwordPlaceholder": "Cipta kata laluan yang kukuh",
     "confirmPasswordLabel": "Sahkan Kata Laluan",
     "confirmPasswordPlaceholder": "Sahkan kata laluan anda",
-    "showPassword": "Paparkan kata laluan",
+    "showPassword": "Tunjukkan kata laluan",
     "hidePassword": "Sembunyikan kata laluan",
     "passwordStrength": "Kekuatan kata laluan: {{strength}}",
     "passwordRequirements": "Mesti mempunyai: 8+ aksara, huruf besar, huruf kecil, nombor dan aksara khas (!@#$...)",
     "submitting": "Mencipta akaun...",
-    "failed": "Pendaftaran gagal. Sila cuba lagi.",
-    "createAccountAction": "cipta akaun anda",
+    "createAccountAction": "mencipta akaun anda",
     "strength": {
       "weak": "Lemah",
       "medium": "Sederhana",
@@ -387,7 +392,7 @@
   "loginPage": {
     "usernamePlaceholder": "Masukkan nama pengguna atau e-mel anda",
     "passwordPlaceholder": "Masukkan kata laluan anda",
-    "showPassword": "Paparkan kata laluan",
+    "showPassword": "Tunjukkan kata laluan",
     "hidePassword": "Sembunyikan kata laluan",
     "submitting": "Sedang log masuk..."
   },
@@ -399,19 +404,16 @@
     "returnToLogin": "Kembali ke log masuk",
     "missingToken": "Token pautan tiada. Sila mulakan semula proses log masuk.",
     "passwordRequired": "Kata laluan diperlukan",
-    "failed": "Gagal memautkan akaun. Sila cuba lagi.",
-    "linkAction": "pautkan akaun"
+    "linkAction": "memautkan akaun"
   },
   "protectedRoute": {
     "loadingAriaLabel": "Memuatkan"
   },
   "addressBookPage": {
-    "edit": "Sunting",
-    "delete": "Padam",
     "businessNamePlaceholder": "Bengkel Auto ABC",
-    "contactNamePlaceholder": "John Doe",
+    "contactNamePlaceholder": "Ahmad bin Ali",
     "streetAddressPlaceholder": "123 Jalan Utama",
-    "cityPlaceholder": "Springfield"
+    "cityPlaceholder": "Shah Alam"
   },
   "poiCard": {
     "categoryAutoShop": "Bengkel Kereta",
@@ -435,8 +437,7 @@
     "cancel": "Batal",
     "add": "Tambah",
     "adding": "Menambah...",
-    "addFailed": "Gagal menambah entri",
-    "addAction": "tambah entri"
+    "addAction": "menambah entri"
   },
   "addressBookAutocomplete": {
     "placeholder": "Taip untuk mencari...",
@@ -444,7 +445,16 @@
     "helperText": "Taip sekurang-kurangnya 2 aksara untuk mencari dalam buku alamat",
     "noMatches": "Tiada kenalan ditemui yang sepadan dengan \"{{query}}\"",
     "noMatchesInCategory": "Tiada kenalan ditemui yang sepadan dengan \"{{query}}\" dalam kategori {{category}}",
-    "addToAddressBook": "Tambah \"{{query}}\" ke buku alamat"
+    "addToAddressBook": "Tambah \"{{query}}\" ke buku alamat",
+    "searching": "Sedang mencari...",
+    "searchFailed": "Tidak dapat mencari dalam buku alamat. Teruskan menaip untuk mencuba lagi."
+  },
+  "combobox": {
+    "results": "{{count}} hasil",
+    "results_other": "{{count}} hasil",
+    "searching": "Sedang mencari...",
+    "noResults": "Tiada padanan",
+    "searchFailed": "Carian gagal"
   },
   "exportMenu": {
     "export": "Eksport"
@@ -490,15 +500,10 @@
       "maxLength": "E-mel mestilah kurang daripada 255 aksara"
     },
     "serviceVisit": {
-      "descriptionRequired": "Penerangan diperlukan",
-      "descriptionTooLong": "Penerangan terlalu panjang (maksimum 200 aksara)",
-      "lineItemNotesTooLong": "Nota terlalu panjang (maksimum 1000 aksara)",
-      "inspectionResultInvalid": "Keputusan pemeriksaan tidak sah",
-      "inspectionSeverityInvalid": "Tahap keterukan pemeriksaan tidak sah",
-      "notesTooLong": "Nota terlalu panjang (maksimum 5000 aksara)",
       "insuranceClaimNumberTooLong": "Nombor tuntutan insurans terlalu panjang (maksimum 50 aksara)",
-      "lineItemsRequired": "Sekurang-kurangnya satu item diperlukan",
-      "inspectionResultRequired": "Keputusan pemeriksaan diperlukan untuk item pemeriksaan"
+      "invoiceNumberTooLong": "Nombor invois terlalu panjang (maksimum 50 aksara)",
+      "poNumberTooLong": "Nombor PO terlalu panjang (maksimum 50 aksara)",
+      "workOrderNumberTooLong": "Nombor arahan kerja terlalu panjang (maksimum 50 aksara)"
     },
     "supply": {
       "nameRequired": "Nama diperlukan",
@@ -510,6 +515,9 @@
       "notesTooLong": "Nota terlalu panjang"
     },
     "tollTag": {
+      "countryRequired": "Pilih negara, atau Lain-lain jika negara anda tiada dalam senarai",
+      "systemNameRequired": "Masukkan nama sistem tol",
+      "systemNameTooLong": "Nama sistem tol terlalu panjang (maksimum 50 aksara)",
       "systemRequired": "Sistem tol diperlukan",
       "tagNumberRequired": "Nombor tag diperlukan",
       "tagNumberTooLong": "Nombor tag terlalu panjang (maksimum 50 aksara)"
@@ -544,8 +552,7 @@
     "price": {
       "negative": "Harga tidak boleh bernilai negatif",
       "tooLarge": "Harga terlalu besar",
-      "invalid": "Masukkan nombor yang sah",
-      "required": "Harga diperlukan"
+      "invalid": "Masukkan nombor yang sah"
     },
     "kwh": {
       "negative": "kWh tidak boleh bernilai negatif",
@@ -573,7 +580,7 @@
       "tooLong": "Nota terlalu panjang (maksimum 1000 aksara)"
     },
     "vendorName": {
-      "tooLong": "Nama vendor terlalu panjang (maksimum 100 aksara)"
+      "tooLong": "Nama pembekal terlalu panjang (maksimum 100 aksara)"
     },
     "vin": {
       "length": "VIN mestilah tepat 17 aksara",
@@ -614,10 +621,22 @@
       "cylindersNegative": "Bilangan silinder tidak boleh bernilai negatif",
       "cylindersTooLarge": "Nilai bilangan silinder terlalu besar",
       "cylindersInvalid": "Masukkan nombor yang sah",
-      "purchasePriceInvalid": "Masukkan nombor yang sah"
+      "purchasePriceInvalid": "Masukkan nombor yang sah",
+      "fiscalPowerNotWhole": "Kuasa fiskal mestilah nombor bulat",
+      "fiscalPowerNegative": "Kuasa fiskal tidak boleh negatif",
+      "fiscalPowerTooLarge": "Kuasa fiskal tidak boleh melebihi 200",
+      "fiscalPowerInvalid": "Masukkan nombor yang sah",
+      "co2NotWhole": "CO₂ mestilah nombor bulat",
+      "co2Negative": "CO₂ tidak boleh negatif",
+      "co2TooLarge": "CO₂ tidak boleh melebihi 999 g/km",
+      "co2Invalid": "Masukkan nombor yang sah",
+      "powerKwNotWhole": "Kuasa mestilah nombor bulat",
+      "powerKwNegative": "Kuasa tidak boleh negatif",
+      "powerKwTooLarge": "Kuasa tidak boleh melebihi 2000 kW",
+      "powerKwInvalid": "Masukkan nombor yang sah"
     },
     "recall": {
-      "campaignNumberTooLong": "Nombor kempen terlalu panjang (maksimum 50 aksara)",
+      "campaignNumberTooLong": "Nombor kempen terlalu panjang (maksimum 20 aksara)",
       "componentRequired": "Komponen diperlukan",
       "componentTooLong": "Penerangan komponen terlalu panjang (maksimum 200 aksara)",
       "summaryRequired": "Ringkasan diperlukan",
@@ -626,14 +645,16 @@
       "remedyTooLong": "Penerangan penyelesaian terlalu panjang (maksimum 2,000 aksara)"
     },
     "fuel": {
-      "fuelTypeTooLong": "Jenis bahan api terlalu panjang",
       "octaneTooSmall": "Nilai oktana mestilah sekurang-kurangnya 50",
       "octaneTooLarge": "Nilai oktana tidak boleh melebihi 150",
       "octaneInvalid": "Masukkan penarafan oktana dalam nombor bulat",
       "obcTripDurationFormat": "Gunakan saat (cth. 8100), HH:MM (cth. 2:15), atau HH:MM:SS",
       "obcNegative": "Nilai OBC tidak boleh bernilai negatif",
       "obcTooLarge": "Nilai OBC terlalu besar",
-      "obcInvalid": "Masukkan nombor yang sah"
+      "obcInvalid": "Masukkan nombor yang sah",
+      "outsideTempTooLow": "Suhu luar mestilah sekurang-kurangnya {{min}}",
+      "outsideTempTooHigh": "Suhu luar tidak boleh melebihi {{max}}",
+      "outsideTempInvalid": "Masukkan nombor yang sah"
     },
     "tireSet": {
       "nameRequired": "Nama diperlukan"
@@ -671,12 +692,15 @@
     "network": "Ralat rangkaian. Sila semak sambungan anda.",
     "generic": "Ralat berlaku.",
     "unexpected": "Ralat yang tidak dijangka berlaku.",
-    "formSubmitFallback": "Ralat berlaku",
     "actionFailed": "Gagal untuk {{action}}. {{message}}",
     "actionFailedCheckInput": "Gagal untuk {{action}}. Sila semak input anda."
   },
   "mustNotBeNegative": "Tidak boleh bernilai negatif",
   "mustBeANumber": "Masukkan nombor",
   "tooManyDecimals": "Maksimum {{count}} tempat perpuluhan",
-  "ofMax": "{{value}} daripada {{max}}"
+  "ofMax": "{{value}} daripada {{max}}",
+  "numberInput": {
+    "readAs": "Dibaca sebagai {{value}}",
+    "invalidField": "{{field}}: masukkan nombor yang sah"
+  }
 }

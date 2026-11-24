@@ -8,36 +8,28 @@
   "loading": "Loading...",
   "error": "Error",
   "success": "Success",
-  "confirm": "Confirm",
   "back": "Back",
   "next": "Next",
   "search": "Search",
-  "noResults": "No results found",
   "required": "Required",
   "optional": "Optional",
   "yes": "Yes",
   "no": "No",
   "ok": "OK",
   "unknown": "Unknown",
-  "signIn": "Sign In",
-  "signOut": "Logout",
   "register": {
-    "title": "Create Account",
     "subtitle": "Set up your MyGarage account",
     "username": "Username",
     "email": "Email",
     "password": "Password",
     "submit": "Create Account",
     "hasAccount": "Already have an account?",
-    "loginLink": "Sign in",
-    "success": "Account created successfully!"
+    "loginLink": "Sign in"
   },
   "username": "Username",
   "password": "Password",
   "email": "Email",
-  "fullName": "Full Name",
   "login": {
-    "title": "Sign In to MyGarage",
     "subtitle": "Enter your credentials to access your garage",
     "usernameOrEmail": "Username",
     "password": "Password",
@@ -46,7 +38,6 @@
     "registerLink": "Register here",
     "oidcSignIn": "Sign in with {{provider}}",
     "continueWithPassword": "Or continue with password",
-    "error": "Invalid username or password",
     "signInAction": "sign in",
     "ssoError": {
       "account_disabled": "User account is disabled",
@@ -62,10 +53,8 @@
     }
   },
   "oidc": {
-    "signingIn": "Signing you in...",
     "success": "Authentication successful!",
     "redirecting": "Redirecting to your garage...",
-    "error": "Authentication failed",
     "linkAccount": "Link Account",
     "linkDescription": "Link your existing account with your SSO identity"
   },
@@ -76,12 +65,10 @@
     "title": "Address Book",
     "subtitle": "Service shops, parts suppliers, dealers, and other contacts",
     "searchPlaceholder": "Search contacts...",
-    "allCategories": "All Categories",
     "categoryService": "Service",
     "categoryParts": "Parts",
     "categoryDealer": "Dealer",
     "categoryInsurance": "Insurance",
-    "categoryOther": "Other",
     "addContact": "Add Contact",
     "addFirstContact": "Add Your First Contact",
     "editContact": "Edit Contact",
@@ -89,7 +76,6 @@
     "noContacts": "No contacts yet.",
     "noMatchingContacts": "No contacts match your filters.",
     "confirmDelete": "Delete this contact?",
-    "deleteError": "Failed to delete contact",
     "businessName": "Business Name",
     "contactName": "Contact Name",
     "category": "Category",
@@ -104,9 +90,6 @@
     "zipCode": "ZIP Code",
     "notes": "Notes",
     "notesPlaceholder": "Additional notes about this contact...",
-    "gasStationFlag": "Gas station",
-    "gasStations": "Gas Stations",
-    "gasStationsFilterHint": "Show only gas stations created from fuel records",
     "categoryRvPark": "RV Park",
     "categoryGasStation": "Gas Station",
     "categoryAll": "All",
@@ -118,12 +101,11 @@
   },
   "supplies": {
     "title": "Supplies",
-    "subtitle": "Track fluids, filters, and parts on hand — purchases, usage, and running cost",
+    "subtitle": "Track fluids, filters, and parts on hand: purchases, usage, and running cost",
     "addSupply": "Add Supply",
     "addFirstSupply": "Add Your First Supply",
     "editSupply": "Edit Supply",
     "loading": "Loading supplies...",
-    "loadError": "Failed to load supplies",
     "noSupplies": "No supplies yet.",
     "showArchived": "Show Archived",
     "archived": "Archived",
@@ -153,7 +135,6 @@
     "tableCaption": "Supplies inventory",
     "confirmDelete": "Delete this supply?",
     "deleted": "Supply deleted",
-    "deleteError": "Failed to delete supply",
     "name": "Name",
     "unitType": "Unit Type",
     "unitTypeVolume": "Volume",
@@ -190,7 +171,6 @@
     "history": {
       "title": "History: {{name}}",
       "loading": "Loading history...",
-      "loadError": "Failed to load history",
       "empty": "No purchases or usage logged yet.",
       "ledger": "Ledger",
       "purchase": "Purchase",
@@ -199,23 +179,18 @@
       "balance": "Balance",
       "serviceVisitDate": "Visit date",
       "downloadReceipt": "Download receipt",
-      "downloadError": "Failed to download receipt",
       "deleteReceipt": "Delete receipt",
       "confirmDeleteReceipt": "Delete this receipt?",
       "receiptDeleted": "Receipt deleted",
-      "receiptDeleteError": "Failed to delete receipt",
       "chooseReceipt": "Attach receipt",
       "uploadReceipt": "Upload",
       "receiptUploaded": "Receipt uploaded",
-      "receiptUploadError": "Failed to upload receipt",
       "deletePurchase": "Delete purchase",
       "confirmDeletePurchase": "Delete this purchase? This also removes its receipt.",
       "purchaseDeleted": "Purchase deleted",
-      "purchaseDeleteError": "Failed to delete purchase",
       "deleteAdjustment": "Delete adjustment",
       "confirmDeleteAdjustment": "Delete this adjustment?",
       "adjustmentDeleted": "Adjustment deleted",
-      "adjustmentDeleteError": "Failed to delete adjustment",
       "logPurchase": "Log Purchase",
       "logAdjustment": "Log Adjustment",
       "quantity": "Quantity",
@@ -240,7 +215,6 @@
       "title": "Supplies Used",
       "count": "{{count}} supply usages logged",
       "loading": "Loading supplies used...",
-      "loadError": "Failed to load supplies used",
       "empty": "No supplies logged for this vehicle yet.",
       "quantity": "Quantity",
       "viewVisit": "View service visit",
@@ -267,7 +241,6 @@
     "searchByAddress": "Search by address",
     "addressTooShort": "Enter an address (≥2 characters)",
     "addressNotFound": "No results for that address",
-    "geocodeFailed": "Geocoding failed",
     "geocodeAction": "geocode the address",
     "categoryAutoShops": "Auto Shops",
     "categoryEvCharging": "EV Charging",
@@ -282,9 +255,7 @@
     "locationDenied": "Location permission denied. Please enable location access in your browser settings.",
     "locationUnavailable": "Location information is unavailable.",
     "locationTimeout": "Location request timed out.",
-    "searchFailed": "Failed to search for POIs",
     "searchAction": "search for points of interest",
-    "saveFailed": "Failed to save POI",
     "saveAction": "save the point of interest",
     "savedToAddressBook": "{{name}} saved to address book!"
   },
@@ -293,7 +264,7 @@
     "subtitle": "Learn more about MyGarage",
     "tagline": "Self-hosted vehicle maintenance tracker for the homelab community",
     "whatIsTitle": "What is MyGarage?",
-    "whatIsDescription1": "MyGarage is a self-hosted vehicle maintenance tracker that keeps every detail of your fleet — fuel-ups, service visits, fluids, registrations, warranties, recalls, and notes — in one place under your control.",
+    "whatIsDescription1": "MyGarage is a self-hosted vehicle maintenance tracker that keeps every detail of your fleet (fuel-ups, service visits, fluids, registrations, warranties, recalls, and notes) in one place under your control.",
     "whatIsDescription2": "Designed for the homelab community, MyGarage runs on your own infrastructure with no third-party data sharing or telemetry. Your vehicle data stays yours.",
     "whyTitle": "Why MyGarage?",
     "privacyFirst": "Privacy First",
@@ -301,16 +272,16 @@
     "databaseSettings": "Database Settings",
     "databaseSettingsDesc": "Choose SQLite (default) for simple homelab use or PostgreSQL for multi-user deployments. Migrations apply automatically on startup.",
     "multiNotifications": "Multi-Channel Notifications",
-    "multiNotificationsDesc": "Get reminded about maintenance via Ntfy, Apprise, email, or webhook — wherever fits your homelab.",
+    "multiNotificationsDesc": "Get reminded about maintenance through Discord, Slack, Telegram, ntfy, Gotify, Pushover, Matrix or email, wherever fits your homelab.",
     "comprehensiveTracking": "Comprehensive Tracking",
-    "comprehensiveTrackingDesc": "Fuel economy, DEF usage, tire pressure history, scheduled maintenance, photos, documents, and live OBD-II telemetry — covered.",
+    "comprehensiveTrackingDesc": "Fuel economy, DEF usage, tire pressure history, scheduled maintenance, photos, documents, and live OBD-II telemetry, all covered.",
     "builtWithAI": "Built with AI",
     "builtWithAIDesc": "MyGarage is the result of a human-in-the-loop collaboration between Jamey and a team of AI assistants. Each agent specializes in a different part of the workflow.",
     "claudeRole": "design, planning, code review, and implementation",
     "operatorRole": "browser automation and UI verification",
     "codexRole": "second-opinion code review and validation",
     "poweredByNHTSA": "Powered by NHTSA",
-    "nhtsaDesc1": "VIN decoding, recall lookups, and safety data are all sourced from the U.S. National Highway Traffic Safety Administration's public APIs — free, official, and authoritative.",
+    "nhtsaDesc1": "VIN decoding, recall lookups, and safety data are all sourced from the U.S. National Highway Traffic Safety Administration's public APIs: free, official, and authoritative.",
     "nhtsaDesc2": "Note: NHTSA data is most complete for vehicles sold in the United States.",
     "learnMore": "Learn More",
     "projectWebsite": "Project Website",
@@ -321,12 +292,7 @@
     "forCommunity": "for the homelab community"
   },
   "errors": {
-    "generic": "Something went wrong. Please try again.",
-    "network": "Network error. Please check your connection.",
-    "unauthorized": "Please sign in to continue.",
-    "forbidden": "You don't have permission to do that.",
-    "notFound": "The requested resource was not found.",
-    "validation": "Please check your input and try again."
+    "generic": "Something went wrong. Please try again."
   },
   "footer": "MyGarage v{{version}} - Self-hosted vehicle maintenance tracker",
   "active": "Active",
@@ -416,7 +382,6 @@
     "passwordStrength": "Password strength: {{strength}}",
     "passwordRequirements": "Must have: 8+ chars, uppercase, lowercase, number, special char (!@#$...)",
     "submitting": "Creating account...",
-    "failed": "Registration failed. Please try again.",
     "createAccountAction": "create your account",
     "strength": {
       "weak": "Weak",
@@ -439,15 +404,12 @@
     "returnToLogin": "Return to login",
     "missingToken": "Link token is missing. Please restart the login process.",
     "passwordRequired": "Password is required",
-    "failed": "Failed to link account. Please try again.",
     "linkAction": "link the account"
   },
   "protectedRoute": {
     "loadingAriaLabel": "Loading"
   },
   "addressBookPage": {
-    "edit": "Edit",
-    "delete": "Delete",
     "businessNamePlaceholder": "ABC Auto Shop",
     "contactNamePlaceholder": "John Doe",
     "streetAddressPlaceholder": "123 Main Street",
@@ -475,7 +437,6 @@
     "cancel": "Cancel",
     "add": "Add",
     "adding": "Adding...",
-    "addFailed": "Failed to add entry",
     "addAction": "add the entry"
   },
   "addressBookAutocomplete": {
@@ -540,18 +501,10 @@
       "maxLength": "Email must be less than 255 characters"
     },
     "serviceVisit": {
-      "descriptionRequired": "Description is required",
-      "descriptionTooLong": "Description too long (max 200 characters)",
-      "lineItemNotesTooLong": "Notes too long (max 1000 characters)",
-      "inspectionResultInvalid": "Invalid inspection result",
-      "inspectionSeverityInvalid": "Invalid inspection severity",
-      "notesTooLong": "Notes too long (max 5000 characters)",
       "insuranceClaimNumberTooLong": "Insurance claim number too long (max 50 characters)",
       "invoiceNumberTooLong": "Invoice number too long (max 50 characters)",
       "poNumberTooLong": "PO number too long (max 50 characters)",
-      "workOrderNumberTooLong": "Work order number too long (max 50 characters)",
-      "lineItemsRequired": "At least one line item is required",
-      "inspectionResultRequired": "Inspection result is required for inspection items"
+      "workOrderNumberTooLong": "Work order number too long (max 50 characters)"
     },
     "supply": {
       "nameRequired": "Name is required",
@@ -600,8 +553,7 @@
     "price": {
       "negative": "Price cannot be negative",
       "tooLarge": "Price too large",
-      "invalid": "Enter a valid number",
-      "required": "Price is required"
+      "invalid": "Enter a valid number"
     },
     "kwh": {
       "negative": "kWh cannot be negative",
@@ -694,7 +646,6 @@
       "remedyTooLong": "Remedy description too long (max 2,000 characters)"
     },
     "fuel": {
-      "fuelTypeTooLong": "Fuel type too long",
       "octaneTooSmall": "Octane must be at least 50",
       "octaneTooLarge": "Octane cannot exceed 150",
       "octaneInvalid": "Enter a whole-number octane rating",
@@ -742,7 +693,6 @@
     "network": "Network error. Please check your connection.",
     "generic": "An error occurred.",
     "unexpected": "An unexpected error occurred.",
-    "formSubmitFallback": "An error occurred",
     "actionFailed": "Failed to {{action}}. {{message}}",
     "actionFailedCheckInput": "Failed to {{action}}. Please check your input."
   },

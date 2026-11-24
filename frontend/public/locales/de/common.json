@@ -8,35 +8,28 @@
   "loading": "Wird geladen...",
   "error": "Fehler",
   "success": "Erfolgreich",
-  "confirm": "Bestätigen",
   "back": "Zurück",
   "next": "Weiter",
   "search": "Suchen",
-  "noResults": "Keine Ergebnisse gefunden",
   "required": "Erforderlich",
   "optional": "Optional",
   "yes": "Ja",
   "no": "Nein",
   "ok": "OK",
-  "signIn": "Anmelden",
-  "signOut": "Abmelden",
+  "unknown": "Unbekannt",
   "register": {
-    "title": "Konto erstellen",
     "subtitle": "Richte dein MyGarage-Konto ein",
     "username": "Benutzername",
     "email": "E-Mail",
     "password": "Passwort",
     "submit": "Konto erstellen",
     "hasAccount": "Hast du bereits ein Konto?",
-    "loginLink": "Anmelden",
-    "success": "Konto erfolgreich erstellt!"
+    "loginLink": "Anmelden"
   },
   "username": "Benutzername",
   "password": "Passwort",
   "email": "E-Mail",
-  "fullName": "Vollständiger Name",
   "login": {
-    "title": "Bei MyGarage anmelden",
     "subtitle": "Gib deine Zugangsdaten ein, um auf deine Garage zuzugreifen",
     "usernameOrEmail": "Benutzername",
     "password": "Passwort",
@@ -45,14 +38,23 @@
     "registerLink": "Hier registrieren",
     "oidcSignIn": "Mit {{provider}} anmelden",
     "continueWithPassword": "Oder mit Passwort fortfahren",
-    "error": "Ungültiger Benutzername oder ungültiges Passwort",
-    "signInAction": "Anmelden"
+    "signInAction": "Anmelden",
+    "ssoError": {
+      "account_disabled": "Das Benutzerkonto ist deaktiviert",
+      "email_linked_elsewhere": "Diese E-Mail-Adresse gehört zu einem Konto, das mit einer anderen Anmeldung verknüpft ist. Bitte einen Administrator, dafür eine SSO-Neuverknüpfung zu erlauben.",
+      "email_no_password": "Es gibt ein Konto mit dieser E-Mail-Adresse, aber ohne Passwort, um es zu bestätigen. Bitte einen Administrator, dafür eine SSO-Neuverknüpfung zu erlauben.",
+      "username_linked_elsewhere": "Dieser Benutzername gehört zu einem Konto, das mit einer anderen Anmeldung verknüpft ist. Bitte einen Administrator, dafür eine SSO-Neuverknüpfung zu erlauben.",
+      "username_no_password": "Es gibt ein Konto mit diesem Benutzernamen, aber ohne Passwort, um es zu bestätigen. Bitte einen Administrator, dafür eine SSO-Neuverknüpfung zu erlauben.",
+      "no_account": "Zu dieser Anmeldung passt kein MyGarage-Konto, und die automatische Kontoerstellung ist deaktiviert. Bitte einen Administrator, dein Konto anzulegen.",
+      "cancelled": "Die Anmeldung wurde abgebrochen.",
+      "expired": "Diese Anmeldung hat zu lange gedauert oder wurde bereits verwendet. Bitte versuche es erneut.",
+      "failed": "Single Sign-On hat nicht funktioniert. Versuche es erneut oder lass einen Administrator die SSO-Einstellungen prüfen.",
+      "rate_limited": "Zu viele Anmeldeversuche. Warte eine Minute und versuche es dann erneut."
+    }
   },
   "oidc": {
-    "signingIn": "Anmeldung wird durchgeführt...",
     "success": "Authentifizierung erfolgreich!",
     "redirecting": "Weiterleitung zu deiner Garage...",
-    "error": "Authentifizierung fehlgeschlagen",
     "linkAccount": "Konto verknüpfen",
     "linkDescription": "Verknüpfe dein bestehendes Konto mit deiner SSO-Identität"
   },
@@ -61,14 +63,12 @@
   },
   "addressBook": {
     "title": "Adressbuch",
-    "subtitle": "Werkstätten, Teilelieferanten, Händler und Versicherungskontakte",
+    "subtitle": "Werkstätten, Teilelieferanten, Händler und weitere Kontakte",
     "searchPlaceholder": "Kontakte suchen...",
-    "allCategories": "Alle Kategorien",
     "categoryService": "Service",
     "categoryParts": "Teile",
     "categoryDealer": "Händler",
     "categoryInsurance": "Versicherung",
-    "categoryOther": "Sonstige",
     "addContact": "Kontakt hinzufügen",
     "addFirstContact": "Füge deinen ersten Kontakt hinzu",
     "editContact": "Kontakt bearbeiten",
@@ -76,7 +76,6 @@
     "noContacts": "Noch keine Kontakte vorhanden.",
     "noMatchingContacts": "Keine Kontakte entsprechen deinen Filtern.",
     "confirmDelete": "Diesen Kontakt löschen?",
-    "deleteError": "Kontakt konnte nicht gelöscht werden",
     "businessName": "Firmenname",
     "contactName": "Name des Kontakts",
     "category": "Kategorie",
@@ -91,51 +90,87 @@
     "zipCode": "PLZ",
     "notes": "Notizen",
     "notesPlaceholder": "Zusätzliche Notizen zu diesem Kontakt...",
-    "gasStationFlag": "Tankstelle",
-    "gasStations": "Tankstellen",
-    "gasStationsFilterHint": "Nur Tankstellen anzeigen, die aus Kraftstoffeinträgen erstellt wurden",
     "categoryRvPark": "Wohnmobilstellplatz",
-    "categoryAll": "Alle",
     "categoryGasStation": "Tankstelle",
-    "editContactNamed": "{{name}} bearbeiten",
+    "categoryAll": "Alle",
     "filterByCategory": "Nach Kategorie filtern",
+    "editContactNamed": "{{name}} bearbeiten",
     "saveChanges": "Änderungen speichern",
     "saveAction": "Kontakt speichern",
     "deleteAction": "Kontakt löschen"
   },
   "supplies": {
     "title": "Vorräte",
-    "subtitle": "Verwalte Flüssigkeiten, Filter und Ersatzteile auf Lager — Einkäufe, Verbrauch und laufende Kosten",
+    "subtitle": "Verwalte Flüssigkeiten, Filter und Ersatzteile auf Lager: Einkäufe, Verbrauch und laufende Kosten",
     "addSupply": "Vorrat hinzufügen",
     "addFirstSupply": "Füge deinen ersten Vorrat hinzu",
     "editSupply": "Vorrat bearbeiten",
     "loading": "Vorräte werden geladen...",
-    "loadError": "Vorräte konnten nicht geladen werden",
     "noSupplies": "Noch keine Vorräte vorhanden.",
     "showArchived": "Archivierte anzeigen",
     "archived": "Archiviert",
+    "searchSupplies": "Vorräte durchsuchen...",
+    "showingResults": "{{shown}} von {{total}} Vorräten angezeigt",
+    "clearFilters": "Filter zurücksetzen",
+    "filterByCategory": "Nach Kategorie filtern",
+    "allCategories": "Alle Kategorien",
+    "filterByVehicle": "Nach Fahrzeug filtern",
+    "allVehicles": "Alle Fahrzeuge",
+    "sharedVehicle": "Freigegeben",
+    "outOfStock": "Nicht vorrätig",
+    "noMatches": "Keine Vorräte entsprechen den aktuellen Filtern",
+    "sortSupplies": "Vorräte sortieren",
+    "sortTrigger": "Sortierung: {{label}}",
+    "sortByName": "Name",
+    "sortByLowestStock": "Niedrigster Bestand zuerst",
+    "sortByCategory": "Kategorie",
+    "groupSupplies": "Vorräte gruppieren",
+    "groupTrigger": "Gruppierung: {{label}}",
+    "groupNone": "Keine",
+    "groupByCategory": "Kategorie",
+    "groupByVehicle": "Fahrzeug",
+    "noCategory": "Keine Kategorie",
+    "gridView": "Rasteransicht",
+    "listView": "Listenansicht",
+    "tableCaption": "Vorratsbestand",
     "confirmDelete": "Diesen Vorrat löschen?",
     "deleted": "Vorrat gelöscht",
-    "deleteError": "Vorrat konnte nicht gelöscht werden",
     "name": "Name",
     "unitType": "Einheitentyp",
     "unitTypeVolume": "Volumen",
     "unitTypeCount": "Anzahl",
     "unitTypeImmutable": "Der Einheitentyp kann nach dem Erstellen eines Vorrats nicht mehr geändert werden.",
+    "volumeUnit": "Einheit",
+    "volumeUnitHint": "Das Ändern der Einheit ändert den vorrätigen Bestand nicht.",
+    "volumeUnits": {
+      "mL": "Milliliter (mL)",
+      "fl_oz_us": "US-Flüssigunzen (fl oz)",
+      "fl_oz_uk": "UK-Flüssigunzen (fl oz)",
+      "qt_us": "US-Quarts (qt)",
+      "qt_uk": "UK-Quarts (qt)"
+    },
     "partNumber": "Teilenummer",
+    "barcode": "Barcode",
+    "scanBarcode": "Scannen",
+    "barcodeManualPrompt": "Das Scannen von Barcodes wird in diesem Browser nicht unterstützt. Gib den Barcode manuell ein:",
+    "barcodeNotFound": "In diesem Bild wurde kein Barcode gefunden",
+    "barcodeScanError": "Barcode konnte nicht gescannt werden",
     "category": "Kategorie",
     "vehicle": "Fahrzeug",
     "sharedAcrossVehicles": "Für alle Fahrzeuge freigegeben",
     "onHand": "Vorrätig",
     "avgUnitCost": "Durchschn. Stückkosten",
     "avgCostPerUnit": "Ø Kosten/{{unit}}",
+    "avgCostValuePerUnit": "{{value}}/{{unit}}",
+    "estimated": "Geschätzt",
+    "estimatedHint": "Geschätzte Kosten verwenden den Durchschnittspreis des Vorrats, weil kein Einkauf am oder vor dem Datum des Besuchs erfasst wurde. Sie werden aktualisiert, sobald einer erfasst ist.",
     "negativeWarning": "Der erfasste Verbrauch übersteigt die aufgezeichneten Einkäufe",
     "activeToggle": "Aktiv (Abwählen zum Archivieren)",
     "viewHistory": "Verlauf anzeigen",
+    "saveAction": "Vorrat speichern",
     "history": {
       "title": "Verlauf: {{name}}",
       "loading": "Verlauf wird geladen...",
-      "loadError": "Verlauf konnte nicht geladen werden",
       "empty": "Noch keine Einkäufe oder Verbräuche erfasst.",
       "ledger": "Bestandsbuch",
       "purchase": "Einkauf",
@@ -144,60 +179,49 @@
       "balance": "Bestand",
       "serviceVisitDate": "Besuchsdatum",
       "downloadReceipt": "Beleg herunterladen",
-      "downloadError": "Beleg konnte nicht heruntergeladen werden",
       "deleteReceipt": "Beleg löschen",
       "confirmDeleteReceipt": "Diesen Beleg löschen?",
       "receiptDeleted": "Beleg gelöscht",
-      "receiptDeleteError": "Beleg konnte nicht gelöscht werden",
       "chooseReceipt": "Beleg anhängen",
       "uploadReceipt": "Hochladen",
       "receiptUploaded": "Beleg hochgeladen",
-      "receiptUploadError": "Beleg konnte nicht hochgeladen werden",
       "deletePurchase": "Einkauf löschen",
       "confirmDeletePurchase": "Diesen Einkauf löschen? Dadurch wird auch der zugehörige Beleg entfernt.",
       "purchaseDeleted": "Einkauf gelöscht",
-      "purchaseDeleteError": "Einkauf konnte nicht gelöscht werden",
       "deleteAdjustment": "Anpassung löschen",
       "confirmDeleteAdjustment": "Diese Anpassung löschen?",
       "adjustmentDeleted": "Anpassung gelöscht",
-      "adjustmentDeleteError": "Anpassung konnte nicht gelöscht werden",
       "logPurchase": "Einkauf erfassen",
       "logAdjustment": "Anpassung erfassen",
       "quantity": "Menge",
       "quantityRequired": "Gib eine Menge größer als 0 ein",
+      "quantityTooSmall": "Zu klein zum Speichern: ergibt umgerechnet weniger als 1 mL",
       "supplier": "Lieferant",
       "noSupplier": "Kein Lieferant",
       "receipt": "Beleg (optional)",
       "purchaseLogged": "Einkauf erfasst",
       "adjustmentLogged": "Anpassung erfasst",
       "adjustmentHint": "Erfasst Bestandsabgänge außerhalb eines Serviceauftrags (z. B. Verschütten, verschenkt, entsorgt).",
-      "logPurchaseAction": "Kauf protokollieren",
-      "logAdjustmentAction": "Anpassung protokollieren",
+      "logPurchaseAction": "Einkauf erfassen",
+      "logAdjustmentAction": "Anpassung erfassen",
       "downloadAction": "Beleg herunterladen",
-      "purchaseDeleteAction": "Kauf löschen",
+      "purchaseDeleteAction": "Einkauf löschen",
       "receiptDeleteAction": "Beleg löschen",
       "receiptUploadAction": "Beleg hochladen",
       "adjustmentDeleteAction": "Anpassung löschen",
-      "loadAction": "Historie laden"
+      "loadAction": "Verlauf laden"
     },
     "usedTab": {
       "title": "Verwendete Vorräte",
       "count": "{{count}} Vorratsverbräuche erfasst",
       "loading": "Verwendete Vorräte werden geladen...",
-      "loadError": "Verwendete Vorräte konnten nicht geladen werden",
       "empty": "Für dieses Fahrzeug wurden noch keine Vorräte erfasst.",
       "quantity": "Menge",
       "viewVisit": "Servicebesuch anzeigen",
-      "loadAction": "Verbrauchte Materialien laden"
+      "loadAction": "Verwendete Vorräte laden"
     },
-    "barcode": "Barcode",
-    "scanBarcode": "Scannen",
-    "barcodeManualPrompt": "Das Scannen von Barcodes wird in diesem Browser nicht unterstützt. Gib den Barcode manuell ein:",
-    "barcodeNotFound": "In diesem Bild wurde kein Barcode gefunden",
-    "barcodeScanError": "Barcode konnte nicht gescannt werden",
-    "saveAction": "Lieferung speichern",
-    "deleteAction": "Material löschen",
-    "loadAction": "Materialien laden"
+    "deleteAction": "Vorrat löschen",
+    "loadAction": "Vorräte laden"
   },
   "poiFinder": {
     "title": "Points of Interest finden",
@@ -217,7 +241,7 @@
     "searchByAddress": "Nach Adresse suchen",
     "addressTooShort": "Gib eine Adresse ein (≥2 Zeichen)",
     "addressNotFound": "Keine Ergebnisse für diese Adresse",
-    "geocodeFailed": "Geokodierung fehlgeschlagen",
+    "geocodeAction": "Adresse geokodieren",
     "categoryAutoShops": "Werkstätten",
     "categoryEvCharging": "E-Ladestationen",
     "categoryGasStations": "Tankstellen",
@@ -231,36 +255,33 @@
     "locationDenied": "Standortzugriff verweigert. Bitte aktiviere den Standortzugriff in deinen Browsereinstellungen.",
     "locationUnavailable": "Standortinformationen sind nicht verfügbar.",
     "locationTimeout": "Zeitüberschreitung bei der Standortabfrage.",
-    "searchFailed": "Suche nach POIs fehlgeschlagen",
-    "saveFailed": "POI konnte nicht gespeichert werden",
-    "savedToAddressBook": "{{name}} wurde im Adressbuch gespeichert!",
-    "geocodeAction": "Adresse geokodieren",
     "searchAction": "Nach Points of Interest suchen",
-    "saveAction": "Point of Interest speichern"
+    "saveAction": "Point of Interest speichern",
+    "savedToAddressBook": "{{name}} wurde im Adressbuch gespeichert!"
   },
   "about": {
     "title": "Über",
     "subtitle": "Erfahre mehr über MyGarage",
     "tagline": "Selbst gehosteter Tracker für die Fahrzeugwartung für die Homelab-Community",
     "whatIsTitle": "Was ist MyGarage?",
-    "whatIsDescription1": "MyGarage ist ein selbst gehosteter Tracker für die Fahrzeugwartung, der jedes Detail deines Fuhrparks — Tankvorgänge, Servicebesuche, Flüssigkeiten, Zulassungen, Garantien, Rückrufe und Notizen — an einem Ort unter deiner Kontrolle aufbewahrt.",
+    "whatIsDescription1": "MyGarage ist ein selbst gehosteter Tracker für die Fahrzeugwartung, der jedes Detail deines Fuhrparks (Betankungen, Servicebesuche, Flüssigkeiten, Zulassungen, Garantien, Rückrufe und Notizen) an einem Ort unter deiner Kontrolle aufbewahrt.",
     "whatIsDescription2": "MyGarage wurde für die Homelab-Community entwickelt und läuft auf deiner eigenen Infrastruktur, ohne Datenweitergabe an Dritte oder Telemetrie. Deine Fahrzeugdaten bleiben deine.",
     "whyTitle": "Warum MyGarage?",
     "privacyFirst": "Datenschutz an erster Stelle",
-    "privacyFirstDesc": "Deine Daten leben auf deiner Hardware. Keine externen Server, keine Analysen, keine überraschenden Integrationen.",
+    "privacyFirstDesc": "Deine Daten bleiben auf deiner Hardware. Keine externen Server, keine Analysen, keine überraschenden Integrationen.",
     "databaseSettings": "Datenbank-Einstellungen",
     "databaseSettingsDesc": "Wähle SQLite (Standard) für die einfache Homelab-Nutzung oder PostgreSQL für Multi-User-Bereitstellungen. Migrationen werden beim Start automatisch angewendet.",
     "multiNotifications": "Multi-Channel-Benachrichtigungen",
-    "multiNotificationsDesc": "Lass dich über Ntfy, Apprise, E-Mail oder Webhook an Wartungsarbeiten erinnern — ganz so, wie es in dein Homelab passt.",
+    "multiNotificationsDesc": "Lass dich per Discord, Slack, Telegram, ntfy, Gotify, Pushover, Matrix oder E-Mail an Wartungen erinnern, ganz wie es in dein Homelab passt.",
     "comprehensiveTracking": "Umfassende Erfassung",
-    "comprehensiveTrackingDesc": "Kraftstoffverbrauch, DEF-Verbrauch, Reifendruckhistorie, geplante Wartungsarbeiten, Fotos, Dokumente und Live-OBD-II-Telemetrie — alles abgedeckt.",
+    "comprehensiveTrackingDesc": "Kraftstoffverbrauch, DEF-Verbrauch, Reifendruckhistorie, geplante Wartungsarbeiten, Fotos, Dokumente und Live-OBD-II-Telemetrie, alles abgedeckt.",
     "builtWithAI": "Mit KI entwickelt",
     "builtWithAIDesc": "MyGarage ist das Ergebnis einer Human-in-the-Loop-Zusammenarbeit zwischen Jamey und einem Team von KI-Assistenten. Jeder Agent ist auf einen anderen Teil des Workflows spezialisiert.",
     "claudeRole": "Design, Planung, Code-Review und Implementierung",
     "operatorRole": "Browser-Automatisierung und UI-Verifizierung",
     "codexRole": "Zweitmeinungs-Code-Review und Validierung",
     "poweredByNHTSA": "Unterstützt durch NHTSA",
-    "nhtsaDesc1": "VIN-Decodierung, Rückrufsuche und Sicherheitsdaten stammen alle aus den öffentlichen APIs der US-amerikanischen National Highway Traffic Safety Administration — kostenlos, offiziell und maßgeblich.",
+    "nhtsaDesc1": "VIN-Decodierung, Rückrufsuche und Sicherheitsdaten stammen alle aus den öffentlichen APIs der US-amerikanischen National Highway Traffic Safety Administration: kostenlos, offiziell und maßgeblich.",
     "nhtsaDesc2": "Hinweis: Die NHTSA-Daten sind für Fahrzeuge, die in den Vereinigten Staaten verkauft wurden, am vollständigsten.",
     "learnMore": "Mehr erfahren",
     "projectWebsite": "Projekt-Website",
@@ -271,12 +292,7 @@
     "forCommunity": "für die Homelab-Community"
   },
   "errors": {
-    "generic": "Etwas ist schiefgelaufen. Bitte versuche es erneut.",
-    "network": "Netzwerkfehler. Bitte überprüfe deine Verbindung.",
-    "unauthorized": "Bitte melde dich an, um fortzufahren.",
-    "forbidden": "Du hast keine Berechtigung, dies zu tun.",
-    "notFound": "Die angeforderte Ressource wurde nicht gefunden.",
-    "validation": "Bitte überprüfe deine Eingabe und versuche es erneut."
+    "generic": "Etwas ist schiefgelaufen. Bitte versuche es erneut."
   },
   "footer": "MyGarage v{{version}} - Selbst gehosteter Tracker für die Fahrzeugwartung",
   "active": "Aktiv",
@@ -294,6 +310,7 @@
   "deleting": "Wird gelöscht...",
   "enabled": "Aktiviert",
   "endDate": "Enddatum",
+  "engineHours": "Motorbetriebsstunden",
   "inactive": "Inaktiv",
   "installPrompt": {
     "title": "MyGarage installieren",
@@ -303,7 +320,7 @@
   "mileage": "Kilometerstand",
   "none": "Keine",
   "notes": "Notizen",
-  "previous": "Vorherige",
+  "previous": "Zurück",
   "processing": "Wird verarbeitet...",
   "remove": "Entfernen",
   "retry": "Wiederholen",
@@ -330,6 +347,9 @@
     "other": "Sonstige"
   },
   "familyCard": {
+    "actionFor": "{{action}}: {{name}}",
+    "allowSsoRelink": "SSO-Neuverknüpfung für 30 Minuten erlauben",
+    "cancelSsoRelink": "SSO-Neuverknüpfung abbrechen",
     "columnLastService": "Letzter Service",
     "columnNextMaintenance": "Nächste Wartung",
     "columnVehicle": "Fahrzeug",
@@ -343,6 +363,7 @@
     "noMaintenanceScheduled": "Keine Wartung geplant",
     "noServiceRecords": "Keine Serviceberichte",
     "noVehicles": "Keine Fahrzeuge",
+    "relinkOpenUntil": "Neuverknüpfung möglich bis {{time}}",
     "resetPassword": "Passwort zurücksetzen",
     "showOnDashboard": "Auf dem Dashboard anzeigen"
   },
@@ -361,13 +382,12 @@
     "passwordStrength": "Passwortstärke: {{strength}}",
     "passwordRequirements": "Erforderlich: 8+ Zeichen, Großbuchstabe, Kleinbuchstabe, Zahl, Sonderzeichen (!@#$...)",
     "submitting": "Konto wird erstellt...",
-    "failed": "Registrierung fehlgeschlagen. Bitte versuche es erneut.",
+    "createAccountAction": "Konto erstellen",
     "strength": {
       "weak": "Schwach",
       "medium": "Mittel",
       "strong": "Stark"
-    },
-    "createAccountAction": "Konto erstellen"
+    }
   },
   "loginPage": {
     "usernamePlaceholder": "Gib deinen Benutzernamen oder deine E-Mail ein",
@@ -384,15 +404,12 @@
     "returnToLogin": "Zurück zum Login",
     "missingToken": "Verknüpfungs-Token fehlt. Bitte starte den Login-Prozess neu.",
     "passwordRequired": "Passwort ist erforderlich",
-    "failed": "Konto konnte nicht verknüpft werden. Bitte versuche es erneut.",
     "linkAction": "Konto verknüpfen"
   },
   "protectedRoute": {
     "loadingAriaLabel": "Wird geladen"
   },
   "addressBookPage": {
-    "edit": "Bearbeiten",
-    "delete": "Löschen",
     "businessNamePlaceholder": "ABC Autowerkstatt",
     "contactNamePlaceholder": "Max Mustermann",
     "streetAddressPlaceholder": "Hauptstraße 123",
@@ -420,16 +437,25 @@
     "cancel": "Abbrechen",
     "add": "Hinzufügen",
     "adding": "Wird hinzugefügt...",
-    "addFailed": "Eintrag konnte nicht hinzugefügt werden",
     "addAction": "Eintrag hinzufügen"
   },
   "addressBookAutocomplete": {
     "placeholder": "Tippen zum Suchen...",
-    "clear": "Station löschen",
+    "clear": "Station entfernen",
     "helperText": "Mindestens 2 Zeichen eingeben, um das Adressbuch zu durchsuchen",
     "noMatches": "Keine Kontakte für „{{query}}“ gefunden",
     "noMatchesInCategory": "Keine Kontakte für „{{query}}“ in der Kategorie {{category}} gefunden",
-    "addToAddressBook": "„{{query}}“ zum Adressbuch hinzufügen"
+    "addToAddressBook": "„{{query}}“ zum Adressbuch hinzufügen",
+    "searching": "Wird gesucht...",
+    "searchFailed": "Das Adressbuch konnte nicht durchsucht werden. Tippe weiter, um es erneut zu versuchen."
+  },
+  "combobox": {
+    "results": "{{count}} Ergebnisse",
+    "results_one": "{{count}} Ergebnis",
+    "results_other": "{{count}} Ergebnisse",
+    "searching": "Wird gesucht...",
+    "noResults": "Keine Treffer",
+    "searchFailed": "Suche fehlgeschlagen"
   },
   "exportMenu": {
     "export": "Exportieren"
@@ -475,62 +501,77 @@
       "maxLength": "E-Mail darf maximal 255 Zeichen lang sein"
     },
     "serviceVisit": {
-      "descriptionRequired": "Beschreibung ist erforderlich",
-      "descriptionTooLong": "Beschreibung zu lang (maximal 200 Zeichen)",
-      "lineItemNotesTooLong": "Notizen zu lang (maximal 1000 Zeichen)",
-      "inspectionResultInvalid": "Ungültiges Inspektionsergebnis",
-      "inspectionSeverityInvalid": "Ungültige Inspektionsschwere",
-      "notesTooLong": "Notizen zu lang (maximal 5000 Zeichen)",
       "insuranceClaimNumberTooLong": "Schadensnummer der Versicherung zu lang (maximal 50 Zeichen)",
-      "lineItemsRequired": "Mindestens ein Posten ist erforderlich",
-      "inspectionResultRequired": "Für Inspektionspunkte ist ein Inspektionsergebnis erforderlich"
+      "invoiceNumberTooLong": "Rechnungsnummer zu lang (maximal 50 Zeichen)",
+      "poNumberTooLong": "Bestellnummer zu lang (maximal 50 Zeichen)",
+      "workOrderNumberTooLong": "Auftragsnummer zu lang (maximal 50 Zeichen)"
     },
     "supply": {
       "nameRequired": "Name ist erforderlich",
       "nameTooLong": "Name zu lang",
       "unitTypeRequired": "Einheitentyp ist erforderlich",
       "partNumberTooLong": "Teilenummer zu lang",
+      "barcodeTooLong": "Barcode zu lang (max. 64 Zeichen)",
       "categoryTooLong": "Kategorie zu lang",
-      "notesTooLong": "Notizen zu lang",
-      "barcodeTooLong": "Barcode zu lang (max. 64 Zeichen)"
+      "notesTooLong": "Notizen zu lang"
     },
     "tollTag": {
+      "countryRequired": "Wähle ein Land oder „Sonstige“, falls deins nicht aufgeführt ist",
+      "systemNameRequired": "Gib den Namen des Mautsystems ein",
+      "systemNameTooLong": "Name des Mautsystems zu lang (maximal 50 Zeichen)",
       "systemRequired": "Mautsystem ist erforderlich",
       "tagNumberRequired": "Transpondernummer ist erforderlich",
       "tagNumberTooLong": "Transpondernummer zu lang (maximal 50 Zeichen)"
     },
+    "financing": {
+      "categoryRequired": "Kategorie ist erforderlich"
+    },
     "odometer": {
       "negative": "Kilometerstand kann nicht negativ sein",
       "tooLarge": "Wert des Kilometerstands zu groß",
-      "invalid": "Gib eine gültige Nummer ein",
+      "invalid": "Gib eine gültige Zahl ein",
       "required": "Kilometerstand ist erforderlich"
+    },
+    "engineHours": {
+      "negative": "Motorbetriebsstunden können nicht negativ sein",
+      "tooLarge": "Wert der Motorbetriebsstunden ist zu groß",
+      "invalid": "Gib eine gültige Zahl ein",
+      "required": "Motorbetriebsstunden sind erforderlich"
     },
     "amount": {
       "negative": "Betrag kann nicht negativ sein",
       "tooLarge": "Betrag zu groß",
-      "invalid": "Gib eine gültige Nummer ein",
+      "invalid": "Gib eine gültige Zahl ein",
       "required": "Betrag ist erforderlich"
     },
     "volume": {
       "negative": "Volumen kann nicht negativ sein",
       "tooLarge": "Volumen zu groß",
-      "invalid": "Gib eine gültige Nummer ein",
+      "invalid": "Gib eine gültige Zahl ein",
       "required": "Menge ist erforderlich"
     },
     "price": {
       "negative": "Preis kann nicht negativ sein",
       "tooLarge": "Preis ist zu hoch",
-      "invalid": "Gib eine gültige Nummer ein",
-      "required": "Preis ist erforderlich"
+      "invalid": "Gib eine gültige Zahl ein"
     },
     "kwh": {
       "negative": "kWh können nicht negativ sein",
       "tooLarge": "kWh-Wert ist zu groß",
-      "invalid": "Gib eine gültige Nummer ein"
+      "invalid": "Gib eine gültige Zahl ein"
     },
     "date": {
       "required": "Datum ist erforderlich",
       "invalidFormat": "Ungültiges Datumsformat"
+    },
+    "provider": {
+      "required": "Anbieter ist erforderlich"
+    },
+    "policyNumber": {
+      "required": "Versicherungsnummer ist erforderlich"
+    },
+    "policyType": {
+      "required": "Versicherungsart ist erforderlich"
     },
     "description": {
       "required": "Beschreibung ist erforderlich",
@@ -557,7 +598,43 @@
     "def": {
       "fillLevelNegative": "Füllstand kann nicht negativ sein",
       "fillLevelTooLarge": "Füllstand darf 100 % nicht überschreiten",
-      "fillLevelInvalid": "Gib eine gültige Nummer ein"
+      "fillLevelInvalid": "Gib eine gültige Zahl ein"
+    },
+    "tankPair": {
+      "bothOrNeither": "Gib sowohl die Tankgröße als auch die Anzahl der Tanks ein oder keins von beidem"
+    },
+    "tankQuantity": {
+      "negative": "Tankmenge muss größer als 0 sein",
+      "tooLarge": "Tankmenge ist zu groß",
+      "invalid": "Gib eine gültige Zahl ein",
+      "notWhole": "Tankmenge muss eine ganze Zahl sein"
+    },
+    "vehicle": {
+      "yearNotWhole": "Das Jahr muss eine ganze Zahl sein",
+      "yearTooEarly": "Das Jahr muss 1900 oder später sein",
+      "yearTooLate": "Das Jahr muss 2100 oder früher sein",
+      "yearInvalid": "Gib eine gültige Zahl ein",
+      "doorsNotWhole": "Die Anzahl der Türen muss eine ganze Zahl sein",
+      "doorsNegative": "Die Anzahl der Türen darf nicht negativ sein",
+      "doorsTooLarge": "Wert für Türen ist zu groß",
+      "doorsInvalid": "Gib eine gültige Zahl ein",
+      "cylindersNotWhole": "Die Zylinderzahl muss eine ganze Zahl sein",
+      "cylindersNegative": "Die Zylinderzahl darf nicht negativ sein",
+      "cylindersTooLarge": "Wert für Zylinder ist zu groß",
+      "cylindersInvalid": "Gib eine gültige Zahl ein",
+      "purchasePriceInvalid": "Gib eine gültige Zahl ein",
+      "fiscalPowerNotWhole": "Die Steuer-PS müssen eine ganze Zahl sein",
+      "fiscalPowerNegative": "Die Steuer-PS dürfen nicht negativ sein",
+      "fiscalPowerTooLarge": "Die Steuer-PS dürfen höchstens 200 betragen",
+      "fiscalPowerInvalid": "Gib eine gültige Zahl ein",
+      "co2NotWhole": "CO₂ muss eine ganze Zahl sein",
+      "co2Negative": "CO₂ darf nicht negativ sein",
+      "co2TooLarge": "CO₂ darf höchstens 999 g/km betragen",
+      "co2Invalid": "Gib eine gültige Zahl ein",
+      "powerKwNotWhole": "Die Leistung muss eine ganze Zahl sein",
+      "powerKwNegative": "Die Leistung darf nicht negativ sein",
+      "powerKwTooLarge": "Die Leistung darf höchstens 2000 kW betragen",
+      "powerKwInvalid": "Gib eine gültige Zahl ein"
     },
     "recall": {
       "campaignNumberTooLong": "Kampagnennummer zu lang (maximal 20 Zeichen)",
@@ -569,47 +646,22 @@
       "remedyTooLong": "Beschreibung der Abhilfe zu lang (maximal 2.000 Zeichen)"
     },
     "fuel": {
-      "fuelTypeTooLong": "Kraftstoffart ist zu lang",
+      "octaneTooSmall": "Die Oktanzahl muss mindestens 50 betragen",
+      "octaneTooLarge": "Die Oktanzahl darf 150 nicht überschreiten",
+      "octaneInvalid": "Gib eine ganzzahlige Oktanzahl ein",
       "obcTripDurationFormat": "Verwende Sekunden (z. B. 8100), HH:MM (z. B. 2:15) oder HH:MM:SS",
       "obcNegative": "Bordcomputer-Wert kann nicht negativ sein",
       "obcTooLarge": "Bordcomputer-Wert ist zu groß",
-      "obcInvalid": "Gib eine gültige Nummer ein"
+      "obcInvalid": "Gib eine gültige Zahl ein",
+      "outsideTempTooLow": "Die Außentemperatur muss mindestens {{min}} betragen",
+      "outsideTempTooHigh": "Die Außentemperatur darf höchstens {{max}} betragen",
+      "outsideTempInvalid": "Gib eine gültige Zahl ein"
     },
-    "engineHours": {
-      "negative": "Motorbetriebsstunden können nicht negativ sein",
-      "tooLarge": "Wert der Motorbetriebsstunden ist zu groß",
-      "invalid": "Gib eine gültige Nummer ein",
-      "required": "Motorbetriebsstunden sind erforderlich"
+    "tireSet": {
+      "nameRequired": "Name ist erforderlich"
     },
-    "provider": {
-      "required": "Anbieter ist erforderlich"
-    },
-    "policyNumber": {
-      "required": "Versicherungsnummer ist erforderlich"
-    },
-    "policyType": {
-      "required": "Versicherungsart ist erforderlich"
-    },
-    "tankQuantity": {
-      "negative": "Tankmenge muss größer als 0 sein",
-      "tooLarge": "Tankmenge ist zu groß",
-      "invalid": "Gib eine gültige Nummer ein",
-      "notWhole": "Tankmenge muss eine ganze Zahl sein"
-    },
-    "vehicle": {
-      "yearNotWhole": "Das Jahr muss eine ganze Zahl sein",
-      "yearTooEarly": "Das Jahr muss 1900 oder später sein",
-      "yearTooLate": "Das Jahr muss 2100 oder früher sein",
-      "yearInvalid": "Gib eine gültige Nummer ein",
-      "doorsNotWhole": "Die Anzahl der Türen muss eine ganze Zahl sein",
-      "doorsNegative": "Türen können nicht negativ sein",
-      "doorsTooLarge": "Wert für Türen ist zu groß",
-      "doorsInvalid": "Gib eine gültige Nummer ein",
-      "cylindersNotWhole": "Zylinder müssen eine ganze Zahl sein",
-      "cylindersNegative": "Zylinder können nicht negativ sein",
-      "cylindersTooLarge": "Wert für Zylinder ist zu groß",
-      "cylindersInvalid": "Gib eine gültige Nummer ein",
-      "purchasePriceInvalid": "Gib eine gültige Nummer ein"
+    "document": {
+      "titleRequired": "Titel ist erforderlich"
     }
   },
   "httpError": {
@@ -641,9 +693,15 @@
     "network": "Netzwerkfehler. Bitte überprüfe deine Verbindung.",
     "generic": "Ein Fehler ist aufgetreten.",
     "unexpected": "Ein unerwarteter Fehler ist aufgetreten.",
-    "formSubmitFallback": "Ein Fehler ist aufgetreten",
-    "actionFailed": "Fehler beim Ausführen von {{action}}. {{message}}",
-    "actionFailedCheckInput": "Fehler beim Ausführen von {{action}}. Bitte überprüfe deine Eingabe."
+    "actionFailed": "Aktion „{{action}}“ fehlgeschlagen. {{message}}",
+    "actionFailedCheckInput": "Aktion „{{action}}“ fehlgeschlagen. Bitte überprüfe deine Eingabe."
   },
-  "engineHours": "Motorbetriebsstunden"
+  "mustNotBeNegative": "Darf nicht negativ sein",
+  "mustBeANumber": "Gib eine Zahl ein",
+  "tooManyDecimals": "Höchstens {{count}} Dezimalstellen",
+  "ofMax": "{{value}} von {{max}}",
+  "numberInput": {
+    "readAs": "Gelesen als {{value}}",
+    "invalidField": "{{field}}: Gib eine gültige Zahl ein"
+  }
 }

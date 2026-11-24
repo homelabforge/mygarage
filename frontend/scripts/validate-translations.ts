@@ -4,187 +4,158 @@
  *
  * Compares each non-English language's JSON keys against the canonical
  * English reference in src/locales/en/. Reports missing, extra, and
- * empty-value keys.
+ * empty-value keys. Plural sets follow the language: pl needs _few and _many
+ * on top of English's _one/_other, ms only reads _other. A missing category
+ * renders English for that count, so it's reported as missing.
  *
  * Usage: bun run scripts/validate-translations.ts
- * Exit code: 1 if any {{interpolation}} placeholders are broken, 0 otherwise.
+ * Exit code: 1 if any {{interpolation}} placeholder (formatter included) is
+ * broken, a protected span (a command, flag, env name or URL) is missing, a
+ * translation uses letters from the wrong alphabet, leading or trailing
+ * spaces don't match English, a value is empty (i18next renders "" blank), or
+ * an English value uses an em-dash or en-dash; 0 otherwise.
  * Missing keys are reported as a non-blocking warning (they fall back to
  * English), so this can gate PRs without blocking new English strings.
  */
 
-import { existsSync } from 'fs'
-import { join } from 'path'
 import {
-  LOCALES_DIR,
+  analyzeLocale,
   discoverLanguages,
   discoverNamespaces,
-  flattenKeys,
-  getNestedValue,
-  isTranslationInvariant,
+  englishDashes,
   loadEnglishData,
-  loadJson,
+  type LocaleIssue,
 } from './translation-utils'
 
-/** Extract {{variable}} interpolation placeholders from a string. */
-function extractInterpolations(value: string): Set<string> {
-  const matches = value.match(/\{\{(\w+)\}\}/g) || []
-  return new Set(matches)
-}
+function main(): void {
 
-interface Issue {
-  lang: string
-  namespace: string
-  type: 'missing' | 'extra' | 'empty' | 'interpolation'
-  key: string
-  detail?: string
-}
+  const namespaces = discoverNamespaces()
+  const languages = discoverLanguages()
+  const english = loadEnglishData(namespaces)
+  const reports = new Map(languages.map(lang => [lang, analyzeLocale(lang, namespaces, english)]))
+  const issues: LocaleIssue[] = [...reports.values()].flatMap(r => r.issues)
 
-const namespaces = discoverNamespaces()
-const languages = discoverLanguages()
-const { totalKeys, keysByNamespace, valuesByNamespace } = loadEnglishData(namespaces)
-const issues: Issue[] = []
-
-console.log('Translation Validation Report')
-console.log('═'.repeat(50))
-console.log(`Canonical language: en (${namespaces.length} namespaces)`)
-console.log(`Target languages: ${languages.join(', ') || 'none'}`)
-console.log()
-
-for (const ns of namespaces) {
-  const enKeys = keysByNamespace.get(ns)!
-  const enValues = valuesByNamespace.get(ns)!
+  console.log('Translation Validation Report')
+  console.log('═'.repeat(50))
+  console.log(`Canonical language: en (${namespaces.length} namespaces)`)
+  console.log(`Target languages: ${languages.join(', ') || 'none'}`)
+  console.log()
 
   for (const lang of languages) {
-    const langPath = join(LOCALES_DIR, lang, `${ns}.json`)
+    const langIssues = issues.filter(i => i.lang === lang)
+    const missing = langIssues.filter(i => i.type === 'missing')
+    const empty = langIssues.filter(i => i.type === 'empty')
+    const extra = langIssues.filter(i => i.type === 'extra')
+    const interpolation = langIssues.filter(i => i.type === 'interpolation')
+    const protectedSpans = langIssues.filter(i => i.type === 'protected')
+    const script = langIssues.filter(i => i.type === 'script')
+    const whitespace = langIssues.filter(i => i.type === 'whitespace')
+    const stale = langIssues.filter(i => i.type === 'stale')
+    const unrecorded = langIssues.filter(i => i.type === 'unrecorded')
+    const drafts = langIssues.filter(i => i.type === 'draft')
 
-    if (!existsSync(langPath)) {
-      for (const key of enKeys) {
-        issues.push({ lang, namespace: ns, type: 'missing', key })
+    // Count translated keys: values that differ from English, plus values that
+    // are correctly identical because they contain nothing translatable.
+    const { translated, total } = reports.get(lang)!
+    const pct = total > 0 ? Math.round((translated / total) * 100) : 0
+
+    console.log(`[${lang}] ${pct}% translated (${translated}/${total} keys)`)
+
+    if (missing.length > 0) {
+      console.log(`  Missing (${missing.length}):`)
+      for (const i of missing.slice(0, 10)) {
+        console.log(`    - ${i.namespace}:${i.key}`)
       }
-      continue
+      if (missing.length > 10) console.log(`    ... and ${missing.length - 10} more`)
     }
-
-    const langData = loadJson(langPath)
-    const langKeys = new Set(flattenKeys(langData))
-
-    for (const key of enKeys) {
-      if (!langKeys.has(key)) {
-        issues.push({ lang, namespace: ns, type: 'missing', key })
-      } else {
-        const val = getNestedValue(langData, key)
-        const enVal = enValues.get(key)
-        if (val === '' || val === null) {
-          issues.push({ lang, namespace: ns, type: 'empty', key })
-        }
-
-        // Check interpolation variables are preserved
-        if (typeof enVal === 'string' && typeof val === 'string') {
-          const enVars = extractInterpolations(enVal)
-          const trVars = extractInterpolations(val)
-          if (enVars.size > 0) {
-            const missing: string[] = []
-            for (const v of enVars) {
-              if (!trVars.has(v)) missing.push(v)
-            }
-            if (missing.length > 0) {
-              issues.push({
-                lang, namespace: ns, type: 'interpolation', key,
-                detail: `missing {{${missing.join('}}, {{')}}}`
-              })
-            }
-          }
-        }
+    if (extra.length > 0) {
+      console.log(`  Extra keys (${extra.length}):`)
+      for (const i of extra.slice(0, 5)) {
+        console.log(`    - ${i.namespace}:${i.key}`)
       }
     }
-
-    // Check for extra keys not in English
-    for (const key of langKeys) {
-      if (!enKeys.includes(key)) {
-        issues.push({ lang, namespace: ns, type: 'extra', key })
+    if (interpolation.length > 0) {
+      console.log(`  Broken interpolation variables (${interpolation.length}):`)
+      for (const i of interpolation.slice(0, 10)) {
+        console.log(`    - ${i.namespace}:${i.key}: ${i.detail}`)
       }
+      if (interpolation.length > 10) console.log(`    ... and ${interpolation.length - 10} more`)
     }
-  }
-}
-
-// Print per-language summary
-for (const lang of languages) {
-  const langIssues = issues.filter(i => i.lang === lang)
-  const missing = langIssues.filter(i => i.type === 'missing')
-  const empty = langIssues.filter(i => i.type === 'empty')
-  const extra = langIssues.filter(i => i.type === 'extra')
-  const interpolation = langIssues.filter(i => i.type === 'interpolation')
-
-  // Count translated keys: values that differ from English, plus values that
-  // are correctly identical because they contain nothing translatable.
-  let actuallyTranslated = 0
-  for (const ns of namespaces) {
-    const enKeys = keysByNamespace.get(ns)!
-    const enValues = valuesByNamespace.get(ns)!
-    const langPath = join(LOCALES_DIR, lang, `${ns}.json`)
-    if (!existsSync(langPath)) continue
-    const langData = loadJson(langPath)
-    for (const key of enKeys) {
-      const enVal = enValues.get(key)
-      const langVal = getNestedValue(langData, key)
-      if (langVal && langVal !== '' && (langVal !== enVal || isTranslationInvariant(enVal))) {
-        actuallyTranslated++
-      }
+    // Work lists, never failures: a stale translation still reads.
+    if (stale.length > 0) {
+      console.log(`  Stale, English changed since this was translated (${stale.length}):`)
+      for (const i of stale.slice(0, 5)) console.log(`    - ${i.namespace}:${i.key}`)
+      if (stale.length > 5) console.log(`    ... and ${stale.length - 5} more (bun run i18n:stamp --list stale ${lang})`)
     }
-  }
-
-  const pct = totalKeys > 0 ? Math.round((actuallyTranslated / totalKeys) * 100) : 0
-
-  console.log(`[${lang}] ${pct}% translated (${actuallyTranslated}/${totalKeys} keys)`)
-
-  if (missing.length > 0) {
-    console.log(`  Missing (${missing.length}):`)
-    for (const i of missing.slice(0, 10)) {
-      console.log(`    - ${i.namespace}:${i.key}`)
+    if (unrecorded.length > 0) {
+      console.log(`  Unrecorded, waiting for a maintainer to accept (${unrecorded.length}): bun run i18n:stamp --list unrecorded ${lang}`)
     }
-    if (missing.length > 10) console.log(`    ... and ${missing.length - 10} more`)
-  }
-  if (empty.length > 0) {
-    console.log(`  Empty values (${empty.length}):`)
-    for (const i of empty.slice(0, 5)) {
-      console.log(`    - ${i.namespace}:${i.key}`)
+    if (drafts.length > 0) {
+      console.log(`  Machine drafts nobody has reviewed yet (${drafts.length}): bun run i18n:stamp --list draft ${lang}`)
     }
-    if (empty.length > 5) console.log(`    ... and ${empty.length - 5} more`)
-  }
-  if (extra.length > 0) {
-    console.log(`  Extra keys (${extra.length}):`)
-    for (const i of extra.slice(0, 5)) {
-      console.log(`    - ${i.namespace}:${i.key}`)
+    if (script.length > 0) {
+      console.log(`  Letters from the wrong alphabet (${script.length}):`)
+      for (const i of script) console.log(`    - ${i.namespace}:${i.key}`)
     }
-  }
-  if (interpolation.length > 0) {
-    console.log(`  Missing interpolation variables (${interpolation.length}):`)
-    for (const i of interpolation.slice(0, 10)) {
-      console.log(`    - ${i.namespace}:${i.key} — ${i.detail}`)
+    if (whitespace.length > 0) {
+      console.log(`  Leading or trailing spaces that don't match English (${whitespace.length}):`)
+      for (const i of whitespace) console.log(`    - ${i.namespace}:${i.key}`)
     }
-    if (interpolation.length > 10) console.log(`    ... and ${interpolation.length - 10} more`)
+    if (empty.length > 0) {
+      console.log(`  Empty, renders blank instead of English (${empty.length}):`)
+      for (const i of empty) console.log(`    - ${i.namespace}:${i.key}`)
+    }
+    if (protectedSpans.length > 0) {
+      console.log(`  Changed commands, flags or names (${protectedSpans.length}):`)
+      for (const i of protectedSpans) console.log(`    - ${i.namespace}:${i.key}: ${i.detail}`)
+    }
+    console.log()
   }
-  console.log()
-}
 
-const missingCount = issues.filter(i => i.type === 'missing').length
-const interpolationCount = issues.filter(i => i.type === 'interpolation').length
+  const missingCount = issues.filter(i => i.type === 'missing').length
+  const interpolationCount = issues.filter(i => i.type === 'interpolation').length
+  const protectedCount = issues.filter(i => i.type === 'protected').length
+  const scriptCount = issues.filter(i => i.type === 'script').length
+  const whitespaceCount = issues.filter(i => i.type === 'whitespace').length
+  const emptyCount = issues.filter(i => i.type === 'empty').length
+  const dashes = englishDashes(english.valuesByNamespace)
 
-// Only broken {{interpolation}} placeholders are a hard failure: they're a
-// real bug in a provided translation and can't be caught by eye across every
-// key. Missing keys are a non-blocking warning — untranslated keys fall back
-// to English, which is expected while a language is still in progress and
-// lets new English strings land without translating every language first.
-if (interpolationCount > 0) {
-  console.log(`✗ ${interpolationCount} interpolation variable(s) missing — these break rendering.`)
+  // The hard failures: a broken placeholder or a changed command is a real bug
+  // in a provided translation (a raw {{x}}, or a command that won't paste), and
+  // a dash in English breaks house style. Missing keys only warn: they fall back
+  // to English, so new English strings can land before every language catches up.
+  if (dashes.length > 0) {
+    console.log(`✗ ${dashes.length} English value(s) use an em-dash or en-dash (house style is none):`)
+    for (const key of dashes) console.log(`    - ${key}`)
+  }
+  if (interpolationCount > 0 || protectedCount > 0 || scriptCount > 0 || whitespaceCount > 0 || emptyCount > 0 || dashes.length > 0) {
+    if (interpolationCount > 0) {
+      console.log(`✗ ${interpolationCount} broken interpolation variable(s): these break rendering.`)
+    }
+    if (protectedCount > 0) {
+      console.log(`✗ ${protectedCount} translation(s) changed a command, flag or name that has to stay verbatim.`)
+    }
+    if (scriptCount > 0) {
+      console.log(`✗ ${scriptCount} translation(s) use letters from another language's alphabet.`)
+    }
+    if (whitespaceCount > 0) {
+      console.log(`✗ ${whitespaceCount} translation(s) gained or lost leading or trailing spaces.`)
+    }
+    if (emptyCount > 0) {
+      console.log(`✗ ${emptyCount} empty translation(s): i18next shows "" as blank, not English. Delete the key instead.`)
+    }
+    if (missingCount > 0) {
+      console.log(`  (${missingCount} missing key(s) also found; those fall back to English and don't block.)`)
+    }
+    process.exit(1)
+  }
+
   if (missingCount > 0) {
-    console.log(`  (${missingCount} missing key(s) also found; those fall back to English and don't block.)`)
+    console.log(`⚠ ${missingCount} missing key(s), they will fall back to English (non-blocking).`)
+  } else {
+    console.log('✓ All translation keys present across all languages.')
   }
-  process.exit(1)
+  process.exit(0)
 }
 
-if (missingCount > 0) {
-  console.log(`⚠ ${missingCount} missing key(s) — will fall back to English (non-blocking).`)
-} else {
-  console.log('✓ All translation keys present across all languages.')
-}
-process.exit(0)
+if (import.meta.main) main()

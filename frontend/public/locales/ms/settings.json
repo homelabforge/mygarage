@@ -11,7 +11,11 @@
   },
   "systemConfig": {
     "title": "Konfigurasi Sistem",
-    "description": "Konfigurasikan tetapan teras sistem seperti zon waktu dan bahagian garaj."
+    "description": "Konfigurasikan tetapan teras sistem seperti zon waktu dan bahagian garaj.",
+    "defaultCountry": "Negara lalai",
+    "defaultCountryDesc": "Terpakai kepada semua orang yang belum memilih negara, dan kepada kenderaan yang tidak mempunyai negaranya sendiri.",
+    "defaultCountrySaved": "Negara lalai disimpan",
+    "defaultCountryError": "Gagal menyimpan negara lalai"
   },
   "timezone": {
     "label": "Zon waktu",
@@ -30,18 +34,12 @@
     "imperial": "Imperial",
     "metric": "Metrik",
     "resolvedDescription": "Menggunakan unit ini: {{units}}",
-    "instanceDefault": "Unit lalai untuk instance ini",
+    "instanceDefault": "Unit lalai untuk pemasangan ini",
     "instanceDefaultDescription": "Digunakan oleh pelawat yang belum log masuk, semua klien apabila pengesahan dimatikan, dan sebagai unit awal untuk akaun baharu. Ia tidak mengubah akaun yang sudah mempunyai tetapan unit sendiri.",
-    "instanceDefaultSaved": "Unit lalai instance disimpan",
-    "instanceDefaultError": "Gagal menyimpan unit lalai instance",
+    "instanceDefaultSaved": "Unit lalai pemasangan disimpan",
+    "instanceDefaultError": "Gagal menyimpan unit lalai pemasangan",
     "showBoth": "Tunjukkan kedua-dua unit",
     "showBothDescription": "Tunjukkan setiap nilai bersama unit pasangannya dalam kurungan, contohnya {{example}}.",
-    "gallonStandard": "Piawaian gelen Imperial",
-    "gallonUs": "Gelen AS (3.785 L)",
-    "gallonUk": "Gelen UK (4.546 L)",
-    "gallonStandardDescription": "Digunakan di mana-mana unit gelen digunakan: isipadu, harga per isipadu dan MPG.",
-    "gallonSaved": "Piawaian gelen disimpan",
-    "gallonError": "Gagal menyimpan piawaian gelen",
     "custom": "Tersuai",
     "customToggle": "Unit tersuai",
     "customDescription": "Pilih unit bagi setiap kuantiti. Pilihan ini mengatasi pratetap di seluruh aplikasi.",
@@ -53,7 +51,7 @@
       "distance": "Jarak",
       "speed": "Kelajuan",
       "length": "Panjang",
-      "volume": "Isipadu",
+      "volume": "Isi padu",
       "consumption": "Kecekapan bahan api",
       "pressure": "Tekanan",
       "temperature": "Suhu",
@@ -161,20 +159,63 @@
     "oidcTitle": "Pengesahan OpenID Connect (OIDC)",
     "oidcConfigured": "Dikonfigurasikan dengan {{provider}}",
     "oidcDescription": "Konfigurasikan log masuk tunggal (SSO) dengan penyedia identiti anda (Authentik, Keycloak, Auth0, Okta dan lain-lain).",
-    "configureOIDC": "Konfigurasikan OIDC"
+    "configureOIDC": "Konfigurasikan OIDC",
+    "appliesImmediately": "Perubahan berkuat kuasa sebaik sahaja anda bertukar.",
+    "current": "Semasa",
+    "switchToNone": "Matikan log masuk",
+    "switchToLocal": "Tukar kepada log masuk setempat",
+    "switchToOidc": "Tukar kepada SSO",
+    "confirmNone": "Matikan log masuk? Sesiapa yang boleh mencapai MyGarage akan dapat melihat dan mengubah segala-galanya.",
+    "confirmLocal": "Tukar kepada log masuk setempat? Semua orang log masuk dengan nama pengguna dan kata laluan, dan akaun yang hanya menggunakan SSO tidak boleh log masuk.",
+    "confirmLocalFirstUser": "Tukar kepada log masuk setempat? Belum ada sesiapa yang mempunyai akaun, jadi orang pertama yang mendaftar akan menjadi pentadbir. Daftarkan akaun anda dengan segera.",
+    "confirmOidc": "Tukar kepada SSO? Log masuk melalui {{provider}} sejurus selepas itu. Jika gagal, hanya akaun yang mempunyai kata laluan masih boleh log masuk.",
+    "confirmOidcFirstUser": "Tukar kepada SSO? Log masuk melalui {{provider}} sejurus selepas itu. Belum ada sesiapa yang mempunyai akaun, jadi jika SSO gagal, daftar akaun dari halaman log masuk. Akaun pertama akan menjadi pentadbir.",
+    "oidcNotReady": "Simpan URL pengeluar dan ID klien di bawah Konfigurasikan OIDC dahulu.",
+    "switched": "Mod log masuk ditukar",
+    "ssoStillOn": "Mod log masuk ditukar, tetapi SSO tidak dapat dimatikan, jadi halaman log masuk masih menawarkannya. Tukar kepada SSO dan kembali semula untuk mencuba lagi.",
+    "switchFailed": "Tidak dapat menukar mod log masuk",
+    "ssoLeftOn": "Tidak dapat menukar mod log masuk, dan SSO tidak dapat dimatikan semula, jadi halaman log masuk masih menawarkannya. Cuba tukar sekali lagi."
   },
   "archive": {
     "title": "Kenderaan Diarkibkan",
     "description": "Lihat dan urus kenderaan yang telah anda arkibkan (dijual, rosak teruk, dihadiahkan dan sebagainya). Kenderaan yang diarkibkan kekal dalam analitik tetapi boleh disembunyikan daripada senarai utama.",
     "autoArchiveLabel": "Arkibkan kenderaan tidak aktif secara automatik",
-    "autoArchiveDescription": "Arkibkan kenderaan yang tiada aktiviti bahan api, servis, odometer atau jam selepas N hari. Nilai 0 mematikannya. Berjalan setiap hari apabila penjadual diaktifkan dan terpakai kepada semua kenderaan pada instance ini, termasuk milik pengguna lain.",
+    "autoArchiveDescription": "Arkibkan kenderaan yang tiada aktiviti bahan api, servis, odometer atau jam selepas N hari. Nilai 0 mematikannya. Berjalan setiap hari apabila penjadual diaktifkan dan terpakai kepada semua kenderaan pada pemasangan ini, termasuk milik pengguna lain.",
     "autoArchiveDays": "Hari tidak aktif",
     "autoArchiveSaved": "Tetapan auto-arkib disimpan",
-    "autoArchiveError": "Gagal menyimpan tetapan auto-arkib"
+    "autoArchiveError": "Gagal menyimpan tetapan auto-arkib",
+    "autoArchiveInvalid": "Masukkan bilangan hari sebagai nombor bulat, 0 atau lebih"
   },
   "secretKey": {
     "label": "Kunci Rahsia:",
     "description": "Dijana secara automatik dan disimpan di {{path}}, atau ditetapkan melalui pemboleh ubah persekitaran MYGARAGE_SECRET_KEY. Kunci ini kekal selepas aplikasi dimulakan semula."
+  },
+  "secretsStatus": {
+    "title": "Sesetengah tetapan rahsia tidak dapat dibaca",
+    "keyringUnavailable": "Kunci penyulitan tetapan tidak tersedia, jadi tetapan rahsia tidak dapat disimpan dan tetapan yang disulitkan tidak dapat dibaca. Tetapkan MYGARAGE_SETTINGS_KEY kepada kunci yang sah, atau jadikan direktori data boleh ditulis, kemudian muat semula halaman ini.",
+    "keyringUnavailableEnv": "Kunci penyulitan tetapan tidak tersedia, jadi tetapan rahsia tidak dapat disimpan dan tetapan yang disulitkan tidak dapat dibaca. MYGARAGE_SETTINGS_KEY tidak mengandungi kunci yang sah: betulkannya, kemudian mulakan semula MyGarage.",
+    "keyringUnavailableEnvFile": "Kunci penyulitan tetapan tidak tersedia, jadi tetapan rahsia tidak dapat disimpan dan tetapan yang disulitkan tidak dapat dibaca. MYGARAGE_SETTINGS_KEY_FILE tidak menunjuk kepada fail boleh dibaca yang mengandungi kunci yang sah: betulkannya, kemudian mulakan semula MyGarage.",
+    "unreadable": "Rahsia ini tidak dapat dinyahsulit dengan kunci tetapan semasa, jadi ia dianggap belum ditetapkan. Tambahkan semula kunci yang digunakan semasa ia disimpan ke MYGARAGE_SETTINGS_KEY, atau masukkan semula rahsia tersebut:",
+    "labels": {
+      "oidcClientSecret": "Rahsia klien SSO",
+      "ntfyToken": "Token akses ntfy",
+      "gotifyToken": "Token aplikasi Gotify",
+      "pushoverUserKey": "Kunci pengguna Pushover",
+      "pushoverApiToken": "Token API Pushover",
+      "slackWebhookUrl": "URL webhook Slack",
+      "discordWebhookUrl": "URL webhook Discord",
+      "matrixAccessToken": "Token akses Matrix",
+      "telegramBotToken": "Token bot Telegram",
+      "emailSmtpPassword": "Kata laluan SMTP e-mel",
+      "webhookIngestToken": "Token kemasukan webhook",
+      "llmApiKey": "Kunci API penyedia AI",
+      "autorefApiKey": "Kunci API AutoRef",
+      "livelinkMqttPassword": "Kata laluan MQTT LiveLink",
+      "tomtomApiKey": "Kunci API TomTom",
+      "googlePlacesApiKey": "Kunci API Google Places",
+      "yelpApiKey": "Kunci API Yelp",
+      "foursquareApiKey": "Kunci API Foursquare"
+    }
   },
   "stats": {
     "serviceRecords": "Rekod Servis",
@@ -192,15 +233,28 @@
     "mobileSaved": "Pilihan mudah alih disimpan!",
     "mobileError": "Gagal menyimpan pilihan mudah alih",
     "timeSaved": "Format masa disimpan",
-    "timeError": "Gagal menyimpan format masa"
+    "timeError": "Gagal menyimpan format masa",
+    "dateSaved": "Format tarikh disimpan",
+    "dateError": "Gagal menyimpan format tarikh"
   },
   "files": {
     "title": "Pengurusan Fail",
+    "limitsDesc": "Had muat naik yang berkuat kuasa dan lokasi muat naik disimpan. Pelayan yang menetapkannya; ia tidak boleh diubah di sini.",
     "loading": "Memuatkan tetapan fail...",
     "loadError": "Gagal memuatkan tetapan fail",
+    "limitsLoadError": "Gagal memuatkan had muat naik",
+    "uploadKind": "Muat Naik",
+    "maxSize": "Saiz Maksimum",
+    "fileTypes": "Jenis Fail",
+    "kindPhotos": "Foto",
+    "kindAttachments": "Lampiran",
+    "kindDocuments": "Dokumen",
+    "sizeMb": "{{size}} MB",
+    "limitsEnvHint": "Saiz foto dan lampiran datang daripada {{uploadVar}}, saiz dokumen daripada {{documentVar}}. Ubahnya dalam persekitaran pelayan dan mulakan semula MyGarage.",
     "storageInfo": "Maklumat Storan",
     "dataDirectory": "Direktori Data",
     "photosDirectory": "Direktori Foto",
+    "attachmentsDirectory": "Direktori Lampiran",
     "documentsDirectory": "Direktori Dokumen",
     "windowSticker": "Pelekat Tingkap",
     "windowStickerDesc": "Konfigurasikan muat naik pelekat tingkap (label Monroney) dan pemprosesan OCR.",
@@ -230,6 +284,16 @@
     "testingConnection": "Sedang menguji...",
     "testNHTSA": "Uji Sambungan NHTSA",
     "testNHTSADesc": "Menguji sambungan ke API NHTSA dengan menyahkod contoh VIN.",
+    "autoref": "AutoRef (penyahkodan VIN Eropah)",
+    "autorefDesc": "Menyahkod VIN Eropah yang tidak dapat dikenal pasti oleh NHTSA: jenama, model, enjin dan badan.",
+    "enableAutoref": "Aktifkan AutoRef",
+    "enableAutorefDesc": "Dengan kunci, Automatik bertanya kepada AutoRef dahulu untuk negara Eropah dan beralih kepada NHTSA jika gagal. Setiap penyahkodan menghantar VIN kepada AutoRef dan menggunakan 2 permintaan daripada pelan anda.",
+    "autorefApiKey": "Kunci API AutoRef",
+    "autorefApiKeyDesc": "Perkhidmatan berbayar dengan pelan Test percuma (50 permintaan sebulan). Minta kunci daripada info@autoref.eu.",
+    "testAutoref": "Uji kunci AutoRef",
+    "testAutorefDesc": "Menyemak kunci dan menunjukkan baki pelan anda. Tidak menggunakan sebarang permintaan.",
+    "autorefTestOk": "Kunci AutoRef berfungsi: pelan {{plan}}, baki {{remaining}} daripada {{limit}} permintaan bulan ini.",
+    "autorefTestFailed": "Ujian kunci AutoRef gagal. {{message}}",
     "nhtsaTestSuccess": "Sambungan API NHTSA berjaya!",
     "nhtsaTestFailed": "Gagal menyambung ke API NHTSA. Semak URL dan cuba lagi.",
     "carComplaints": "CarComplaints",
@@ -240,7 +304,6 @@
     "shopFinderDesc": "Konfigurasikan penyedia POI untuk mencari bengkel dan pusat servis berdekatan.",
     "searchProviders": "Cari penyedia",
     "provider": "Penyedia",
-    "active": "Aktif",
     "status": "Status",
     "statusActive": "Aktif",
     "statusInactive": "Tidak aktif",
@@ -248,17 +311,8 @@
     "options": "Pilihan",
     "addService": "Tambah Penyedia",
     "providerRemoved": "Penyedia berjaya dibuang",
-    "removeProviderError": "Gagal membuang penyedia",
     "removeProviderAction": "membuang penyedia",
     "livelink": "LiveLink",
-    "livelinkDesc": "Telemetri kenderaan masa nyata melalui peranti WiCAN PRO OBD2.",
-    "livelinkLoading": "Memuatkan status LiveLink...",
-    "disabled": "Dilumpuhkan",
-    "receivingData": "Menerima data masa nyata",
-    "noDevices": "Tiada peranti dikonfigurasikan",
-    "firmwareUpdate": "Kemas kini perisian tegar tersedia untuk satu atau lebih peranti",
-    "configureLiveLink": "Konfigurasikan LiveLink",
-    "configureDesc": "Urus peranti WiCAN, tetapan MQTT dan parameter telemetri.",
     "aboutLiveLink": "Perihal LiveLink",
     "webhooks": "Webhook Masuk",
     "webhooksDesc": "Benarkan Home Assistant, n8n atau Shortcuts menghantar rekod bahan api, odometer dan penyelesaian peringatan.",
@@ -266,8 +320,6 @@
     "webhookTokenPlaceholder": "Jana token rawak yang panjang",
     "webhookTokenDesc": "Diperlukan pada setiap permintaan webhook masuk. Biarkan kosong untuk melumpuhkan penerimaan.",
     "webhookHeaderHint": "Hantar pengepala X-Webhook-Token yang sepadan dengan nilai di atas.",
-    "llmReceipt": "Penghuraian Resit LLM",
-    "llmReceiptDesc": "Penghuraian draf resit bahan api secara pilihan menggunakan LLM setempat atau serasi OpenAI. Tiada data disimpan sehingga anda mengesahkannya.",
     "llmSection": "Ciri LLM",
     "llmSectionDesc": "Pembantu LLM setempat atau serasi OpenAI secara pilihan untuk draf resit dan Ask My Garage (spesifikasi + diagnostik).",
     "enableLlmReceipt": "Aktifkan penghuraian draf resit",
@@ -276,8 +328,21 @@
     "llmBaseUrl": "URL Asas API",
     "llmModel": "Model",
     "llmApiKey": "Kunci API (Pilihan)",
-    "llmReceiptHint": "Secara lalai menggunakan titik akhir Ollama setempat. Gunakan kawalan Huraikan resit dalam borang bahan api untuk mengisi draf.",
     "llmHint": "Secara lalai menggunakan titik akhir Ollama setempat. Dikongsi oleh penghuraian resit dan Ask My Garage.",
+    "llmPreset": "Pratetap penyedia",
+    "llmPresetCustom": "Tersuai",
+    "llmPresetOpenRouter": "OpenRouter",
+    "llmPresetOllama": "Ollama (setempat)",
+    "llmPresetOpenAI": "OpenAI",
+    "enableLlmDocuments": "Baca dokumen yang dimuat naik dengan model penglihatan",
+    "enableLlmDocumentsDesc": "Sijil pendaftaran atau dokumen insurans yang diimport sebagai foto atau imbasan dihantar sebagai imej ke titik akhir di bawah. Dengan Ollama setempat, ia tidak pernah meninggalkan pelayan anda. PDF yang mengandungi teks dibaca tanpa sebarang model.",
+    "llmVisionModel": "Model penglihatan (pilihan)",
+    "llmVisionModelHint": "Model yang menerima imej (llava, qwen2.5vl, gemini, gpt-4o…). Jika kosong, model di atas digunakan.",
+    "llmTest": "Uji sambungan",
+    "llmTestOk": "Model teks OK.",
+    "llmTestVisionOk": "Model teks OK, model penglihatan OK.",
+    "llmTestFailed": "Ujian sambungan gagal. {{message}}",
+    "llmDocsLink": "Apa yang dihantar, dan cara menyediakannya",
     "mqttDeviceId": "ID Peranti",
     "mqttDeviceLabel": "Label",
     "mqttCreateDevice": "Cipta peranti",
@@ -285,7 +350,7 @@
     "mqttParamKey": "Kunci parameter",
     "mqttUnit": "Unit",
     "mqttAddMapping": "Tambah pemetaan",
-    "mqttRemoveMapping": "Buang pemetaan",
+    "mqttRemoveMappingFor": "Alih keluar pemetaan: {{topic}} ke {{key}}",
     "mqttDiscoverHeading": "Cari topik",
     "mqttDiscoverPrefix": "Awalan topik",
     "mqttDiscover": "Cari",
@@ -307,6 +372,7 @@
     "sourceSettings": "Tetapan {{source}}",
     "integrationsLoadError": "Tidak dapat memuatkan integrasi.",
     "sourceVehicle": "Kenderaan",
+    "sourceVehicleFor": "Kenderaan untuk {{name}}",
     "sourceVehicleUnset": "Tidak dipautkan",
     "sourceVehicleHint": "Bacaan hanya disimpan selepas sumber dipautkan kepada kenderaan.",
     "deviceIdHint": "Huruf, angka, garis bawah, titik dan sempang; mesti bermula dengan huruf atau angka.",
@@ -327,12 +393,12 @@
     "deviceNotLinked": "Tidak dipautkan kepada kenderaan. Tiada data yang diterbitkan oleh peranti ini akan disimpan sehingga ia dipautkan.",
     "readingsHeading": "Bacaan",
     "readingsSummary": "{{count}} bacaan dipetakan",
-    "readingsSummary_one": "{{count}} bacaan dipetakan",
     "readingsSummary_other": "{{count}} bacaan dipetakan",
     "readingNone": "Belum ada bacaan",
     "readingsLoadError": "Tidak dapat memuatkan bacaan.",
     "readingSwitchAction": "mengubah perkara yang dipaparkan pada papan pemuka",
     "advancedMappings": "Lanjutan: pemetaan topik",
+    "advancedMappingsFor": "Lanjutan: pemetaan topik untuk {{name}}",
     "deleteSource": "Padam sumber",
     "deleteSourceAction": "memadam sumber",
     "mappingAction": "mengubah pemetaan",
@@ -369,12 +435,49 @@
     "alertCriticalBelowLow": "Had Kritikal mesti lebih rendah daripada had Rendah.",
     "saveAlerts": "Simpan amaran",
     "alertsSaved": "Amaran disimpan",
-    "saveAlertsAction": "menyimpan amaran"
+    "saveAlertsAction": "menyimpan amaran",
+    "brokerStatus": {
+      "connected": "Tersambung",
+      "connecting": "Sedang menyambung",
+      "disabled": "Dilumpuhkan",
+      "disconnected": "Tidak tersambung",
+      "error": "Ralat",
+      "unknown": "Tidak diketahui"
+    },
+    "presets": {
+      "mopeka": {
+        "description": "Penderia tangki propana Mopeka Pro Check.",
+        "readings": {
+          "LEVEL_PCT": "Paras",
+          "TEMP_C": "Suhu",
+          "SENSOR_BATT_PCT": "Bateri",
+          "QUALITY": "Kualiti bacaan",
+          "DEPTH_MM": "Kedalaman",
+          "REJECTED": "Bacaan ditolak",
+          "AVAILABLE": "Isyarat penderia diterima"
+        }
+      }
+    },
+    "sensorStatusLoading": "Sedang menyemak...",
+    "sensorStatusFailed": "Status tidak tersedia",
+    "rappelconso": "RappelConso (Perancis)",
+    "rappelconsoDesc": "Panggilan balik daripada daftar panggilan balik produk kerajaan Perancis, untuk kenderaan yang didaftarkan di Perancis.",
+    "enableRappelConso": "Aktifkan RappelConso",
+    "enableRappelConsoDesc": "Dipadankan mengikut jenama, model dan tarikh pengeluaran (daftar ini tidak mempunyai VIN); setiap padanan ditunjukkan bersama tahap keyakinannya dan tidak pernah ditanda selesai secara automatik.",
+    "rappelconsoApiUrl": "URL API RappelConso",
+    "rappelconsoApiUrlDesc": "Titik akhir rekod di data.economie.gouv.fr. Ubahnya hanya jika set data berpindah.",
+    "fuelPrices": "Harga bahan api (Perancis)",
+    "fuelPricesDesc": "Harga pam yang dilaporkan oleh setiap stesen di Perancis kepada kerajaan, ditunjukkan pada borang pengisian untuk stesen tersimpan yang anda pilih.",
+    "enableFuelPrices": "Aktifkan harga bahan api",
+    "enableFuelPricesDesc": "Hanya koordinat stesen yang diminta, paling kerap kira-kira setiap sepuluh minit; tiada maklumat tentang kenderaan anda yang meninggalkan pemasangan ini.",
+    "fuelPricesApiUrl": "URL API harga bahan api",
+    "fuelPricesApiUrlDesc": "Titik akhir rekod di data.economie.gouv.fr. Ubahnya hanya jika set data berpindah."
   },
   "notifications": {
     "loading": "Memuatkan tetapan pemberitahuan...",
     "loadError": "Gagal memuatkan tetapan pemberitahuan",
-    "testFailed": "Gagal menghantar pemberitahuan ujian melalui {{service}}"
+    "testFailed": "Gagal menghantar pemberitahuan ujian melalui {{service}}",
+    "fixNumbers": "Tidak disimpan: tetapan nombor berada di luar julat. Betulkannya dan perubahan anda akan disimpan."
   },
   "ntfy": {
     "enable": "Aktifkan pemberitahuan ntfy",
@@ -384,7 +487,7 @@
       "subtitle": "Pemberitahuan tolak hos sendiri atau ntfy.sh",
       "serverUrlHint": "URL pelayan ntfy anda (cth. https://ntfy.sh atau hos sendiri)",
       "topicLabel": "Nama Topik",
-      "topicHint": "Langgan topik ini dalam aplikasi ntfy untuk menerima pemberitahuan",
+      "topicHint": "Langgan topik ini dalam aplikasi ntfy anda. Sesiapa yang tahu namanya boleh membacanya pada pelayan awam, jadi pilih nama yang sukar diteka.",
       "apiTokenLabel": "Token API",
       "apiTokenOptional": "(pilihan)",
       "apiTokenHint": "Diperlukan untuk topik yang memerlukan pengesahan atau pelayan hos sendiri dengan pengesahan",
@@ -476,7 +579,7 @@
       "subtitle": "Hantar pemberitahuan melalui bot Telegram",
       "botTokenHint": "Dapatkan daripada @BotFather di Telegram",
       "chatId": "ID Chat",
-      "chatIdPlaceholder": "-1001234567890 or 123456789",
+      "chatIdPlaceholder": "-1001234567890 atau 123456789",
       "chatIdHint": "ID pengguna, ID kumpulan atau ID saluran anda",
       "sending": "Sedang menghantar...",
       "testConnection": "Uji Sambungan",
@@ -505,7 +608,7 @@
         "rateLimited": "Telegram meminta MyGarage memperlahankan kadar permintaan",
         "unreachable": "Tidak dapat menghubungi Telegram",
         "databaseError": "Tidak dapat menghubungi pangkalan data",
-        "unexpected": "Sesuatu telah berlaku; semak log pelayan"
+        "unexpected": "Sesuatu tidak kena; semak log pelayan"
       }
     }
   },
@@ -519,7 +622,7 @@
       "title": "Konfigurasi E-mel",
       "subtitle": "Hantar pemberitahuan melalui e-mel SMTP",
       "port": "Port",
-      "smtpUsernamePlaceholder": "your-email@gmail.com",
+      "smtpUsernamePlaceholder": "e-mel-anda@gmail.com",
       "smtpPasswordLabel": "Kata Laluan SMTP / Kata Laluan Aplikasi",
       "smtpPasswordPlaceholder": "Kata laluan aplikasi atau kata laluan SMTP",
       "smtpPasswordHint": "Untuk Gmail, gunakan Kata Laluan Aplikasi (bukan kata laluan biasa anda)",
@@ -536,7 +639,7 @@
     "defLow": {
       "group": "Paras DEF",
       "label": "Paras DEF Rendah",
-      "description": "Beritahu apabila paras diesel exhaust fluid (DEF) jatuh ke atau di bawah ambang"
+      "description": "Beritahu apabila paras cecair ekzos diesel (DEF) jatuh ke atau di bawah ambang"
     },
     "card": {
       "subtitle": "Pilih peristiwa yang mencetuskan pemberitahuan",
@@ -548,6 +651,7 @@
       "recallsLabel": "Panggilan Balik Baharu Dikesan",
       "recallsDesc": "Beritahu apabila panggilan balik NHTSA ditemui untuk kenderaan anda",
       "serviceDueLabel": "Servis Akan Tiba",
+      "serviceDueSoonDesc": "Maklumkan sekali apabila peringatan bertukar kepada akan tiba (30 hari sebelum, atau 90% daripada tempoh apabila tiada kadar pemanduan untuk diunjurkan)",
       "serviceOverdueLabel": "Servis Lewat",
       "serviceOverdueDesc": "Beritahu apabila servis telah lewat",
       "insuranceExpiringLabel": "Insurans Akan Tamat",
@@ -563,8 +667,7 @@
       "retryAttemptsDesc": "Bilangan maksimum percubaan semula untuk peristiwa segera/keutamaan tinggi",
       "retryDelay": "Jeda Cuba Semula (saat)",
       "retryDelayDesc": "Jeda asas antara percubaan semula",
-      "retryNote": "Percubaan semula hanya terpakai pada peristiwa segera/keutamaan tinggi (panggilan balik, servis lewat, insurans akan tamat)",
-      "enabledCount": "({{enabled}}/{{total}} diaktifkan)"
+      "retryNote": "Percubaan semula hanya terpakai pada peristiwa segera/keutamaan tinggi (panggilan balik, servis lewat, insurans akan tamat)"
     }
   },
   "backup": {
@@ -602,6 +705,11 @@
     "twelveHour": "12 jam (2:30 PM)",
     "twentyFourHour": "24 jam (14:30)"
   },
+  "dateFormat": {
+    "label": "Format Tarikh",
+    "monthFirst": "Bulan dahulu (10/24/2026)",
+    "dayFirst": "Hari dahulu (24/10/2026)"
+  },
   "widgetKeys": {
     "createTitle": "Kunci API Baharu",
     "createdTitle": "Kunci API Dicipta",
@@ -623,6 +731,7 @@
     "noVehicles": "Anda belum memiliki sebarang kenderaan.",
     "creating": "Sedang mencipta…",
     "submit": "Cipta Kunci",
+    "createAction": "mencipta kunci API",
     "panel": {
       "title": "Kunci API",
       "description": "Kunci API baca sahaja untuk integrasi luaran. Setiap kunci memberikan akses kepada kenderaan yang anda pilih.",
@@ -645,7 +754,7 @@
     }
   },
   "notificationSubTabs": {
-    "email": "Email"
+    "email": "E-mel"
   },
   "settingsContext": {
     "saving": "Menyimpan tetapan...",
@@ -654,18 +763,16 @@
   },
   "integrationsTab": {
     "recallCheckInterval": "Selang Semakan Panggilan Balik",
-    "nhtsaRecallsApiUrl": "URL API Panggilan Semula NHTSA",
+    "nhtsaRecallsApiUrl": "URL API Panggilan Balik NHTSA",
     "aboutCarComplaintsBody": "CarComplaints.com menyediakan pangkalan data aduan pengguna, masalah lazim dan trend isu kenderaan. Integrasi ini menambah pautan mudah untuk menyelidik isu yang diketahui bagi jenama, model dan tahun kenderaan anda.",
     "noteLabel": "Nota:",
     "carComplaintsVehicleNote": "Integrasi ini hanya tersedia untuk kereta dan trak, bukan RV, treler atau fifth wheel.",
     "providerDefault": "{{name}} (Lalai)",
     "unlimited": "Tanpa had",
-    "edit": "Sunting",
+    "edit": "Edit",
     "remove": "Buang",
     "confirmRemoveProvider": "Buang penyedia {{name}}?",
-    "noDataDevicesOffline": "Tiada data (peranti luar talian)",
     "devicesLinked": "{{count}} peranti dipautkan",
-    "devicesLinked_one": "{{count}} peranti dipautkan",
     "devicesLinked_other": "{{count}} peranti dipautkan",
     "devicesOnlineSuffix": ", {{count}} dalam talian",
     "aboutLiveLinkBody": "LiveLink menghubungkan peranti WiCAN PRO OBD2 kepada MyGarage untuk telemetri kenderaan masa nyata. Jejaki parameter enjin, kesan sesi pemanduan dan terima amaran kod masalah diagnostik.",
@@ -674,11 +781,12 @@
   },
   "backupTab": {
     "createSettingsSuccess": "Sandaran tetapan berjaya dicipta!",
+    "createSettingsAction": "mencipta sandaran tetapan",
     "createFullSuccess": "Sandaran penuh berjaya dicipta!",
+    "createFullAction": "mencipta sandaran penuh",
     "confirmRestoreFull": "AMARAN: Ini akan menimpa keseluruhan pangkalan data dan semua fail yang dimuat naik! Sandaran keselamatan akan dicipta terlebih dahulu. Adakah anda benar-benar pasti?",
     "confirmRestoreSettings": "Ini akan memulihkan semua tetapan daripada sandaran. Sandaran keselamatan akan dicipta terlebih dahulu. Teruskan?",
     "fullRestoreStaged": "Pemulihan telah disediakan. Mulakan semula MyGarage untuk menyelesaikannya. Sehingga itu, MyGarage terus menggunakan data semasa dan sebarang perubahan sebelum mula semula akan digantikan oleh sandaran.",
-    "restoreFailed": "Pemulihan gagal",
     "restoreAction": "memulihkan sandaran",
     "restorePendingTitle": "Pemulihan disediakan",
     "restorePendingBody": "Disediakan pada {{stagedAt}}. Mulakan semula MyGarage untuk selesai, atau batalkan untuk mengekalkan data semasa.",
@@ -688,10 +796,8 @@
     "cancelRestoreAction": "membatalkan pemulihan",
     "confirmDelete": "Adakah anda pasti mahu memadam {{filename}}?",
     "deleteSuccess": "Sandaran {{filename}} berjaya dipadam",
-    "deleteError": "Gagal memadam sandaran",
     "deleteAction": "memadam sandaran",
     "uploadSuccess": "Sandaran berjaya dimuat naik!",
-    "uploadFailed": "Muat naik gagal",
     "uploadAction": "memuat naik sandaran",
     "safetyBadge": "Keselamatan",
     "totalSize": "Jumlah {{size}}",
@@ -720,13 +826,29 @@
     "defaultsError": "Gagal menyimpan lalai bahan api"
   },
   "accent": {
-    "label": "Warna Aksen",
-    "description": "Mengubah warna aksen di seluruh aplikasi.",
     "blue": "Biru",
     "amber": "Ambar",
     "teal": "Hijau kebiruan",
     "red": "Merah Perlumbaan",
     "violet": "Ungu",
     "green": "Hijau"
+  },
+  "numberField": {
+    "between": "Masukkan nombor dari {{min}} hingga {{max}}",
+    "wholeBetween": "Masukkan nombor bulat dari {{min}} hingga {{max}}"
+  },
+  "country": {
+    "label": "Negara",
+    "none": "Belum ditetapkan",
+    "saved": "Negara disimpan",
+    "error": "Gagal menyimpan negara",
+    "description": "Menentukan lalai kebangsaan untuk kenderaan anda: kekerapan pemeriksaan, nama pam bahan api, jenis cukai. Kenderaan yang didaftarkan di tempat lain boleh menetapkan negaranya sendiri."
+  },
+  "inspection": {
+    "label": "Peringatan pemeriksaan teknikal",
+    "autoSchedule": "Jadualkan pemeriksaan teknikal berkala secara automatik",
+    "description": "Apabila negara ditetapkan, setiap kenderaan yang mempunyai tarikh pendaftaran pertama mendapat peringatan untuk ujian kelayakan jalan raya berkalanya (contrôle technique, HU, APK, ITV…), dikira daripada kekerapan negara itu dan diawalkan oleh pemeriksaan yang anda rekod. Matikannya untuk mengurus peringatan tersebut sendiri.",
+    "saved": "Pilihan disimpan",
+    "error": "Gagal menyimpan pilihan"
   }
 }

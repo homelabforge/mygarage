@@ -32,8 +32,6 @@
   "searchPlaceholder": "Cerca veicoli, manutenzioni, VIN…",
   "openMenu": "Apri menu",
   "closeMenu": "Chiudi menu",
-  "searchShellTitle": "Ricerca in arrivo",
-  "searchShellBody": "La ricerca globale tra veicoli, storico manutenzioni e VIN sarà presto disponibile.",
   "searchLoading": "Ricerca in corso…",
   "searchHint": "Digita un soprannome, VIN, targa, marca o titolo del promemoria.",
   "searchNoResultsTitle": "Nessun risultato",

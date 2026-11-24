@@ -7,7 +7,6 @@
     "loading": "Loading garage analytics...",
     "loadingAria": "Loading analytics",
     "offlineCached": "Offline: showing cached analytics snapshot.",
-    "genericError": "An error occurred",
     "exportPdfFailed": "Failed to export PDF. Please try again.",
     "empty": {
       "title": "No Vehicles Yet",
@@ -27,12 +26,9 @@
     "noCostData": "No cost data available",
     "runningCostsByVehicle": "Running Costs by Vehicle",
     "noVehicleData": "No vehicle data available",
-    "runningCostsTooltip": "Running Costs",
     "monthlySpendingTrend": "Monthly Spending Trend",
-    "costAxis": "Cost ({{currency}})",
     "rollingAvg3": "3-Month Avg",
     "rollingAvg6": "6-Month Avg",
-    "otherCategory": "Other",
     "table": {
       "vehicle": "Vehicle",
       "maintenance": "Maint.",
@@ -74,7 +70,7 @@
     },
     "categoryBreakdown": {
       "title": "Cost Breakdown by Category",
-      "body": "The donut chart shows how garage spending is distributed across categories, with the combined total in its center. The list beside it breaks each category down — its share of the total, a proportional bar, and the amount — sorted largest first, so you can see at a glance where the money goes."
+      "body": "The donut chart shows how garage spending is distributed across categories, with the combined total in its center. The list beside it breaks each category down (its share of the total, a proportional bar, and the amount), sorted largest first, so you can see at a glance where the money goes."
     },
     "costByVehicle": {
       "title": "Cost by Vehicle",
@@ -104,7 +100,7 @@
       "categoryColumnsLabel": "Category columns:",
       "categoryColumnsDesc": "Each vehicle's spend broken out by Maintenance, Upgrades, Inspection, Collision, Detailing, Fuel, DEF, and Financing.",
       "totalCostLabel": "Total:",
-      "totalCostDesc": "Combined running costs — service, fuel, and DEF. This does not include the vehicle's purchase price. Financing and insurance are shown separately, since they aren't running costs of driving the vehicle.",
+      "totalCostDesc": "Combined running costs: service, fuel, and DEF. This does not include the vehicle's purchase price. Financing and insurance are shown separately, since they aren't running costs of driving the vehicle.",
       "sortIntro": "The table is ordered by total running cost, highest first. Use it to spot:",
       "item1": "Most/least expensive vehicles to operate",
       "item2": "Vehicles with disproportionate maintenance costs",
@@ -170,7 +166,6 @@
     "notFound": "Analytics not found",
     "notAvailable": "N/A",
     "offlineCached": "Offline: showing cached analytics snapshot.",
-    "genericError": "An error occurred",
     "fillAllDates": "Please fill in all date fields",
     "comparisonFailed": "Failed to fetch comparison data",
     "costProjection": "Cost Projection",
@@ -326,8 +321,8 @@
     "costChangesByCategory": "Cost Changes by Category",
     "period1Value": "Period 1: {{value}}",
     "period2Value": "Period 2: {{value}}",
-    "anomalyAbove": "Spent {{spent}} — {{deviation}}% above your average of {{avg}}.",
-    "anomalyBelow": "Spent {{spent}} — {{deviation}}% below your average of {{avg}}.",
+    "anomalyAbove": "Spent {{spent}}, {{deviation}}% above your average of {{avg}}.",
+    "anomalyBelow": "Spent {{spent}}, {{deviation}}% below your average of {{avg}}.",
     "severity": {
       "critical": "Critical",
       "info": "Info",
@@ -569,8 +564,6 @@
     "exportCsv": "Export CSV",
     "exportCsvFor": "Export CSV: {{report}}",
     "generating": "Generating report...",
-    "pdfError": "Failed to generate report",
-    "csvError": "Failed to export data",
     "pdfAction": "generate the report",
     "csvAction": "export the data"
   },

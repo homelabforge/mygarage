@@ -4,19 +4,22 @@ MyGarage supports multiple languages through community contributions.
 
 ## Overview
 
-| | Language | Code | Progress | Keys |
-|---|----------|------|----------|------|
-| 🇺🇸 | English | `en` | `████████████████████` 100% | 5168/5168 |
-| 🇷🇺 | Russian | `ru` | `████████████████████` 100% | 5156/5168 |
-| 🇫🇷 | French | `fr` | `██████████████████░░` 88% | 4534/5168 |
-| 🇮🇹 | Italian | `it` | `█████████████████░░░` 83% | 4313/5168 |
-| 🇲🇾 | Malay | `ms` | `█████████████████░░░` 83% | 4294/5168 |
-| 🇩🇪 | German | `de` | `██████████████░░░░░░` 68% | 3536/5168 |
-| 🇵🇱 | Polish | `pl` | `██████░░░░░░░░░░░░░░` 30% | 1530/5168 |
-| 🇺🇦 | Ukrainian | `uk` | `██████░░░░░░░░░░░░░░` 30% | 1547/5168 |
-| 🇧🇷 | Brazilian Portuguese | `pt-BR` | `██████░░░░░░░░░░░░░░` 29% | 1523/5168 |
+| | Language | Code | Progress | Keys | Drafts |
+|---|----------|------|----------|------|--------|
+| 🇺🇸 | English | `en` | `████████████████████` 100% | 4980/4980 | 0 |
+| 🇩🇪 | German | `de` | `████████████████████` 100% | 4980/4980 | 1865 |
+| 🇫🇷 | French | `fr` | `████████████████████` 100% | 4991/4991 | 1049 |
+| 🇮🇹 | Italian | `it` | `████████████████████` 100% | 4991/4991 | 1004 |
+| 🇲🇾 | Malay | `ms` | `████████████████████` 100% | 4969/4969 | 1099 |
+| 🇵🇱 | Polish | `pl` | `████████████████████` 100% | 5002/5002 | 3995 |
+| 🇧🇷 | Brazilian Portuguese | `pt-BR` | `████████████████████` 100% | 4991/4991 | 3885 |
+| 🇷🇺 | Russian | `ru` | `████████████████████` 100% | 5002/5002 | 476 |
+| 🇺🇦 | Ukrainian | `uk` | `████████████████████` 100% | 5002/5002 | 3966 |
 
-**Overall: 64%** average completion across 8 translated languages; English is the source (100%)
+Drafts are machine translations nobody has reviewed yet. They count toward the
+percentage; see [TRANSLATING.md](TRANSLATING.md#machine-drafted-strings) to help check them.
+
+**Overall: 100%** average completion across 8 translated languages; English is the source (100%)
 
 ---
 

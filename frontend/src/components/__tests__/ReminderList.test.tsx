@@ -143,7 +143,18 @@ describe('ReminderList — status both ways', () => {
   it('with zero reminders, the empty state renders (fails if the empty branch is dropped)', () => {
     useRemindersMock.mockReturnValue({ data: [], isLoading: false })
     render(<ReminderList vehicle={vehicle} />)
-    expect(screen.getByText('reminderList.noReminders')).toBeInTheDocument()
+    expect(screen.getByText('reminderList.noRemindersPending')).toBeInTheDocument()
+  })
+
+  // The status used to go into the sentence as the raw enum ("No done reminders"
+  // in every language), so each tab gets its own sentence.
+  it('names the selected status in its own empty-state sentence, never the raw enum', () => {
+    useRemindersMock.mockReturnValue({ data: [], isLoading: false })
+    render(<ReminderList vehicle={vehicle} />)
+    fireEvent.click(screen.getByRole('button', { name: 'reminderList.statusDone' }))
+    expect(screen.getByText('reminderList.noRemindersDone')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'reminderList.statusDismissed' }))
+    expect(screen.getByText('reminderList.noRemindersDismissed')).toBeInTheDocument()
   })
 })
 

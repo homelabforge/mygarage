@@ -1,5 +1,16 @@
-import type { Page } from '@playwright/test'
+import type { APIRequestContext, Page } from '@playwright/test'
 import { test, expect } from './helpers/fixtures'
+import { adminSessionFromStorageState } from './helpers/seed'
+
+const API_BASE = 'http://localhost:8686/api'
+const AUTH_FILE = './e2e/.auth/user.json'
+
+/** Sets the account's language; useLanguageSync applies it on the next load. */
+async function setLanguage(request: APIRequestContext, language: string): Promise<void> {
+  const admin = await adminSessionFromStorageState(request, API_BASE, AUTH_FILE)
+  const res = await request.put(`${API_BASE}/auth/me`, { data: { language }, headers: admin.headers })
+  expect(res.ok(), `Language ${language} failed: ${res.status()}`).toBeTruthy()
+}
 
 /**
  * P2 hardening — the shell's final-review Important
@@ -12,10 +23,11 @@ import { test, expect } from './helpers/fixtures'
  * width anyway. Only a real browser measuring `getComputedStyle().display`
  * catches it — this spec is that guard.
  *
- * The five affordances are matched by `[class~="token"]` attribute
- * selectors, which match regardless of visibility (unlike `getByRole`,
- * which drops display:none nodes from the accessibility tree — the exact
- * blind spot this spec exists to close).
+ * The five affordances are matched by attribute selectors, which match
+ * regardless of visibility (unlike `getByRole`, which drops display:none nodes
+ * from the accessibility tree, the exact blind spot this spec exists to
+ * close). The links and the hamburger carry `data-nav`, since their classes
+ * change when the links don't fit.
  *
  * Note: `locator.evaluate` / `page.$$eval` below are Playwright's browser-context
  * script-execution APIs (they run a function inside the page, matching the
@@ -23,8 +35,8 @@ import { test, expect } from './helpers/fixtures'
  */
 
 const SELECTORS = {
-  inlineNav: 'nav[class~="nav:flex"]',
-  hamburger: '[class~="nav:hidden"]',
+  inlineNav: '[data-nav="links"]',
+  hamburger: '[data-nav="hamburger"]',
   search: '[class~="max-nav:hidden"]',
   gear: 'button[aria-label="Quick settings"]',
   bottomBar: 'nav[class~="md:hidden"]',
@@ -53,18 +65,33 @@ interface BandRow {
 // The gear (Quick Settings) is visible at EVERY width: it is the only path to
 // the per-account accent picker and logout below 768px, so it must not drop on
 // phone (P10 mobile account access — see the logout reachability test below).
+//
+// From 900 up the inline links show only once they fit: English needs about
+// 1164px, so 900 and 1000 still use the hamburger (search moves to the bar at
+// 900 either way).
 const BAND_TABLE: BandRow[] = [
   { width: 375, inlineNav: false, hamburger: false, search: false, gear: true, bottomBar: true },
   { width: 767, inlineNav: false, hamburger: false, search: false, gear: true, bottomBar: true },
   { width: 768, inlineNav: false, hamburger: true, search: false, gear: true, bottomBar: false },
   { width: 899, inlineNav: false, hamburger: true, search: false, gear: true, bottomBar: false },
-  { width: 900, inlineNav: true, hamburger: false, search: true, gear: true, bottomBar: false },
+  { width: 900, inlineNav: false, hamburger: true, search: true, gear: true, bottomBar: false },
+  { width: 1000, inlineNav: false, hamburger: true, search: true, gear: true, bottomBar: false },
   { width: 1320, inlineNav: true, hamburger: false, search: true, gear: true, bottomBar: false },
 ]
 
-/** Reads computed `display` for one affordance at the current viewport. */
+/** Computed display, or "hidden" when the node is laid out but invisible (the links that don't fit). */
 async function readDisplay(page: Page, key: Affordance): Promise<string> {
-  return page.locator(SELECTORS[key]).evaluate((el) => getComputedStyle(el).display)
+  return page.locator(SELECTORS[key]).evaluate((el) => {
+    const style = getComputedStyle(el)
+    return style.visibility === 'hidden' ? 'hidden' : style.display
+  })
+}
+
+const isShown = (display: string): boolean => display !== 'none' && display !== 'hidden'
+
+/** How far the page scrolls sideways, 0 when it doesn't. */
+async function sidewaysScroll(page: Page): Promise<number> {
+  return page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
 }
 
 test.describe('P2 band model', () => {
@@ -93,6 +120,15 @@ test.describe('P2 band model', () => {
     for (const row of BAND_TABLE) {
       await page.setViewportSize({ width: row.width, height: 900 })
 
+      // The links fold or come back on a ResizeObserver tick, so let the bar
+      // settle before reading it
+      const shownAt = async (): Promise<Record<Affordance, boolean>> => {
+        const out = {} as Record<Affordance, boolean>
+        for (const key of Object.keys(SELECTORS) as Affordance[]) out[key] = isShown(await readDisplay(page, key))
+        return out
+      }
+      const expected = Object.fromEntries((Object.keys(SELECTORS) as Affordance[]).map((key) => [key, row[key]]))
+      await expect.poll(shownAt, { message: `${row.width}px: which affordances show` }).toEqual(expected)
       const displays: Record<Affordance, string> = {
         inlineNav: await readDisplay(page, 'inlineNav'),
         hamburger: await readDisplay(page, 'hamburger'),
@@ -100,23 +136,52 @@ test.describe('P2 band model', () => {
         gear: await readDisplay(page, 'gear'),
         bottomBar: await readDisplay(page, 'bottomBar'),
       }
+      expect(await sidewaysScroll(page), `${row.width}px: the page scrolls sideways`).toBe(0)
 
-      for (const key of Object.keys(SELECTORS) as Affordance[]) {
-        const expectedVisible = row[key]
-        const isVisible = displays[key] !== 'none'
-        expect(
-          isVisible,
-          `${row.width}px ${key}: expected ${expectedVisible ? 'visible' : 'display:none'}, got display="${displays[key]}"`,
-        ).toBe(expectedVisible)
-      }
-
-      const visiblePrimaries = PRIMARY_NAVS.filter((key) => displays[key] !== 'none')
+      const visiblePrimaries = PRIMARY_NAVS.filter((key) => isShown(displays[key]))
       expect(
         visiblePrimaries.length,
         `${row.width}px: expected exactly ONE primary nav visible, got ${visiblePrimaries.length} (${
           visiblePrimaries.join(', ') || 'none'
         })`,
       ).toBe(1)
+    }
+  })
+})
+
+test.describe('Top links that do not fit', () => {
+  const primaries = async (page: Page): Promise<string[]> => {
+    const shown: string[] = []
+    for (const key of PRIMARY_NAVS) if (isShown(await readDisplay(page, key))) shown.push(key)
+    return shown
+  }
+
+  test('the links come back when the window grows, and nothing scrolls sideways on the way', async ({ page }) => {
+    await page.goto('/')
+    await page.waitForSelector('header')
+    for (const [width, nav] of [[1320, 'inlineNav'], [1000, 'hamburger'], [1320, 'inlineNav'], [900, 'hamburger']] as const) {
+      await page.setViewportSize({ width, height: 900 })
+      await expect.poll(() => primaries(page), `${width}px`).toEqual([nav])
+      expect(await sidewaysScroll(page), `${width}px`).toBe(0)
+    }
+  })
+
+  test('a longer language folds the links into the hamburger at the same width', async ({ page, request }) => {
+    try {
+      await page.setViewportSize({ width: 1320, height: 900 })
+      await page.goto('/')
+      await page.waitForSelector('header')
+      await expect.poll(() => primaries(page)).toEqual(['inlineNav'])
+      // Polish needs more room than the bar ever has. The account's language
+      // wins over localStorage, so set it there (same as page-fit.spec.ts).
+      await setLanguage(request, 'pl')
+      await page.reload()
+      await page.waitForSelector('header')
+      await expect(page.locator('html')).toHaveAttribute('lang', 'pl')
+      await expect.poll(() => primaries(page)).toEqual(['hamburger'])
+      expect(await sidewaysScroll(page)).toBe(0)
+    } finally {
+      await setLanguage(request, 'en')
     }
   })
 })

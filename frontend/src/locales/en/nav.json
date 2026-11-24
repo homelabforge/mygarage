@@ -32,8 +32,6 @@
   "searchPlaceholder": "Search vehicles, service, VIN…",
   "openMenu": "Open menu",
   "closeMenu": "Close menu",
-  "searchShellTitle": "Search is coming soon",
-  "searchShellBody": "Global search across vehicles, service history, and VINs is on the way.",
   "searchLoading": "Searching…",
   "searchHint": "Type a nickname, VIN, plate, make, or reminder title.",
   "searchNoResultsTitle": "No matches",
