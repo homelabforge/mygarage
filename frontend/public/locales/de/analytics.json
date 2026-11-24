@@ -21,6 +21,7 @@
       "taxes": "Steuern"
     },
     "costByCategory": "Kosten nach Kategorie",
+    "donutTotal": "Gesamt",
     "noCostData": "Keine Kostendaten verfügbar",
     "runningCostsByVehicle": "Laufende Kosten nach Fahrzeug",
     "noVehicleData": "Keine Fahrzeugdaten verfügbar",
@@ -38,7 +39,6 @@
       "def": "DEF",
       "total": "Gesamt"
     },
-    "donutTotal": "Gesamt",
     "loadAction": "Garage-Analyse laden"
   },
   "garageHelp": {
@@ -57,12 +57,12 @@
       "maintenanceDesc": "Gesamte Service- und Reparaturkosten über alle Fahrzeuge hinweg.",
       "fuelLabel": "Kraftstoff:",
       "fuelDesc": "Gesamte Kraftstoffausgaben für die gesamte Garage.",
+      "defLabel": "DEF:",
+      "defDesc": "Gesamtkosten für AdBlue/DEF (wird angezeigt, wenn ein Fahrzeug DEF verwendet).",
       "insuranceLabel": "Versicherung:",
       "insuranceDesc": "Kombinierte Versicherungskosten für alle Fahrzeuge.",
       "taxesLabel": "Steuern:",
-      "taxesDesc": "Gesamte Zulassungs- und Steueraufwendungen.",
-      "defLabel": "DEF:",
-      "defDesc": "Gesamtkosten für AdBlue/DEF (wird angezeigt, wenn ein Fahrzeug DEF verwendet)."
+      "taxesDesc": "Gesamte Zulassungs- und Steueraufwendungen."
     },
     "categoryBreakdown": {
       "title": "Kostenaufschlüsselung nach Kategorie",
@@ -93,15 +93,15 @@
     "comparisonTable": {
       "title": "Vergleichstabelle der Fahrzeugkosten",
       "intro": "Die detaillierte Tabelle unten bietet einen direkten Vergleich aller Fahrzeuge:",
+      "categoryColumnsLabel": "Kategoriespalten:",
+      "categoryColumnsDesc": "Die Ausgaben jedes Fahrzeugs, aufgeschlüsselt nach Wartung, Upgrades, Inspektion, Unfall, Aufbereitung, Kraftstoff und DEF.",
       "totalCostLabel": "Gesamtkosten:",
       "totalCostDesc": "Kombinierte Gesamtbetriebskosten über die gesamte Lebensdauer.",
       "sortIntro": "Sortiere diese Daten gedanklich, um Folgendes zu identifizieren:",
       "item1": "Die im Betrieb teuersten/günstigsten Fahrzeuge",
       "item2": "Fahrzeuge mit unverhältnismäßig hohen Wartungskosten",
       "item3": "Die besten/schlechtesten Fahrzeuge in Bezug auf den Kraftstoffverbrauch",
-      "item4": "Kandidaten für einen Austausch basierend auf den Gesamtbetriebskosten",
-      "categoryColumnsLabel": "Kategoriespalten:",
-      "categoryColumnsDesc": "Die Ausgaben jedes Fahrzeugs, aufgeschlüsselt nach Wartung, Upgrades, Inspektion, Unfall, Aufbereitung, Kraftstoff und DEF."
+      "item4": "Kandidaten für einen Austausch basierend auf den Gesamtbetriebskosten"
     },
     "exportOptions": {
       "title": "Export-Optionen",
@@ -173,6 +173,15 @@
     "recentBaseline": "Aktuell: {{recent}} • Basiswert: {{baseline}}",
     "spendingAnomalies": "Ausgaben-Anomalien",
     "noAnomalies": "Keine ungewöhnlichen Ausgabenmuster erkannt.",
+    "anomalyRange": "Zeitraum",
+    "anomalyRange3m": "Letzte 3 Monate",
+    "anomalyRange6m": "Letzte 6 Monate",
+    "anomalyRange12m": "Letzte 12 Monate",
+    "anomalyRangeYtd": "Aktuelles Jahr",
+    "anomalyRangeAll": "Gesamter Zeitraum",
+    "anomalyRangeCustom": "Benutzerdefiniert",
+    "anomalyStart": "Von",
+    "anomalyEnd": "Bis",
     "totalCost": "Gesamtkosten",
     "monthsTracked": "{{count}} Monat(e) erfasst",
     "avgMonthly": "Monatlicher Schnitt",
@@ -236,6 +245,17 @@
       "volume": "Volumen ({{unit}})",
       "cost": "Kosten"
     },
+    "hoursEconomyAnalysis": "Effizienzanalyse der Motorbetriebsstunden",
+    "hoursEconomyTrendTitle": "Trend der Effizienz der Motorbetriebsstunden im Zeitverlauf",
+    "fuelRateUnitLabel": "Kraftstoffverbrauch ({{unit}})",
+    "costPerHourLabel": "Kosten/Stunde",
+    "costPerHourAxis": "Kosten/Stunde ({{currency}})",
+    "costPerDistance": "Kosten/{{unit}}",
+    "avgCostPerVolume": "Ø Kosten/{{unit}}",
+    "costPerHourValue": "{{value}}/Std.",
+    "hoursAccumulatedTitle": "Akkumulierte Motorbetriebsstunden im Zeitverlauf",
+    "engineHoursAxis": "Motorbetriebsstunden",
+    "engineHoursReading": "{{value}} Std.",
     "propaneAnalysis": "Propan-Analyse",
     "totalSpent": "Gesamtausgaben",
     "totalVolume": "Gesamt ({{unit}})",
@@ -295,17 +315,6 @@
     "costChangesByCategory": "Kostenänderungen nach Kategorie",
     "period1Value": "Zeitraum 1: {{value}}",
     "period2Value": "Zeitraum 2: {{value}}",
-    "costPerHourAxis": "Kosten/Stunde ({{currency}})",
-    "costPerDistance": "Kosten/{{unit}}",
-    "avgCostPerVolume": "Ø Kosten/{{unit}}",
-    "costPerHourLabel": "Kosten/Stunde",
-    "costPerHourValue": "{{value}}/Std.",
-    "engineHoursAxis": "Motorbetriebsstunden",
-    "engineHoursReading": "{{value}} Std.",
-    "fuelRateUnitLabel": "Kraftstoffverbrauch ({{unit}})",
-    "hoursAccumulatedTitle": "Akkumulierte Motorbetriebsstunden im Zeitverlauf",
-    "hoursEconomyAnalysis": "Effizienzanalyse der Motorbetriebsstunden",
-    "hoursEconomyTrendTitle": "Trend der Effizienz der Motorbetriebsstunden im Zeitverlauf",
     "anomalyAbove": "Ausgaben: {{spent}} — {{deviation}}% über Ihrem Durchschnitt von {{avg}}.",
     "anomalyBelow": "Ausgaben: {{spent}} — {{deviation}}% unter Ihrem Durchschnitt von {{avg}}.",
     "severity": {
@@ -327,53 +336,9 @@
         "title": "Zu wenig Kraftstoffdaten"
       }
     },
-    "anomalyRange": "Zeitraum",
-    "anomalyRange3m": "Letzte 3 Monate",
-    "anomalyRange6m": "Letzte 6 Monate",
-    "anomalyRange12m": "Letzte 12 Monate",
-    "anomalyRangeYtd": "Aktuelles Jahr",
-    "anomalyRangeAll": "Gesamter Zeitraum",
-    "anomalyRangeCustom": "Benutzerdefiniert",
-    "anomalyStart": "Von",
-    "anomalyEnd": "Bis",
     "loadAction": "Fahrzeug-Analyse laden"
   },
   "vehicleHelp": {
-    "title": "Hilfe zu den Analysen",
-    "close": "Schließen",
-    "gotIt": "Verstanden",
-    "overview": {
-      "title": "Übersicht",
-      "body": "Die Analyseseite bietet umfassende Einblicke in die Kosten, die Kraftstoffeffizienz, die Wartungsmuster und die Ausgabentrends deines Fahrzeugs. Nutze diese Erkenntnisse, um fundierte Entscheidungen über die Wartung deines Fahrzeugs und dein Budget zu treffen."
-    },
-    "costAnalysis": {
-      "title": "Kostenanalyse",
-      "totalCostLabel": "Gesamtkosten:",
-      "totalCostDesc": "Summe aller erfassten Service- und Kraftstoffausgaben.",
-      "avgMonthlyLabel": "Durchschnittliche monatliche Kosten:",
-      "avgMonthlyDesc": "Gesamtkosten geteilt durch die Anzahl der erfassten Monate.",
-      "serviceBreakdownLabel": "Aufschlüsselung nach Serviceart:",
-      "serviceBreakdownDesc": "Zeigt, welche Servicearten die höchsten Kosten verursachen."
-    },
-    "rollingAverages": {
-      "title": "Gleitende Durchschnitte",
-      "threeMonthLabel": "3-Monats-Durchschnitt:",
-      "threeMonthDesc": "Durchschnittliche monatliche Kosten der letzten 3 Monate.",
-      "sixMonthLabel": "6-Monats-Durchschnitt:",
-      "sixMonthDesc": "Durchschnittliche monatliche Kosten der letzten 6 Monate.",
-      "twelveMonthLabel": "12-Monats-Durchschnitt:",
-      "twelveMonthDesc": "Durchschnittliche monatliche Kosten der letzten 12 Monate.",
-      "note": "Gleitende Durchschnitte glätten vorübergehende Spitzen und helfen dabei, langfristige Trends zu erkennen. Vergleiche diese Werte, um zu sehen, ob deine Kosten nach oben oder unten tendieren."
-    },
-    "trendDirection": {
-      "title": "Trendrichtung",
-      "increasingLabel": "Steigend:",
-      "increasingDesc": "Die jüngsten Kosten weisen einen Aufwärtstrend auf. Dies kann auf ein alterndes Fahrzeug oder nachzuholende, aufgeschobene Wartungen hindeuten.",
-      "decreasingLabel": "Sinkend:",
-      "decreasingDesc": "Die jüngsten Kosten weisen einen Abwärtstrend auf. Dies könnte bedeuten, dass größere Reparaturen abgeschlossen sind oder das Fahrzeug weniger genutzt wird.",
-      "stableLabel": "Stabil:",
-      "stableDesc": "Die Kosten sind von Monat zu Monat konstant mit minimalen Abweichungen."
-    },
     "anomalies": {
       "title": "Ausgaben-Anomalien",
       "body": "Die Anomalieerkennung identifiziert automatisch Monate, in denen die Ausgaben deutlich über oder unter deinem Durchschnitt lagen. Hierfür wird eine statistische Analyse genutzt, um Ausreißer zu finden.",
@@ -383,28 +348,34 @@
       "criticalDesc": "Ausgaben, die 50%+ über oder unter dem Durchschnitt liegen.",
       "note": "Anomalien sind nicht zwingend negativ – sie stehen oft für einmalige Ereignisse wie größere Reparaturen, jährliche Zulassungen oder aufgeschobene Wartungen. Überprüfe diese, um ungewöhnliche Ausgabenmuster zu verstehen."
     },
+    "close": "Schließen",
+    "costAnalysis": {
+      "title": "Kostenanalyse",
+      "totalCostLabel": "Gesamtkosten:",
+      "totalCostDesc": "Summe aller erfassten Service- und Kraftstoffausgaben.",
+      "avgMonthlyLabel": "Durchschnittliche monatliche Kosten:",
+      "avgMonthlyDesc": "Gesamtkosten geteilt durch die Anzahl der erfassten Monate.",
+      "serviceBreakdownLabel": "Aufschlüsselung nach Serviceart:",
+      "serviceBreakdownDesc": "Zeigt, welche Servicearten die höchsten Kosten verursachen."
+    },
+    "export": {
+      "title": "Export-Optionen",
+      "csvLabel": "CSV-Export:",
+      "csvDesc": "Lade alle Analysedaten im Tabellenkalkulationsformat für weitere Auswertungen herunter.",
+      "pdfLabel": "PDF-Export:",
+      "pdfDesc": "Erstelle einen professionellen Bericht mit Diagrammen und Zusammenfassungen für deine Unterlagen oder für Steuerzwecke."
+    },
     "fuelEconomy": {
       "title": "Kraftstoffverbrauch",
-      "note": "Ein verschlechterter Kraftstoffverbrauch kann auf Wartungsbedarf hindeuten (Luftfilter, Zündkerzen, Reifendruck) oder auf Änderungen der Fahrgewohnheiten. Deutliche Einbrüche sollten untersucht werden.",
       "economyCalcLabel": "Verbrauchsberechnung ({{unit}}):",
       "averageEconomyLabel": "Durchschnittlicher Verbrauch ({{unit}}):",
-      "recentEconomyLabel": "Aktueller Verbrauch ({{unit}}):"
+      "recentEconomyLabel": "Aktueller Verbrauch ({{unit}}):",
+      "note": "Ein verschlechterter Kraftstoffverbrauch kann auf Wartungsbedarf hindeuten (Luftfilter, Zündkerzen, Reifendruck) oder auf Änderungen der Fahrgewohnheiten. Deutliche Einbrüche sollten untersucht werden."
     },
-    "vendorSpending": {
-      "title": "Ausgaben nach Dienstleister",
-      "body": "Zeigt, bei welchen Dienstleistern du das meiste Geld ausgegeben hast. Nutze dies, um deine primären Werkstätten zu identifizieren und die Kosten verschiedener Betriebe für ähnliche Services zu vergleichen."
-    },
-    "seasonal": {
-      "title": "Saisonale Muster",
-      "body": "Nach Jahreszeiten gruppierte Ausgaben zur Erkennung von Mustern. Viele Fahrzeuge haben saisonalen Wartungsbedarf:",
-      "winterLabel": "Winter:",
-      "winterDesc": "Batterie, Reifen, Heizungssystem",
-      "springLabel": "Frühling:",
-      "springDesc": "Inspektion nach dem Winter, Aufbereitung",
-      "summerLabel": "Sommer:",
-      "summerDesc": "Klimaanlagen-Service, Roadtrips, Kühlsystem",
-      "fallLabel": "Herbst:",
-      "fallDesc": "Vorbereitung auf den Winter, Flüssigkeitswechsel"
+    "gotIt": "Verstanden",
+    "overview": {
+      "title": "Übersicht",
+      "body": "Die Analyseseite bietet umfassende Einblicke in die Kosten, die Kraftstoffeffizienz, die Wartungsmuster und die Ausgabentrends deines Fahrzeugs. Nutze diese Erkenntnisse, um fundierte Entscheidungen über die Wartung deines Fahrzeugs und dein Budget zu treffen."
     },
     "periodComparison": {
       "title": "Zeitraumvergleich",
@@ -421,20 +392,49 @@
       "lowLabel": "Niedrig:",
       "lowDesc": "Nur 1 historischer Service (keine Intervalldaten vorhanden)"
     },
-    "export": {
-      "title": "Export-Optionen",
-      "csvLabel": "CSV-Export:",
-      "csvDesc": "Lade alle Analysedaten im Tabellenkalkulationsformat für weitere Auswertungen herunter.",
-      "pdfLabel": "PDF-Export:",
-      "pdfDesc": "Erstelle einen professionellen Bericht mit Diagrammen und Zusammenfassungen für deine Unterlagen oder für Steuerzwecke."
+    "rollingAverages": {
+      "title": "Gleitende Durchschnitte",
+      "threeMonthLabel": "3-Monats-Durchschnitt:",
+      "threeMonthDesc": "Durchschnittliche monatliche Kosten der letzten 3 Monate.",
+      "sixMonthLabel": "6-Monats-Durchschnitt:",
+      "sixMonthDesc": "Durchschnittliche monatliche Kosten der letzten 6 Monate.",
+      "twelveMonthLabel": "12-Monats-Durchschnitt:",
+      "twelveMonthDesc": "Durchschnittliche monatliche Kosten der letzten 12 Monate.",
+      "note": "Gleitende Durchschnitte glätten vorübergehende Spitzen und helfen dabei, langfristige Trends zu erkennen. Vergleiche diese Werte, um zu sehen, ob deine Kosten nach oben oder unten tendieren."
+    },
+    "seasonal": {
+      "title": "Saisonale Muster",
+      "body": "Nach Jahreszeiten gruppierte Ausgaben zur Erkennung von Mustern. Viele Fahrzeuge haben saisonalen Wartungsbedarf:",
+      "winterLabel": "Winter:",
+      "winterDesc": "Batterie, Reifen, Heizungssystem",
+      "springLabel": "Frühling:",
+      "springDesc": "Inspektion nach dem Winter, Aufbereitung",
+      "summerLabel": "Sommer:",
+      "summerDesc": "Klimaanlagen-Service, Roadtrips, Kühlsystem",
+      "fallLabel": "Herbst:",
+      "fallDesc": "Vorbereitung auf den Winter, Flüssigkeitswechsel"
     },
     "tips": {
       "title": "Tipps für beste Ergebnisse",
       "enterAllRecords": "Trage alle Service- und Kraftstoffeinträge ein, um vollständige Analysen zu erhalten",
+      "markFullTank": "Markiere Betankungen als \"Vollbetankung\" für eine genaue Verbrauchserfassung ({{unit}})",
       "addVendorNames": "Füge Dienstleisternamen hinzu, um Ausgabenmuster zu erkennen",
       "trackMonths": "Erfasse Daten über mindestens 3–6 Monate, um aussagekräftige Trends zu erhalten",
-      "reviewAnomalies": "Überprüfe Anomalien, um ungewöhnliche Ausgaben zu verstehen",
-      "markFullTank": "Markiere Betankungen als \"Vollbetankung\" für eine genaue Verbrauchserfassung ({{unit}})"
+      "reviewAnomalies": "Überprüfe Anomalien, um ungewöhnliche Ausgaben zu verstehen"
+    },
+    "title": "Hilfe zu den Analysen",
+    "trendDirection": {
+      "title": "Trendrichtung",
+      "increasingLabel": "Steigend:",
+      "increasingDesc": "Die jüngsten Kosten weisen einen Aufwärtstrend auf. Dies kann auf ein alterndes Fahrzeug oder nachzuholende, aufgeschobene Wartungen hindeuten.",
+      "decreasingLabel": "Sinkend:",
+      "decreasingDesc": "Die jüngsten Kosten weisen einen Abwärtstrend auf. Dies könnte bedeuten, dass größere Reparaturen abgeschlossen sind oder das Fahrzeug weniger genutzt wird.",
+      "stableLabel": "Stabil:",
+      "stableDesc": "Die Kosten sind von Monat zu Monat konstant mit minimalen Abweichungen."
+    },
+    "vendorSpending": {
+      "title": "Ausgaben nach Dienstleister",
+      "body": "Zeigt, bei welchen Dienstleistern du das meiste Geld ausgegeben hast. Nutze dies, um deine primären Werkstätten zu identifizieren und die Kosten verschiedener Betriebe für ähnliche Services zu vergleichen."
     }
   },
   "reports": {
@@ -449,6 +449,8 @@
     "annualCostDesc": "Aufschlüsselung aller Ausgaben nach Kategorie",
     "taxDeductionTitle": "Steuerabzugs-Bericht",
     "taxDeductionDesc": "Potenziell abzugsfähige Ausgaben (Steuerberater konsultieren)",
+    "saleHistoryTitle": "Verkaufshistorie (anonymisiert)",
+    "saleHistoryDesc": "Käufersichere Service-Historie ohne Kosten, Werkstätten oder Kennzeichen",
     "serviceHistoryCsvTitle": "Servicehistorie (CSV)",
     "serviceHistoryCsvDesc": "Serviceberichte in eine Tabellenkalkulation exportieren",
     "allRecordsCsvTitle": "Alle Einträge (CSV)",
@@ -460,8 +462,6 @@
     "downloadPdf": "PDF herunterladen",
     "exportCsv": "CSV exportieren",
     "generating": "Bericht wird erstellt...",
-    "saleHistoryTitle": "Verkaufshistorie (anonymisiert)",
-    "saleHistoryDesc": "Käufersichere Service-Historie ohne Kosten, Werkstätten oder Kennzeichen",
     "pdfAction": "Bericht erstellen",
     "csvAction": "Daten exportieren"
   },

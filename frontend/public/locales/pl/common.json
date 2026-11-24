@@ -44,10 +44,6 @@
     "linkAccount": "Połącz konto",
     "linkDescription": "Połącz swoje istniejące konto z tożsamością SSO (Single Sign-On)"
   },
-  "errors": {
-    "generic": "Coś poszło nie tak. Spróbuj ponownie."
-  },
-  "footer": "MyGarage v{{version}} — Lokalny system śledzenia konserwacji pojazdów",
   "auth": {
     "tagline": "Lokalny system śledzenia konserwacji pojazdów"
   },
@@ -76,15 +72,18 @@
     "streetAddress": "Ulica",
     "city": "Miasto",
     "state": "Województwo",
+    "statePlaceholder": "Województwo / region",
     "zipCode": "Kod pocztowy",
     "notes": "Notatki",
     "notesPlaceholder": "Dodatkowe notatki o tym kontakcie...",
-    "statePlaceholder": "Województwo / region",
-    "categoryAll": "Wszystkie",
     "categoryGasStation": "Stacja paliw",
-    "editContactNamed": "Edytuj: {{name}}",
+    "categoryAll": "Wszystkie",
     "filterByCategory": "Filtruj według kategorii",
+    "editContactNamed": "Edytuj: {{name}}",
     "saveChanges": "Zapisz zmiany"
+  },
+  "supplies": {
+    "title": "Materiały eksploatacyjne"
   },
   "poiFinder": {
     "title": "Znajdź punkty zainteresowania",
@@ -131,6 +130,10 @@
     "madeWith": "Stworzone z",
     "forCommunity": "dla społeczności homelab"
   },
+  "errors": {
+    "generic": "Coś poszło nie tak. Spróbuj ponownie."
+  },
+  "footer": "MyGarage v{{version}} — Lokalny system śledzenia konserwacji pojazdów",
   "active": "Aktywny",
   "additionalNotes": "Dodatkowe notatki",
   "admin": "Administrator",
@@ -146,6 +149,7 @@
   "deleting": "Usuwanie...",
   "enabled": "Włączone",
   "endDate": "Data końcowa",
+  "engineHours": "Motogodziny",
   "inactive": "Nieaktywny",
   "installPrompt": {
     "title": "Zainstaluj MyGarage",
@@ -170,14 +174,10 @@
   "totalCost": "Koszt całkowity",
   "update": "Zaktualizuj",
   "user": "Użytkownik",
-  "engineHours": "Motogodziny",
   "validation": {
     "engineHours": {
       "negative": "Motogodziny nie mogą być ujemne",
       "tooLarge": "Wartość motogodzin jest zbyt duża"
     }
-  },
-  "supplies": {
-    "title": "Materiały eksploatacyjne"
   }
 }

@@ -15,9 +15,9 @@
   },
   "fuel": {
     "addStation": "Adicionar posto",
+    "autoCalculatedHint": "Dica de cálculo automático",
     "rebate": "Desconto / Cashback",
     "rebateHint": "Pontos, descontos ou dinheiro de volta — deduzido do custo total",
-    "autoCalculatedHint": "Dica de cálculo automático",
     "createTitle": "Adicionar abastecimento",
     "defAutoCreatesHint": "Dica sobre criação automática de DEF",
     "defTankLevel": "Nível do tanque de DEF",
@@ -86,6 +86,11 @@
       "hydrogen": "Hidrogênio",
       "other": "Outro"
     }
+  },
+  "hours": {
+    "createTitle": "Adicionar leitura de horas do motor",
+    "editTitle": "Editar leitura de horas do motor",
+    "notesPlaceholder": "Leitura mensal, leitura de serviço, etc..."
   },
   "insurance": {
     "createTitle": "Adicionar seguro",
@@ -185,9 +190,6 @@
     "ingestionUrl": "URL de ingestão",
     "lastActiveAdminWarning": "Aviso de último administrador ativo",
     "leaveBlankToKeep": "Deixe em branco para manter",
-    "localAuth": {
-      "title": "Autenticação local"
-    },
     "managedByOidc": "Gerenciado via OIDC",
     "memberDataUnavailable": "Dados do membro indisponíveis",
     "members": "Membros",
@@ -288,7 +290,10 @@
     "vinDecoderDescription": "Decodifique as informações do veículo no banco de dados da NHTSA",
     "write": "Escrita",
     "writeDescription": "Escrita — Pode adicionar registros e fotos",
-    "writePermDescription": "Todas as permissões de leitura, além de adicionar registros de serviço, de abastecimento e fotos"
+    "writePermDescription": "Todas as permissões de leitura, além de adicionar registros de serviço, de abastecimento e fotos",
+    "localAuth": {
+      "title": "Autenticação local"
+    }
   },
   "note": {
     "content": "Conteúdo",
@@ -370,10 +375,10 @@
     "attachments": "Anexos",
     "createTitle": "Criar registro de serviço",
     "editTitle": "Editar serviço",
+    "miscFees": "Taxas diversas",
     "refs": {
       "insuranceClaim": "Sinistro de seguro"
     },
-    "miscFees": "Taxas diversas",
     "servicesPerformed": "Serviços realizados",
     "shopSupplies": "Insumos da oficina",
     "subtotal": "Subtotal",
@@ -450,24 +455,19 @@
     "mileageLimit": "Limite de quilometragem",
     "warrantyType": "Tipo de garantia"
   },
-  "hours": {
-    "createTitle": "Adicionar leitura de horas do motor",
-    "editTitle": "Editar leitura de horas do motor",
-    "notesPlaceholder": "Leitura mensal, leitura de serviço, etc..."
-  },
   "reminderForm": {
+    "typeHours": "Horas do motor",
+    "typeHoursDescription": "Notificar em uma leitura específica de horas do motor",
     "modeFromNow": "A partir de agora",
     "modeFromLast": "A partir do último serviço",
+    "mileageExamplePlaceholder": "ex.: 100000",
     "mileageLastTargetHint": "Último: {{last}} + {{interval}} = vencimento {{target}} {{unit}}",
     "mileageLastOverdueNote": "Esta meta já está atrasada (atual: {{current}} {{unit}})",
-    "mileageExamplePlaceholder": "ex.: 100000",
     "lastDoneHoursPlaceholder": "ex.: 800",
-    "hoursAbsolutePlaceholder": "ex.: 850",
     "hoursIntervalPlaceholder": "ex.: 50",
+    "hoursAbsolutePlaceholder": "ex.: 850",
     "hoursTargetHint": "Atual: {{current}} + {{interval}} = meta de {{target}} h",
     "hoursLastTargetHint": "Último: {{last}} + {{interval}} = vencimento {{target}} h",
-    "hoursLastOverdueNote": "Esta meta já está atrasada (atual: {{current}} h)",
-    "typeHours": "Horas do motor",
-    "typeHoursDescription": "Notificar em uma leitura específica de horas do motor"
+    "hoursLastOverdueNote": "Esta meta já está atrasada (atual: {{current}} h)"
   }
 }

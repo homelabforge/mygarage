@@ -54,6 +54,13 @@
     "addFirstVehicle": "Dodaj pierwszy pojazd",
     "addVehicle": "Dodaj pojazd",
     "byMaintenance": "Według konserwacji",
+    "fleet": {
+      "overdueCaption": "Zaległe · wymaga uwagi",
+      "upcomingCaption": "Nadchodzące · najbliższe 30 dni",
+      "spentLabel": "Wydano",
+      "nextDueLabel": "Następny termin",
+      "nextDueNone": "Nic zaplanowanego"
+    },
     "getStarted": "Zaczynajmy",
     "loadError": "Błąd ładowania",
     "loading": "Ładowanie...",
@@ -64,14 +71,7 @@
     "sortByName": "Nazwa",
     "sortTrigger": "Sortowanie: {{label}}",
     "sortVehicles": "Sortuj pojazdy",
-    "title": "Mój garaż",
-    "fleet": {
-      "nextDueLabel": "Następny termin",
-      "nextDueNone": "Nic zaplanowanego",
-      "overdueCaption": "Zaległe · wymaga uwagi",
-      "spentLabel": "Wydano",
-      "upcomingCaption": "Nadchodzące · najbliższe 30 dni"
-    }
+    "title": "Mój garaż"
   },
   "defList": {
     "actions": "Akcje",
@@ -130,26 +130,49 @@
     "lastLocationSeenAt": "Ostatnio widziano: {{time}}",
     "loading": "Ładowanie...",
     "msrpPricing": "Cena MSRP",
+    "pricing": {
+      "title": "Ceny",
+      "editTitle": "Edytuj ceny",
+      "msrpHint": "Zwykle odczytywane z naklejki cenowej; edytuj, aby poprawić lub uzupełnić.",
+      "saveError": "Nie udało się zapisać cen. Spróbuj ponownie."
+    },
+    "cardEdit": {
+      "title": "Edytuj: {{section}}",
+      "saveError": "Nie udało się zapisać zmian. Spróbuj ponownie."
+    },
+    "cardEmpty": "Nic jeszcze nie zapisano",
     "noWindowSticker": "Brak naklejki na szybę",
     "notSpecified": "Nie określono",
     "offlineCachedData": "Dane z pamięci podręcznej offline",
     "optionalEquipment": "Wyposażenie opcjonalne",
+    "equipment": {
+      "editSubtitle": "Edytuj wyposażenie tego pojazdu",
+      "addPlaceholder": "Dodaj wyposażenie...",
+      "add": "Dodaj",
+      "done": "Gotowe",
+      "remove": "Usuń {{item}}",
+      "empty": "Brak wyposażenia. Dodaj pozycje poniżej.",
+      "saveError": "Nie udało się zapisać wyposażenia. Spróbuj ponownie."
+    },
     "packages": "Pakiety",
     "powertrain": "Układ napędowy",
     "remove": "Usuń",
     "removeVehicle": "Usuń pojazd",
     "replaceSticker": "Wymień naklejkę",
+    "settings": {
+      "title": "Ustawienia pojazdu"
+    },
     "share": "Udostępnij",
     "shareTooltip": "Etykietka udostępniania",
     "shareVehicle": "Udostępnij pojazd",
     "standardEquipment": "Wyposażenie standardowe",
     "tabs": {
       "financial": "Finanse",
+      "fuel": "Paliwo",
       "maintenance": "Konserwacja",
       "media": "Media",
       "overview": "Przegląd",
-      "tracking": "Śledzenie",
-      "fuel": "Paliwo"
+      "tracking": "Śledzenie"
     },
     "transfer": "Przenieś",
     "transferVehicle": "Przenieś pojazd",
@@ -162,29 +185,6 @@
     "windowSticker": "Naklejka na szybę",
     "windowStickerDownloadError": "Błąd pobierania naklejki na szybę",
     "windowStickerUploaded": "Przesłano naklejkę na szybę",
-    "cardEdit": {
-      "saveError": "Nie udało się zapisać zmian. Spróbuj ponownie.",
-      "title": "Edytuj: {{section}}"
-    },
-    "cardEmpty": "Nic jeszcze nie zapisano",
-    "equipment": {
-      "add": "Dodaj",
-      "addPlaceholder": "Dodaj wyposażenie...",
-      "done": "Gotowe",
-      "editSubtitle": "Edytuj wyposażenie tego pojazdu",
-      "empty": "Brak wyposażenia. Dodaj pozycje poniżej.",
-      "remove": "Usuń {{item}}",
-      "saveError": "Nie udało się zapisać wyposażenia. Spróbuj ponownie."
-    },
-    "pricing": {
-      "editTitle": "Edytuj ceny",
-      "msrpHint": "Zwykle odczytywane z naklejki cenowej; edytuj, aby poprawić lub uzupełnić.",
-      "saveError": "Nie udało się zapisać cen. Spróbuj ponownie.",
-      "title": "Ceny"
-    },
-    "settings": {
-      "title": "Ustawienia pojazdu"
-    },
     "misc": {
       "supplies": "Materiały eksploatacyjne"
     }
@@ -278,6 +278,25 @@
     "totalCost": "Koszt całkowity",
     "totalSpent": "Łącznie wydano",
     "towing": "Holowanie"
+  },
+  "hoursList": {
+    "actions": "Akcje",
+    "addFirstReading": "Dodaj pierwszy odczyt",
+    "addReading": "Dodaj odczyt",
+    "confirmDelete": "Czy na pewno usunąć ten wpis motogodzin?",
+    "date": "Data",
+    "latestReading": "Ostatni odczyt",
+    "loading": "Ładowanie wpisów motogodzin...",
+    "noRecords": "Brak wpisów motogodzin",
+    "noRecordsDesc": "Śledź motogodziny swojego pojazdu w czasie",
+    "notes": "Notatki",
+    "recordCount": "Wpisy: {{count}}",
+    "source": "Źródło",
+    "sourceFuel": "Paliwo",
+    "sourceManual": "Ręcznie",
+    "sourceServiceVisit": "Serwis",
+    "tableCaption": "Historia odczytów motogodzin",
+    "title": "Odczyty motogodzin"
   },
   "insuranceList": {
     "addFirstPolicy": "Dodaj pierwszą polisę",
@@ -629,10 +648,10 @@
   "vehicleStats": {
     "docs": "Dokumenty",
     "fuel": "Paliwo",
-    "hoursValue": "{{value}} godz.",
     "lastFillUp": "Ostatnie tankowanie",
     "lastService": "Ostatni serwis",
     "latestHours": "Ostatnie motogodziny",
+    "hoursValue": "{{value}} godz.",
     "latestOdometer": "Ostatni przebieg",
     "maintenance": "Konserwacja",
     "never": "Nigdy",
@@ -641,6 +660,19 @@
     "photoCount": "{{count}} zdjęć",
     "recentActivity": "Ostatnia aktywność",
     "service": "Serwis"
+  },
+  "vehicleTypeLabels": {
+    "Car": "Samochód",
+    "SUV": "SUV",
+    "Truck": "Pickup",
+    "Motorcycle": "Motocykl",
+    "ATV": "Quad",
+    "RV": "Kamper",
+    "Trailer": "Przyczepa",
+    "FifthWheel": "Przyczepa siodłowa",
+    "TravelTrailer": "Przyczepa kempingowa",
+    "Electric": "Elektryczny",
+    "Hybrid": "Hybryda"
   },
   "vendorSearch": {
     "noResults": "Brak wyników"
@@ -702,50 +734,18 @@
     "vin": "VIN",
     "year": "Rok produkcji"
   },
-  "hoursList": {
-    "actions": "Akcje",
-    "addFirstReading": "Dodaj pierwszy odczyt",
-    "addReading": "Dodaj odczyt",
-    "confirmDelete": "Czy na pewno usunąć ten wpis motogodzin?",
-    "date": "Data",
-    "latestReading": "Ostatni odczyt",
-    "loading": "Ładowanie wpisów motogodzin...",
-    "noRecords": "Brak wpisów motogodzin",
-    "noRecordsDesc": "Śledź motogodziny swojego pojazdu w czasie",
-    "notes": "Notatki",
-    "recordCount": "Wpisy: {{count}}",
-    "source": "Źródło",
-    "sourceFuel": "Paliwo",
-    "sourceManual": "Ręcznie",
-    "sourceServiceVisit": "Serwis",
-    "tableCaption": "Historia odczytów motogodzin",
-    "title": "Odczyty motogodzin"
-  },
   "vehicleStatisticsCardExtra": {
-    "archivedWatermark": "ZARCHIWIZOWANE",
-    "averageFuelEconomy": "Śr. {{unit}}",
     "sharedBadge": "Udostępniony",
     "sharedByCanEdit": "Udostępnione przez {{username}} (można edytować)",
     "sharedByViewOnly": "Udostępnione przez {{username}} (tylko podgląd)",
+    "archivedWatermark": "ZARCHIWIZOWANE",
+    "averageFuelEconomy": "Śr. {{unit}}",
     "viewDetails": "Zobacz szczegóły"
   },
-  "vehicleTypeLabels": {
-    "ATV": "Quad",
-    "Car": "Samochód",
-    "Electric": "Elektryczny",
-    "FifthWheel": "Przyczepa siodłowa",
-    "Hybrid": "Hybryda",
-    "Motorcycle": "Motocykl",
-    "RV": "Kamper",
-    "SUV": "SUV",
-    "Trailer": "Przyczepa",
-    "TravelTrailer": "Przyczepa kempingowa",
-    "Truck": "Pickup"
-  },
   "vehicleLiveLinkWidget": {
-    "coolant": "Płyn chłodniczy",
-    "statusOffline": "Offline",
+    "statusRunning": "Pracuje",
     "statusParked": "Zaparkowany",
-    "statusRunning": "Pracuje"
+    "statusOffline": "Offline",
+    "coolant": "Płyn chłodniczy"
   }
 }

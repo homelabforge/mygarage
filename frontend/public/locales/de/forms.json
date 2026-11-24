@@ -11,9 +11,9 @@
     "brand": "Marke",
     "createTitle": "DEF-Eintrag hinzufügen",
     "editTitle": "DEF-Eintrag bearbeiten",
+    "saveAction": "DEF-Eintrag speichern",
     "tankLevelAfterFill": "Tankfüllstand nach Befüllung",
-    "wherePurchased": "Ort des Kaufs",
-    "saveAction": "DEF-Eintrag speichern"
+    "wherePurchased": "Ort des Kaufs"
   },
   "fuel": {
     "addStation": "Tankstelle hinzufügen",
@@ -24,6 +24,7 @@
     "defAutoCreatesHint": "Erstellt automatisch einen DEF-Messdatensatz für die Analyse",
     "defTankLevel": "DEF-Tankfüllstand",
     "editTitle": "Kraftstoffeintrag bearbeiten",
+    "saveAction": "Kraftstoffeintrag speichern",
     "energy": "Energie",
     "fullTankFillup": "Vollbetankung",
     "missedChargingSession": "Ladevorgang ausgelassen",
@@ -32,6 +33,7 @@
     "pricePerKwh": "Preis pro kWh",
     "propane": "Propan",
     "towingHaulingLoad": "Anhänger- / Nutzlast",
+    "towPairHint": "Dieses Fahrzeug hat verknüpfte Anhänger. Erwägen Sie, „Transport“ zu aktivieren, wenn Sie etwas abgeschleppt haben.",
     "volume": "Volumen",
     "moreDetails": "Weitere Details",
     "moreDetailsHint": "Optional: Tankstelle, Fahrer, Zahlungsmethode, Fahrtart, Werte des Bordcomputers",
@@ -60,6 +62,16 @@
     "obcSuggestionAccept": "Diese Werte verwenden",
     "obcSuggestionDismiss": "Verwerfen",
     "obcNoSession": "Keine passende Fahrt-Sitzung innerhalb der letzten 24 Stunden gefunden.",
+    "parseReceipt": "Beleg auslesen",
+    "parseReceiptHint": "Füge den Belegtext ein oder lade ein Bild/PDF hoch. Überprüfe den Entwurf vor dem Speichern — es wird nichts gespeichert, bis du es bestätigst.",
+    "receiptTextPlaceholder": "Shell · 12,4 Gal · 3,899 $ · Gesamt 48,35 $",
+    "receiptUpload": "Bild/PDF hochladen",
+    "receiptNeedInput": "Füge den Belegtext ein oder wähle eine Datei aus.",
+    "receiptDisabled": "Das Auslesen von Belegen ist unter Einstellungen → Integrationen deaktiviert.",
+    "receiptParseError": "Beleg konnte nicht ausgelesen werden. Überprüfe die LLM-Einstellungen und versuche es erneut.",
+    "receiptDraftAccept": "Entwurfswerte verwenden",
+    "receiptDraftDismiss": "Verwerfen",
+    "receiptDraftEmpty": "Der Entwurf enthielt keine nutzbaren Felder.",
     "fuelTypeUsed": "Verwendeter Kraftstoff (diese Betankung)",
     "fuelTypeUsedHint": "Verfügbar, da dieses Fahrzeug über eine sekundäre Kraftstoffoption verfügt.",
     "paymentMethods": {
@@ -94,18 +106,6 @@
     "priceBasisPerKwh": "Pro kWh",
     "priceBasisPerTank": "Pro Tankfüllung",
     "filledAtTimeOnlyHint": "Optional. Verwendet das obige Datum; erforderlich für das automatische Ausfüllen aus deiner letzten Fahrt.",
-    "saveAction": "Kraftstoffeintrag speichern",
-    "towPairHint": "Dieses Fahrzeug hat verknüpfte Anhänger. Erwägen Sie, „Transport“ zu aktivieren, wenn Sie etwas abgeschleppt haben.",
-    "parseReceipt": "Beleg auslesen",
-    "parseReceiptHint": "Füge den Belegtext ein oder lade ein Bild/PDF hoch. Überprüfe den Entwurf vor dem Speichern — es wird nichts gespeichert, bis du es bestätigst.",
-    "receiptTextPlaceholder": "Shell · 12,4 Gal · 3,899 $ · Gesamt 48,35 $",
-    "receiptUpload": "Bild/PDF hochladen",
-    "receiptNeedInput": "Füge den Belegtext ein oder wähle eine Datei aus.",
-    "receiptDisabled": "Das Auslesen von Belegen ist unter Einstellungen → Integrationen deaktiviert.",
-    "receiptParseError": "Beleg konnte nicht ausgelesen werden. Überprüfe die LLM-Einstellungen und versuche es erneut.",
-    "receiptDraftAccept": "Entwurfswerte verwenden",
-    "receiptDraftDismiss": "Verwerfen",
-    "receiptDraftEmpty": "Der Entwurf enthielt keine nutzbaren Felder.",
     "socStart": "SOC Start",
     "socEnd": "SOC Ende",
     "batterySoh": "Batterie-SOH",
@@ -116,6 +116,12 @@
     "chargeLevelPlaceholder": "Nicht erfasst",
     "chargeLocationPlaceholder": "Nicht erfasst"
   },
+  "hours": {
+    "createTitle": "Eintrag für Motorbetriebsstunden hinzufügen",
+    "editTitle": "Eintrag für Motorbetriebsstunden bearbeiten",
+    "notesPlaceholder": "Monatlicher Eintrag, Wartungseintrag etc...",
+    "saveAction": "Stundeneintrag speichern"
+  },
   "insurance": {
     "createTitle": "Versicherungspolice hinzufügen",
     "deductible": "Selbstbeteiligung",
@@ -125,8 +131,8 @@
     "policyType": "Policentyp",
     "premiumFrequency": "Zahlungsweise der Prämie",
     "provider": "Anbieter",
-    "selectFrequency": "Häufigkeit auswählen...",
-    "saveAction": "Versicherungspolice speichern"
+    "saveAction": "Versicherungspolice speichern",
+    "selectFrequency": "Häufigkeit auswählen..."
   },
   "modal": {
     "activeUser": "Aktiver Benutzer",
@@ -141,6 +147,11 @@
     "archiveNotesPlaceholder": "Zusätzliche Details zur Archivierung...",
     "archiveRecommended": "Archivieren (Empfohlen)",
     "archiveVehicle": "Fahrzeug archivieren",
+    "archiving": "Archivierung läuft…",
+    "bulkArchiveAction": "{{count}} Fahrzeuge archivieren",
+    "bulkArchiveDescription": "Dieselben Archivierungsdetails auf {{count}} ausgewählte Fahrzeuge anwenden.",
+    "bulkArchiveSuccess": "{{count}} Fahrzeug(e) archiviert",
+    "bulkArchiveTitle": "Massen-Archivierung",
     "authNotEnabled": "Authentifizierung nicht aktiviert",
     "authRequired": "Authentifizierung erforderlich",
     "brokerHost": "Broker-Host",
@@ -185,9 +196,13 @@
     "exampleVins": "Beispiel-VINs zum Ausprobieren",
     "externalProvider": "externer Anbieter",
     "failedToArchive": "Fahrzeug konnte nicht archiviert werden",
+    "archiveAction": "Fahrzeug archivieren",
     "failedToCheckFirmware": "Firmware-Updates konnten nicht überprüft werden",
     "failedToCopy": "Kopieren in die Zwischenablage fehlgeschlagen",
+    "createUserAction": "Benutzer erstellen",
+    "deleteVehicleAction": "Fahrzeug löschen",
     "failedToDeleteDevice": "Gerät konnte nicht gelöscht werden",
+    "deleteUserAction": "Benutzer löschen",
     "failedToGenerateDeviceToken": "Geräte-Token konnte nicht generiert werden",
     "failedToGenerateToken": "Token konnte nicht generiert werden",
     "failedToLoadFamilyData": "Familienverwaltungsdaten konnten nicht geladen werden",
@@ -196,11 +211,17 @@
     "failedToReorder": "Neusortierung fehlgeschlagen",
     "failedToRestartMqtt": "MQTT-Abonnent konnte nicht neu gestartet werden",
     "failedToRevokeDeviceToken": "Geräte-Token konnte nicht widerrufen werden",
+    "revokeShareAction": "Freigabe widerrufen",
     "failedToSaveSettings": "Einstellungen konnten nicht gespeichert werden",
     "failedToSendCommand": "Befehl konnte nicht an das Gerät gesendet werden",
+    "shareVehicleAction": "Fahrzeug freigeben",
     "failedToTestMqtt": "MQTT-Verbindung konnte nicht getestet werden",
+    "transferAction": "Fahrzeug übertragen",
     "failedToUpdateDashboard": "Dashboard-Sichtbarkeit konnte nicht aktualisiert werden",
     "failedToUpdateMultiUser": "Multi-User-Einstellung konnte nicht aktualisiert werden",
+    "updatePermissionAction": "Freigabeberechtigung aktualisieren",
+    "updateStatusAction": "Benutzerstatus aktualisieren",
+    "updateUserAction": "Benutzer aktualisieren",
     "familyManagement": "Familienverwaltung",
     "familyManagementDescription": "Verwalte Familienmitglieder, Fahrzeuge und die Sichtbarkeit auf dem Dashboard",
     "firmwareCheckComplete": "Firmware-Prüfung abgeschlossen",
@@ -350,12 +371,12 @@
       "algorithmsLabel": "Algorithmen",
       "codeLabel": "Code",
       "testConnection": "Verbindung testen",
+      "testAction": "OIDC-Verbindung testen",
       "setupStep2": "Setze den Client-Typ auf \"Confidential\"",
       "setupStep4": "Konfiguriere die Scopes: openid, profile, email",
       "setupStep5": "Kopiere die Client-ID und das Client-Secret in die obigen Felder",
       "setupStep6": "Klicke auf \"Verbindung testen\", um die Konfiguration zu überprüfen",
-      "setupStep7": "Speichere die Einstellungen, um die OIDC-Authentifizierung zu aktivieren",
-      "testAction": "OIDC-Verbindung testen"
+      "setupStep7": "Speichere die Einstellungen, um die OIDC-Authentifizierung zu aktivieren"
     },
     "localAuth": {
       "title": "Lokale Authentifizierung",
@@ -365,6 +386,7 @@
       "passwordsDoNotMatch": "Die neuen Passwörter stimmen nicht überein",
       "passwordRequirementsNotMet": "Das Passwort entspricht nicht den Anforderungen",
       "passwordChanged": "Passwort erfolgreich geändert!",
+      "changePasswordAction": "Passwort ändern",
       "notSetUpDesc": "Die lokale Authentifizierung ist derzeit nicht eingerichtet. Registriere den ersten Benutzer, um die Authentifizierung zu aktivieren.",
       "firstUserAdminNote": "Der erste registrierte Benutzer wird automatisch zum Administrator.",
       "registerFirstUser": "Ersten Benutzer registrieren",
@@ -384,8 +406,7 @@
       "hidePassword": "Passwort ausblenden",
       "adminOnlyLabel": "Authentifizierungsmodus – Nur für Administratoren",
       "adminOnlyDesc": "Das Ändern der Authentifizierungseinstellungen erfordert Administratorrechte. Wende dich für die Kontoverwaltung oder Authentifizierungsänderungen an deinen Administrator.",
-      "loginRequiredDesc": "Die lokale Authentifizierung ist aktiviert. Du musst als Administrator eingeloggt sein, um die Authentifizierungseinstellungen zu verwalten.",
-      "changePasswordAction": "Passwort ändern"
+      "loginRequiredDesc": "Die lokale Authentifizierung ist aktiviert. Du musst als Administrator eingeloggt sein, um die Authentifizierungseinstellungen zu verwalten."
     },
     "livelink": {
       "actions": "Aktionen",
@@ -450,6 +471,9 @@
       "viewRelease": "Release anzeigen"
     },
     "transfer": {
+      "progressLabel": "Fortschritt der Fahrzeugübertragung",
+      "stepOf": "Schritt {{current}} von {{total}}",
+      "stepProgress": "Schritt {{current}} von {{total}}: {{description}}",
       "stepRecipient": "Empfänger",
       "stepRecipientDesc": "Neuen Besitzer auswählen",
       "stepData": "Daten",
@@ -476,10 +500,7 @@
       "vin": "VIN",
       "categoriesCount": "{{selected}} von {{total}} Kategorien",
       "typeToConfirm": "Tippe {{word}} zum Bestätigen",
-      "transferSuccess": "Fahrzeug erfolgreich auf {{name}} übertragen",
-      "progressLabel": "Fortschritt der Fahrzeugübertragung",
-      "stepOf": "Schritt {{current}} von {{total}}",
-      "stepProgress": "Schritt {{current}} von {{total}}: {{description}}"
+      "transferSuccess": "Fahrzeug erfolgreich auf {{name}} übertragen"
     },
     "remove": {
       "archivedSuccess": "{{name}} erfolgreich archiviert!",
@@ -504,22 +525,7 @@
       "confirmPrefix": "Tippe",
       "confirmSuffix": "zum Bestätigen:",
       "deleteForever": "Dauerhaft löschen"
-    },
-    "archiving": "Archivierung läuft…",
-    "bulkArchiveAction": "{{count}} Fahrzeuge archivieren",
-    "bulkArchiveDescription": "Dieselben Archivierungsdetails auf {{count}} ausgewählte Fahrzeuge anwenden.",
-    "bulkArchiveSuccess": "{{count}} Fahrzeug(e) archiviert",
-    "bulkArchiveTitle": "Massen-Archivierung",
-    "archiveAction": "Fahrzeug archivieren",
-    "createUserAction": "Benutzer erstellen",
-    "deleteVehicleAction": "Fahrzeug löschen",
-    "deleteUserAction": "Benutzer löschen",
-    "revokeShareAction": "Freigabe widerrufen",
-    "shareVehicleAction": "Fahrzeug freigeben",
-    "transferAction": "Fahrzeug übertragen",
-    "updatePermissionAction": "Freigabeberechtigung aktualisieren",
-    "updateStatusAction": "Benutzerstatus aktualisieren",
-    "updateUserAction": "Benutzer aktualisieren"
+    }
   },
   "note": {
     "content": "Inhalt",
@@ -540,11 +546,11 @@
     "createTitle": "Propan-Eintrag hinzufügen",
     "editTitle": "Propan-Eintrag bearbeiten",
     "numberOfTanks": "Anzahl der Tanks",
+    "saveAction": "Propan-Eintrag speichern",
     "selectTankSize": "Tankgröße auswählen...",
     "tankInfo": "Tankinformationen (Optional)",
     "tankSize": "Tankgröße",
-    "vendorLocation": "Händler/Standort",
-    "saveAction": "Propan-Eintrag speichern"
+    "vendorLocation": "Händler/Standort"
   },
   "recall": {
     "addRecall": "Rückruf hinzufügen",
@@ -558,10 +564,10 @@
     "nhtsaCampaignNumber": "NHTSA-Kampagnennummer",
     "remedy": "Abhilfe",
     "remedyPlaceholder": "Wie das Problem behoben oder adressiert werden kann...",
+    "saveAction": "Rückruf speichern",
     "summary": "Zusammenfassung",
     "summaryPlaceholder": "Kurze Beschreibung des Rückrufproblems...",
-    "updateRecall": "Rückruf aktualisieren",
-    "saveAction": "Rückruf speichern"
+    "updateRecall": "Rückruf aktualisieren"
   },
   "reminder": {
     "createTitle": "Erinnerung erstellen",
@@ -591,11 +597,11 @@
     "overdueHint": "Diese Erinnerung ist überfällig — gib ein neues Intervall basierend auf dem aktuellen Kilometerstand ein",
     "overdueHoursHint": "Diese Erinnerung ist überfällig — geben Sie ein neues Intervall ab den aktuellen Motorstunden ein",
     "reminderType": "Erinnerungstyp",
+    "saveAction": "Erinnerung speichern",
     "smartModeDescription": "Der Smart-Modus nutzt deine Fahrthistorie, um zu schätzen, wann du das Kilometerstandsziel erreichst. Das Datum fungiert als feste Obergrenze — du wirst benachrichtigt, je nachdem, was zuerst eintritt.",
     "titlePlaceholder": "z. B. Nächster Ölwechsel",
     "titleRequired": "Titel ist erforderlich",
-    "updated": "Erinnerung aktualisiert",
-    "saveAction": "Erinnerung speichern"
+    "updated": "Erinnerung aktualisiert"
   },
   "service": {
     "addItem": "Eintrag hinzufügen",
@@ -606,10 +612,11 @@
     "attachments": "Anhänge",
     "createTitle": "Servicebesuch erfassen",
     "editTitle": "Servicebesuch bearbeiten",
+    "miscFees": "Sonstige Gebühren",
     "refs": {
       "insuranceClaim": "Versicherungsschadensnummer #"
     },
-    "miscFees": "Sonstige Gebühren",
+    "saveAction": "Servicebesuch speichern",
     "servicesPerformed": "Durchgeführte Services",
     "shopSupplies": "Werkstattmaterial",
     "subtotal": "Zwischensumme",
@@ -625,8 +632,7 @@
     "visitDetails": "Besuchsdetails",
     "visitNotes": "Besuchsnotizen",
     "visitNotesPlaceholder": "Allgemeine Notizen zu diesem Besuch...",
-    "visitUpdated": "Servicebesuch aktualisiert",
-    "saveAction": "Servicebesuch speichern"
+    "visitUpdated": "Servicebesuch aktualisiert"
   },
   "spotRental": {
     "address": "Adresse",
@@ -649,13 +655,13 @@
     "noSkip": "Nein, überspringen",
     "notesPlaceholder": "Zusätzliche Notizen zu dieser Miete...",
     "rateType": "Preistyp (Rate Type)",
+    "saveAction": "Stellplatzvermietung speichern",
     "saveToAddressBook": "Im Adressbuch speichern?",
     "saveToAddressBookPrompt": "Möchtest du „{{name}}“ für den schnelleren Zugriff in der Zukunft im Adressbuch speichern?",
     "waste": "Abfall",
     "water": "Wasser",
     "weekly": "Wöchentlich",
-    "yesSave": "Ja, speichern",
-    "saveAction": "Stellplatzvermietung speichern"
+    "yesSave": "Ja, speichern"
   },
   "tax": {
     "createTitle": "Steuer-/Zulassungsdatensatz hinzufügen",
@@ -663,8 +669,8 @@
     "editTitle": "Steuer-/Zulassungsdatensatz bearbeiten",
     "renewalDate": "Verlängerungsdatum",
     "renewalDateHint": "Wann diese Zulassung oder Steuer zur Verlängerung fällig ist",
-    "selectType": "Typ auswählen",
-    "saveAction": "Steuereintrag speichern"
+    "saveAction": "Steuereintrag speichern",
+    "selectType": "Typ auswählen"
   },
   "toll": {
     "addTag": "Transponder hinzufügen",
@@ -677,6 +683,8 @@
     "locationPlaceholder": "z. B. Hardy Toll Road - Spring, I-45 North Tollway",
     "noActiveTollTags": "Keine aktiven Maut-Transponder konfiguriert. Füge zuerst einen Maut-Transponder hinzu, um Transaktionen zu verknüpfen.",
     "noneManualPayment": "Keine / Manuelle Zahlung",
+    "saveTagAction": "Maut-Transponder speichern",
+    "saveTransactionAction": "Maut-Transaktion speichern",
     "selectTollSystem": "Mautsystem auswählen...",
     "tagNotesPlaceholder": "Zusätzliche Notizen zu diesem Maut-Transponder...",
     "tagNumber": "Transpondernummer",
@@ -684,9 +692,7 @@
     "tollTag": "Maut-Transponder (Toll Tag)",
     "transactionNotesPlaceholder": "Zusätzliche Notizen zu dieser Maut-Transaktion...",
     "updateTag": "Transponder aktualisieren",
-    "updateTransaction": "Transaktion aktualisieren",
-    "saveTagAction": "Maut-Transponder speichern",
-    "saveTransactionAction": "Maut-Transaktion speichern"
+    "updateTransaction": "Transaktion aktualisieren"
   },
   "warranty": {
     "coverageDetails": "Deckungsumfang",
@@ -731,8 +737,8 @@
   "editProviderModal": {
     "apiKeyLabel": "API-Schlüssel (leer lassen, um den aktuellen zu behalten)",
     "currentApiKey": "Aktuell: {{value}}",
-    "cancel": "Abbrechen",
     "save": "Speichern",
+    "cancel": "Abbrechen",
     "updateAction": "Anbieter aktualisieren"
   },
   "reminderForm": {
@@ -740,6 +746,8 @@
     "typeDateDescription": "An einem bestimmten Datum benachrichtigen",
     "typeMileage": "Kilometerstand",
     "typeMileageDescription": "Bei einem bestimmten Kilometerstand benachrichtigen",
+    "typeHours": "Motorbetriebsstunden",
+    "typeHoursDescription": "Bei einem bestimmten Stand der Motorbetriebsstunden benachrichtigen",
     "typeBoth": "Beides",
     "typeBothDescription": "Benachrichtigen, wenn entweder das Datum oder der Kilometerstand erreicht wird",
     "typeSmart": "Smart",
@@ -752,13 +760,11 @@
     "mileageLastTargetHint": "Zuletzt: {{last}} + {{interval}} = fällig bei {{target}} {{unit}}",
     "mileageLastOverdueNote": "Dieses Ziel ist bereits überfällig (aktuell: {{current}} {{unit}})",
     "lastDoneHoursPlaceholder": "z. B. 800",
-    "hoursAbsolutePlaceholder": "z. B. 850",
     "hoursIntervalPlaceholder": "z. B. 50",
+    "hoursAbsolutePlaceholder": "z. B. 850",
     "hoursTargetHint": "Aktuell: {{current}} + {{interval}} = Ziel {{target}} Std.",
     "hoursLastTargetHint": "Zuletzt: {{last}} + {{interval}} = fällig bei {{target}} Std.",
-    "hoursLastOverdueNote": "Dieses Ziel ist bereits überfällig (aktuell: {{current}} Std.)",
-    "typeHours": "Motorbetriebsstunden",
-    "typeHoursDescription": "Bei einem bestimmten Stand der Motorbetriebsstunden benachrichtigen"
+    "hoursLastOverdueNote": "Dieses Ziel ist bereits überfällig (aktuell: {{current}} Std.)"
   },
   "propaneRecordForm": {
     "tankSizeOption": "{{size}} {{unit}} ({{kind}})",
@@ -856,11 +862,5 @@
   },
   "tollSystems": {
     "other": "Sonstige"
-  },
-  "hours": {
-    "createTitle": "Eintrag für Motorbetriebsstunden hinzufügen",
-    "editTitle": "Eintrag für Motorbetriebsstunden bearbeiten",
-    "notesPlaceholder": "Monatlicher Eintrag, Wartungseintrag etc...",
-    "saveAction": "Stundeneintrag speichern"
   }
 }

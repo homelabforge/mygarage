@@ -702,14 +702,14 @@
     "attachments": "Allegati",
     "createTitle": "Registra intervento",
     "editTitle": "Modifica intervento",
-    "refs": {
-      "insuranceClaim": "N. pratica assicurativa"
-    },
     "lineItemCostDecimals": "Voce {{number}}: il costo consente al massimo 2 decimali",
     "lineItemCostInvalid": "Voce {{number}}: inserisci un numero valido per il costo",
     "lineItemCostNegative": "Voce {{number}}: il costo non può essere negativo",
     "lineItemCostTooLarge": "Voce {{number}}: importo costo troppo grande",
     "miscFees": "Spese varie",
+    "refs": {
+      "insuranceClaim": "N. pratica assicurativa"
+    },
     "reminderIntervalTooSmall": "Voce {{number}}: l'intervallo del promemoria deve essere almeno 1",
     "saveAction": "salvare l'intervento",
     "servicesPerformed": "Interventi eseguiti",

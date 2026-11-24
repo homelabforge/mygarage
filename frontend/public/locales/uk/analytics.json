@@ -3,30 +3,30 @@
     "donutTotal": "Усього"
   },
   "garageHelp": {
-    "comparisonTable": {
-      "categoryColumnsDesc": "Витрати на кожен автомобіль у розбивці за обслуговуванням, покращеннями, техоглядом, ДТП, детейлінгом, паливом і DEF.",
-      "categoryColumnsLabel": "Стовпці категорій:"
-    },
     "costSummary": {
-      "defDesc": "Загальні витрати на реагент AdBlue/DEF (показується, якщо хоча б один автомобіль використовує DEF).",
-      "defLabel": "DEF:"
+      "defLabel": "DEF:",
+      "defDesc": "Загальні витрати на реагент AdBlue/DEF (показується, якщо хоча б один автомобіль використовує DEF)."
+    },
+    "comparisonTable": {
+      "categoryColumnsLabel": "Стовпці категорій:",
+      "categoryColumnsDesc": "Витрати на кожен автомобіль у розбивці за обслуговуванням, покращеннями, техоглядом, ДТП, детейлінгом, паливом і DEF."
     }
   },
   "vehicle": {
-    "totalVolume": "Всього ({{unit}})",
-    "anomalyAbove": "Витрачено {{spent}} — на {{deviation}}% вище середнього значення {{avg}}.",
-    "anomalyBelow": "Витрачено {{spent}} — на {{deviation}}% нижче середнього значення {{avg}}.",
+    "hoursEconomyAnalysis": "Аналіз ефективності за мотогодинами",
+    "hoursEconomyTrendTitle": "Динаміка ефективності за мотогодинами",
+    "fuelRateUnitLabel": "Витрата палива ({{unit}})",
+    "costPerHourLabel": "Вартість/година",
     "costPerHourAxis": "Вартість/година ({{currency}})",
     "costPerDistance": "Вартість/{{unit}}",
     "avgCostPerVolume": "Сер. вартість/{{unit}}",
-    "costPerHourLabel": "Вартість/година",
     "costPerHourValue": "{{value}}/год",
+    "hoursAccumulatedTitle": "Накопичення мотогодин з часом",
     "engineHoursAxis": "Мотогодини",
     "engineHoursReading": "{{value}} год",
-    "fuelRateUnitLabel": "Витрата палива ({{unit}})",
-    "hoursAccumulatedTitle": "Накопичення мотогодин з часом",
-    "hoursEconomyAnalysis": "Аналіз ефективності за мотогодинами",
-    "hoursEconomyTrendTitle": "Динаміка ефективності за мотогодинами",
+    "totalVolume": "Всього ({{unit}})",
+    "anomalyAbove": "Витрачено {{spent}} — на {{deviation}}% вище середнього значення {{avg}}.",
+    "anomalyBelow": "Витрачено {{spent}} — на {{deviation}}% нижче середнього значення {{avg}}.",
     "severity": {
       "critical": "Критично",
       "info": "Інформація",

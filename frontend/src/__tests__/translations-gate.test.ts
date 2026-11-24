@@ -8,6 +8,7 @@ import {
   discoverNamespaces,
   loadEnglishData,
   protectedSpans,
+  sortToEnglish,
   type LocaleIssueType,
 } from '../../scripts/translation-utils'
 
@@ -226,5 +227,23 @@ describe('deleteNestedKey', () => {
     expect(deleteNestedKey(data, 'a.c')).toBe(false)
     expect(deleteNestedKey(data, 'a.b.c')).toBe(false)
     expect(data).toEqual({ a: { b: 'x' } })
+  })
+})
+
+describe('sortToEnglish', () => {
+  const en = { b: { y: '1', x: '2' }, a: 'A', n: '{{count}}', n_one: 'one', n_other: 'other' }
+
+  it('puts keys in English order, nested too, with plural members together in the language order', () => {
+    const pl = { a: 'a', n_many: 'm', n_other: 'o', b: { x: '2', y: '1' }, n: 'n', n_one: '1', n_few: 'f' }
+    const out = sortToEnglish(en, pl, 'pl')
+    expect(JSON.stringify(out)).toBe(
+      JSON.stringify({ b: { y: '1', x: '2' }, a: 'a', n: 'n', n_one: '1', n_few: 'f', n_many: 'm', n_other: 'o' }),
+    )
+  })
+
+  it('keeps keys English lacks, at the end, and loses nothing', () => {
+    const de = { zz: 'extra', a: 'a', b: { q: 'q', y: '1' } }
+    const out = sortToEnglish(en, de, 'de')
+    expect(JSON.stringify(out)).toBe(JSON.stringify({ b: { y: '1', q: 'q' }, a: 'a', zz: 'extra' }))
   })
 })

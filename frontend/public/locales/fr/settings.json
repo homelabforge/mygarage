@@ -23,6 +23,12 @@
     "serverDefault": "Valeur par défaut du serveur",
     "serverDefaultZone": "Valeur par défaut du serveur ({{zone}})"
   },
+  "garageSections": {
+    "title": "Sections du garage",
+    "description": "Activez les véhicules de référence simplifiés de la famille et des amis. Désactivé par défaut. Les véhicules partagés apparaissent toujours dans leur propre section.",
+    "familyFriends": "Afficher Famille et amis",
+    "familyFriendsDesc": "Véhicules de référence simplifiés de la famille et des amis. Les véhicules partagés du foyer apparaissent toujours dans le garage, même lorsque cette option est désactivée."
+  },
   "units": {
     "label": "Système d’unités",
     "imperial": "Impérial",
@@ -118,6 +124,11 @@
     "confirmTitle": "Changer de devise ?",
     "confirmMessage": "Cela modifie la façon dont tous les coûts sont affichés. Cela ne convertit pas les valeurs existantes d’une devise à une autre.",
     "confirmAction": "Changer de devise"
+  },
+  "dashboardSort": {
+    "label": "Ordre du tableau de bord",
+    "saved": "Ordre du tableau de bord enregistré",
+    "error": "Échec de l’enregistrement de l’ordre du tableau de bord"
   },
   "mobile": {
     "title": "Expérience mobile",
@@ -454,6 +465,19 @@
       "docsLink": "Guide des webhooks Discord"
     }
   },
+  "matrix": {
+    "enable": "Activer les notifications Matrix",
+    "homeserver": "URL du serveur d’accueil",
+    "accessToken": "Jeton d’accès",
+    "roomId": "ID du salon",
+    "misc": {
+      "title": "Matrix",
+      "subtitle": "Publier les alertes MyGarage dans un salon Matrix",
+      "sending": "Envoi…",
+      "testConnection": "Tester la connexion",
+      "setupHint": "Créez un utilisateur Matrix dédié, invitez-le dans un salon et collez son jeton d’accès ici."
+    }
+  },
   "telegram": {
     "botToken": "Jeton du bot",
     "enable": "Activer les notifications Telegram",
@@ -541,6 +565,7 @@
       "warrantyExpiringLabel": "Garantie expirant bientôt",
       "warrantyExpiringDesc": "Notifier avant l’expiration de la garantie",
       "milestonesLabel": "Jalons du compteur kilométrique",
+      "milestonesDesc": "Notifier lorsque le compteur atteint un jalon kilométrique important.",
       "daysBefore": "jours avant",
       "advanced": "Avancé",
       "advancedDesc": "Paramètres de nouvelle tentative pour les notifications à haute priorité",
@@ -548,8 +573,7 @@
       "retryAttemptsDesc": "Nombre maximal de nouvelles tentatives pour les événements urgents/à haute priorité",
       "retryDelay": "Délai entre tentatives (secondes)",
       "retryDelayDesc": "Délai de base entre les tentatives",
-      "retryNote": "Les nouvelles tentatives s’appliquent uniquement aux événements urgents/à haute priorité (rappels, entretien en retard, assurance expirant bientôt)",
-      "milestonesDesc": "Notifier lorsque le compteur atteint un jalon kilométrique important."
+      "retryNote": "Les nouvelles tentatives s’appliquent uniquement aux événements urgents/à haute priorité (rappels, entretien en retard, assurance expirant bientôt)"
     }
   },
   "backup": {
@@ -707,30 +731,6 @@
     "red": "Rouge racing",
     "violet": "Violet",
     "green": "Vert"
-  },
-  "garageSections": {
-    "title": "Sections du garage",
-    "description": "Activez les véhicules de référence simplifiés de la famille et des amis. Désactivé par défaut. Les véhicules partagés apparaissent toujours dans leur propre section.",
-    "familyFriends": "Afficher Famille et amis",
-    "familyFriendsDesc": "Véhicules de référence simplifiés de la famille et des amis. Les véhicules partagés du foyer apparaissent toujours dans le garage, même lorsque cette option est désactivée."
-  },
-  "dashboardSort": {
-    "label": "Ordre du tableau de bord",
-    "saved": "Ordre du tableau de bord enregistré",
-    "error": "Échec de l’enregistrement de l’ordre du tableau de bord"
-  },
-  "matrix": {
-    "enable": "Activer les notifications Matrix",
-    "homeserver": "URL du serveur d’accueil",
-    "accessToken": "Jeton d’accès",
-    "roomId": "ID du salon",
-    "misc": {
-      "title": "Matrix",
-      "subtitle": "Publier les alertes MyGarage dans un salon Matrix",
-      "sending": "Envoi…",
-      "testConnection": "Tester la connexion",
-      "setupHint": "Créez un utilisateur Matrix dédié, invitez-le dans un salon et collez son jeton d’accès ici."
-    }
   },
   "country": {
     "label": "Pays",

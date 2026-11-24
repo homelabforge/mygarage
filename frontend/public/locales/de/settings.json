@@ -16,6 +16,12 @@
     "label": "Zeitzone",
     "description": "Der Kalendertag, den MyGarage für Fälligkeiten, Überfällig-Markierungen, Benachrichtigungen und vorausgefüllte Formulardaten verwendet. Log-Zeitstempel bleiben in UTC."
   },
+  "garageSections": {
+    "title": "Garage-Bereiche",
+    "description": "Aktiviere leicht zugängliche Referenzfahrzeuge von Familie/Freunden. Standardmäßig deaktiviert. Freigegebene Fahrzeuge werden immer in einem eigenen Bereich angezeigt.",
+    "familyFriends": "Familie & Freunde anzeigen",
+    "familyFriendsDesc": "Leicht zugängliche Referenzfahrzeuge von Familie/Freunden. Freigegebene Haushaltsfahrzeuge werden immer in der Garage angezeigt, auch wenn dies deaktiviert ist."
+  },
   "units": {
     "label": "Einheitensystem",
     "imperial": "Imperial",
@@ -221,9 +227,9 @@
     "options": "Optionen",
     "addService": "Anbieter hinzufügen",
     "providerRemoved": "Anbieter erfolgreich entfernt",
+    "removeProviderAction": "Anbieter entfernen",
     "livelink": "LiveLink",
     "aboutLiveLink": "Über LiveLink",
-    "removeProviderAction": "Anbieter entfernen",
     "webhooks": "Eingehende Webhooks",
     "webhooksDesc": "Ermögliche es Home Assistant, n8n oder Kurzbefehlen, Kraftstoffdaten, Kilometerstände und erledigte Erinnerungen zu übermitteln.",
     "webhookToken": "Webhook-Ingest-Token",
@@ -317,6 +323,19 @@
       "step3": "Klicke auf \"Webhook erstellen\"",
       "step4": "Kopiere die Webhook-URL",
       "docsLink": "Discord Webhooks Handbuch"
+    }
+  },
+  "matrix": {
+    "enable": "Matrix-Benachrichtigungen aktivieren",
+    "homeserver": "Homeserver-URL",
+    "accessToken": "Access-Token",
+    "roomId": "Raum-ID",
+    "misc": {
+      "title": "Matrix",
+      "subtitle": "MyGarage-Warnmeldungen in einen Matrix-Raum posten",
+      "sending": "Wird gesendet…",
+      "testConnection": "Verbindung testen",
+      "setupHint": "Erstelle einen dedizierten Matrix-Benutzer, lade ihn in einen Raum ein und füge sein Access-Token hier ein."
     }
   },
   "telegram": {
@@ -507,9 +526,12 @@
     "createFullSuccess": "Vollständiges Backup erfolgreich erstellt!",
     "confirmRestoreFull": "WARNUNG: Dies wird deine gesamte Datenbank und alle hochgeladenen Dateien überschreiben! Vorab wird ein Sicherheits-Backup erstellt. Bist du dir absolut sicher?",
     "confirmRestoreSettings": "Dies wird alle Einstellungen aus dem Backup wiederherstellen. Vorab wird ein Sicherheits-Backup erstellt. Fortfahren?",
+    "restoreAction": "Backup wiederherstellen",
     "confirmDelete": "Bist du sicher, dass du {{filename}} löschen möchtest?",
     "deleteSuccess": "Backup {{filename}} wurde erfolgreich gelöscht",
+    "deleteAction": "Backup löschen",
     "uploadSuccess": "Backup erfolgreich hochgeladen!",
+    "uploadAction": "Backup hochladen",
     "safetyBadge": "Sicherheit",
     "totalSize": "{{size}} Gesamt",
     "dataIncludedList": "Datenbank, Fotos, Dokumente, Anhänge",
@@ -517,9 +539,6 @@
     "infoSizeDepends": "Die Backup-Größe hängt von der Menge der von dir hochgeladenen Fotos und Dokumente ab",
     "infoRestoreOverwrites": "Das Wiederherstellen eines vollständigen Backups wird alle aktuellen Daten und Dateien ÜBERSCHREIBEN",
     "infoSafetyBackup": "Vor jedem Wiederherstellungsvorgang wird automatisch ein Sicherheits-Backup erstellt",
-    "restoreAction": "Backup wiederherstellen",
-    "deleteAction": "Backup löschen",
-    "uploadAction": "Backup hochladen",
     "postgresRestoreTitle": "Vollständige PostgreSQL-Wiederherstellung",
     "postgresRestoreMessage": "Eine vollständige Wiederherstellung über die Benutzeroberfläche ist für PostgreSQL nicht verfügbar. Stoppe die App und führe folgenden Befehl aus: pg_restore --clean --if-exists --no-owner --no-privileges -d <dbname> mygarage.pgdump"
   },
@@ -537,25 +556,6 @@
     "defaultTripType": "Standard-Fahrtart",
     "defaultsSaved": "Kraftstoff-Standardwerte gespeichert",
     "defaultsError": "Kraftstoff-Standardwerte konnten nicht gespeichert werden"
-  },
-  "garageSections": {
-    "title": "Garage-Bereiche",
-    "description": "Aktiviere leicht zugängliche Referenzfahrzeuge von Familie/Freunden. Standardmäßig deaktiviert. Freigegebene Fahrzeuge werden immer in einem eigenen Bereich angezeigt.",
-    "familyFriends": "Familie & Freunde anzeigen",
-    "familyFriendsDesc": "Leicht zugängliche Referenzfahrzeuge von Familie/Freunden. Freigegebene Haushaltsfahrzeuge werden immer in der Garage angezeigt, auch wenn dies deaktiviert ist."
-  },
-  "matrix": {
-    "enable": "Matrix-Benachrichtigungen aktivieren",
-    "homeserver": "Homeserver-URL",
-    "accessToken": "Access-Token",
-    "roomId": "Raum-ID",
-    "misc": {
-      "title": "Matrix",
-      "subtitle": "MyGarage-Warnmeldungen in einen Matrix-Raum posten",
-      "sending": "Wird gesendet…",
-      "testConnection": "Verbindung testen",
-      "setupHint": "Erstelle einen dedizierten Matrix-Benutzer, lade ihn in einen Raum ein und füge sein Access-Token hier ein."
-    }
   },
   "accent": {
     "blue": "Blau",

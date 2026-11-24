@@ -3,30 +3,30 @@
     "donutTotal": "Suma"
   },
   "garageHelp": {
-    "comparisonTable": {
-      "categoryColumnsDesc": "Wydatki każdego pojazdu w podziale na konserwację, ulepszenia, przegląd, kolizje, detailing, paliwo i DEF.",
-      "categoryColumnsLabel": "Kolumny kategorii:"
-    },
     "costSummary": {
-      "defDesc": "Łączny koszt płynu AdBlue/DEF (widoczne, gdy któryś pojazd używa DEF).",
-      "defLabel": "DEF:"
+      "defLabel": "DEF:",
+      "defDesc": "Łączny koszt płynu AdBlue/DEF (widoczne, gdy któryś pojazd używa DEF)."
+    },
+    "comparisonTable": {
+      "categoryColumnsLabel": "Kolumny kategorii:",
+      "categoryColumnsDesc": "Wydatki każdego pojazdu w podziale na konserwację, ulepszenia, przegląd, kolizje, detailing, paliwo i DEF."
     }
   },
   "vehicle": {
-    "totalVolume": "Łącznie ({{unit}})",
-    "anomalyAbove": "Wydano {{spent}} — {{deviation}}% powyżej średniej {{avg}}.",
-    "anomalyBelow": "Wydano {{spent}} — {{deviation}}% poniżej średniej {{avg}}.",
+    "hoursEconomyAnalysis": "Analiza wydajności wg motogodzin",
+    "hoursEconomyTrendTitle": "Trend wydajności motogodzin w czasie",
+    "fuelRateUnitLabel": "Zużycie paliwa ({{unit}})",
+    "costPerHourLabel": "Koszt/godzinę",
     "costPerHourAxis": "Koszt/godzinę ({{currency}})",
     "costPerDistance": "Koszt/{{unit}}",
     "avgCostPerVolume": "Śr. koszt/{{unit}}",
-    "costPerHourLabel": "Koszt/godzinę",
     "costPerHourValue": "{{value}}/godz.",
+    "hoursAccumulatedTitle": "Przyrost motogodzin w czasie",
     "engineHoursAxis": "Motogodziny",
     "engineHoursReading": "{{value}} godz.",
-    "fuelRateUnitLabel": "Zużycie paliwa ({{unit}})",
-    "hoursAccumulatedTitle": "Przyrost motogodzin w czasie",
-    "hoursEconomyAnalysis": "Analiza wydajności wg motogodzin",
-    "hoursEconomyTrendTitle": "Trend wydajności motogodzin w czasie",
+    "totalVolume": "Łącznie ({{unit}})",
+    "anomalyAbove": "Wydano {{spent}} — {{deviation}}% powyżej średniej {{avg}}.",
+    "anomalyBelow": "Wydano {{spent}} — {{deviation}}% poniżej średniej {{avg}}.",
     "severity": {
       "critical": "Krytyczne",
       "info": "Informacja",

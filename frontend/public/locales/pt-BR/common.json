@@ -44,10 +44,6 @@
     "linkAccount": "Vincular conta",
     "linkDescription": "Vincule sua conta existente à identidade SSO (Single Sign-On)"
   },
-  "errors": {
-    "generic": "Algo deu errado. Tente novamente."
-  },
-  "footer": "MyGarage v{{version}} — Sistema local de gerenciamento de manutenção de veículos",
   "auth": {
     "tagline": "Sistema local de gerenciamento de manutenção de veículos"
   },
@@ -80,11 +76,14 @@
     "zipCode": "CEP",
     "notes": "Observações",
     "notesPlaceholder": "Observações adicionais sobre este contato...",
-    "categoryAll": "Todos",
     "categoryGasStation": "Posto de combustível",
-    "editContactNamed": "Editar {{name}}",
+    "categoryAll": "Todos",
     "filterByCategory": "Filtrar por categoria",
+    "editContactNamed": "Editar {{name}}",
     "saveChanges": "Salvar alterações"
+  },
+  "supplies": {
+    "title": "Suprimentos"
   },
   "poiFinder": {
     "title": "Encontrar pontos de interesse",
@@ -131,6 +130,10 @@
     "madeWith": "Feito com",
     "forCommunity": "para a comunidade Homelab"
   },
+  "errors": {
+    "generic": "Algo deu errado. Tente novamente."
+  },
+  "footer": "MyGarage v{{version}} — Sistema local de gerenciamento de manutenção de veículos",
   "active": "Ativo",
   "additionalNotes": "Notas adicionais",
   "admin": "Administrador",
@@ -146,6 +149,7 @@
   "deleting": "Excluindo...",
   "enabled": "Ativado",
   "endDate": "Data final",
+  "engineHours": "Horas do motor",
   "inactive": "Inativo",
   "installPrompt": {
     "title": "Instalar o MyGarage",
@@ -170,14 +174,10 @@
   "totalCost": "Custo total",
   "update": "Atualizar",
   "user": "Usuário",
-  "engineHours": "Horas do motor",
   "validation": {
     "engineHours": {
       "negative": "As horas do motor não podem ser negativas",
       "tooLarge": "Valor de horas do motor muito alto"
     }
-  },
-  "supplies": {
-    "title": "Suprimentos"
   }
 }

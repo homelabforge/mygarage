@@ -44,10 +44,6 @@
     "linkAccount": "Прив'язати обліковий запис",
     "linkDescription": "Зв'яжіть існуючий обліковий запис із вашим єдиним входом (SSO)"
   },
-  "errors": {
-    "generic": "Щось пішло не так. Будь ласка, спробуйте ще раз."
-  },
-  "footer": "MyGarage v{{version}} — Локальний трекер технічного обслуговування автомобілів",
   "auth": {
     "tagline": "Локальний трекер технічного обслуговування автомобілів"
   },
@@ -76,15 +72,18 @@
     "streetAddress": "Вулиця",
     "city": "Місто",
     "state": "Область",
+    "statePlaceholder": "Область / регіон",
     "zipCode": "Поштовий індекс",
     "notes": "Нотатки",
     "notesPlaceholder": "Додаткові нотатки про контакт...",
-    "statePlaceholder": "Область / регіон",
-    "categoryAll": "Усі",
     "categoryGasStation": "АЗС",
-    "editContactNamed": "Редагувати: {{name}}",
+    "categoryAll": "Усі",
     "filterByCategory": "Фільтр за категорією",
+    "editContactNamed": "Редагувати: {{name}}",
     "saveChanges": "Зберегти зміни"
+  },
+  "supplies": {
+    "title": "Витратні матеріали"
   },
   "poiFinder": {
     "title": "Знайти точки інтересу",
@@ -131,6 +130,10 @@
     "madeWith": "Створено з",
     "forCommunity": "для спільноти homelab"
   },
+  "errors": {
+    "generic": "Щось пішло не так. Будь ласка, спробуйте ще раз."
+  },
+  "footer": "MyGarage v{{version}} — Локальний трекер технічного обслуговування автомобілів",
   "active": "Активний",
   "additionalNotes": "Додаткові нотатки",
   "admin": "Адміністратор",
@@ -146,6 +149,7 @@
   "deleting": "Видалення...",
   "enabled": "Увімкнено",
   "endDate": "Дата завершення",
+  "engineHours": "Мотогодини",
   "inactive": "Неактивний",
   "installPrompt": {
     "title": "Встановити MyGarage",
@@ -170,14 +174,10 @@
   "totalCost": "Загальна вартість",
   "update": "Оновити",
   "user": "Користувач",
-  "engineHours": "Мотогодини",
   "validation": {
     "engineHours": {
       "negative": "Мотогодини не можуть бути від’ємними",
       "tooLarge": "Значення мотогодин занадто велике"
     }
-  },
-  "supplies": {
-    "title": "Витратні матеріали"
   }
 }

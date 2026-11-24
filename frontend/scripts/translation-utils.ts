@@ -395,6 +395,37 @@ export function loadSourceRecords(lang: string): Record<string, string> {
   return existsSync(path) ? (JSON.parse(readFileSync(path, 'utf-8')) as Record<string, string>) : {}
 }
 
+const isPlainObject = (v: unknown): v is Record<string, unknown> =>
+  typeof v === 'object' && v !== null && !Array.isArray(v)
+
+/**
+ * A locale object re-keyed into English order, so diffs line up across
+ * languages. Plural members sit where English's do, in this language's
+ * category order. Keys English doesn't have keep going at the end; no value
+ * changes.
+ */
+export function sortToEnglish(
+  en: Record<string, unknown>,
+  data: Record<string, unknown>,
+  lang: string,
+): Record<string, unknown> {
+  const cats = pluralCategories(lang)
+  const enKeys = Object.keys(en)
+  const out: Record<string, unknown> = {}
+  const place = (k: string): void => {
+    if (!(k in data) || k in out) return
+    const [e, v] = [en[k], data[k]]
+    out[k] = isPlainObject(e) && isPlainObject(v) ? sortToEnglish(e, v, lang) : v
+  }
+  for (const k of enKeys) {
+    const m = k.match(/^(.*)_(?:zero|one|two|few|many|other)$/)
+    if (m && enKeys.includes(`${m[1]}_other`)) for (const c of cats) place(`${m[1]}_${c}`)
+    place(k)
+  }
+  for (const k of Object.keys(data)) place(k)
+  return out
+}
+
 /**
  * English values holding an em-dash or en-dash, as `ns:key`. House style is
  * no dashes in English copy; locales keep their own typography.

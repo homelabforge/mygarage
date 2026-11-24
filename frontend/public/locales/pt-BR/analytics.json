@@ -3,30 +3,30 @@
     "donutTotal": "Total"
   },
   "garageHelp": {
-    "comparisonTable": {
-      "categoryColumnsDesc": "Os gastos de cada veículo detalhados por manutenção, melhorias, inspeção, colisão, estética, combustível e DEF.",
-      "categoryColumnsLabel": "Colunas de categoria:"
-    },
     "costSummary": {
-      "defDesc": "Custo total do fluido de escape diesel (exibido quando algum veículo usa DEF).",
-      "defLabel": "DEF:"
+      "defLabel": "DEF:",
+      "defDesc": "Custo total do fluido de escape diesel (exibido quando algum veículo usa DEF)."
+    },
+    "comparisonTable": {
+      "categoryColumnsLabel": "Colunas de categoria:",
+      "categoryColumnsDesc": "Os gastos de cada veículo detalhados por manutenção, melhorias, inspeção, colisão, estética, combustível e DEF."
     }
   },
   "vehicle": {
-    "totalVolume": "Total ({{unit}})",
-    "anomalyAbove": "Gasto {{spent}} — {{deviation}}% acima da sua média de {{avg}}.",
-    "anomalyBelow": "Gasto {{spent}} — {{deviation}}% abaixo da sua média de {{avg}}.",
+    "hoursEconomyAnalysis": "Análise de eficiência por horas do motor",
+    "hoursEconomyTrendTitle": "Tendência de eficiência por horas do motor ao longo do tempo",
+    "fuelRateUnitLabel": "Taxa de consumo ({{unit}})",
+    "costPerHourLabel": "Custo/hora",
     "costPerHourAxis": "Custo/hora ({{currency}})",
     "costPerDistance": "Custo/{{unit}}",
     "avgCostPerVolume": "Custo méd./{{unit}}",
-    "costPerHourLabel": "Custo/hora",
     "costPerHourValue": "{{value}}/h",
+    "hoursAccumulatedTitle": "Horas do motor acumuladas ao longo do tempo",
     "engineHoursAxis": "Horas do motor",
     "engineHoursReading": "{{value}} h",
-    "fuelRateUnitLabel": "Taxa de consumo ({{unit}})",
-    "hoursAccumulatedTitle": "Horas do motor acumuladas ao longo do tempo",
-    "hoursEconomyAnalysis": "Análise de eficiência por horas do motor",
-    "hoursEconomyTrendTitle": "Tendência de eficiência por horas do motor ao longo do tempo",
+    "totalVolume": "Total ({{unit}})",
+    "anomalyAbove": "Gasto {{spent}} — {{deviation}}% acima da sua média de {{avg}}.",
+    "anomalyBelow": "Gasto {{spent}} — {{deviation}}% abaixo da sua média de {{avg}}.",
     "severity": {
       "critical": "Crítico",
       "info": "Informação",

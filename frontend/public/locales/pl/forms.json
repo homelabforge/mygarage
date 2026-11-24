@@ -16,6 +16,8 @@
   "fuel": {
     "addStation": "Dodaj stację",
     "autoCalculatedHint": "Automatycznie obliczana wskazówka",
+    "rebate": "Rabat",
+    "rebateHint": "Punkty, zniżki lub zwrot gotówki — odejmowane od kosztu całkowitego",
     "createTitle": "Dodaj tankowanie",
     "defAutoCreatesHint": "Wskazówka o automatycznym tworzeniu DEF",
     "defTankLevel": "Poziom w zbiorniku DEF",
@@ -32,6 +34,8 @@
     "moreDetails": "Więcej szczegółów",
     "moreDetailsHint": "Opcjonalnie: stacja, kierowca, płatność, typ podróży, wartości komputera pokładowego",
     "filledAt": "Godzina tankowania",
+    "filledAtTimeLabel": "Godzina tankowania (24-godzinna, HH:MM)",
+    "invalidFilledTime": "Podaj prawidłową godzinę w formacie 24-godzinnym (HH:MM) lub wyczyść pole.",
     "station": "Stacja paliw",
     "stationPlaceholder": "Wpisz, aby wyszukać lub dodać nową stację",
     "stationOneTimeVisit": "Jednorazowa wizyta (nie zapisuj w książce adresowej)",
@@ -81,11 +85,12 @@
       "cng": "CNG",
       "hydrogen": "Wodór",
       "other": "Inne"
-    },
-    "rebate": "Rabat",
-    "rebateHint": "Punkty, zniżki lub zwrot gotówki — odejmowane od kosztu całkowitego",
-    "filledAtTimeLabel": "Godzina tankowania (24-godzinna, HH:MM)",
-    "invalidFilledTime": "Podaj prawidłową godzinę w formacie 24-godzinnym (HH:MM) lub wyczyść pole."
+    }
+  },
+  "hours": {
+    "createTitle": "Dodaj odczyt motogodzin",
+    "editTitle": "Edytuj odczyt motogodzin",
+    "notesPlaceholder": "Odczyt miesięczny, odczyt serwisowy itp. ..."
   },
   "insurance": {
     "createTitle": "Dodaj ubezpieczenie",
@@ -185,9 +190,6 @@
     "ingestionUrl": "Adres URL wprowadzania danych",
     "lastActiveAdminWarning": "Ostrzeżenie o ostatnim aktywnym administratorze",
     "leaveBlankToKeep": "Pozostaw puste, aby zachować",
-    "localAuth": {
-      "title": "Uwierzytelnianie lokalne"
-    },
     "managedByOidc": "Zarządzane przez OIDC",
     "memberDataUnavailable": "Dane członka niedostępne",
     "members": "Członkowie",
@@ -288,7 +290,10 @@
     "vinDecoderDescription": "Opis dekodera VIN",
     "write": "Zapis",
     "writeDescription": "Opis praw zapisu",
-    "writePermDescription": "Szczegółowy opis praw zapisu"
+    "writePermDescription": "Szczegółowy opis praw zapisu",
+    "localAuth": {
+      "title": "Uwierzytelnianie lokalne"
+    }
   },
   "note": {
     "content": "Treść",
@@ -370,10 +375,10 @@
     "attachments": "Załączniki",
     "createTitle": "Utwórz wpis serwisowy",
     "editTitle": "Edytuj serwis",
+    "miscFees": "Inne opłaty",
     "refs": {
       "insuranceClaim": "Szkoda ubezpieczeniowa"
     },
-    "miscFees": "Inne opłaty",
     "servicesPerformed": "Wykonane usługi",
     "shopSupplies": "Materiały warsztatowe",
     "subtotal": "Suma częściowa",
@@ -450,24 +455,19 @@
     "mileageLimit": "Limit przebiegu",
     "warrantyType": "Rodzaj gwarancji"
   },
-  "hours": {
-    "createTitle": "Dodaj odczyt motogodzin",
-    "editTitle": "Edytuj odczyt motogodzin",
-    "notesPlaceholder": "Odczyt miesięczny, odczyt serwisowy itp. ..."
-  },
   "reminderForm": {
+    "typeHours": "Motogodziny",
+    "typeHoursDescription": "Powiadom przy określonym odczycie motogodzin",
     "modeFromNow": "Od teraz",
     "modeFromLast": "Od ostatniego serwisu",
+    "mileageExamplePlaceholder": "np. 100000",
     "mileageLastTargetHint": "Ostatnio: {{last}} + {{interval}} = termin {{target}} {{unit}}",
     "mileageLastOverdueNote": "Ten cel jest już zaległy (obecnie: {{current}} {{unit}})",
-    "mileageExamplePlaceholder": "np. 100000",
     "lastDoneHoursPlaceholder": "np. 800",
-    "hoursAbsolutePlaceholder": "np. 850",
     "hoursIntervalPlaceholder": "np. 50",
+    "hoursAbsolutePlaceholder": "np. 850",
     "hoursTargetHint": "Obecnie: {{current}} + {{interval}} = cel {{target}} godz.",
     "hoursLastTargetHint": "Ostatnio: {{last}} + {{interval}} = termin {{target}} godz.",
-    "hoursLastOverdueNote": "Ten cel jest już zaległy (obecnie: {{current}} godz.)",
-    "typeHours": "Motogodziny",
-    "typeHoursDescription": "Powiadom przy określonym odczycie motogodzin"
+    "hoursLastOverdueNote": "Ten cel jest już zaległy (obecnie: {{current}} godz.)"
   }
 }

@@ -16,6 +16,8 @@
   "fuel": {
     "addStation": "Додати станцію",
     "autoCalculatedHint": "Підказка про автоматичний розрахунок",
+    "rebate": "Знижка",
+    "rebateHint": "Бали, знижки або кешбек — віднімаються від загальної вартості",
     "createTitle": "Додати заправку",
     "defAutoCreatesHint": "Підказка про автостворення DEF",
     "defTankLevel": "Рівень бака DEF",
@@ -32,6 +34,8 @@
     "moreDetails": "Більше деталей",
     "moreDetailsHint": "За бажанням: станція, водій, оплата, тип поїздки, дані бортового комп'ютера",
     "filledAt": "Час заправки",
+    "filledAtTimeLabel": "Час заправки (24-годинний формат, HH:MM)",
+    "invalidFilledTime": "Введіть коректний час у 24-годинному форматі (HH:MM) або очистіть поле.",
     "station": "Заправна станція",
     "stationPlaceholder": "Введіть, щоб знайти або додати нову станцію",
     "stationOneTimeVisit": "Одноразовий візит (не зберігати в адресній книзі)",
@@ -81,11 +85,12 @@
       "cng": "CNG",
       "hydrogen": "Водень",
       "other": "Інше"
-    },
-    "rebate": "Знижка",
-    "rebateHint": "Бали, знижки або кешбек — віднімаються від загальної вартості",
-    "filledAtTimeLabel": "Час заправки (24-годинний формат, HH:MM)",
-    "invalidFilledTime": "Введіть коректний час у 24-годинному форматі (HH:MM) або очистіть поле."
+    }
+  },
+  "hours": {
+    "createTitle": "Додати показання мотогодин",
+    "editTitle": "Редагувати показання мотогодин",
+    "notesPlaceholder": "Щомісячне показання, сервісне показання тощо..."
   },
   "insurance": {
     "createTitle": "Додати страховку",
@@ -185,9 +190,6 @@
     "ingestionUrl": "URL прийому даних",
     "lastActiveAdminWarning": "Попередження про останнього активного адміністратора",
     "leaveBlankToKeep": "Залиште порожнім, щоб зберегти",
-    "localAuth": {
-      "title": "Локальна аутентифікація"
-    },
     "managedByOidc": "Керується через OIDC",
     "memberDataUnavailable": "Дані учасника недоступні",
     "members": "Учасники",
@@ -288,7 +290,10 @@
     "vinDecoderDescription": "Опис VIN Декодера",
     "write": "Запис",
     "writeDescription": "Опис прав на запис",
-    "writePermDescription": "Детальний опис прав на запис"
+    "writePermDescription": "Детальний опис прав на запис",
+    "localAuth": {
+      "title": "Локальна аутентифікація"
+    }
   },
   "note": {
     "content": "Вміст",
@@ -370,10 +375,10 @@
     "attachments": "Вкладення",
     "createTitle": "Створити запис обслуговування",
     "editTitle": "Редагувати обслуговування",
+    "miscFees": "Інші збори",
     "refs": {
       "insuranceClaim": "Страховий випадок"
     },
-    "miscFees": "Інші збори",
     "servicesPerformed": "Виконані послуги",
     "shopSupplies": "Витратні матеріали",
     "subtotal": "Проміжний підсумок",
@@ -450,24 +455,19 @@
     "mileageLimit": "Обмеження пробігу",
     "warrantyType": "Тип гарантії"
   },
-  "hours": {
-    "createTitle": "Додати показання мотогодин",
-    "editTitle": "Редагувати показання мотогодин",
-    "notesPlaceholder": "Щомісячне показання, сервісне показання тощо..."
-  },
   "reminderForm": {
+    "typeHours": "Мотогодини",
+    "typeHoursDescription": "Сповістити за певного показання мотогодин",
     "modeFromNow": "Від поточного",
     "modeFromLast": "Від останнього ТО",
+    "mileageExamplePlaceholder": "напр. 100000",
     "mileageLastTargetHint": "Останнє: {{last}} + {{interval}} = термін {{target}} {{unit}}",
     "mileageLastOverdueNote": "Ціль уже прострочена (зараз: {{current}} {{unit}})",
-    "mileageExamplePlaceholder": "напр. 100000",
     "lastDoneHoursPlaceholder": "напр. 800",
-    "hoursAbsolutePlaceholder": "напр. 850",
     "hoursIntervalPlaceholder": "напр. 50",
+    "hoursAbsolutePlaceholder": "напр. 850",
     "hoursTargetHint": "Зараз: {{current}} + {{interval}} = ціль {{target}} год",
     "hoursLastTargetHint": "Останнє: {{last}} + {{interval}} = термін {{target}} год",
-    "hoursLastOverdueNote": "Ціль уже прострочена (зараз: {{current}} год)",
-    "typeHours": "Мотогодини",
-    "typeHoursDescription": "Сповістити за певного показання мотогодин"
+    "hoursLastOverdueNote": "Ціль уже прострочена (зараз: {{current}} год)"
   }
 }

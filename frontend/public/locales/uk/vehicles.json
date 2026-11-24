@@ -54,6 +54,13 @@
     "addFirstVehicle": "Додати перший транспортний засіб",
     "addVehicle": "Додати транспортний засіб",
     "byMaintenance": "За обслуговуванням",
+    "fleet": {
+      "overdueCaption": "Прострочено · потребує уваги",
+      "upcomingCaption": "Найближче · наступні 30 днів",
+      "spentLabel": "Витрачено",
+      "nextDueLabel": "Найближчий термін",
+      "nextDueNone": "Нічого не заплановано"
+    },
     "getStarted": "Почати",
     "loadError": "Помилка завантаження",
     "loading": "Завантаження...",
@@ -64,14 +71,7 @@
     "sortByName": "За ім'ям",
     "sortTrigger": "Сортування: {{label}}",
     "sortVehicles": "Сортувати транспортні засоби",
-    "title": "Мій гараж",
-    "fleet": {
-      "nextDueLabel": "Найближчий термін",
-      "nextDueNone": "Нічого не заплановано",
-      "overdueCaption": "Прострочено · потребує уваги",
-      "spentLabel": "Витрачено",
-      "upcomingCaption": "Найближче · наступні 30 днів"
-    }
+    "title": "Мій гараж"
   },
   "defList": {
     "actions": "Дії",
@@ -130,26 +130,49 @@
     "lastLocationSeenAt": "Востаннє помічено: {{time}}",
     "loading": "Завантаження...",
     "msrpPricing": "Ціна MSRP",
+    "pricing": {
+      "title": "Ціни",
+      "editTitle": "Редагувати ціни",
+      "msrpHint": "Зазвичай розпізнається з цінового стікера; змініть, щоб виправити або додати.",
+      "saveError": "Не вдалося зберегти ціни. Спробуйте ще раз."
+    },
+    "cardEdit": {
+      "title": "Редагувати: {{section}}",
+      "saveError": "Не вдалося зберегти зміни. Спробуйте ще раз."
+    },
+    "cardEmpty": "Поки нічого не записано",
     "noWindowSticker": "Немає наклейки на вікно",
     "notSpecified": "Не вказано",
     "offlineCachedData": "Автономні кешовані дані",
     "optionalEquipment": "Додаткове обладнання",
+    "equipment": {
+      "editSubtitle": "Редагувати оснащення цього автомобіля",
+      "addPlaceholder": "Додати оснащення...",
+      "add": "Додати",
+      "done": "Готово",
+      "remove": "Прибрати {{item}}",
+      "empty": "Оснащення поки немає. Додайте позиції нижче.",
+      "saveError": "Не вдалося зберегти оснащення. Спробуйте ще раз."
+    },
     "packages": "Пакети",
     "powertrain": "Трансмісія",
     "remove": "Видалити",
     "removeVehicle": "Видалити транспортний засіб",
     "replaceSticker": "Замінити наклейку",
+    "settings": {
+      "title": "Налаштування автомобіля"
+    },
     "share": "Поділитися",
     "shareTooltip": "Підказка поширення",
     "shareVehicle": "Поділитися транспортним засобом",
     "standardEquipment": "Стандартне обладнання",
     "tabs": {
       "financial": "Фінанси",
+      "fuel": "Пальне",
       "maintenance": "Обслуговування",
       "media": "Медіа",
       "overview": "Огляд",
-      "tracking": "Відстеження",
-      "fuel": "Пальне"
+      "tracking": "Відстеження"
     },
     "transfer": "Передати",
     "transferVehicle": "Передати транспортний засіб",
@@ -162,29 +185,6 @@
     "windowSticker": "Наклейка на вікно",
     "windowStickerDownloadError": "Помилка завантаження наклейки на вікно",
     "windowStickerUploaded": "Наклейка на вікно завантажена",
-    "cardEdit": {
-      "saveError": "Не вдалося зберегти зміни. Спробуйте ще раз.",
-      "title": "Редагувати: {{section}}"
-    },
-    "cardEmpty": "Поки нічого не записано",
-    "equipment": {
-      "add": "Додати",
-      "addPlaceholder": "Додати оснащення...",
-      "done": "Готово",
-      "editSubtitle": "Редагувати оснащення цього автомобіля",
-      "empty": "Оснащення поки немає. Додайте позиції нижче.",
-      "remove": "Прибрати {{item}}",
-      "saveError": "Не вдалося зберегти оснащення. Спробуйте ще раз."
-    },
-    "pricing": {
-      "editTitle": "Редагувати ціни",
-      "msrpHint": "Зазвичай розпізнається з цінового стікера; змініть, щоб виправити або додати.",
-      "saveError": "Не вдалося зберегти ціни. Спробуйте ще раз.",
-      "title": "Ціни"
-    },
-    "settings": {
-      "title": "Налаштування автомобіля"
-    },
     "misc": {
       "supplies": "Витратні матеріали"
     }
@@ -278,6 +278,25 @@
     "totalCost": "Загальна вартість",
     "totalSpent": "Всього витрачено",
     "towing": "Буксирування"
+  },
+  "hoursList": {
+    "actions": "Дії",
+    "addFirstReading": "Додати перше показання",
+    "addReading": "Додати показання",
+    "confirmDelete": "Видалити цей запис мотогодин?",
+    "date": "Дата",
+    "latestReading": "Останнє показання",
+    "loading": "Завантаження записів мотогодин...",
+    "noRecords": "Записів мотогодин поки немає",
+    "noRecordsDesc": "Відстежуйте мотогодини вашого автомобіля з часом",
+    "notes": "Нотатки",
+    "recordCount": "Записів: {{count}}",
+    "source": "Джерело",
+    "sourceFuel": "Паливо",
+    "sourceManual": "Вручну",
+    "sourceServiceVisit": "Сервіс",
+    "tableCaption": "Історія показань мотогодин",
+    "title": "Показання мотогодин"
   },
   "insuranceList": {
     "addFirstPolicy": "Додати перший поліс",
@@ -629,10 +648,10 @@
   "vehicleStats": {
     "docs": "Документи",
     "fuel": "Паливо",
-    "hoursValue": "{{value}} год",
     "lastFillUp": "Остання заправка",
     "lastService": "Останнє обслуговування",
     "latestHours": "Останні мотогодини",
+    "hoursValue": "{{value}} год",
     "latestOdometer": "Останній пробіг",
     "maintenance": "Обслуговування",
     "never": "Ніколи",
@@ -641,6 +660,19 @@
     "photoCount": "{{count}} фотографій",
     "recentActivity": "Недавня активність",
     "service": "Сервіс"
+  },
+  "vehicleTypeLabels": {
+    "Car": "Автомобіль",
+    "SUV": "Позашляховик",
+    "Truck": "Пікап",
+    "Motorcycle": "Мотоцикл",
+    "ATV": "Квадроцикл",
+    "RV": "Автодім",
+    "Trailer": "Причіп",
+    "FifthWheel": "Сідельний причіп",
+    "TravelTrailer": "Житловий причіп",
+    "Electric": "Електромобіль",
+    "Hybrid": "Гібрид"
   },
   "vendorSearch": {
     "noResults": "Немає результатів"
@@ -702,50 +734,18 @@
     "vin": "VIN",
     "year": "Рік"
   },
-  "hoursList": {
-    "actions": "Дії",
-    "addFirstReading": "Додати перше показання",
-    "addReading": "Додати показання",
-    "confirmDelete": "Видалити цей запис мотогодин?",
-    "date": "Дата",
-    "latestReading": "Останнє показання",
-    "loading": "Завантаження записів мотогодин...",
-    "noRecords": "Записів мотогодин поки немає",
-    "noRecordsDesc": "Відстежуйте мотогодини вашого автомобіля з часом",
-    "notes": "Нотатки",
-    "recordCount": "Записів: {{count}}",
-    "source": "Джерело",
-    "sourceFuel": "Паливо",
-    "sourceManual": "Вручну",
-    "sourceServiceVisit": "Сервіс",
-    "tableCaption": "Історія показань мотогодин",
-    "title": "Показання мотогодин"
-  },
   "vehicleStatisticsCardExtra": {
-    "archivedWatermark": "В АРХІВІ",
-    "averageFuelEconomy": "Сер. {{unit}}",
     "sharedBadge": "Спільний",
     "sharedByCanEdit": "Доступ від {{username}} (можна редагувати)",
     "sharedByViewOnly": "Доступ від {{username}} (лише перегляд)",
+    "archivedWatermark": "В АРХІВІ",
+    "averageFuelEconomy": "Сер. {{unit}}",
     "viewDetails": "Детальніше"
   },
-  "vehicleTypeLabels": {
-    "ATV": "Квадроцикл",
-    "Car": "Автомобіль",
-    "Electric": "Електромобіль",
-    "FifthWheel": "Сідельний причіп",
-    "Hybrid": "Гібрид",
-    "Motorcycle": "Мотоцикл",
-    "RV": "Автодім",
-    "SUV": "Позашляховик",
-    "Trailer": "Причіп",
-    "TravelTrailer": "Житловий причіп",
-    "Truck": "Пікап"
-  },
   "vehicleLiveLinkWidget": {
-    "coolant": "Охолоджувальна рідина",
-    "statusOffline": "Не в мережі",
+    "statusRunning": "У русі",
     "statusParked": "Припаркований",
-    "statusRunning": "У русі"
+    "statusOffline": "Не в мережі",
+    "coolant": "Охолоджувальна рідина"
   }
 }

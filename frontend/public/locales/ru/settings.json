@@ -23,6 +23,12 @@
     "serverDefault": "По умолчанию на сервере",
     "serverDefaultZone": "По умолчанию на сервере ({{zone}})"
   },
+  "garageSections": {
+    "title": "Разделы гаража",
+    "description": "Включите облегчённые справочные автомобили семьи и друзей. По умолчанию выключено. Общие автомобили всегда показываются в своём разделе",
+    "familyFriends": "Показывать семью и друзей",
+    "familyFriendsDesc": "Облегчённые справочные автомобили семьи и друзей. Общие автомобили хозяйства всегда показываются в гараже, даже если это выключено"
+  },
   "units": {
     "label": "Система единиц",
     "imperial": "Имперская",
@@ -33,7 +39,9 @@
     "instanceDefaultSaved": "Единицы по умолчанию для экземпляра сохранены",
     "instanceDefaultError": "Ошибка сохранения единиц по умолчанию для экземпляра",
     "showBoth": "Показывать системы вместе",
+    "showBothDescription": "Показывать каждое значение и парное к нему в скобках, например {{example}}",
     "custom": "Пользовательские",
+    "customToggle": "Свои единицы измерения",
     "customDescription": "Выберите единицу для каждой величины. Они переопределяют готовый набор во всем приложении.",
     "presetConfirmTitle": "Перейти на систему «{{preset}}»?",
     "presetConfirmMessage": "Это удалит единицы, выбранные для отдельных величин, и применит готовый набор везде.",
@@ -101,9 +109,7 @@
         "us": "Галлон США (3,785 L)",
         "uk": "Британский галлон (4,546 L)"
       }
-    },
-    "showBothDescription": "Показывать каждое значение и парное к нему в скобках, например {{example}}",
-    "customToggle": "Свои единицы измерения"
+    }
   },
   "language": {
     "label": "Язык",
@@ -118,6 +124,11 @@
     "confirmTitle": "Изменить валюту?",
     "confirmMessage": "Это изменит способ отображения всех цен. Существующие значения не будут конвертированы из одной валюты в другую.",
     "confirmAction": "Изменить валюту"
+  },
+  "dashboardSort": {
+    "label": "Порядок сводки",
+    "saved": "Порядок сводки сохранён",
+    "error": "Ошибка сохранения порядка сводки"
   },
   "mobile": {
     "title": "Мобильный интерфейс",
@@ -178,6 +189,33 @@
   "secretKey": {
     "label": "Секретный ключ:"
   },
+  "secretsStatus": {
+    "title": "Некоторые секретные настройки не читаются",
+    "keyringUnavailable": "Ключ шифрования настроек недоступен, поэтому секретные настройки нельзя сохранить, при этом зашифрованные — прочитать. Укажите действительный ключ в MYGARAGE_SETTINGS_KEY или сделайте каталог данных доступным для записи, затем перезагрузите страницу",
+    "keyringUnavailableEnv": "Ключ шифрования настроек недоступен, поэтому секретные настройки нельзя сохранить, при этом зашифрованные — прочитать. MYGARAGE_SETTINGS_KEY не содержит действительного ключа: исправьте ключ и перезапустите MyGarage",
+    "keyringUnavailableEnvFile": "Ключ шифрования настроек недоступен, поэтому секретные настройки нельзя сохранить, при этом зашифрованные — прочитать. MYGARAGE_SETTINGS_KEY_FILE не указывает на читаемый файл, где есть действительный ключ: исправьте путь и перезапустите MyGarage",
+    "unreadable": "Эти секреты не расшифровываются текущим ключом настроек, поэтому считаются незаданными. Верните в MYGARAGE_SETTINGS_KEY ключ, под которым они были сохранены, или введите их заново:",
+    "labels": {
+      "oidcClientSecret": "Секрет клиента SSO",
+      "ntfyToken": "Токен доступа ntfy",
+      "gotifyToken": "Токен приложения Gotify",
+      "pushoverUserKey": "Ключ пользователя Pushover",
+      "pushoverApiToken": "API-токен Pushover",
+      "slackWebhookUrl": "URL вебхука Slack",
+      "discordWebhookUrl": "URL вебхука Discord",
+      "matrixAccessToken": "Токен доступа Matrix",
+      "telegramBotToken": "Токен бота Telegram",
+      "emailSmtpPassword": "Пароль SMTP электронной почты",
+      "webhookIngestToken": "Токен приёма вебхуков",
+      "llmApiKey": "API-ключ AI-провайдера",
+      "autorefApiKey": "API-ключ AutoRef",
+      "livelinkMqttPassword": "Пароль MQTT LiveLink",
+      "tomtomApiKey": "API-ключ TomTom",
+      "googlePlacesApiKey": "API-ключ Google Places",
+      "yelpApiKey": "API-ключ Yelp",
+      "foursquareApiKey": "API-ключ Foursquare"
+    }
+  },
   "stats": {
     "serviceRecords": "Сервисные записи",
     "fuelRecords": "Записи заправок",
@@ -200,20 +238,9 @@
   },
   "files": {
     "title": "Управление файлами",
+    "limitsDesc": "Действующие ограничения на загрузку и место хранения файлов. Их задаёт сервер; здесь их изменить нельзя",
     "loading": "Загрузка настроек файлов...",
     "loadError": "Ошибка загрузки настроек файлов",
-    "storageInfo": "Информация по хранилищу",
-    "dataDirectory": "Каталог данных",
-    "photosDirectory": "Каталог фотографий",
-    "documentsDirectory": "Каталог документов",
-    "windowSticker": "Оконная наклейка",
-    "windowStickerDesc": "Настройка загрузки и OCR-обработки оконных наклеек (этикеток Monroney).",
-    "enableWindowSticker": "Включить загрузку оконных наклеек",
-    "enableWindowStickerDesc": "Разрешить пользователям загружать оконные наклейки для автоматического извлечения данных.",
-    "enableOCR": "Включить OCR-обработку",
-    "enableOCRDesc": "Автоматическое извлечение цен и спецификаций из загруженных оконных наклеек.",
-    "aboutWindowStickers": "Про оконные наклейки",
-    "limitsDesc": "Действующие ограничения на загрузку и место хранения файлов. Их задаёт сервер; здесь их изменить нельзя",
     "limitsLoadError": "Ошибка загрузки ограничений",
     "uploadKind": "Загрузка",
     "maxSize": "Макс. размер",
@@ -223,7 +250,18 @@
     "kindDocuments": "Документы",
     "sizeMb": "{{size}} МБ",
     "limitsEnvHint": "Размеры фотографий и вложений задаются в {{uploadVar}}, документов — в {{documentVar}}. Измените их в окружении сервера и перезапустите MyGarage",
-    "attachmentsDirectory": "Каталог вложений"
+    "storageInfo": "Информация по хранилищу",
+    "dataDirectory": "Каталог данных",
+    "photosDirectory": "Каталог фотографий",
+    "attachmentsDirectory": "Каталог вложений",
+    "documentsDirectory": "Каталог документов",
+    "windowSticker": "Оконная наклейка",
+    "windowStickerDesc": "Настройка загрузки и OCR-обработки оконных наклеек (этикеток Monroney).",
+    "enableWindowSticker": "Включить загрузку оконных наклеек",
+    "enableWindowStickerDesc": "Разрешить пользователям загружать оконные наклейки для автоматического извлечения данных.",
+    "enableOCR": "Включить OCR-обработку",
+    "enableOCRDesc": "Автоматическое извлечение цен и спецификаций из загруженных оконных наклеек.",
+    "aboutWindowStickers": "Про оконные наклейки"
   },
   "integrations": {
     "loading": "Загрузка настроек интеграций...",
@@ -245,21 +283,6 @@
     "testingConnection": "Тестирование...",
     "testNHTSA": "Тестировать подключение NHTSA",
     "testNHTSADesc": "Проверка доступа к API NHTSA декодированием тестового VIN-номера.",
-    "nhtsaTestSuccess": "Подключение к API NHTSA успешно!",
-    "nhtsaTestFailed": "Ошибка подключения к API NHTSA. Проверьте URL и попробуйте снова.",
-    "carComplaints": "CarComplaints",
-    "carComplaintsDesc": "Ссылки на данные по жалобам потребителей для ваших транспортных средств.",
-    "enableCarComplaints": "Включить интеграцию CarComplaints",
-    "enableCarComplaintsDesc": "Добавить ссылки на CarComplaints.com для исследования известных проблем транспортных средств.",
-    "aboutCarComplaints": "Про CarComplaints",
-    "shopFinderDesc": "Настройка провайдеров точек интереса для поиска ближайших автомастерских и сервисных центров.",
-    "provider": "Провайдер",
-    "apiLimits": "Лимиты API",
-    "options": "Опции",
-    "addService": "Добавить провайдера",
-    "providerRemoved": "Провайдер успешно удален",
-    "livelink": "LiveLink",
-    "aboutLiveLink": "Про LiveLink",
     "autoref": "AutoRef (расшифровка европейских VIN)",
     "autorefDesc": "Расшифровывает европейские VIN, которые NHTSA не распознаёт: марка, модель, двигатель и кузов",
     "enableAutoref": "Включить AutoRef",
@@ -270,11 +293,26 @@
     "testAutorefDesc": "Проверяет ключ и показывает остаток тарифа. Запросы не расходуются",
     "autorefTestOk": "Ключ AutoRef работает: тариф {{plan}}, в этом месяце осталось {{remaining}} из {{limit}} запросов",
     "autorefTestFailed": "Проверка ключа AutoRef не удалась. {{message}}",
+    "nhtsaTestSuccess": "Подключение к API NHTSA успешно!",
+    "nhtsaTestFailed": "Ошибка подключения к API NHTSA. Проверьте URL и попробуйте снова.",
+    "carComplaints": "CarComplaints",
+    "carComplaintsDesc": "Ссылки на данные по жалобам потребителей для ваших транспортных средств.",
+    "enableCarComplaints": "Включить интеграцию CarComplaints",
+    "enableCarComplaintsDesc": "Добавить ссылки на CarComplaints.com для исследования известных проблем транспортных средств.",
+    "aboutCarComplaints": "Про CarComplaints",
+    "shopFinderDesc": "Настройка провайдеров точек интереса для поиска ближайших автомастерских и сервисных центров.",
     "searchProviders": "Поисковые провайдеры",
+    "provider": "Провайдер",
     "status": "Статус",
     "statusActive": "Активен",
     "statusInactive": "Неактивен",
+    "apiLimits": "Лимиты API",
+    "options": "Опции",
+    "addService": "Добавить провайдера",
+    "providerRemoved": "Провайдер успешно удален",
     "removeProviderAction": "удалить провайдера",
+    "livelink": "LiveLink",
+    "aboutLiveLink": "Про LiveLink",
     "webhooks": "Входящие вебхуки",
     "webhooksDesc": "Разрешить Home Assistant, n8n или Shortcuts отправлять заправки, показания одометра и отметки по выполнению напоминаний",
     "webhookToken": "Токен приёма вебхуков",
@@ -355,6 +393,8 @@
     "readingsHeading": "Показания",
     "readingsSummary": "Сопоставлено показаний: {{count}}",
     "readingsSummary_one": "Сопоставлено показание: {{count}}",
+    "readingsSummary_few": "Сопоставлено показания: {{count}}",
+    "readingsSummary_many": "Сопоставлено показаний: {{count}}",
     "readingsSummary_other": "Сопоставлено показаний: {{count}}",
     "readingNone": "Показаний пока нет",
     "readingsLoadError": "Ошибка загрузки показаний.",
@@ -433,9 +473,7 @@
     "enableFuelPrices": "Включить цены на топливо",
     "enableFuelPricesDesc": "Запрашиваются только координаты станции, не чаще примерно раза в десять минут; никакие данные по автомобилю не покидают экземпляр",
     "fuelPricesApiUrl": "URL API цен на топливо",
-    "fuelPricesApiUrlDesc": "Точка доступа к записям на data.economie.gouv.fr. Меняйте, только если набор данных переедет",
-    "readingsSummary_few": "Сопоставлено показания: {{count}}",
-    "readingsSummary_many": "Сопоставлено показаний: {{count}}"
+    "fuelPricesApiUrlDesc": "Точка доступа к записям на data.economie.gouv.fr. Меняйте, только если набор данных переедет"
   },
   "notifications": {
     "loading": "Загрузка настроек уведомлений...",
@@ -520,6 +558,19 @@
       "step3": "Нажмите «Создать вебхук»",
       "step4": "Скопируйте URL вебхука",
       "docsLink": "Руководство по вебхукам Discord"
+    }
+  },
+  "matrix": {
+    "enable": "Включить уведомления Matrix",
+    "homeserver": "URL домашнего сервера",
+    "accessToken": "Токен доступа",
+    "roomId": "ID комнаты",
+    "misc": {
+      "title": "Matrix",
+      "subtitle": "Публикация оповещений MyGarage в комнату Matrix",
+      "sending": "Отправка…",
+      "testConnection": "Проверить подключение",
+      "setupHint": "Создайте отдельного пользователя Matrix, пригласите в комнату и вставьте токен доступа сюда"
     }
   },
   "telegram": {
@@ -656,57 +707,6 @@
     "twelveHour": "12-часовой",
     "twentyFourHour": "24-часовой"
   },
-  "garageSections": {
-    "title": "Разделы гаража",
-    "description": "Включите облегчённые справочные автомобили семьи и друзей. По умолчанию выключено. Общие автомобили всегда показываются в своём разделе",
-    "familyFriends": "Показывать семью и друзей",
-    "familyFriendsDesc": "Облегчённые справочные автомобили семьи и друзей. Общие автомобили хозяйства всегда показываются в гараже, даже если это выключено"
-  },
-  "dashboardSort": {
-    "label": "Порядок сводки",
-    "saved": "Порядок сводки сохранён",
-    "error": "Ошибка сохранения порядка сводки"
-  },
-  "secretsStatus": {
-    "title": "Некоторые секретные настройки не читаются",
-    "keyringUnavailable": "Ключ шифрования настроек недоступен, поэтому секретные настройки нельзя сохранить, при этом зашифрованные — прочитать. Укажите действительный ключ в MYGARAGE_SETTINGS_KEY или сделайте каталог данных доступным для записи, затем перезагрузите страницу",
-    "keyringUnavailableEnv": "Ключ шифрования настроек недоступен, поэтому секретные настройки нельзя сохранить, при этом зашифрованные — прочитать. MYGARAGE_SETTINGS_KEY не содержит действительного ключа: исправьте ключ и перезапустите MyGarage",
-    "keyringUnavailableEnvFile": "Ключ шифрования настроек недоступен, поэтому секретные настройки нельзя сохранить, при этом зашифрованные — прочитать. MYGARAGE_SETTINGS_KEY_FILE не указывает на читаемый файл, где есть действительный ключ: исправьте путь и перезапустите MyGarage",
-    "unreadable": "Эти секреты не расшифровываются текущим ключом настроек, поэтому считаются незаданными. Верните в MYGARAGE_SETTINGS_KEY ключ, под которым они были сохранены, или введите их заново:",
-    "labels": {
-      "oidcClientSecret": "Секрет клиента SSO",
-      "ntfyToken": "Токен доступа ntfy",
-      "gotifyToken": "Токен приложения Gotify",
-      "pushoverUserKey": "Ключ пользователя Pushover",
-      "pushoverApiToken": "API-токен Pushover",
-      "slackWebhookUrl": "URL вебхука Slack",
-      "discordWebhookUrl": "URL вебхука Discord",
-      "matrixAccessToken": "Токен доступа Matrix",
-      "telegramBotToken": "Токен бота Telegram",
-      "emailSmtpPassword": "Пароль SMTP электронной почты",
-      "webhookIngestToken": "Токен приёма вебхуков",
-      "llmApiKey": "API-ключ AI-провайдера",
-      "autorefApiKey": "API-ключ AutoRef",
-      "livelinkMqttPassword": "Пароль MQTT LiveLink",
-      "tomtomApiKey": "API-ключ TomTom",
-      "googlePlacesApiKey": "API-ключ Google Places",
-      "yelpApiKey": "API-ключ Yelp",
-      "foursquareApiKey": "API-ключ Foursquare"
-    }
-  },
-  "matrix": {
-    "enable": "Включить уведомления Matrix",
-    "homeserver": "URL домашнего сервера",
-    "accessToken": "Токен доступа",
-    "roomId": "ID комнаты",
-    "misc": {
-      "title": "Matrix",
-      "subtitle": "Публикация оповещений MyGarage в комнату Matrix",
-      "sending": "Отправка…",
-      "testConnection": "Проверить подключение",
-      "setupHint": "Создайте отдельного пользователя Matrix, пригласите в комнату и вставьте токен доступа сюда"
-    }
-  },
   "dateFormat": {
     "label": "Формат даты",
     "monthFirst": "Сначала месяц (10/24/2026)",
@@ -776,13 +776,13 @@
     "confirmRemoveProvider": "Удалить провайдера {{name}}?",
     "devicesLinked": "подключено устройств: {{count}}",
     "devicesLinked_one": "{{count}} устройство подключено",
+    "devicesLinked_few": "{{count}} устройства подключены",
+    "devicesLinked_many": "{{count}} устройств подключено",
     "devicesLinked_other": "{{count}} устройства подключены",
     "devicesOnlineSuffix": ", в сети: {{count}}",
     "aboutLiveLinkBody": "LiveLink подключает устройства WiCAN PRO OBD2 к MyGarage для телеметрии автомобиля в реальном времени. Отслеживайте параметры двигателя, определяйте поездки и получайте оповещения по диагностическим кодам неисправностей.",
     "requiresLabel": "Требуется:",
-    "livelinkFirmwareRequirement": "WiCAN PRO, прошивка v4.40 или новее",
-    "devicesLinked_few": "{{count}} устройства подключены",
-    "devicesLinked_many": "{{count}} устройств подключено"
+    "livelinkFirmwareRequirement": "WiCAN PRO, прошивка v4.40 или новее"
   },
   "backupTab": {
     "createSettingsSuccess": "Резервная копия настроек создана!",
