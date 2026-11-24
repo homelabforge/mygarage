@@ -246,8 +246,9 @@ stale. The validator lists stale, unrecorded and draft keys without failing.
   `bun run i18n:stamp --draft-stale de` records de's stale keys against today's
   English as drafts, or `--draft-stale de <ns:key> ...` only those keys. The
   translation isn't touched, and it stays on the draft list until a native
-  speaker accepts it. "Stale" means what `--list stale de` shows; a listed key
-  that isn't stale fails the run.
+  speaker accepts it. "Stale" means what `--list stale de` shows, which includes
+  a kept English copy (a brand) whose English moved; a listed key that isn't
+  stale fails the run.
 
 `--base` defaults to `HEAD`, which is right for your own edits. For a PR use
 `git merge-base main <pr-branch>`.

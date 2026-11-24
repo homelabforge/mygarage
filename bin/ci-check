@@ -26,9 +26,9 @@
 #   bin/ci-check --rebuild        # force rebuild of backend test image
 #   CI_CHECK_CPUSET=0-11 bin/ci-check   # any of the above, pinned to CPUs 0-11
 #
-# CI_CHECK_CPUSET pins every step: the script re-runs itself under taskset, so
-# bun, uv and Playwright stay on those CPUs, and each container gets
-# --cpuset-cpus. On a 13600K the P-cores are 0-11; unpinned, local suites land
+# CI_CHECK_CPUSET pins every test step: the script re-runs itself under taskset,
+# so bun, uv and Playwright stay on those CPUs, and each container gets
+# --cpuset-cpus. Image builds run in the docker daemon and aren't pinned. On a 13600K the P-cores are 0-11; unpinned, local suites land
 # on E-cores and run 1.5-2.4x slow. Unset, nothing changes. For the PG stack,
 # stack docker-compose.test.cpuset.yml after docker-compose.test.yml.
 

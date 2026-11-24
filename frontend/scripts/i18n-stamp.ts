@@ -116,7 +116,7 @@ interface Row {
   nsKey: string
   /** Today's English. */
   enValue: unknown
-  /** The working-tree translation; undefined when missing or empty. */
+  /** The working-tree translation; undefined when missing, empty or null. */
   value: unknown
 }
 
@@ -129,7 +129,7 @@ function currentRows(lang: string, namespaces: readonly string[]): Row[] {
     const data = existsSync(path) ? loadJson(path) : {}
     for (const { key, enValue } of expectedKeys(english.keysByNamespace.get(ns)!, english.valuesByNamespace.get(ns)!, lang)) {
       const value = getNestedValue(data, key)
-      rows.push({ ns, key, nsKey: `${ns}:${key}`, enValue, value: value === '' ? undefined : value })
+      rows.push({ ns, key, nsKey: `${ns}:${key}`, enValue, value: value === '' || value === null ? undefined : value })
     }
   }
   return rows
@@ -263,15 +263,25 @@ function planDrafts(lang: string, keys: string[] | 'all'): Plan {
 
 /**
  * Record stale keys against today's English as drafts: the old translation
- * still fits, but no native speaker has said so. Same reading of "stale" as
- * --list (recordState), so the two can't disagree. The translations
- * themselves aren't touched.
+ * still fits, but no native speaker has said so. "Stale" is read off the same
+ * analyzeLocale issues --list stale prints, so the two can't disagree. The
+ * translations themselves aren't touched.
  */
 function planDraftStale(lang: string, keys: string[] | 'all'): Plan {
-  const rows = currentRows(lang, discoverNamespaces())
+  const namespaces = discoverNamespaces()
+  const rows = currentRows(lang, namespaces)
   const before = loadSourceRecords(lang)
+  const stale = new Set(
+    analyzeLocale(lang, namespaces, loadEnglishData(namespaces)).issues
+      .filter(i => i.type === 'stale')
+      .map(i => `${i.namespace}:${i.key}`),
+  )
   const stateOf = (r: Row): string =>
-    r.value === undefined ? 'missing' : (recordState(before[r.nsKey], r.enValue, r.value) ?? 'untranslated')
+    stale.has(r.nsKey)
+      ? 'stale'
+      : r.value === undefined
+        ? 'missing'
+        : (recordState(before[r.nsKey], r.enValue, r.value) ?? 'untranslated')
 
   const after = { ...before }
   for (const r of targetRows(lang, rows, keys, stateOf, 'stale', 'stale')) {
@@ -325,9 +335,11 @@ function main(): void {
       const plan = mode === '--accept-drafts' ? planDrafts : planDraftStale
       plans.push(plan(checkLang(lang), keys.length === 0 ? 'all' : keys))
     }
-    // only write once every language planned cleanly
+    // only write once every language planned cleanly, and never create a
+    // record file from nothing: that would start tracking the language
     for (const p of plans) {
-      writeJson(join(SOURCES_DIR, `${p.lang}.json`), p.records)
+      const path = join(SOURCES_DIR, `${p.lang}.json`)
+      if (existsSync(path) || Object.keys(p.records).length > 0) writeJson(path, p.records)
       for (const line of p.lines) console.log(line)
     }
     return

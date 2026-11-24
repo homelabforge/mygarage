@@ -847,11 +847,34 @@ describe('ServiceVisitForm: an old fractional count', () => {
     fireEvent.submit(drawerForm())
 
     await waitFor(() => expect(mockedApiPut).toHaveBeenCalled())
+    // Sent back as saved, so the API sees no change at all.
     const body = mockedApiPut.mock.calls.at(-1)?.[1] as {
-      line_items: { id?: number; supplies_used: { supply_id: number; quantity: number }[] }[]
+      line_items: { id?: number; supplies_used: { supply_id: number; quantity: number | string }[] }[]
     }
     expect(body.line_items.find((li) => li.id === 601)?.supplies_used).toEqual([
-      { supply_id: 3, quantity: 2.5 },
+      { supply_id: 3, quantity: '2.5000000000000' },
+    ])
+  })
+
+  it('an untouched count too precise for a JS number goes back exactly as saved', async () => {
+    // Number('1234.1234567890123') prints as ...124, which the API would read
+    // as a changed fraction and refuse.
+    const usage = OLD_VISIT.line_items[0].supply_usages![0]
+    const precise: ServiceVisit = {
+      ...OLD_VISIT,
+      line_items: [{ ...OLD_VISIT.line_items[0], supply_usages: [{ ...usage, quantity: '1234.1234567890123' }] }],
+    }
+    render(<ServiceVisitForm {...DEFAULT_PROPS} visit={precise} />)
+    await waitFor(() => expect(quantities()[0].value).not.toBe(''))
+
+    fireEvent.submit(drawerForm())
+
+    await waitFor(() => expect(mockedApiPut).toHaveBeenCalled())
+    const body = mockedApiPut.mock.calls.at(-1)?.[1] as {
+      line_items: { id?: number; supplies_used: { supply_id: number; quantity: number | string }[] }[]
+    }
+    expect(body.line_items.find((li) => li.id === 601)?.supplies_used).toEqual([
+      { supply_id: 3, quantity: '1234.1234567890123' },
     ])
   })
 
