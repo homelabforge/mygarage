@@ -46,8 +46,10 @@
  * raw key. Both are always bugs, so they block.
  */
 
+import { createRequire } from 'module'
 import { readdirSync, readFileSync, statSync } from 'fs'
 import { join, relative } from 'path'
+import type * as TS from 'typescript'
 import { SUPPORTED_LANGUAGES } from '../src/constants/i18n'
 import {
   EN_DIR,
@@ -62,6 +64,22 @@ import {
 /** i18n.ts sets defaultNS: 'common' — a bare useTranslation() resolves there. */
 const DEFAULT_NS = 'common'
 
+/**
+ * The real TypeScript compiler, resolved through the package's own `main`.
+ * Same Bun auto-install stub hazard as `validate-units.ts:loadTypeScript`.
+ */
+function loadTypeScript(): typeof TS {
+  const require = createRequire(import.meta.url)
+  const pkgDir = join(ROOT, 'node_modules', 'typescript')
+  const main = JSON.parse(readFileSync(join(pkgDir, 'package.json'), 'utf-8')).main as string
+  const api = require(join(pkgDir, main)) as typeof TS
+  if (typeof api.createSourceFile !== 'function' || typeof api.getLeadingCommentRanges !== 'function') {
+    throw new Error('typescript did not expose createSourceFile/getLeadingCommentRanges. Refusing to run.')
+  }
+  return api
+}
+
+const ts = loadTypeScript()
 const SRC = join(ROOT, 'src')
 const SKIP_DIRS = new Set(['__tests__', 'locales', 'node_modules'])
 
@@ -200,7 +218,7 @@ export function scanFile(text: string, file: string): Violation[] {
         file: relative(ROOT, file),
         line: text.slice(0, index).split('\n').length,
         key: rawKey,
-        searched: ['<no useTranslation in this file — qualify the key as "ns:key">'],
+        searched: ['<no useTranslation in this file, so qualify the key as "ns:key">'],
         via: 'call',
       })
       return
@@ -248,7 +266,7 @@ export function scanFile(text: string, file: string): Violation[] {
         file: relative(ROOT, file),
         line: text.slice(0, m.index ?? 0).split('\n').length,
         key: rawKey,
-        searched: ['<no useTranslation in this file — qualify the key as "ns:key">'],
+        searched: ['<no useTranslation in this file, so qualify the key as "ns:key">'],
         via: 'field',
         field,
       })
@@ -279,15 +297,35 @@ export function emptyReferences(): KeyReferences {
 const USABLE_PREFIX = /^(?:[A-Za-z]+:)?[\w-]+(?:\.[\w-]+)*\.$/
 
 // Comments name dead keys all the time ("`defList.gallons` lied to metric
-// users"), and that's not a reference. A `//` only starts a comment after
-// whitespace or at the start of a line, and a /* after whitespace or a {, so
-// URLs and accept="image/*" in strings survive.
-function stripComments(text: string): string {
-  return text.replace(/(^|[\s{])\/\*[\s\S]*?\*\//g, '$1').replace(/(^|\s)\/\/[^\n]*/g, '$1')
+// users"), and that's not a reference. The parser decides what's a comment,
+// so a `//` inside a string, template, regex or JSX text stays put.
+function stripComments(text: string, file: string): string {
+  const kind = file.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS
+  const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, false, kind)
+  const out = text.split('')
+  const blank = (range: TS.CommentRange): void => {
+    for (let i = range.pos; i < range.end; i++) if (out[i] !== '\n') out[i] = ' '
+  }
+  // Comments only live in the trivia before a token. Trailing ranges are the
+  // ones before the first newline, leading ones the rest. JSX text has no
+  // trivia, it's all content.
+  const visit = (node: TS.Node): void => {
+    const children = node.getChildren(source)
+    if (children.length > 0) {
+      children.forEach(visit)
+      return
+    }
+    if (node.kind === ts.SyntaxKind.JsxText) return
+    ts.getTrailingCommentRanges(text, node.pos)?.forEach(blank)
+    ts.getLeadingCommentRanges(text, node.pos)?.forEach(blank)
+  }
+  visit(source)
+  return out.join('')
 }
 
-export function collectReferences(source: string, refs: KeyReferences): void {
-  const text = stripComments(source)
+/** `file` picks TS or TSX parsing; JSX text only means something in a .tsx. */
+export function collectReferences(source: string, refs: KeyReferences, file: string): void {
+  const text = stripComments(source, file)
   for (const m of text.matchAll(/(['"`])([\w.:-]+)\1/g)) refs.literals.add(m[2])
   for (const m of text.matchAll(/`([\w.:-]*)\$\{/g)) {
     if (USABLE_PREFIX.test(m[1])) refs.prefixes.add(m[1])
@@ -328,7 +366,7 @@ function main(): void {
   const refs = emptyReferences()
   const violations = files.flatMap(file => {
     const text = readFileSync(file, 'utf-8')
-    collectReferences(text, refs)
+    collectReferences(text, refs, file)
     return scanFile(text, file)
   })
   const unused = findUnusedKeys(englishKeys, refs)
@@ -346,9 +384,9 @@ function main(): void {
     for (const v of violations) {
       console.log(`  ${v.file}:${v.line}`)
       const shown = v.via === 'call' ? `t('${v.key}')` : `${v.field ?? 'labelKey'}: '${v.key}'`
-      console.log(`    ${shown} — not in ${v.searched.map(n => `${n}.json`).join(' or ')}`)
+      console.log(`    ${shown}: not in ${v.searched.map(n => `${n}.json`).join(' or ')}`)
     }
-    console.log('\nThese render as the raw key to users — English has no fallback.')
+    console.log('\nThese render as the raw key to users, since English has no fallback.')
     console.log(`Add them to ${relative(ROOT, EN_DIR)}/<namespace>.json.`)
   }
 

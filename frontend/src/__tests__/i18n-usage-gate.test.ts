@@ -52,7 +52,7 @@ describe('validate-i18n-usage: unused English keys', () => {
   ])
   const unused = (...sources: string[]): string[] => {
     const refs = emptyReferences()
-    for (const s of sources) collectReferences(s, refs)
+    for (const s of sources) collectReferences(s, refs, 'fixture.tsx')
     return findUnusedKeys(english, refs)
   }
 
@@ -105,5 +105,52 @@ describe('validate-i18n-usage: unused English keys', () => {
 
   it("counts a 'prefix.' + x concatenation", () => {
     expect(unused("t('types.' + kind)")).not.toContain('vehicles:types.boat')
+  })
+})
+
+// The comment stripper used to be a regex, so a ` //` inside a string ate the
+// rest of the line and a comment glued to code survived. Each fixture here was
+// wrong under that regex.
+describe('validate-i18n-usage: comments vs literals', () => {
+  const english = new Map<string, Set<string>>([['vehicles', new Set(['detail.gone', 'types.boat'])]])
+  const unused = (source: string, file = 'fixture.tsx'): string[] => {
+    const refs = emptyReferences()
+    collectReferences(source, refs, file)
+    return findUnusedKeys(english, refs)
+  }
+
+  it('keeps a key after a string holding " //" on the same line', () => {
+    expect(unused("const note = 'a // b'; t('detail.gone')\n")).toEqual(['vehicles:types.boat'])
+    expect(unused("t('types.boat', { u: 'see http: //x' }); t('detail.gone')\n")).toEqual([])
+  })
+
+  it("doesn't count a key in a comment glued to code", () => {
+    expect(unused("foo()//t('detail.gone')\nbar()/*'types.boat'*/\n")).toEqual(['vehicles:detail.gone', 'vehicles:types.boat'])
+  })
+
+  it("doesn't count a key in a JSDoc block", () => {
+    expect(unused("/** Shows 'detail.gone'. */\nexport const x = t('types.boat')\n")).toEqual(['vehicles:detail.gone'])
+  })
+
+  it('keeps a key after JSX text holding //', () => {
+    expect(unused("const A = (): JSX.Element => <p>use a // here {t('detail.gone')}</p>\n")).toEqual(['vehicles:types.boat'])
+    // Text that opens with ` //` looks exactly like trivia to the comment helpers.
+    expect(unused("const B = (): JSX.Element => <p> // here {t('detail.gone')}</p>\n")).toEqual(['vehicles:types.boat'])
+  })
+
+  it('keeps a key after a template literal holding //', () => {
+    expect(unused("const u = `http: //x/${id}`; t('detail.gone')\n")).toEqual(['vehicles:types.boat'])
+  })
+
+  it('keeps a key after a regex holding //', () => {
+    expect(unused("const re = /[ //]/; t('detail.gone')\n")).toEqual(['vehicles:types.boat'])
+  })
+
+  it('parses a .ts file as TS, not JSX', () => {
+    // As TSX, `<string>foo` opens a JSX element and the comment turns into JSX text.
+    expect(unused("const v = <string>foo // 'detail.gone'\n", 'fixture.ts')).toEqual([
+      'vehicles:detail.gone',
+      'vehicles:types.boat',
+    ])
   })
 })

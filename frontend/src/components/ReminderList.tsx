@@ -53,7 +53,7 @@ interface ReminderListProps {
   vehicle: Vehicle
 }
 
-const STATUS_TABS: { id: ReminderStatus | 'all'; labelKey: string }[] = [
+const STATUS_TABS: { id: ReminderStatus; labelKey: string }[] = [
   { id: 'pending', labelKey: 'reminderList.statusPending' },
   { id: 'done', labelKey: 'reminderList.statusDone' },
   { id: 'dismissed', labelKey: 'reminderList.statusDismissed' },
@@ -61,11 +61,10 @@ const STATUS_TABS: { id: ReminderStatus | 'all'; labelKey: string }[] = [
 
 // One sentence per status: the status used to go in as the raw enum, which
 // read "No done reminders" in every language.
-const EMPTY_KEYS: Record<ReminderStatus | 'all', string> = {
+const EMPTY_KEYS: Record<ReminderStatus, string> = {
   pending: 'reminderList.noRemindersPending',
   done: 'reminderList.noRemindersDone',
   dismissed: 'reminderList.noRemindersDismissed',
-  all: 'reminderList.noRemindersAll',
 }
 
 const TYPE_ICONS: Record<string, typeof Bell> = {
@@ -108,7 +107,7 @@ export default function ReminderList({ vehicle }: ReminderListProps) {
   const { t: tForms } = useTranslation('forms')
   const dateLocale = useDateLocale()
   const u = useUnitFormat()
-  const [activeStatus, setActiveStatus] = useState<ReminderStatus | 'all'>('pending')
+  const [activeStatus, setActiveStatus] = useState<ReminderStatus>('pending')
   const [showForm, setShowForm] = useState(false)
   const [editingReminder, setEditingReminder] = useState<Reminder | undefined>()
   const [completing, setCompleting] = useState<Reminder | undefined>()
@@ -138,7 +137,7 @@ export default function ReminderList({ vehicle }: ReminderListProps) {
 
   const { data: currentMileage } = useLatestMileage(vin)
   const { data: currentHours } = useLatestHours(vin)
-  const { data: reminders = [], isLoading } = useReminders(vin, activeStatus === 'all' ? 'all' : activeStatus)
+  const { data: reminders = [], isLoading } = useReminders(vin, activeStatus)
   const { data: duplicateGroups = [] } = useReminderDuplicates(vin)
   const dismissMutation = useMarkReminderDismissed(vin)
   const deleteMutation = useDeleteReminder(vin)

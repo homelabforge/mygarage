@@ -2,10 +2,13 @@ import { describe, it, expect } from 'vitest'
 import { createInstance } from 'i18next'
 import {
   PROTECTED,
+  checkTranslation,
   compareNamespace,
   deleteNestedKey,
   englishDashes,
   discoverNamespaces,
+  expectedKeys,
+  hash8,
   loadEnglishData,
   protectedSpans,
   sortToEnglish,
@@ -267,5 +270,99 @@ describe('sortToEnglish', () => {
     const de = { zz: 'extra', a: 'a', b: { q: 'q', y: '1' } }
     const out = sortToEnglish(en, de, 'de')
     expect(JSON.stringify(out)).toBe(JSON.stringify({ b: { y: '1', q: 'q' }, a: 'a', zz: 'extra' }))
+  })
+})
+
+describe('translation gate: copies of English and their records', () => {
+  const E = { k: 'Edit' }
+  const ev = new Map<string, unknown>(Object.entries(E))
+  const states = (data: Record<string, unknown>, records: Record<string, string>): string[] =>
+    compareNamespace('fr', 'common', ['k'], ev, data, records).issues.map(i => i.type)
+  const h = (v: string): string => hash8(v)
+
+  it('lists a machine-kept copy as a draft', () => {
+    expect(states({ k: 'Edit' }, { 'common:k': `${h('Edit')}:=:d` })).toEqual(['draft'])
+  })
+
+  it('still counts a machine-kept copy as translated, like any other draft', () => {
+    expect(compareNamespace('fr', 'common', ['k'], ev, { k: 'Edit' }, { 'common:k': `${h('Edit')}:=:d` }).translated).toBe(1)
+  })
+
+  it('calls an approved copy stale once English moves, even when the copy follows it', () => {
+    const moved = new Map<string, unknown>([['k', 'Edit item']])
+    const r = compareNamespace('fr', 'common', ['k'], moved, { k: 'Edit item' }, { 'common:k': `${h('Edit')}:=` })
+    expect(r.issues.map(i => i.type)).toEqual(['stale'])
+    expect(r.translated).toBe(0)
+  })
+
+  it('says nothing about a copy nobody recorded, and leaves it untranslated', () => {
+    const r = compareNamespace('fr', 'common', ['k'], ev, { k: 'Edit' }, {})
+    expect(r.issues).toEqual([])
+    expect(r.translated).toBe(0)
+  })
+
+  it("doesn't ask anyone to accept an unrecorded copy that has nothing to translate", () => {
+    const vin = new Map<string, unknown>([['k', 'VIN']])
+    expect(compareNamespace('fr', 'common', ['k'], vin, { k: 'VIN' }, {}).issues).toEqual([])
+  })
+})
+
+describe('translation gate: one check for the gate and the fill', () => {
+  const types = (lang: string, en: string, tr: string, key = 'common:x'): string[] =>
+    checkTranslation(key, en, tr, lang).map(p => p.type)
+
+  it('catches a dotted placeholder i18next would leave raw', () => {
+    expect(types('de', 'Hi {{name}}', 'Hallo {{name}} {{user.name}}')).toEqual(['interpolation'])
+  })
+
+  it('treats spacing inside a placeholder as the same placeholder', () => {
+    expect(types('de', 'Hi {{ user.name }}', 'Hallo {{user.name}}')).toEqual([])
+  })
+
+  it("blocks $t( nesting English doesn't have", () => {
+    expect(types('de', 'Save', '$t(common:save)')).toEqual(['interpolation'])
+  })
+
+  it("blocks leading or trailing whitespace English doesn't have", () => {
+    expect(types('de', 'Save', 'Speichern ')).toEqual(['whitespace'])
+    expect(types('de', ' of ', ' von ')).toEqual([])
+  })
+
+  it('blocks a protected command with an argument stretched past its end', () => {
+    const key = 'forms:modal.livelink.odometerUnitTorqueMiRepair'
+    const en = `Run ${PROTECTED[key]} on the host.`
+    expect(types('de', en, `Führe ${PROTECTED[key].replace('--to km', '--to kmph')} aus.`, key)).toEqual(['protected'])
+    expect(types('de', en, `Führe ${PROTECTED[key]} aus.`, key)).toEqual([])
+    expect(types('de', 'Topics on ntfy.sh are public', 'ntfy.sh-Themen sind öffentlich')).toEqual([])
+  })
+
+  it("doesn't call a Cyrillic URL path in a German string the wrong alphabet", () => {
+    expect(types('de', 'See https://example.ru/инструкция', 'Siehe https://example.ru/инструкция')).toEqual([])
+  })
+
+  it('lets a translation keep letters English itself uses, like a language endonym', () => {
+    expect(types('pl', 'Русский', 'Русский')).toEqual([])
+    expect(types('pl', 'Russian', 'Русский')).toEqual(['script'])
+  })
+})
+
+describe('translation gate: empty values', () => {
+  it('reports an empty string, since i18next renders it blank instead of falling back', () => {
+    expect(keysOf('de', { ...full, title: '' }, 'empty')).toEqual(['title'])
+  })
+})
+
+describe('expectedKeys: an explicit English _zero', () => {
+  it('asks every language for _zero, since i18next looks it up for a count of 0 whatever the rules', () => {
+    const en = ['n_zero', 'n_one', 'n_other']
+    const vals = new Map<string, unknown>([['n_zero', 'none'], ['n_one', 'one'], ['n_other', 'many']])
+    expect(expectedKeys(en, vals, 'de').map(e => e.key)).toEqual(['n_zero', 'n_one', 'n_other'])
+    expect(expectedKeys(en, vals, 'ms').map(e => e.key)).toEqual(['n_zero', 'n_other'])
+  })
+
+  it('renders _zero for 0 in a language without a zero category', async () => {
+    const i = createInstance()
+    await i.init({ lng: 'de', resources: { de: { translation: { n_zero: 'keine', n_one: 'eine', n_other: '{{count}}' } } } })
+    expect(i.t('n', { count: 0 })).toBe('keine')
   })
 })

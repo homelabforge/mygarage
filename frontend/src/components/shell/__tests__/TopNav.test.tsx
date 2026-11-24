@@ -92,7 +92,18 @@ describe('TopNav: links that do not fit', () => {
     const burger = screen.getByRole('button', { name: 'openMenu' })
     expect(burger).not.toHaveClass('nav:hidden')
     fireEvent.click(burger)
-    expect(screen.getByRole('button', { name: 'searchPlaceholder' }).closest('div.border-t')).toHaveClass('md:block')
+    const panelSearch = screen.getByRole('button', { name: 'searchPlaceholder' })
+    expect(panelSearch.closest('div.border-t')).toHaveClass('md:block')
+    // the bar keeps its own search at 900 and up, so the panel's one hides there
+    expect(panelSearch).toHaveClass('nav:hidden')
+  })
+
+  // An absolutely placed nowrap row still counts as page overflow, so the hidden
+  // links scrolled the page sideways just above 900px in Polish.
+  it('clips the hidden links to the bar so they cannot widen the page', () => {
+    stubLayout(1000)
+    setup()
+    expect(screen.getByRole('navigation', { hidden: true })).toHaveClass('absolute', 'left-0', 'max-w-full', 'overflow-hidden')
   })
 
   // Hiding the links shows the hamburger, which widens the cluster; counting it
@@ -107,6 +118,9 @@ describe('TopNav: links that do not fit', () => {
     stubLayout(400)
     setup()
     expect(screen.getByRole('navigation')).not.toHaveClass('invisible')
+    expect(screen.getByRole('navigation')).not.toHaveClass('overflow-hidden')
     expect(screen.getByRole('button', { name: 'openMenu' })).toHaveClass('nav:hidden')
+    fireEvent.click(screen.getByRole('button', { name: 'openMenu' }))
+    expect(screen.getByRole('button', { name: 'searchPlaceholder' })).not.toHaveClass('nav:hidden')
   })
 })

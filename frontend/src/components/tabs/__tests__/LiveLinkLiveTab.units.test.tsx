@@ -18,7 +18,8 @@ import type { VehicleLiveLinkStatus } from '../../../types/livelink'
 import { binarySystemFor, presetUnitsFor, type UnitSet } from '../../../types/units'
 
 // Keys echo, like the global mock. The unknown-unit marker these tests used
-// to resolve from English is gone, so they only check it never comes back.
+// to resolve from English is gone, so they check that neither the old wording
+// nor the raw key ever comes back.
 vi.mock('react-i18next', () => {
   const t = (key: string) => key
   return {
@@ -110,7 +111,7 @@ describe('LiveLinkLiveTab gauges', () => {
     // km (FB-5), and the tab trusts the label (FW-A-r3): 1000 km -> 621 mi.
     expect(await screen.findByText('621')).toBeInTheDocument()
     expect(screen.getByText('mi')).toBeInTheDocument()
-    expect(screen.queryByText('(unknown unit)')).not.toBeInTheDocument()
+    expect(screen.queryByText(/unknown unit|unknownUnit/)).not.toBeInTheDocument()
   })
 
   it('answers per quantity for a custom set the binary system would call metric', async () => {

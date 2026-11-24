@@ -146,7 +146,7 @@ describe('LiveLinkTripsTab', () => {
     // way. 20 km / 1.609344 = 12.43, 12 at the mi adapter's 0 dp.
     render(<LiveLinkTripsTab vin="V1" />)
     expect(await screen.findByText('12 mi')).toBeInTheDocument()
-    expect(screen.queryByText('(unknown unit)')).not.toBeInTheDocument()
+    expect(screen.queryByText(/unknown unit|unknownUnit/)).not.toBeInTheDocument()
   })
 
   it("writes the trip duration in the reader's language", async () => {
@@ -165,7 +165,7 @@ describe('LiveLinkTripsTab', () => {
     render(<LiveLinkTripsTab vin="V1" />)
     await screen.findByRole('button', { name: /Sun, Jul 26/ })
     expect(screen.getByText('--')).toBeInTheDocument()
-    expect(screen.queryByText(/unknown unit/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/unknown unit|unknownUnit/)).not.toBeInTheDocument()
   })
 
   it('shows the no-trips empty state when there are no trips', async () => {

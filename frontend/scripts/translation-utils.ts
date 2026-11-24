@@ -215,7 +215,11 @@ export function expectedKeys(
     }
     if (done.has(base)) continue
     done.add(base)
-    for (const cat of pluralCategories(lang)) {
+    // i18next tries <base>_zero for a count of 0 in every language, so an
+    // English _zero is a form every language has to carry
+    const cats = pluralCategories(lang)
+    if (enSet.has(`${base}_zero`) && !cats.includes('zero')) cats.unshift('zero')
+    for (const cat of cats) {
       out.push({
         key: `${base}_${cat}`,
         enValue: enValues.get(`${base}_${cat}`) ?? enValues.get(`${base}_other`),
@@ -231,10 +235,15 @@ export function expectedKeys(
  * 12.345 with `number` and 12345 without.
  */
 export function placeholderTokens(value: string): Set<string> {
+  // same match i18next uses ({{ then anything up to }}), so a dotted
+  // {{user.name}} counts too
   return new Set(
-    [...value.matchAll(/\{\{\s*(\w+)\s*(?:,\s*([^}]*?)\s*)?\}\}/g)].map(m =>
-      m[2] ? `{{${m[1]}, ${m[2]}}}` : `{{${m[1]}}}`,
-    ),
+    [...value.matchAll(/\{\{(.+?)\}\}/g)].map(m => {
+      const comma = m[1].indexOf(',')
+      const name = (comma < 0 ? m[1] : m[1].slice(0, comma)).trim()
+      const format = comma < 0 ? '' : m[1].slice(comma + 1).trim()
+      return format ? `{{${name}, ${format}}}` : `{{${name}}}`
+    }),
   )
 }
 
@@ -284,6 +293,7 @@ export type LocaleIssueType =
   | 'interpolation'
   | 'protected'
   | 'script'
+  | 'whitespace'
   | 'stale'
   | 'unrecorded'
   | 'draft'
@@ -352,9 +362,17 @@ export function sourceState(raw: string | undefined, enValue: unknown, value: un
   return rec.draft ? 'draft' : 'current'
 }
 
-/** An English copy someone approved (brand, code), still current. */
+const isSameRecord = (raw: string | undefined): boolean => raw?.split(':')[1] === '='
+
+/**
+ * An English copy someone kept on purpose (brand, code), against today's
+ * English. A machine draft that kept English counts too, it just still shows
+ * as a draft.
+ */
 export function isApprovedSame(raw: string | undefined, enValue: unknown, value: unknown): boolean {
-  return value === enValue && raw?.split(':')[1] === '=' && sourceState(raw, enValue, value) !== 'stale'
+  if (value !== enValue || !isSameRecord(raw)) return false
+  const state = sourceState(raw, enValue, value)
+  return state === 'current' || state === 'draft'
 }
 
 export interface AcceptEntry {
@@ -454,6 +472,57 @@ export const WRONG_SCRIPT: Readonly<Record<string, RegExp>> = {
   ru: /[іїєґІЇЄҐ]/,
 }
 
+const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+/**
+ * `span` sits in `value` as a whole token: `--to km` isn't kept by `--to kmph`.
+ * A hyphen after is fine, German writes "ntfy.sh-Themen".
+ */
+export function keepsSpan(value: string, span: string): boolean {
+  return new RegExp(`(?<![\\p{L}\\p{N}_-])${escapeRe(span)}(?![\\p{L}\\p{N}_])`, 'u').test(value)
+}
+
+const edges = (s: string): string => `${s.match(/^\s*/)![0]}|${s.match(/\s*$/)![0]}`
+
+export interface TranslationProblem {
+  type: 'interpolation' | 'protected' | 'script' | 'whitespace'
+  detail?: string
+}
+
+/**
+ * Everything wrong with one translated string, checked the same way by the
+ * gate and by the fill's merge so they can't drift apart.
+ */
+export function checkTranslation(nsKey: string, enValue: string, value: string, lang: string): TranslationProblem[] {
+  const out: TranslationProblem[] = []
+  const enTokens = placeholderTokens(enValue)
+  const trTokens = placeholderTokens(value)
+  const lost = [...enTokens].filter(v => !trTokens.has(v))
+  const added = [...trTokens].filter(v => !enTokens.has(v))
+  const parts: string[] = []
+  if (lost.length > 0) parts.push(`missing ${lost.join(', ')}`)
+  if (added.length > 0) parts.push(`unknown ${added.join(', ')}`)
+  if (value.includes('$t(') && !enValue.includes('$t(')) parts.push('nesting $t(')
+  if (parts.length > 0) out.push({ type: 'interpolation', detail: parts.join('; ') })
+
+  const spans = protectedSpans(nsKey, enValue)
+  const dropped = spans.filter(span => !keepsSpan(value, span))
+  if (dropped.length > 0) out.push({ type: 'protected', detail: dropped.map(d => `missing "${d}"`).join('; ') })
+
+  // a URL or name kept verbatim, or a letter English itself uses (an endonym),
+  // isn't the wrong alphabet
+  const re = WRONG_SCRIPT[lang]
+  if (re !== undefined) {
+    let prose = value
+    for (const span of spans) prose = prose.split(span).join(' ')
+    prose = [...prose].filter(ch => !enValue.includes(ch)).join('')
+    if (re.test(prose)) out.push({ type: 'script' })
+  }
+
+  if (edges(value) !== edges(enValue)) out.push({ type: 'whitespace' })
+  return out
+}
+
 /**
  * Compare one namespace of one language against English. Pure, so the gate's
  * tests can hand it fixtures.
@@ -483,25 +552,17 @@ export function compareNamespace(
       continue
     }
     if (typeof enValue === 'string' && typeof value === 'string') {
-      const enTokens = placeholderTokens(enValue)
-      const trTokens = placeholderTokens(value)
-      const lost = [...enTokens].filter(v => !trTokens.has(v))
-      const added = [...trTokens].filter(v => !enTokens.has(v))
-      if (lost.length > 0 || added.length > 0) {
-        const parts: string[] = []
-        if (lost.length > 0) parts.push(`missing ${lost.join(', ')}`)
-        if (added.length > 0) parts.push(`unknown ${added.join(', ')}`)
-        issues.push({ lang, namespace: ns, type: 'interpolation', key, detail: parts.join('; ') })
-      }
-      if (WRONG_SCRIPT[lang]?.test(value)) issues.push({ lang, namespace: ns, type: 'script', key })
-      const dropped = protectedSpans(`${ns}:${key}`, enValue).filter(span => !value.includes(span))
-      if (dropped.length > 0) {
-        issues.push({ lang, namespace: ns, type: 'protected', key, detail: dropped.map(d => `missing "${d}"`).join('; ') })
+      for (const p of checkTranslation(`${ns}:${key}`, enValue, value, lang)) {
+        issues.push({ lang, namespace: ns, type: p.type, key, ...(p.detail ? { detail: p.detail } : {}) })
       }
     }
     const raw = records?.[`${ns}:${key}`]
-    if (records !== undefined && !isEnglishCopy(value, enValue)) {
-      const state = sourceState(raw, enValue, value)
+    // a copy of English nobody recorded is just untranslated; one with a record
+    // (a kept brand, or a machine draft that kept English) is tracked like any
+    // other translation
+    if (records !== undefined && !(value === enValue && raw === undefined)) {
+      let state = sourceState(raw, enValue, value)
+      if (state === 'unrecorded' && value === enValue && isSameRecord(raw)) state = 'stale'
       if (state !== 'current') issues.push({ lang, namespace: ns, type: state, key })
     }
     if (!isEnglishCopy(value, enValue) || isApprovedSame(raw, enValue, value)) translated++

@@ -11,8 +11,9 @@
  * Usage: bun run scripts/validate-translations.ts
  * Exit code: 1 if any {{interpolation}} placeholder (formatter included) is
  * broken, a protected span (a command, flag, env name or URL) is missing, a
- * translation uses letters from the wrong alphabet, or an English value uses
- * an em-dash or en-dash; 0 otherwise.
+ * translation uses letters from the wrong alphabet, leading or trailing
+ * spaces don't match English, a value is empty (i18next renders "" blank), or
+ * an English value uses an em-dash or en-dash; 0 otherwise.
  * Missing keys are reported as a non-blocking warning (they fall back to
  * English), so this can gate PRs without blocking new English strings.
  */
@@ -48,6 +49,7 @@ function main(): void {
     const interpolation = langIssues.filter(i => i.type === 'interpolation')
     const protectedSpans = langIssues.filter(i => i.type === 'protected')
     const script = langIssues.filter(i => i.type === 'script')
+    const whitespace = langIssues.filter(i => i.type === 'whitespace')
     const stale = langIssues.filter(i => i.type === 'stale')
     const unrecorded = langIssues.filter(i => i.type === 'unrecorded')
     const drafts = langIssues.filter(i => i.type === 'draft')
@@ -65,13 +67,6 @@ function main(): void {
         console.log(`    - ${i.namespace}:${i.key}`)
       }
       if (missing.length > 10) console.log(`    ... and ${missing.length - 10} more`)
-    }
-    if (empty.length > 0) {
-      console.log(`  Empty values (${empty.length}):`)
-      for (const i of empty.slice(0, 5)) {
-        console.log(`    - ${i.namespace}:${i.key}`)
-      }
-      if (empty.length > 5) console.log(`    ... and ${empty.length - 5} more`)
     }
     if (extra.length > 0) {
       console.log(`  Extra keys (${extra.length}):`)
@@ -102,6 +97,14 @@ function main(): void {
       console.log(`  Letters from the wrong alphabet (${script.length}):`)
       for (const i of script) console.log(`    - ${i.namespace}:${i.key}`)
     }
+    if (whitespace.length > 0) {
+      console.log(`  Leading or trailing spaces that don't match English (${whitespace.length}):`)
+      for (const i of whitespace) console.log(`    - ${i.namespace}:${i.key}`)
+    }
+    if (empty.length > 0) {
+      console.log(`  Empty, renders blank instead of English (${empty.length}):`)
+      for (const i of empty) console.log(`    - ${i.namespace}:${i.key}`)
+    }
     if (protectedSpans.length > 0) {
       console.log(`  Changed commands, flags or names (${protectedSpans.length}):`)
       for (const i of protectedSpans) console.log(`    - ${i.namespace}:${i.key}: ${i.detail}`)
@@ -113,6 +116,8 @@ function main(): void {
   const interpolationCount = issues.filter(i => i.type === 'interpolation').length
   const protectedCount = issues.filter(i => i.type === 'protected').length
   const scriptCount = issues.filter(i => i.type === 'script').length
+  const whitespaceCount = issues.filter(i => i.type === 'whitespace').length
+  const emptyCount = issues.filter(i => i.type === 'empty').length
   const dashes = englishDashes(english.valuesByNamespace)
 
   // The hard failures: a broken placeholder or a changed command is a real bug
@@ -123,7 +128,7 @@ function main(): void {
     console.log(`✗ ${dashes.length} English value(s) use an em-dash or en-dash (house style is none):`)
     for (const key of dashes) console.log(`    - ${key}`)
   }
-  if (interpolationCount > 0 || protectedCount > 0 || scriptCount > 0 || dashes.length > 0) {
+  if (interpolationCount > 0 || protectedCount > 0 || scriptCount > 0 || whitespaceCount > 0 || emptyCount > 0 || dashes.length > 0) {
     if (interpolationCount > 0) {
       console.log(`✗ ${interpolationCount} broken interpolation variable(s): these break rendering.`)
     }
@@ -132,6 +137,12 @@ function main(): void {
     }
     if (scriptCount > 0) {
       console.log(`✗ ${scriptCount} translation(s) use letters from another language's alphabet.`)
+    }
+    if (whitespaceCount > 0) {
+      console.log(`✗ ${whitespaceCount} translation(s) gained or lost leading or trailing spaces.`)
+    }
+    if (emptyCount > 0) {
+      console.log(`✗ ${emptyCount} empty translation(s): i18next shows "" as blank, not English. Delete the key instead.`)
     }
     if (missingCount > 0) {
       console.log(`  (${missingCount} missing key(s) also found; those fall back to English and don't block.)`)

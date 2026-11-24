@@ -249,7 +249,7 @@ describe('LiveLinkSessionsTab', () => {
     // The stored value is canonical km, so a metric reader sees it unconverted
     // and an imperial reader sees 62 mi. One number, two honest renderings.
     expect(screen.getByText('100 km')).toBeInTheDocument()
-    expect(screen.queryByText('100 (unknown unit)')).not.toBeInTheDocument()
+    expect(screen.queryByText(/unknown unit|unknownUnit/)).not.toBeInTheDocument()
   })
 
   it('labels a present odometer and leaves an absent one as the absent marker', async () => {

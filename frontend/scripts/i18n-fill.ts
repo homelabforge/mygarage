@@ -7,29 +7,31 @@
  *   bun run scripts/i18n-fill.ts export <dir> [--langs de,fr] [--max 400]
  *   bun run scripts/i18n-fill.ts merge <dir>
  *
- * export writes <chunkId>.chunk.json per chunk plus <lang>.terms-input.json:
- * the short strings two or more keys share (settle those first, so every chunk
- * says the same thing the same way) and the locale's existing translations of
- * short strings. Whoever translates writes <chunkId>.out.json:
+ * export wants a dir with no files from an earlier run. It writes
+ * <chunkId>.chunk.json per chunk plus <lang>.terms-input.json: the short
+ * strings two or more keys share (settle those first, so every chunk says the
+ * same thing the same way) and the locale's existing translations of short
+ * strings. Every chunkId ends in the export's run id, so an old output can't
+ * land on a new chunk. Whoever translates writes <chunkId>.out.json:
  *   { "chunkId": "...", "entries": { "<key>": "translation" | { "same": "why" } } }
- * merge folds every out file it finds back into public/locales, records each
- * accepted value as a machine draft (see i18n-stamp.ts) and writes
- * merge-report.json.
+ * merge reads and checks every out file it finds before it writes anything,
+ * then folds them back into public/locales, records each accepted value as a
+ * machine draft (see i18n-stamp.ts) and writes merge-report.json.
  *
- * Writable keys are missing ones and copies of English nobody approved.
- * Existing translations are never touched; a plural set is accepted or
- * rejected whole.
+ * Writable keys are missing ones and copies of English nobody approved,
+ * checked again at merge against the locale as it is then. Existing
+ * translations are never touched; a plural set is accepted or rejected whole.
  */
 
+import { randomBytes } from 'crypto'
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import {
   EN_DIR,
   LOCALES_DIR,
   SOURCES_DIR,
-  WRONG_SCRIPT,
   discoverLanguages,
-  discoverNamespaces,
+  checkTranslation,
   expectedKeys,
   flattenKeys,
   getNestedValue,
@@ -37,7 +39,6 @@ import {
   isApprovedSame,
   isEnglishCopy,
   loadJson,
-  loadSourceRecords,
   placeholderTokens,
   pluralBase,
   pluralCategories,
@@ -62,7 +63,10 @@ export interface ChunkEntry {
 }
 
 export interface Chunk {
+  /** `<lang>-<ns>-<n>-<runId>`, echoed back by the output. */
   chunkId: string
+  /** One per export, so outputs from an earlier export can't match. */
+  runId: string
   lang: string
   ns: string
   entries: ChunkEntry[]
@@ -87,6 +91,40 @@ function isWritable(nsKey: string, value: unknown, enValue: unknown, records: Re
   return isEnglishCopy(value, enValue) && !isApprovedSame(records[nsKey], enValue, value)
 }
 
+/** English for a key, or its set's `_other` when English lacks that category (pl's _few). */
+function englishFor(key: string, base: string | null, enValue: (k: string) => unknown): unknown {
+  return enValue(key) ?? (base === null ? undefined : enValue(`${base}_other`))
+}
+
+/** The plural members that aren't writable, by category: what merge must find unchanged. */
+function pluralExisting(
+  ns: string,
+  base: string,
+  cats: readonly string[],
+  enValue: (k: string) => unknown,
+  langData: Record<string, unknown>,
+  records: Readonly<Record<string, string>>,
+): Record<string, unknown> {
+  const existing: Record<string, unknown> = {}
+  for (const c of cats) {
+    const k = `${base}_${c}`
+    const v = getNestedValue(langData, k)
+    if (!isWritable(`${ns}:${k}`, v, englishFor(k, base, enValue), records)) existing[c] = v
+  }
+  return existing
+}
+
+function sameExisting(a: Record<string, unknown>, b: Record<string, unknown>): boolean {
+  const keys = Object.keys(a)
+  if (keys.length !== Object.keys(b).length) return false
+  return keys.every(c => c in b && asText(a[c]) === asText(b[c]))
+}
+
+/** A fresh run id for one export. */
+export function newRunId(): string {
+  return randomBytes(4).toString('hex')
+}
+
 /** Writable keys for one language and namespace, cut into chunks of at most `max` (a plural set never splits). */
 export function buildChunks(
   lang: string,
@@ -96,6 +134,7 @@ export function buildChunks(
   langData: Record<string, unknown>,
   records: Readonly<Record<string, string>>,
   max: number,
+  runId: string,
 ): Chunk[] {
   const enSet = new Set(enKeys)
   const cats = pluralCategories(lang)
@@ -118,13 +157,10 @@ export function buildChunks(
       groups.push([entry])
       continue
     }
-    const existing: Record<string, unknown> = {}
-    for (const c of cats) {
-      const k = `${base}_${c}`
-      const v = getNestedValue(langData, k)
-      if (!isWritable(`${ns}:${k}`, v, enValues.get(k) ?? enValues.get(`${base}_other`), records)) existing[c] = v
-    }
-    entry.plural = { base, category: key.slice(base.length + 1), categories: cats, existing }
+    // same set expectedKeys asks for: an English _zero adds zero for every language
+    const baseCats = enSet.has(`${base}_zero`) && !cats.includes('zero') ? ['zero', ...cats] : cats
+    const existing = pluralExisting(ns, base, baseCats, k => enValues.get(k), langData, records)
+    entry.plural = { base, category: key.slice(base.length + 1), categories: baseCats, existing }
     if (!pluralGroups.has(base)) {
       pluralGroups.set(base, [])
       groups.push(pluralGroups.get(base)!)
@@ -133,21 +169,23 @@ export function buildChunks(
   }
 
   const chunks: Chunk[] = []
+  const cut = (entries: ChunkEntry[]): void => {
+    chunks.push({ chunkId: `${lang}-${ns}-${chunks.length}-${runId}`, runId, lang, ns, entries })
+  }
   let current: ChunkEntry[] = []
   for (const group of groups) {
     if (current.length > 0 && current.length + group.length > max) {
-      chunks.push({ chunkId: `${lang}-${ns}-${chunks.length}`, lang, ns, entries: current })
+      cut(current)
       current = []
     }
     current.push(...group)
   }
-  if (current.length > 0) chunks.push({ chunkId: `${lang}-${ns}-${chunks.length}`, lang, ns, entries: current })
+  if (current.length > 0) cut(current)
   return chunks
 }
 
-const edge = (s: string): [string, string] => [s.match(/^\s*/)![0], s.match(/\s*$/)![0]]
 
-function checkValue(entry: ChunkEntry, raw: unknown, lang: string): { value: string; same?: string } | string {
+function checkValue(entry: ChunkEntry, raw: unknown, lang: string, ns: string): { value: string; same?: string } | string {
   if (typeof raw === 'object' && raw !== null && 'same' in raw) {
     const reason = (raw as { same: unknown }).same
     if (typeof reason !== 'string' || reason.trim() === '') return 'same-without-reason'
@@ -156,15 +194,9 @@ function checkValue(entry: ChunkEntry, raw: unknown, lang: string): { value: str
   if (typeof raw !== 'string') return 'not-a-string'
   if (raw.trim() === '') return 'empty'
   if (raw === entry.en) return 'copy'
-  if (raw.includes('$t(')) return 'nesting'
-  const want = new Set(entry.placeholders)
-  const got = placeholderTokens(raw)
-  if (want.size !== got.size || [...want].some(t => !got.has(t))) return `placeholders: want ${[...want].join(' ') || 'none'}`
-  const lost = entry.protected.filter(span => !raw.includes(span))
-  if (lost.length > 0) return `protected: ${lost.join(' ')}`
-  const [a, b] = [edge(entry.en), edge(raw)]
-  if (a[0] !== b[0] || a[1] !== b[1]) return 'whitespace'
-  if (WRONG_SCRIPT[lang]?.test(raw)) return 'wrong-script'
+  // the gate's own check, so nothing merges that the gate would then fail
+  const problems = checkTranslation(`${ns}:${entry.key}`, entry.en, raw, lang)
+  if (problems.length > 0) return problems.map(p => (p.detail ? `${p.type}: ${p.detail}` : p.type)).join('; ')
   return { value: raw }
 }
 
@@ -180,8 +212,10 @@ function setNested(obj: Record<string, unknown>, path: string, value: unknown): 
 
 /**
  * Fold one chunk's output into a locale. Throws on a wrong chunkId; every
- * other problem is a per-key rejection. Throws too if anything outside the
- * accepted keys would change, which no input should be able to cause.
+ * other problem is a per-key rejection. A key that stopped being writable
+ * since export, or a plural set whose kept members moved, is rejected as
+ * changed-since-export. Throws too if anything outside the accepted keys
+ * would change, which no input should be able to cause.
  */
 export function mergeChunk(
   chunk: Chunk,
@@ -195,6 +229,14 @@ export function mergeChunk(
   const byKey = new Map(chunk.entries.map(e => [e.key, e]))
   const accepted = new Map<string, { value: string; same?: string; entry: ChunkEntry }>()
   const failed = new Map<string, string>()
+  const enValue = (k: string): unknown => getNestedValue(enData, k)
+  // Kept plural members have to look the way they did on export, or the set was built against something else.
+  const movedBases = new Set<string>()
+  for (const entry of chunk.entries) {
+    const p = entry.plural
+    if (!p || movedBases.has(p.base)) continue
+    if (!sameExisting(p.existing, pluralExisting(chunk.ns, p.base, p.categories, enValue, langData, records))) movedBases.add(p.base)
+  }
 
   for (const key of Object.keys(out.entries ?? {})) {
     if (!byKey.has(key)) report.rejected.push({ key, reason: 'not-writable' })
@@ -205,13 +247,18 @@ export function mergeChunk(
       failed.set(entry.key, 'not-returned')
       continue
     }
-    // A category English doesn't have (pl's _few) reads English _other, as on export.
-    const enNow = getNestedValue(enData, entry.key) ?? (entry.plural ? getNestedValue(enData, `${entry.plural.base}_other`) : undefined)
+    const enNow = englishFor(entry.key, entry.plural?.base ?? null, enValue)
     if (enNow === undefined || hash8(enNow) !== entry.enHash) {
       failed.set(entry.key, 'english-changed')
       continue
     }
-    const res = checkValue(entry, raw, chunk.lang)
+    // Same rule as export, against the locale as it is now: a translation that landed since wins.
+    const moved = entry.plural !== undefined && movedBases.has(entry.plural.base)
+    if (moved || !isWritable(`${chunk.ns}:${entry.key}`, getNestedValue(langData, entry.key), enNow, records)) {
+      failed.set(entry.key, 'changed-since-export')
+      continue
+    }
+    const res = checkValue(entry, raw, chunk.lang, chunk.ns)
     if (typeof res === 'string') failed.set(entry.key, res)
     else accepted.set(entry.key, { ...res, entry })
   }
@@ -253,24 +300,54 @@ export function assertOnlyChanged(before: Record<string, unknown>, after: Record
 
 // ── CLI ─────────────────────────────────────────────────────────────────────
 
-function exportAll(dir: string, langs: string[], max: number): void {
-  const namespaces = discoverNamespaces()
+/** Where export and merge read English and write locales and records. Tests point these at a temp tree. */
+export interface FillRoots {
+  enDir: string
+  localesDir: string
+  sourcesDir: string
+}
+
+const DEFAULT_ROOTS: FillRoots = { enDir: EN_DIR, localesDir: LOCALES_DIR, sourcesDir: SOURCES_DIR }
+
+const namespacesIn = (enDir: string): string[] =>
+  readdirSync(enDir).filter(f => f.endsWith('.json')).map(f => f.slice(0, -'.json'.length))
+
+function readRecords(roots: FillRoots, lang: string): Record<string, string> {
+  const path = join(roots.sourcesDir, `${lang}.json`)
+  return existsSync(path) ? (loadJson(path) as Record<string, string>) : {}
+}
+
+const isFillFile = (f: string): boolean =>
+  f.endsWith('.chunk.json') || f.endsWith('.out.json') || f.endsWith('.terms-input.json') || f === 'merge-report.json'
+
+/** Write one export's chunks into `dir`, which must hold nothing from an earlier run. Returns the chunks. */
+export function exportAll(dir: string, langs: string[], max: number, roots: FillRoots = DEFAULT_ROOTS): Chunk[] {
+  // Refuse rather than tidy up: an old out file next to new chunks is how stale work gets merged.
+  const leftovers = readdirSync(dir).filter(isFillFile)
+  if (leftovers.length > 0) {
+    const list = leftovers.slice(0, 3).join(', ') + (leftovers.length > 3 ? ', ...' : '')
+    throw new Error(`${dir} holds files from an earlier run (${list}); export into an empty dir`)
+  }
+  const runId = newRunId()
+  const namespaces = namespacesIn(roots.enDir)
+  const written: Chunk[] = []
   let total = 0
   for (const lang of langs) {
-    const records = loadSourceRecords(lang)
+    const records = readRecords(roots, lang)
     // Short strings two or more keys share: settle those once per language
     // so every chunk uses the same word for the same thing.
     const shortUses = new Map<string, number>()
     const shortKnown: Record<string, string> = {}
     let n = 0
     for (const ns of namespaces) {
-      const en = loadJson(join(EN_DIR, `${ns}.json`))
+      const en = loadJson(join(roots.enDir, `${ns}.json`))
       const enKeys = flattenKeys(en)
       const enValues = new Map(enKeys.map(k => [k, getNestedValue(en, k)]))
-      const path = join(LOCALES_DIR, lang, `${ns}.json`)
+      const path = join(roots.localesDir, lang, `${ns}.json`)
       const data = existsSync(path) ? loadJson(path) : {}
-      for (const chunk of buildChunks(lang, ns, enKeys, enValues, data, records, max)) {
+      for (const chunk of buildChunks(lang, ns, enKeys, enValues, data, records, max, runId)) {
         writeFileSync(join(dir, `${chunk.chunkId}.chunk.json`), JSON.stringify(chunk, null, 2) + '\n')
+        written.push(chunk)
         n += chunk.entries.length
         for (const e of chunk.entries) {
           if (e.en.split(/\s+/).length <= 3 && e.placeholders.length === 0) shortUses.set(e.en, (shortUses.get(e.en) ?? 0) + 1)
@@ -287,49 +364,108 @@ function exportAll(dir: string, langs: string[], max: number): void {
     console.log(`[${lang}] ${n} entries exported, ${todo.length} shared short strings to settle first`)
     total += n
   }
-  console.log(`${total} entries in ${dir}`)
+  console.log(`${total} entries in ${dir} (run ${runId})`)
+  return written
 }
 
-function mergeAll(dir: string): void {
+function readJsonFile(path: string): unknown {
+  try {
+    return JSON.parse(readFileSync(path, 'utf-8'))
+  } catch (e) {
+    throw new Error(`${path}: ${(e as Error).message}`, { cause: e })
+  }
+}
+
+const isPlainObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v)
+
+function asChunk(raw: unknown): Chunk {
+  const c = raw as Partial<Chunk>
+  if (!isPlainObject(raw) || typeof c.runId !== 'string' || typeof c.chunkId !== 'string' || typeof c.lang !== 'string' || typeof c.ns !== 'string' || !Array.isArray(c.entries)) {
+    throw new Error('not a chunk this version of the fill wrote; export again')
+  }
+  return raw as unknown as Chunk
+}
+
+function asOutput(raw: unknown): ChunkOutput {
+  if (!isPlainObject(raw)) throw new Error('output is not an object')
+  if (!isPlainObject(raw.entries)) throw new Error('output entries must be an object of key to translation')
+  return raw as unknown as ChunkOutput
+}
+
+interface PendingLocale {
+  before: Record<string, unknown>
+  data: Record<string, unknown>
+  owned: Set<string>
+}
+
+/** Merge every output in `dir`. Checks them all first, so a bad one means nothing gets written. */
+export function mergeAll(dir: string, roots: FillRoots = DEFAULT_ROOTS): MergeReport[] {
   const reports: MergeReport[] = []
   const chunkFiles = readdirSync(dir).filter(f => f.endsWith('.chunk.json')).sort()
-  const recordCache = new Map<string, Record<string, string>>()
+  const enCache = new Map<string, Record<string, unknown>>()
+  const locales = new Map<string, PendingLocale>()
+  const records = new Map<string, Record<string, string>>()
+  const chunkIds = new Set<string>()
+  let runId: string | undefined
+
+  // Pass 1: everything in memory. Any throw here leaves the disk as it was.
   for (const file of chunkFiles) {
-    const chunk = JSON.parse(readFileSync(join(dir, file), 'utf-8')) as Chunk
-    const outPath = join(dir, `${chunk.chunkId}.out.json`)
-    if (!existsSync(outPath)) {
-      console.log(`  ${chunk.chunkId}: no output yet, skipped`)
-      continue
+    try {
+      const chunk = asChunk(readJsonFile(join(dir, file)))
+      runId ??= chunk.runId
+      if (chunk.runId !== runId) throw new Error(`mixes runs ${runId} and ${chunk.runId}; merge one export at a time`)
+      chunkIds.add(chunk.chunkId)
+      const outPath = join(dir, `${chunk.chunkId}.out.json`)
+      if (!existsSync(outPath)) {
+        console.log(`  ${chunk.chunkId}: no output yet, skipped`)
+        continue
+      }
+      const out = asOutput(readJsonFile(outPath))
+      if (!enCache.has(chunk.ns)) enCache.set(chunk.ns, loadJson(join(roots.enDir, `${chunk.ns}.json`)))
+      const path = join(roots.localesDir, chunk.lang, `${chunk.ns}.json`)
+      if (!locales.has(path)) {
+        const before = existsSync(path) ? loadJson(path) : {}
+        locales.set(path, { before, data: before, owned: new Set() })
+      }
+      const locale = locales.get(path)!
+      if (!records.has(chunk.lang)) records.set(chunk.lang, readRecords(roots, chunk.lang))
+      const res = mergeChunk(chunk, out, enCache.get(chunk.ns)!, locale.data, records.get(chunk.lang)!)
+      locale.data = res.data
+      for (const e of chunk.entries) locale.owned.add(e.key)
+      records.set(chunk.lang, res.records)
+      reports.push(res.report)
+      console.log(`  ${chunk.chunkId}: ${res.report.accepted} accepted, ${res.report.rejected.length} rejected, ${res.report.same.length} same`)
+    } catch (e) {
+      throw new Error(`${file}: ${(e as Error).message}; nothing written`, { cause: e })
     }
-    const out = JSON.parse(readFileSync(outPath, 'utf-8')) as ChunkOutput
-    const enData = loadJson(join(EN_DIR, `${chunk.ns}.json`))
-    const path = join(LOCALES_DIR, chunk.lang, `${chunk.ns}.json`)
-    const before = existsSync(path) ? loadJson(path) : {}
-    if (!recordCache.has(chunk.lang)) recordCache.set(chunk.lang, loadSourceRecords(chunk.lang))
-    const res = mergeChunk(chunk, out, enData, before, recordCache.get(chunk.lang)!)
-    writeJson(path, res.data)
-    // Read it back: the file on disk has to keep everything it had.
-    const written = loadJson(path)
-    assertOnlyChanged(before, written, new Set(chunk.entries.map(e => e.key)))
-    recordCache.set(chunk.lang, res.records)
-    reports.push(res.report)
-    console.log(`  ${chunk.chunkId}: ${res.report.accepted} accepted, ${res.report.rejected.length} rejected, ${res.report.same.length} same`)
   }
-  const namespaces = discoverNamespaces()
-  for (const [lang, records] of recordCache) {
+  for (const f of readdirSync(dir).filter(f => f.endsWith('.out.json'))) {
+    if (!chunkIds.has(f.slice(0, -'.out.json'.length))) console.log(`  ${f}: matches no chunk in this export, ignored`)
+  }
+
+  // Pass 2: records before values. A record whose value never landed is
+  // harmless; a value with no record is a draft nobody can find.
+  const namespaces = namespacesIn(roots.enDir)
+  for (const [lang, recs] of records) {
     const order: string[] = []
     for (const ns of namespaces) {
-      const en = loadJson(join(EN_DIR, `${ns}.json`))
+      const en = enCache.get(ns) ?? loadJson(join(roots.enDir, `${ns}.json`))
       const enKeys = flattenKeys(en)
       const enValues = new Map(enKeys.map(k => [k, getNestedValue(en, k)]))
       for (const { key } of expectedKeys(enKeys, enValues, lang)) order.push(`${ns}:${key}`)
     }
-    writeJson(join(SOURCES_DIR, `${lang}.json`), Object.fromEntries(order.filter(k => k in records).map(k => [k, records[k]])))
+    writeJson(join(roots.sourcesDir, `${lang}.json`), Object.fromEntries(order.filter(k => k in recs).map(k => [k, recs[k]])))
+  }
+  for (const [path, locale] of locales) {
+    writeJson(path, locale.data)
+    // Read it back: the file on disk has to keep everything it had.
+    assertOnlyChanged(locale.before, loadJson(path), locale.owned)
   }
   writeFileSync(join(dir, 'merge-report.json'), JSON.stringify(reports, null, 2) + '\n')
   const acc = reports.reduce((s, r) => s + r.accepted, 0)
   const rej = reports.reduce((s, r) => s + r.rejected.length, 0)
   console.log(`${acc} accepted, ${rej} rejected; report in ${join(dir, 'merge-report.json')}`)
+  return reports
 }
 
 function main(): void {
@@ -342,10 +478,15 @@ function main(): void {
     console.error('usage: i18n-fill.ts export|merge <existing dir>')
     process.exit(1)
   }
-  if (cmd === 'export') exportAll(dir, arg('--langs')?.split(',') ?? discoverLanguages(), Number(arg('--max') ?? 400))
-  else if (cmd === 'merge') mergeAll(dir)
-  else {
-    console.error(`unknown command: ${cmd}`)
+  try {
+    if (cmd === 'export') exportAll(dir, arg('--langs')?.split(',') ?? discoverLanguages(), Number(arg('--max') ?? 400))
+    else if (cmd === 'merge') mergeAll(dir)
+    else {
+      console.error(`unknown command: ${cmd}`)
+      process.exit(1)
+    }
+  } catch (e) {
+    console.error((e as Error).message)
     process.exit(1)
   }
 }

@@ -53,11 +53,14 @@ export default function TopNav() {
     <header className="sticky top-0 z-nav border-b border-hair bg-(--color-nav) pt-safe-top pr-safe-right pl-safe-left backdrop-blur-[12px]">
       <div ref={rowRef} data-nav-row="" className="mx-auto flex h-[62px] max-w-[1320px] items-center gap-6 px-[clamp(16px,3vw,30px)]">
         <Logo />
-        {/* Still laid out when hidden, so the observer can tell when the links fit again. */}
+        {/* Still laid out when hidden, so the observer can tell when the links fit
+            again. Clipped to the bar so the hidden links can't scroll the page
+            sideways; scrollWidth still reads their full width. */}
         <nav
           ref={navRef}
+          data-nav="links"
           aria-hidden={linksDontFit || undefined}
-          className={`hidden items-center gap-0.5 nav:flex ${linksDontFit ? 'invisible absolute' : ''}`}
+          className={`hidden items-center gap-0.5 nav:flex ${linksDontFit ? 'invisible absolute left-0 max-w-full overflow-hidden' : ''}`}
         >
           {DESKTOP_NAV_ITEMS.map((item) => (
             <TopNavLink key={item.to} to={item.to} label={t(item.labelKey)} variant="inline" />
@@ -71,6 +74,7 @@ export default function TopNav() {
             variant="surface"
             aria-expanded={menuOpen}
             onClick={() => setMenuOpen((v) => !v)}
+            data-nav="hamburger"
             className={linksDontFit ? 'max-md:hidden' : 'max-md:hidden nav:hidden'}
           />
         </div>

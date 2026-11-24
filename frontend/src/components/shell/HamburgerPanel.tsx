@@ -30,7 +30,8 @@ export default function HamburgerPanel({ onNavigate, wide = false }: HamburgerPa
       className={`hidden border-t border-hair bg-(--color-nav) px-[clamp(16px,3vw,30px)] pb-3.5 pt-2 ${wide ? 'md:block' : 'md:max-nav:block'}`}
     >
       <div className="mx-auto flex max-w-[1320px] flex-col gap-0.5">
-        <NavSearch placeholder={t('searchPlaceholder')} className="my-1.5 w-full" />
+        {/* At 900 and up the bar shows its own search, so the wide panel skips this one. */}
+        <NavSearch placeholder={t('searchPlaceholder')} className={`my-1.5 w-full ${wide ? 'nav:hidden' : ''}`} />
         {DESKTOP_NAV_ITEMS.map((item) => (
           <TopNavLink
             key={item.to}

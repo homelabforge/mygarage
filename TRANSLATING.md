@@ -173,8 +173,11 @@ bun run i18n:stamp --list draft de
 ```
 
 Fix any you'd word differently and open a PR. A maintainer accepts the
-corrected strings when merging. `--list stale de` lists translations whose
-English changed after they were made.
+corrected strings when merging. If you read them all and they're fine as they
+are, say so in an issue or PR: a maintainer approves the lot with
+`bun run i18n:stamp --accept-drafts de`, or only the keys you name with
+`--accept-drafts de common:save vehicles:fuelList.title`. `--list stale de`
+lists translations whose English changed after they were made.
 
 ## Supported Languages
 
@@ -225,21 +228,32 @@ translation was made against, so an English edit shows the translation as
 stale. The validator lists stale, unrecorded and draft keys without failing.
 
 - `bun run i18n:stamp` prints the counts per language.
-- `bun run i18n:stamp --accept de --base <merge-base>` records every unrecorded
-  de key against the English at the contributor's merge-base, so a key whose
-  English moved after they branched stays stale. It skips stale keys and
-  copies of English.
+- `bun run i18n:stamp --accept de --base <merge-base>` records the unrecorded
+  de keys the PR changed (their value differs from the one at the merge-base)
+  against the English at that merge-base, so a key whose English moved after
+  the PR branched stays stale. It skips stale keys, drafts and copies of English.
+  Unrecorded keys the PR didn't touch are skipped and listed: check those and
+  accept them one at a time. A `--base` that isn't a commit fails without
+  writing anything.
 - `bun run i18n:stamp --accept de:vehicles:fuelList.title --base <ref>` records
   one key whatever its state. That's how a stale key or a draft gets cleared,
   and how an English copy (a brand name) gets approved.
+- `bun run i18n:stamp --list draft de` lists de's machine drafts. Once someone
+  has read them, `bun run i18n:stamp --accept-drafts de` approves all of them,
+  or `--accept-drafts de <ns:key> ...` only those keys. It only touches drafts
+  whose English hasn't moved; a listed key that isn't one fails the run.
 
 `--base` defaults to `HEAD`, which is right for your own edits. For a PR use
 `git merge-base main <pr-branch>`.
 
 `scripts/i18n-fill.ts` drafts missing strings: `export` writes chunks for
-translators (people or agents), `merge` takes them back and refuses anything
-that breaks a placeholder, a protected span, edge whitespace or the alphabet,
-or that touches a key it didn't export. Merged strings are recorded as drafts.
+translators (people or agents) into an empty directory, `merge` takes them back
+and refuses anything that breaks a placeholder, a protected span, edge
+whitespace or the alphabet, or that touches a key it didn't export. Each export
+gets its own run id, so an output from an older export never merges into a new
+one. A key someone translated after the export keeps their translation. Merge
+checks every output before it writes anything, and merged strings are recorded
+as drafts.
 
 ## Questions?
 
