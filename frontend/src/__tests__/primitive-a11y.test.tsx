@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { Box, Trash2, Wrench } from 'lucide-react'
 import { render, screen, fireEvent } from './test-utils'
 import {
-  Avatar, Badge, Button, Card, CardHeader, Checkbox, Chip, DataTable, Drawer,
+  Avatar, Badge, Button, Card, CardHeader, Checkbox, Chip, DataTable, Dialog, Drawer,
   Dropdown, EmptyState, Field, IconButton, Input, ListRow, Mono, PageContainer,
   PageHeader, ProgressMeter, SearchField, Select, ShareBar, Stepper, Tabs, Textarea, Tile,
   Toggle,
@@ -161,6 +161,9 @@ describe('primitive semantics', () => {
         <Drawer open onClose={() => {}} title="Add Fuel" footer={<Button>Save</Button>}>
           <Input aria-label="Litres" />
         </Drawer>
+        <Dialog open onClose={() => {}} title="Remove vehicle" closeLabel="Close" footer={<Button variant="danger">Remove</Button>}>
+          <p>Gone for good.</p>
+        </Dialog>
         <Stepper
           label="Progress"
           valueText="Step 2 of 3"
@@ -177,8 +180,8 @@ describe('primitive semantics', () => {
         <ProgressMeter label="Oil change" percent={60} tone="warning" />
       </>,
     )
-    // Scan document.body rather than the render container: Drawer portals to
-    // body, and body already contains the container, so this one string
+    // Scan document.body rather than the render container: Drawer and Dialog
+    // portal to body, and body already contains the container, so this one string
     // covers everything rendered above.
     const html = document.body.innerHTML
 
@@ -200,7 +203,7 @@ describe('primitive semantics', () => {
     // Raw white/black on any colour-bearing utility is forbidden — text-white
     // on a solid accent/status fill is a Task-24-class AA failure, and there
     // is no token for it to route through. The ONE sanctioned exception is
-    // Drawer's dimming scrim (bg-black/50 = rgba(0,0,0,.5)), which is a
+    // the Drawer/Dialog dimming scrim (bg-black/50 = rgba(0,0,0,.5)), which is a
     // dimming layer, not a colour role. Everything else — bg-white,
     // text-white/80, border-black, any opacity suffix — fails. (An earlier
     // version of this assertion, `/\b(bg|text)-(white|black)\b(?!\/)/`, both

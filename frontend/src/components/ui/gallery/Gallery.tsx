@@ -13,6 +13,7 @@ import {
   Checkbox,
   Chip,
   DataTable,
+  Dialog,
   Drawer,
   Dropdown,
   EmptyState,
@@ -79,6 +80,7 @@ export default function Gallery() {
   const [toggleOn, setToggleOn] = useState(true)
   const [searchValue, setSearchValue] = useState('')
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const [dialogOpen, setDialogOpen] = useState(false)
 
   return (
     <div className="mx-auto max-w-[1320px] px-6 py-10">
@@ -391,6 +393,26 @@ export default function Gallery() {
           </Field>
           <p className="text-sm text-text-mute">Tab is trapped. Escape closes. Focus restores to the trigger. Type in the field — focus must stay put.</p>
         </Drawer>
+      </Section>
+
+      <Section title="Dialog" note="Centred, above nested drawers (z-dialog 80). Esc closes the top layer only. Focus starts on Cancel here.">
+        <Button onClick={() => setDialogOpen(true)}>Open dialog</Button>
+        <Dialog
+          open={dialogOpen}
+          onClose={() => setDialogOpen(false)}
+          title="Remove vehicle"
+          closeLabel="Close"
+          size="sm"
+          initialFocus="cancel"
+          footer={
+            <>
+              <Button variant="secondary" data-dialog-cancel onClick={() => setDialogOpen(false)}>Cancel</Button>
+              <Button variant="danger" onClick={() => setDialogOpen(false)}>Remove</Button>
+            </>
+          }
+        >
+          <p className="text-sm text-text-mute">Shift+Tab from Cancel wraps to the header X. Backdrop click closes.</p>
+        </Dialog>
       </Section>
 
       <Section title="Stepper" note="Extracted from two near-identical wizard copies. Now announces progress as a progressbar.">

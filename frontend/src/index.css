@@ -145,6 +145,10 @@
   --z-index-drawer:           60;
   --z-index-drawer-nested-backdrop: 65;
   --z-index-drawer-nested:          70;
+  /* Dialogs sit above drawer-nested (65/70), so a confirm from a nested
+     drawer is on top. Toasts still beat everything. */
+  --z-index-dialog-backdrop: 75;
+  --z-index-dialog:          80;
 
   /* Motion — design §4.8. --ease-* generates ease-standard. --duration-*
      does NOT generate a named utility despite being a documented namespace

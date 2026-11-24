@@ -2,7 +2,8 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import type { IconType } from './types'
-import { markDrawerClosed, markDrawerOpen } from './openDrawers'
+import { FOCUSABLE_SELECTOR, FORM_FIELD_SELECTOR, isRendered, trapTab } from './focusTrap'
+import { isTopLayer, pushLayer, syncInert, type ModalLayer } from './modalStack'
 
 /** Design §5.3. `2xs` stays separate from `xs` on purpose: folding them would
  *  widen the equipment drawer by 40px and loosen its clamp. */
@@ -19,64 +20,10 @@ const WIDTH: Record<DrawerWidth, string> = {
   xl: '[--drawer-w:min(820px,97vw)]',
 }
 
-/**
- * Shared by the initial-focus query (scoped to the body slot only, so it
- * never lands on the header's Close button — see Finding 1 in Task 20's
- * review) and the Tab-trap query (scoped to the whole panel, where the
- * Close button must stay reachable by Tab). One constant so the two
- * selector strings cannot drift apart.
- */
-const FOCUSABLE_SELECTOR =
-  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled])'
-/** Initial focus tries these first: a box the user can type or pick in, so a
- *  Revoke or Delete listed above the form never gets it. */
-const FORM_FIELD_SELECTOR =
-  'input:not([disabled]):not([readonly]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]):not([readonly])'
-/** Tab-trap only: also honours elements made focusable purely via tabindex. */
-const TAB_TRAP_SELECTOR = `${FOCUSABLE_SELECTOR}, [tabindex]:not([tabindex="-1"])`
-
-/**
- * Whether a candidate is rendered, so focus() can land on it. A display:none
- * file input (an upload's, ahead of its Select file button) matches the
- * selectors but focus() on it does nothing. Uses checkVisibility where the
- * browser has it; jsdom doesn't, so it walks up for `hidden` and display:none.
- */
-function isRendered(el: HTMLElement): boolean {
-  if (typeof el.checkVisibility === 'function') return el.checkVisibility({ visibilityProperty: true })
-  for (let node: HTMLElement | null = el; node; node = node.parentElement) {
-    if (node.hidden || window.getComputedStyle(node).display === 'none') return false
-  }
-  return window.getComputedStyle(el).visibility !== 'hidden'
-}
-
 /** Added on top of the measured transition duration before the closing
  *  timeout fallback fires — covers rAF/paint scheduling jitter so it never
  *  races a `transitionend` that is genuinely still in flight. */
 const TRANSITION_FALLBACK_BUFFER_MS = 50
-
-/** Background inertness (design §4.6, deferred from P1). Ref-counted so the app
- *  root stays inert while ANY drawer — including a nested stack — is open, and
- *  clears only when the last one closes. Portalled drawers live in <body>,
- *  siblings of #root, so #root going inert never disables the drawer itself.
- *  The count lives in openDrawers.ts so AppToaster can watch it too. */
-function acquireBackgroundInert(): void {
-  if (markDrawerOpen() === 1) {
-    const root = document.getElementById('root')
-    if (root) {
-      root.setAttribute('inert', '')
-      root.setAttribute('aria-hidden', 'true')
-    }
-  }
-}
-function releaseBackgroundInert(): void {
-  if (markDrawerClosed() === 0) {
-    const root = document.getElementById('root')
-    if (root) {
-      root.removeAttribute('inert')
-      root.removeAttribute('aria-hidden')
-    }
-  }
-}
 
 /**
  * Reads the panel's own computed `transition-duration` — which is owned by
@@ -104,8 +51,8 @@ interface DrawerProps {
   footer?: ReactNode
   /** Accessible name for the close control. Callers translate. */
   closeLabel?: string
-  /** Renders at +10 (z-drawer-nested*) and isolates Escape to this drawer so a
-   *  nested drawer's Esc does not also close its ancestor (design §4.9). */
+  /** Renders at +10 (z-drawer-nested*) and outranks a plain drawer in the
+   *  modal stack, so its Esc never closes the ancestor too (design §4.9). */
   nested?: boolean
   children: ReactNode
 }
@@ -126,10 +73,9 @@ interface DrawerProps {
  * callers is P3 work with its own test updates.
  *
  * Motion is §4.8's: a .2s ease-out slide on the panel and a .15s fade on the
- * backdrop, both consuming the Task 1 duration tokens. Body scroll is locked
- * while open (§4.6). Background *inertness* — inert/aria-hidden on the app
- * root — is ref-counted below so a stacked (nested) drawer only clears it
- * once the last one closes; see plan §13.
+ * backdrop, both consuming the Task 1 duration tokens. Scroll lock, inert,
+ * Escape, Tab and focus restore all belong to the modal stack (modalStack.ts),
+ * shared with Dialog, so the drawer just registers a layer while it's open.
  */
 export default function Drawer({
   open,
@@ -142,9 +88,10 @@ export default function Drawer({
   nested = false,
   children,
 }: DrawerProps) {
+  const backdropRef = useRef<HTMLDivElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
-  const restoreRef = useRef<HTMLElement | null>(null)
+  const layerRef = useRef<ModalLayer | null>(null)
   const [entered, setEntered] = useState(false)
   // Whether the panel is still in the DOM. True the whole time `open` is
   // true, and for the tail of a closing transition after `open` flips to
@@ -155,8 +102,8 @@ export default function Drawer({
   // onClose is held in a ref and deliberately NOT in the effect's dep array.
   // Every consumer passes an inline arrow, so its identity changes on every
   // parent render; with [open, onClose] the open effect would tear down and
-  // re-run on each keystroke in any controlled input, and its cleanup focuses
-  // restoreRef, so focus would jump back to the trigger after every character
+  // re-run on each keystroke in any controlled input, and its release focuses
+  // the trigger, so focus would jump back to it after every character
   // typed in all 15 record forms. The gallery can't catch this: its demo Input
   // is uncontrolled.
   const onCloseRef = useRef(onClose)
@@ -167,34 +114,16 @@ export default function Drawer({
       setEntered(false)
       return
     }
-    restoreRef.current = document.activeElement as HTMLElement | null
-
-    // Scroll lock (§4.6). Restored on close, including on unmount.
-    const previousOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    acquireBackgroundInert()
-
-    const onKey = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') {
-        if (nested) event.stopImmediatePropagation()
-        onCloseRef.current()
-        return
-      }
-      if (event.key !== 'Tab') return
-      const focusable = panelRef.current?.querySelectorAll<HTMLElement>(TAB_TRAP_SELECTOR)
-      if (!focusable || focusable.length === 0) return
-      const first = focusable[0]
-      const last = focusable[focusable.length - 1]
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault()
-        last.focus()
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault()
-        first.focus()
-      }
+    const layer: ModalLayer = {
+      kind: 'drawer',
+      nested,
+      nodes: () => [backdropRef.current, panelRef.current].filter((node) => node !== null),
+      onEscape: () => onCloseRef.current(),
+      onTab: (event) => trapTab(event, panelRef.current),
+      restoreTo: document.activeElement as HTMLElement | null,
     }
-
-    document.addEventListener('keydown', onKey, nested)
+    layerRef.current = layer
+    const release = pushLayer(layer)
 
     // Next frame, so the browser paints the off-screen start state first and
     // the transition actually runs instead of being skipped.
@@ -202,10 +131,8 @@ export default function Drawer({
 
     return () => {
       cancelAnimationFrame(raf)
-      document.removeEventListener('keydown', onKey, nested)
-      document.body.style.overflow = previousOverflow
-      releaseBackgroundInert()
-      restoreRef.current?.focus()
+      layerRef.current = null
+      release()
     }
   }, [open, nested])
 
@@ -268,17 +195,25 @@ export default function Drawer({
     }
   }, [open])
 
+  // A stay-mounted drawer has no nodes yet when it pushes its layer, so the
+  // stack gets another go at inert once they exist.
+  useEffect(() => {
+    if (rendered) syncInert()
+  }, [rendered])
+
   // Initial focus. `rendered` is in the deps so this runs again once the
   // panel exists: a drawer that stays mounted closed renders null on the
   // render that flips `open`, so the refs are still empty the first time.
-  // Declared after the first effect so restoreRef grabs the trigger before
+  // Declared after the first effect so the layer grabs the trigger before
   // focus moves. Still no children in the deps: a re-render must never move
-  // focus (see onCloseRef).
+  // focus (see onCloseRef). Only the top layer takes focus, so a parent
+  // mounting with its nested drawer can't steal it back.
   useEffect(() => {
     if (!open) return
     const body = bodyRef.current
     const panel = panelRef.current
     if (!body || !panel) return
+    if (!layerRef.current || !isTopLayer(layerRef.current)) return
     // Body slot first, never the header's Close (Finding 1): its first form
     // field, else its first focusable, skipping anything not rendered. The
     // panel is the fallback so focus never drops to <body>; the footer never gets it.
@@ -321,6 +256,7 @@ export default function Drawer({
   return createPortal(
     <>
       <div
+        ref={backdropRef}
         data-testid="drawer-backdrop"
         onClick={onClose}
         className={`fixed inset-0 ${backdropZ} bg-black/50 transition-opacity duration-(--duration-fast) ease-standard motion-reduce:transition-none ${

@@ -1,0 +1,127 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { render, screen, fireEvent } from '../../../__tests__/test-utils'
+import Dialog from '../Dialog'
+
+let root: HTMLElement
+beforeEach(() => {
+  root = document.createElement('div')
+  root.id = 'root'
+  document.body.appendChild(root)
+})
+afterEach(() => {
+  root.remove()
+})
+
+describe('Dialog', () => {
+  it('renders role=dialog with the title as its name, portaled outside #root', () => {
+    render(
+      <Dialog open onClose={() => {}} title="Remove vehicle"><p>Gone for good.</p></Dialog>,
+      { container: root },
+    )
+    const dialog = screen.getByRole('dialog', { name: 'Remove vehicle' })
+    expect(dialog).toHaveAttribute('aria-modal', 'true')
+    expect(screen.getByRole('heading', { level: 2, name: 'Remove vehicle' })).toBeInTheDocument()
+    expect(root.contains(dialog)).toBe(false)
+    expect(dialog.closest('[inert]')).toBeNull()
+    expect(root).toHaveAttribute('inert')
+  })
+
+  it('renders nothing when closed', () => {
+    render(<Dialog open={false} onClose={() => {}} title="Remove vehicle">x</Dialog>, { container: root })
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('alertdialog takes its name from labelledBy', () => {
+    render(
+      <Dialog open onClose={() => {}} role="alertdialog" labelledBy="confirm-msg" describedBy="confirm-detail">
+        <p id="confirm-msg">Delete this fuel record?</p>
+        <p id="confirm-detail">This can't be undone.</p>
+      </Dialog>,
+      { container: root },
+    )
+    const dialog = screen.getByRole('alertdialog', { name: 'Delete this fuel record?' })
+    expect(dialog).toHaveAccessibleDescription("This can't be undone.")
+  })
+
+  it('shows a header X only with a title and a closeLabel', () => {
+    const onClose = vi.fn()
+    const { rerender } = render(
+      <Dialog open onClose={onClose} title="Decode VIN" closeLabel="Close">x</Dialog>,
+      { container: root },
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    expect(onClose).toHaveBeenCalledOnce()
+
+    rerender(<Dialog open onClose={onClose} labelledBy="m" closeLabel="Close"><p id="m">x</p></Dialog>)
+    expect(screen.queryByRole('button', { name: 'Close' })).not.toBeInTheDocument()
+  })
+
+  it('Tab wraps inside the dialog', () => {
+    render(
+      <Dialog open onClose={() => {}} labelledBy="m">
+        <p id="m">Pick one</p>
+        <button>First</button>
+        <button>Last</button>
+      </Dialog>,
+      { container: root },
+    )
+    const first = screen.getByRole('button', { name: 'First' })
+    const last = screen.getByRole('button', { name: 'Last' })
+    last.focus()
+    fireEvent.keyDown(last, { key: 'Tab' })
+    expect(document.activeElement).toBe(first)
+    fireEvent.keyDown(first, { key: 'Tab', shiftKey: true })
+    expect(document.activeElement).toBe(last)
+  })
+
+  it('initialFocus first-field focuses the first field, not a button before it', () => {
+    render(
+      <Dialog open onClose={() => {}} title="Upload">
+        <button>Browse</button>
+        <input aria-label="Description" />
+      </Dialog>,
+      { container: root },
+    )
+    expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Description' }))
+  })
+
+  it('initialFocus cancel focuses the cancel button', () => {
+    render(
+      <Dialog
+        open
+        onClose={() => {}}
+        title="Remove vehicle"
+        initialFocus="cancel"
+        footer={
+          <>
+            <button data-dialog-cancel>Cancel</button>
+            <button>Remove</button>
+          </>
+        }
+      >
+        <input aria-label="Reason" />
+      </Dialog>,
+      { container: root },
+    )
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Cancel' }))
+  })
+
+  it('backdrop click calls onClose, a click in the panel does not', () => {
+    const onClose = vi.fn()
+    render(
+      <Dialog open onClose={onClose} title="Remove vehicle"><p>Body</p></Dialog>,
+      { container: root },
+    )
+    fireEvent.click(screen.getByText('Body'))
+    expect(onClose).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByTestId('dialog-backdrop'))
+    expect(onClose).toHaveBeenCalledOnce()
+  })
+
+  it('Esc calls onClose', () => {
+    const onClose = vi.fn()
+    render(<Dialog open onClose={onClose} title="Remove vehicle"><button>OK</button></Dialog>, { container: root })
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' })
+    expect(onClose).toHaveBeenCalledOnce()
+  })
+})
