@@ -3,6 +3,7 @@ import { mkdtempSync, readFileSync, statSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import { renderStatus, statusDrift, writeStatus } from '../../scripts/generate-translation-status'
+import { analyzeLocale, discoverLanguages, discoverNamespaces, loadEnglishData } from '../../scripts/translation-utils'
 
 describe('generate-translation-status --check', () => {
   const files = renderStatus()
@@ -31,5 +32,20 @@ describe('generate-translation-status --check', () => {
       '.github/badges/translations.json',
       'TRANSLATIONS.md',
     ])
+  })
+})
+
+describe('TRANSLATIONS.md drafts column', () => {
+  // Machine drafts count as translated, so the percentage alone hides them.
+  it('shows each language its count of unreviewed machine drafts', () => {
+    const md = renderStatus()['TRANSLATIONS.md']
+    expect(md).toContain('| | Language | Code | Progress | Keys | Drafts |')
+    const namespaces = discoverNamespaces()
+    const english = loadEnglishData(namespaces)
+    for (const lang of discoverLanguages()) {
+      const drafts = analyzeLocale(lang, namespaces, english).issues.filter((i) => i.type === 'draft').length
+      const row = md.split('\n').find((l) => l.includes(`| \`${lang}\` |`))
+      expect(row?.trim().endsWith(`| ${drafts} |`)).toBe(true)
+    }
   })
 })

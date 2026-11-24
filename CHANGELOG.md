@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Every language now has every string: missing ones were machine-drafted and reviewed by a second pass, and are marked as drafts for native speakers to check (see TRANSLATING.md).
+- Existing translations got a full review: placeholder text, wrong meanings, typos and mixed terms fixed in all eight languages.
+- TRANSLATIONS.md shows each language's count of unreviewed drafts.
+- Translators can list strings whose English changed since they were translated: `bun run i18n:stamp --list stale <lang>`.
+
+### Fixed
+- The top navigation folds into the menu button when its links don't fit, instead of scrolling the page sideways.
+- The empty reminder list reads "No completed reminders" instead of "No done reminders", and translates in every language.
+- A Polish record count showed in Ukrainian.
+
 ## [3.11.3] - 2026-11-23
 
 ### Upgrade note

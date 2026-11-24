@@ -35,6 +35,8 @@ interface LanguageStats {
   percentage: number
   missing: number
   empty: number
+  /** Machine drafts nobody has reviewed. They count as translated. */
+  drafts: number
 }
 
 export interface StatusFiles {
@@ -65,6 +67,7 @@ export function renderStatus(): StatusFiles {
       percentage: total > 0 ? Math.round((translated / total) * 100) : 0,
       missing: report.issues.filter(i => i.type === 'missing').length,
       empty: report.issues.filter(i => i.type === 'empty').length,
+      drafts: report.issues.filter(i => i.type === 'draft').length,
     }
   }).sort((a, b) => {
     // Primary: completion descending. Secondary: language code ascending for
@@ -108,12 +111,15 @@ MyGarage supports multiple languages through community contributions.
 
 ## Overview
 
-| | Language | Code | Progress | Keys |
-|---|----------|------|----------|------|
-| 🇺🇸 | English | \`en\` | \`${progressBar(100)}\` 100% | ${totalKeys}/${totalKeys} |
+| | Language | Code | Progress | Keys | Drafts |
+|---|----------|------|----------|------|--------|
+| 🇺🇸 | English | \`en\` | \`${progressBar(100)}\` 100% | ${totalKeys}/${totalKeys} | 0 |
 ${stats.map(s =>
-  `| ${s.flag} | ${s.name} | \`${s.code}\` | \`${progressBar(s.percentage)}\` ${s.percentage}% | ${s.translated}/${s.total} |`
+  `| ${s.flag} | ${s.name} | \`${s.code}\` | \`${progressBar(s.percentage)}\` ${s.percentage}% | ${s.translated}/${s.total} | ${s.drafts} |`
 ).join('\n')}
+
+Drafts are machine translations nobody has reviewed yet. They count toward the
+percentage; see [TRANSLATING.md](TRANSLATING.md#machine-drafted-strings) to help check them.
 
 **Overall: ${overallPct}%** average completion across ${languages.length} translated language${languages.length !== 1 ? 's' : ''}; English is the source (100%)
 

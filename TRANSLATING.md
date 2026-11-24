@@ -87,12 +87,17 @@ Start with the files users see most:
 
 ### 6. Validate Your Work
 
-Run the validation script to check for missing or extra keys:
+Run the validation script:
 
 ```bash
 cd frontend
 bun run validate:translations
 ```
+
+It fails on a broken `{{placeholder}}`, a changed command or flag, or letters
+from another alphabet (Cyrillic in a Latin-script language, Russian letters in
+Ukrainian and the other way round). Missing keys only warn: they show English
+until someone translates them.
 
 ## Key Naming Conventions
 
@@ -156,6 +161,21 @@ The file is listed in `frontend/scripts/units.manifest.json`, so the Unit Manife
 3. Run `bun run validate:translations` to verify
 4. Open a Pull Request with your changes
 
+## Machine-Drafted Strings
+
+On 2026-11-23 every string a language was missing was machine-drafted, then
+read over by a second machine pass. They're marked as drafts until a person
+checks them, so they're the easiest place to help. List them for your language:
+
+```bash
+cd frontend
+bun run i18n:stamp --list draft de
+```
+
+Fix any you'd word differently and open a PR. A maintainer accepts the
+corrected strings when merging. `--list stale de` lists translations whose
+English changed after they were made.
+
 ## Supported Languages
 
 See [TRANSLATIONS.md](TRANSLATIONS.md) for live per-language coverage. A complete
@@ -197,6 +217,29 @@ Two more tables need the language, or parts of the app stay English:
 Use the full region tag (`pt-BR`) only when the language ships as a region
 variant; `load: 'currentOnly'` means a base tag like `pt` will not serve `pt-BR`
 users, and vice versa.
+
+## For Maintainers: Accepting Translations
+
+`frontend/scripts/translation-sources/<lang>.json` records which English each
+translation was made against, so an English edit shows the translation as
+stale. The validator lists stale, unrecorded and draft keys without failing.
+
+- `bun run i18n:stamp` prints the counts per language.
+- `bun run i18n:stamp --accept de --base <merge-base>` records every unrecorded
+  de key against the English at the contributor's merge-base, so a key whose
+  English moved after they branched stays stale. It skips stale keys and
+  copies of English.
+- `bun run i18n:stamp --accept de:vehicles:fuelList.title --base <ref>` records
+  one key whatever its state. That's how a stale key or a draft gets cleared,
+  and how an English copy (a brand name) gets approved.
+
+`--base` defaults to `HEAD`, which is right for your own edits. For a PR use
+`git merge-base main <pr-branch>`.
+
+`scripts/i18n-fill.ts` drafts missing strings: `export` writes chunks for
+translators (people or agents), `merge` takes them back and refuses anything
+that breaks a placeholder, a protected span, edge whitespace or the alphabet,
+or that touches a key it didn't export. Merged strings are recorded as drafts.
 
 ## Questions?
 
