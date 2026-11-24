@@ -46,6 +46,9 @@ function main(): void {
     const extra = langIssues.filter(i => i.type === 'extra')
     const interpolation = langIssues.filter(i => i.type === 'interpolation')
     const protectedSpans = langIssues.filter(i => i.type === 'protected')
+    const stale = langIssues.filter(i => i.type === 'stale')
+    const unrecorded = langIssues.filter(i => i.type === 'unrecorded')
+    const drafts = langIssues.filter(i => i.type === 'draft')
 
     // Count translated keys: values that differ from English, plus values that
     // are correctly identical because they contain nothing translatable.
@@ -80,6 +83,18 @@ function main(): void {
         console.log(`    - ${i.namespace}:${i.key}: ${i.detail}`)
       }
       if (interpolation.length > 10) console.log(`    ... and ${interpolation.length - 10} more`)
+    }
+    // Work lists, never failures: a stale translation still reads.
+    if (stale.length > 0) {
+      console.log(`  Stale, English changed since this was translated (${stale.length}):`)
+      for (const i of stale.slice(0, 5)) console.log(`    - ${i.namespace}:${i.key}`)
+      if (stale.length > 5) console.log(`    ... and ${stale.length - 5} more (bun run i18n:stamp --list stale ${lang})`)
+    }
+    if (unrecorded.length > 0) {
+      console.log(`  Unrecorded, waiting for a maintainer to accept (${unrecorded.length}): bun run i18n:stamp --list unrecorded ${lang}`)
+    }
+    if (drafts.length > 0) {
+      console.log(`  Machine drafts nobody has reviewed yet (${drafts.length}): bun run i18n:stamp --list draft ${lang}`)
     }
     if (protectedSpans.length > 0) {
       console.log(`  Changed commands, flags or names (${protectedSpans.length}):`)

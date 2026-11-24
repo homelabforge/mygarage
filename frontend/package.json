@@ -27,6 +27,7 @@
     "validate:units-corpus": "python3 scripts/units_gate_corpus.py",
     "validate:units-selftest": "python3 scripts/units_gate_selftest.py",
     "validate:units-manifest": "bun run scripts/validate-units-manifest.ts",
+    "i18n:stamp": "bun run scripts/i18n-stamp.ts",
     "validate:units-manifest-selftest": "python3 scripts/units_manifest_selftest.py",
     "generate:translation-status": "bun run scripts/generate-translation-status.ts",
     "e2e": "playwright test",
