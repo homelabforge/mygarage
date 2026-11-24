@@ -11,7 +11,11 @@
   },
   "systemConfig": {
     "title": "Configurazione di sistema",
-    "description": "Configura le impostazioni di base del sistema come il fuso orario e le sezioni del garage."
+    "description": "Configura le impostazioni di base del sistema come il fuso orario e le sezioni del garage.",
+    "defaultCountry": "Paese predefinito",
+    "defaultCountryDesc": "Si applica a chiunque non abbia scelto un paese e ai veicoli che non ne hanno uno proprio.",
+    "defaultCountrySaved": "Paese predefinito salvato",
+    "defaultCountryError": "Impossibile salvare il paese predefinito"
   },
   "timezone": {
     "label": "Fuso orario",
@@ -155,7 +159,22 @@
     "oidcTitle": "Autenticazione OpenID Connect (OIDC)",
     "oidcConfigured": "Configurato con {{provider}}",
     "oidcDescription": "Configura il single sign-on con il tuo fornitore di identità (Authentik, Keycloak, Auth0, Okta, ecc.)",
-    "configureOIDC": "Configura OIDC"
+    "configureOIDC": "Configura OIDC",
+    "appliesImmediately": "La modifica si applica non appena cambi modalità.",
+    "current": "Attuale",
+    "switchToNone": "Disattiva l'accesso",
+    "switchToLocal": "Passa all'accesso locale",
+    "switchToOidc": "Passa a SSO",
+    "confirmNone": "Disattivare l'accesso? Chiunque riesca a raggiungere MyGarage potrà vedere e modificare tutto.",
+    "confirmLocal": "Passare all'accesso locale? Tutti accedono con nome utente e password, e gli account che usano solo SSO non potranno accedere.",
+    "confirmLocalFirstUser": "Passare all'accesso locale? Nessuno ha ancora un account, quindi la prima persona che si registra diventa l'amministratore. Registra subito il tuo.",
+    "confirmOidc": "Passare a SSO? Subito dopo accedi tramite {{provider}}. Se non funziona, potrà accedere solo un account con password.",
+    "confirmOidcFirstUser": "Passare a SSO? Subito dopo accedi tramite {{provider}}. Nessuno ha ancora un account, quindi se SSO non funziona registrane uno dalla pagina di accesso. Il primo account diventa l'amministratore.",
+    "oidcNotReady": "Prima salva un URL dell'issuer e un client ID in Configura OIDC.",
+    "switched": "Modalità di accesso cambiata",
+    "ssoStillOn": "Modalità di accesso cambiata, ma non è stato possibile disattivare SSO, quindi la pagina di accesso lo propone ancora. Passa a SSO e torna indietro per riprovare.",
+    "switchFailed": "Impossibile cambiare la modalità di accesso",
+    "ssoLeftOn": "Impossibile cambiare la modalità di accesso e non è stato possibile disattivare di nuovo SSO, quindi la pagina di accesso lo propone ancora. Riprova a cambiare modalità."
   },
   "archive": {
     "title": "Veicoli archiviati",
@@ -164,11 +183,39 @@
     "autoArchiveDescription": "Archivia i veicoli senza attività di carburante, manutenzione, contachilometri o ore motore dopo N giorni. 0 disabilita. Viene eseguito ogni giorno quando lo scheduler è abilitato e si applica a tutti i veicoli dell'istanza, compresi quelli degli altri utenti.",
     "autoArchiveDays": "Giorni di inattività",
     "autoArchiveSaved": "Impostazione archiviazione automatica salvata",
-    "autoArchiveError": "Impossibile salvare l'impostazione di archiviazione automatica"
+    "autoArchiveError": "Impossibile salvare l'impostazione di archiviazione automatica",
+    "autoArchiveInvalid": "Inserisci un numero intero di giorni, 0 o più"
   },
   "secretKey": {
     "label": "Chiave segreta:",
     "description": "Generata automaticamente e memorizzata in {{path}}, oppure impostata tramite la variabile d'ambiente MYGARAGE_SECRET_KEY. La chiave persiste tra i riavvii dell'applicazione."
+  },
+  "secretsStatus": {
+    "title": "Alcune impostazioni riservate non possono essere lette",
+    "keyringUnavailable": "La chiave di crittografia delle impostazioni non è disponibile, quindi le impostazioni riservate non possono essere salvate e quelle cifrate non possono essere lette. Imposta MYGARAGE_SETTINGS_KEY su una chiave valida, oppure rendi scrivibile la cartella dati, poi ricarica questa pagina.",
+    "keyringUnavailableEnv": "La chiave di crittografia delle impostazioni non è disponibile, quindi le impostazioni riservate non possono essere salvate e quelle cifrate non possono essere lette. MYGARAGE_SETTINGS_KEY non contiene una chiave valida: correggila, poi riavvia MyGarage.",
+    "keyringUnavailableEnvFile": "La chiave di crittografia delle impostazioni non è disponibile, quindi le impostazioni riservate non possono essere salvate e quelle cifrate non possono essere lette. MYGARAGE_SETTINGS_KEY_FILE non punta a un file leggibile contenente una chiave valida: correggilo, poi riavvia MyGarage.",
+    "unreadable": "Questi segreti non possono essere decifrati con l'attuale chiave delle impostazioni, quindi risultano non impostati. Aggiungi di nuovo a MYGARAGE_SETTINGS_KEY la chiave con cui sono stati salvati, oppure reinseriscili:",
+    "labels": {
+      "oidcClientSecret": "Client secret SSO",
+      "ntfyToken": "Token di accesso ntfy",
+      "gotifyToken": "Token app Gotify",
+      "pushoverUserKey": "Chiave utente Pushover",
+      "pushoverApiToken": "Token API Pushover",
+      "slackWebhookUrl": "URL webhook Slack",
+      "discordWebhookUrl": "URL webhook Discord",
+      "matrixAccessToken": "Token di accesso Matrix",
+      "telegramBotToken": "Token bot Telegram",
+      "emailSmtpPassword": "Password SMTP email",
+      "webhookIngestToken": "Token ricezione webhook",
+      "llmApiKey": "Chiave API del fornitore AI",
+      "autorefApiKey": "Chiave API AutoRef",
+      "livelinkMqttPassword": "Password MQTT LiveLink",
+      "tomtomApiKey": "Chiave API TomTom",
+      "googlePlacesApiKey": "Chiave API Google Places",
+      "yelpApiKey": "Chiave API Yelp",
+      "foursquareApiKey": "Chiave API Foursquare"
+    }
   },
   "stats": {
     "serviceRecords": "Registrazioni interventi",
@@ -186,15 +233,28 @@
     "mobileSaved": "Preferenza mobile salvata!",
     "mobileError": "Impossibile salvare la preferenza mobile",
     "timeSaved": "Formato orario salvato",
-    "timeError": "Impossibile salvare il formato orario"
+    "timeError": "Impossibile salvare il formato orario",
+    "dateSaved": "Formato data salvato",
+    "dateError": "Impossibile salvare il formato data"
   },
   "files": {
     "title": "Gestione file",
+    "limitsDesc": "I limiti di caricamento in vigore e dove vengono archiviati i file caricati. Li imposta il server; non possono essere modificati qui.",
     "loading": "Caricamento impostazioni file...",
     "loadError": "Impossibile caricare le impostazioni file",
+    "limitsLoadError": "Impossibile caricare i limiti di caricamento",
+    "uploadKind": "Carica",
+    "maxSize": "Dimensione massima",
+    "fileTypes": "Tipi di file",
+    "kindPhotos": "Foto",
+    "kindAttachments": "Allegati",
+    "kindDocuments": "Documenti",
+    "sizeMb": "{{size}} MB",
+    "limitsEnvHint": "Le dimensioni di foto e allegati provengono da {{uploadVar}}, quelle dei documenti da {{documentVar}}. Modificale nell'ambiente del server e riavvia MyGarage.",
     "storageInfo": "Informazioni archiviazione",
     "dataDirectory": "Cartella dati",
     "photosDirectory": "Cartella foto",
+    "attachmentsDirectory": "Cartella allegati",
     "documentsDirectory": "Cartella documenti",
     "windowSticker": "Scheda informativa veicolo",
     "windowStickerDesc": "Configura il caricamento della scheda tecnica d'acquisto (etichetta Monroney) e l'elaborazione OCR.",
@@ -224,6 +284,16 @@
     "testingConnection": "Test in corso...",
     "testNHTSA": "Test connessione NHTSA",
     "testNHTSADesc": "Verifica la connettività con l'API NHTSA decodificando un VIN di esempio.",
+    "autoref": "AutoRef (decodifica VIN europei)",
+    "autorefDesc": "Decodifica i VIN europei che NHTSA non riconosce: marca, modello, motore e carrozzeria.",
+    "enableAutoref": "Abilita AutoRef",
+    "enableAutorefDesc": "Con una chiave, la modalità Automatico interroga prima AutoRef per i paesi europei e ripiega su NHTSA. Ogni decodifica invia il VIN ad AutoRef e consuma 2 richieste del tuo piano.",
+    "autorefApiKey": "Chiave API AutoRef",
+    "autorefApiKeyDesc": "Servizio a pagamento con un piano Test gratuito (50 richieste al mese). Richiedi una chiave a info@autoref.eu.",
+    "testAutoref": "Verifica chiave AutoRef",
+    "testAutorefDesc": "Controlla la chiave e mostra quanto resta del tuo piano. Non consuma richieste.",
+    "autorefTestOk": "La chiave AutoRef funziona: piano {{plan}}, {{remaining}} richieste rimanenti su {{limit}} questo mese.",
+    "autorefTestFailed": "Verifica della chiave AutoRef non riuscita. {{message}}",
     "nhtsaTestSuccess": "Connessione all'API NHTSA riuscita!",
     "nhtsaTestFailed": "Impossibile connettersi all'API NHTSA. Controlla l'URL e riprova.",
     "carComplaints": "CarComplaints",
@@ -259,6 +329,20 @@
     "llmModel": "Modello",
     "llmApiKey": "Chiave API (Opzionale)",
     "llmHint": "Il valore predefinito è un endpoint locale Ollama. Condiviso tra lettura scontrini e Chiedi a MyGarage.",
+    "llmPreset": "Preimpostazione del fornitore",
+    "llmPresetCustom": "Personalizzato",
+    "llmPresetOpenRouter": "OpenRouter",
+    "llmPresetOllama": "Ollama (locale)",
+    "llmPresetOpenAI": "OpenAI",
+    "enableLlmDocuments": "Leggi i documenti caricati con un modello di visione",
+    "enableLlmDocumentsDesc": "Un libretto di circolazione o un documento assicurativo importato come foto o scansione viene inviato come immagini all'endpoint qui sotto. Con un Ollama locale le immagini non lasciano mai il tuo server. Un PDF che contiene testo viene letto senza alcun modello.",
+    "llmVisionModel": "Modello di visione (opzionale)",
+    "llmVisionModelHint": "Un modello che accetta immagini (llava, qwen2.5vl, gemini, gpt-4o…). Se vuoto, usa il modello qui sopra.",
+    "llmTest": "Test connessione",
+    "llmTestOk": "Modello di testo OK.",
+    "llmTestVisionOk": "Modello di testo OK, modello di visione OK.",
+    "llmTestFailed": "Test di connessione non riuscito. {{message}}",
+    "llmDocsLink": "Cosa viene inviato e come configurarlo",
     "mqttDeviceId": "ID dispositivo",
     "mqttDeviceLabel": "Etichetta",
     "mqttCreateDevice": "Crea dispositivo",
@@ -266,6 +350,7 @@
     "mqttParamKey": "Chiave parametro",
     "mqttUnit": "Unità",
     "mqttAddMapping": "Aggiungi mappatura",
+    "mqttRemoveMappingFor": "Rimuovi mappatura: da {{topic}} a {{key}}",
     "mqttDiscoverHeading": "Rileva topic",
     "mqttDiscoverPrefix": "Prefisso topic",
     "mqttDiscover": "Rileva",
@@ -287,6 +372,7 @@
     "sourceSettings": "Impostazioni {{source}}",
     "integrationsLoadError": "Impossibile caricare le integrazioni.",
     "sourceVehicle": "Veicolo",
+    "sourceVehicleFor": "Veicolo per {{name}}",
     "sourceVehicleUnset": "Non collegato",
     "sourceVehicleHint": "I dati vengono salvati solo dopo aver collegato la sorgente a un veicolo.",
     "deviceIdHint": "Lettere, cifre, trattino basso, punto e trattino, iniziando con una lettera o cifra.",
@@ -308,11 +394,13 @@
     "readingsHeading": "Letture",
     "readingsSummary": "{{count}} letture mappate",
     "readingsSummary_one": "{{count}} lettura mappata",
+    "readingsSummary_many": "{{count}} letture mappate",
     "readingsSummary_other": "{{count}} letture mappate",
     "readingNone": "Nessuna lettura registrata",
     "readingsLoadError": "Impossibile caricare le letture.",
     "readingSwitchAction": "modificare la visualizzazione della dashboard",
     "advancedMappings": "Avanzate: mappature dei topic",
+    "advancedMappingsFor": "Avanzate: mappature dei topic per {{name}}",
     "deleteSource": "Elimina sorgente",
     "deleteSourceAction": "eliminare la sorgente",
     "mappingAction": "modificare la mappatura",
@@ -349,12 +437,49 @@
     "alertCriticalBelowLow": "Il livello critico deve essere inferiore a quello basso.",
     "saveAlerts": "Salva avvisi",
     "alertsSaved": "Avvisi salvati",
-    "saveAlertsAction": "salvare gli avvisi"
+    "saveAlertsAction": "salvare gli avvisi",
+    "brokerStatus": {
+      "connected": "Connesso",
+      "connecting": "Connessione in corso",
+      "disabled": "Disabilitato",
+      "disconnected": "Non connesso",
+      "error": "Errore",
+      "unknown": "Sconosciuto"
+    },
+    "presets": {
+      "mopeka": {
+        "description": "Sensori per bombole di propano Mopeka Pro Check.",
+        "readings": {
+          "LEVEL_PCT": "Livello",
+          "TEMP_C": "Temperatura",
+          "SENSOR_BATT_PCT": "Batteria",
+          "QUALITY": "Qualità della lettura",
+          "DEPTH_MM": "Profondità",
+          "REJECTED": "Letture scartate",
+          "AVAILABLE": "Sensore ricevuto"
+        }
+      }
+    },
+    "sensorStatusLoading": "Verifica in corso...",
+    "sensorStatusFailed": "Stato non disponibile",
+    "rappelconso": "RappelConso (Francia)",
+    "rappelconsoDesc": "Richiami dal registro dei richiami di prodotti del governo francese, per i veicoli immatricolati in Francia.",
+    "enableRappelConso": "Abilita RappelConso",
+    "enableRappelConsoDesc": "Le corrispondenze si basano su marca, modello e date di produzione (il registro non riporta il VIN); ogni corrispondenza viene mostrata con il suo grado di affidabilità e non viene mai segnata come risolta automaticamente.",
+    "rappelconsoApiUrl": "URL API RappelConso",
+    "rappelconsoApiUrlDesc": "L'endpoint dei record su data.economie.gouv.fr. Modificalo solo se il dataset viene spostato.",
+    "fuelPrices": "Prezzi carburante (Francia)",
+    "fuelPricesDesc": "I prezzi alla pompa che ogni distributore in Francia comunica al governo, mostrati nel modulo di rifornimento per il distributore salvato che scegli.",
+    "enableFuelPrices": "Abilita prezzi carburante",
+    "enableFuelPricesDesc": "Vengono richieste solo le coordinate del distributore, al massimo circa ogni dieci minuti; nessun dato sul tuo veicolo lascia l'istanza.",
+    "fuelPricesApiUrl": "URL API prezzi carburante",
+    "fuelPricesApiUrlDesc": "L'endpoint dei record su data.economie.gouv.fr. Modificalo solo se il dataset viene spostato."
   },
   "notifications": {
     "loading": "Caricamento impostazioni notifiche...",
     "loadError": "Impossibile caricare le impostazioni notifiche",
-    "testFailed": "Invio notifica di test non riuscito tramite {{service}}"
+    "testFailed": "Invio notifica di test non riuscito tramite {{service}}",
+    "fixNumbers": "Non salvato: un'impostazione numerica è fuori intervallo. Correggila e le modifiche verranno salvate."
   },
   "ntfy": {
     "enable": "Abilita notifiche ntfy",
@@ -528,6 +653,7 @@
       "recallsLabel": "Nuovi richiami rilevati",
       "recallsDesc": "Invia una notifica quando vengono trovati richiami NHTSA per i tuoi veicoli",
       "serviceDueLabel": "Manutenzione in scadenza",
+      "serviceDueSoonDesc": "Notifica una volta quando un promemoria entra in scadenza (30 giorni prima, o al 90% dell'intervallo quando non c'è un ritmo di guida da cui stimarlo)",
       "serviceOverdueLabel": "Manutenzione scaduta",
       "serviceOverdueDesc": "Invia una notifica quando un intervento è oltre la data o chilometraggio previsto",
       "insuranceExpiringLabel": "Assicurazione in scadenza",
@@ -581,6 +707,11 @@
     "twelveHour": "12 ore (2:30 PM)",
     "twentyFourHour": "24 ore (14:30)"
   },
+  "dateFormat": {
+    "label": "Formato data",
+    "monthFirst": "Prima il mese (10/24/2026)",
+    "dayFirst": "Prima il giorno (24/10/2026)"
+  },
   "widgetKeys": {
     "createTitle": "Nuova chiave API",
     "createdTitle": "Chiave API creata",
@@ -602,6 +733,7 @@
     "noVehicles": "Non possiedi ancora nessun veicolo.",
     "creating": "Creazione in corso…",
     "submit": "Crea chiave",
+    "createAction": "creare la chiave API",
     "panel": {
       "title": "Chiavi API",
       "description": "Chiavi API in sola lettura per integrazioni esterne. Ciascuna chiave concede l'accesso ai soli veicoli selezionati.",
@@ -644,6 +776,7 @@
     "confirmRemoveProvider": "Rimuovere il fornitore {{name}}?",
     "devicesLinked": "{{count}} dispositivi collegati",
     "devicesLinked_one": "{{count}} dispositivo collegato",
+    "devicesLinked_many": "{{count}} dispositivi collegati",
     "devicesLinked_other": "{{count}} dispositivi collegati",
     "devicesOnlineSuffix": ", {{count}} online",
     "aboutLiveLinkBody": "LiveLink connette i dispositivi OBD2 WiCAN PRO a MyGarage per la telemetria in tempo reale. Monitora i parametri del motore, rileva i viaggi e ricevi avvisi sui codici diagnostici di guasto (DTC).",
@@ -652,7 +785,9 @@
   },
   "backupTab": {
     "createSettingsSuccess": "Backup delle impostazioni creato con successo!",
+    "createSettingsAction": "creare il backup delle impostazioni",
     "createFullSuccess": "Backup completo creato con successo!",
+    "createFullAction": "creare il backup completo",
     "confirmRestoreFull": "ATTENZIONE: Questa operazione sovrascriverà l'intero database e tutti i file caricati! Verrà prima creato un backup di sicurezza. Sei assolutamente sicuro?",
     "confirmRestoreSettings": "Tutte le impostazioni verranno ripristinate dal backup. Verrà prima creato un backup di sicurezza. Continuare?",
     "fullRestoreStaged": "Ripristino preparato. Riavvia MyGarage per completare. Fino ad allora continuerà a funzionare con i dati correnti, e qualsiasi modifica apportata prima del riavvio verrà sostituita dal backup.",
@@ -701,5 +836,23 @@
     "red": "Rosso Corsa",
     "violet": "Viola",
     "green": "Verde"
+  },
+  "numberField": {
+    "between": "Inserisci un numero da {{min}} a {{max}}",
+    "wholeBetween": "Inserisci un numero intero da {{min}} a {{max}}"
+  },
+  "country": {
+    "label": "Paese",
+    "none": "Non impostato",
+    "saved": "Paese salvato",
+    "error": "Impossibile salvare il paese",
+    "description": "Determina le impostazioni nazionali predefinite dei tuoi veicoli: cadenza delle revisioni, nomi dei carburanti alla pompa, tipi di tasse. Un veicolo immatricolato altrove può impostare il proprio paese."
+  },
+  "inspection": {
+    "label": "Promemoria revisione",
+    "autoSchedule": "Pianifica automaticamente la revisione periodica",
+    "description": "Con un paese impostato, ogni veicolo con una data di prima immatricolazione riceve un promemoria per la revisione periodica (contrôle technique, HU, APK, ITV…), calcolato in base alla cadenza del paese e anticipato dalle revisioni che registri. Disattivalo per gestire tu stesso questi promemoria.",
+    "saved": "Preferenza salvata",
+    "error": "Impossibile salvare la preferenza"
   }
 }

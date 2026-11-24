@@ -16,6 +16,7 @@
   "yes": "Ja",
   "no": "Nein",
   "ok": "OK",
+  "unknown": "Unbekannt",
   "register": {
     "subtitle": "Richte dein MyGarage-Konto ein",
     "username": "Benutzername",
@@ -37,7 +38,19 @@
     "registerLink": "Hier registrieren",
     "oidcSignIn": "Mit {{provider}} anmelden",
     "continueWithPassword": "Oder mit Passwort fortfahren",
-    "signInAction": "Anmelden"
+    "signInAction": "Anmelden",
+    "ssoError": {
+      "account_disabled": "Das Benutzerkonto ist deaktiviert",
+      "email_linked_elsewhere": "Diese E-Mail-Adresse gehört zu einem Konto, das mit einer anderen Anmeldung verknüpft ist. Bitte einen Administrator, dafür eine SSO-Neuverknüpfung zu erlauben.",
+      "email_no_password": "Es gibt ein Konto mit dieser E-Mail-Adresse, aber ohne Passwort, um es zu bestätigen. Bitte einen Administrator, dafür eine SSO-Neuverknüpfung zu erlauben.",
+      "username_linked_elsewhere": "Dieser Benutzername gehört zu einem Konto, das mit einer anderen Anmeldung verknüpft ist. Bitte einen Administrator, dafür eine SSO-Neuverknüpfung zu erlauben.",
+      "username_no_password": "Es gibt ein Konto mit diesem Benutzernamen, aber ohne Passwort, um es zu bestätigen. Bitte einen Administrator, dafür eine SSO-Neuverknüpfung zu erlauben.",
+      "no_account": "Zu dieser Anmeldung passt kein MyGarage-Konto, und die automatische Kontoerstellung ist deaktiviert. Bitte einen Administrator, dein Konto anzulegen.",
+      "cancelled": "Die Anmeldung wurde abgebrochen.",
+      "expired": "Diese Anmeldung hat zu lange gedauert oder wurde bereits verwendet. Bitte versuche es erneut.",
+      "failed": "Single Sign-On hat nicht funktioniert. Versuche es erneut oder lass einen Administrator die SSO-Einstellungen prüfen.",
+      "rate_limited": "Zu viele Anmeldeversuche. Warte eine Minute und versuche es dann erneut."
+    }
   },
   "oidc": {
     "success": "Authentifizierung erfolgreich!",
@@ -96,6 +109,30 @@
     "noSupplies": "Noch keine Vorräte vorhanden.",
     "showArchived": "Archivierte anzeigen",
     "archived": "Archiviert",
+    "searchSupplies": "Vorräte durchsuchen...",
+    "showingResults": "{{shown}} von {{total}} Vorräten",
+    "clearFilters": "Filter zurücksetzen",
+    "filterByCategory": "Nach Kategorie filtern",
+    "allCategories": "Alle Kategorien",
+    "filterByVehicle": "Nach Fahrzeug filtern",
+    "allVehicles": "Alle Fahrzeuge",
+    "sharedVehicle": "Freigegeben",
+    "outOfStock": "Nicht vorrätig",
+    "noMatches": "Keine Vorräte entsprechen den aktuellen Filtern",
+    "sortSupplies": "Vorräte sortieren",
+    "sortTrigger": "Sortierung: {{label}}",
+    "sortByName": "Name",
+    "sortByLowestStock": "Niedrigster Bestand zuerst",
+    "sortByCategory": "Kategorie",
+    "groupSupplies": "Vorräte gruppieren",
+    "groupTrigger": "Gruppierung: {{label}}",
+    "groupNone": "Keine",
+    "groupByCategory": "Kategorie",
+    "groupByVehicle": "Fahrzeug",
+    "noCategory": "Keine Kategorie",
+    "gridView": "Rasteransicht",
+    "listView": "Listenansicht",
+    "tableCaption": "Vorratsbestand",
     "confirmDelete": "Diesen Vorrat löschen?",
     "deleted": "Vorrat gelöscht",
     "name": "Name",
@@ -103,6 +140,15 @@
     "unitTypeVolume": "Volumen",
     "unitTypeCount": "Anzahl",
     "unitTypeImmutable": "Der Einheitentyp kann nach dem Erstellen eines Vorrats nicht mehr geändert werden.",
+    "volumeUnit": "Einheit",
+    "volumeUnitHint": "Das Ändern der Einheit ändert den vorrätigen Bestand nicht.",
+    "volumeUnits": {
+      "mL": "Milliliter (mL)",
+      "fl_oz_us": "US-Flüssigunzen (fl oz)",
+      "fl_oz_uk": "UK-Flüssigunzen (fl oz)",
+      "qt_us": "US-Quarts (qt)",
+      "qt_uk": "UK-Quarts (qt)"
+    },
     "partNumber": "Teilenummer",
     "barcode": "Barcode",
     "scanBarcode": "Scannen",
@@ -115,6 +161,9 @@
     "onHand": "Vorrätig",
     "avgUnitCost": "Durchschn. Stückkosten",
     "avgCostPerUnit": "Ø Kosten/{{unit}}",
+    "avgCostValuePerUnit": "{{value}}/{{unit}}",
+    "estimated": "Geschätzt",
+    "estimatedHint": "Geschätzte Kosten verwenden den Durchschnittspreis des Vorrats, weil kein Einkauf am oder vor dem Datum des Besuchs erfasst wurde. Sie werden aktualisiert, sobald einer erfasst ist.",
     "negativeWarning": "Der erfasste Verbrauch übersteigt die aufgezeichneten Einkäufe",
     "activeToggle": "Aktiv (Abwählen zum Archivieren)",
     "viewHistory": "Verlauf anzeigen",
@@ -146,6 +195,7 @@
       "logAdjustment": "Anpassung erfassen",
       "quantity": "Menge",
       "quantityRequired": "Gib eine Menge größer als 0 ein",
+      "quantityTooSmall": "Zu klein zum Speichern: ergibt umgerechnet weniger als 1 mL",
       "supplier": "Lieferant",
       "noSupplier": "Kein Lieferant",
       "receipt": "Beleg (optional)",
@@ -222,6 +272,7 @@
     "databaseSettings": "Datenbank-Einstellungen",
     "databaseSettingsDesc": "Wähle SQLite (Standard) für die einfache Homelab-Nutzung oder PostgreSQL für Multi-User-Bereitstellungen. Migrationen werden beim Start automatisch angewendet.",
     "multiNotifications": "Multi-Channel-Benachrichtigungen",
+    "multiNotificationsDesc": "Lass dich per Discord, Slack, Telegram, ntfy, Gotify, Pushover, Matrix oder E-Mail an Wartungen erinnern, ganz wie es in dein Homelab passt.",
     "comprehensiveTracking": "Umfassende Erfassung",
     "comprehensiveTrackingDesc": "Kraftstoffverbrauch, DEF-Verbrauch, Reifendruckhistorie, geplante Wartungsarbeiten, Fotos, Dokumente und Live-OBD-II-Telemetrie — alles abgedeckt.",
     "builtWithAI": "Mit KI entwickelt",
@@ -296,6 +347,9 @@
     "other": "Sonstige"
   },
   "familyCard": {
+    "actionFor": "{{action}}: {{name}}",
+    "allowSsoRelink": "SSO-Neuverknüpfung für 30 Minuten erlauben",
+    "cancelSsoRelink": "SSO-Neuverknüpfung abbrechen",
     "columnLastService": "Letzter Service",
     "columnNextMaintenance": "Nächste Wartung",
     "columnVehicle": "Fahrzeug",
@@ -309,6 +363,7 @@
     "noMaintenanceScheduled": "Keine Wartung geplant",
     "noServiceRecords": "Keine Serviceberichte",
     "noVehicles": "Keine Fahrzeuge",
+    "relinkOpenUntil": "Neuverknüpfung möglich bis {{time}}",
     "resetPassword": "Passwort zurücksetzen",
     "showOnDashboard": "Auf dem Dashboard anzeigen"
   },
@@ -390,7 +445,17 @@
     "helperText": "Mindestens 2 Zeichen eingeben, um das Adressbuch zu durchsuchen",
     "noMatches": "Keine Kontakte für „{{query}}“ gefunden",
     "noMatchesInCategory": "Keine Kontakte für „{{query}}“ in der Kategorie {{category}} gefunden",
-    "addToAddressBook": "„{{query}}“ zum Adressbuch hinzufügen"
+    "addToAddressBook": "„{{query}}“ zum Adressbuch hinzufügen",
+    "searching": "Wird gesucht...",
+    "searchFailed": "Das Adressbuch konnte nicht durchsucht werden. Tippe weiter, um es erneut zu versuchen."
+  },
+  "combobox": {
+    "results": "{{count}} Ergebnisse",
+    "results_one": "{{count}} Ergebnis",
+    "results_other": "{{count}} Ergebnisse",
+    "searching": "Wird gesucht...",
+    "noResults": "Keine Treffer",
+    "searchFailed": "Suche fehlgeschlagen"
   },
   "exportMenu": {
     "export": "Exportieren"
@@ -436,7 +501,10 @@
       "maxLength": "E-Mail darf maximal 255 Zeichen lang sein"
     },
     "serviceVisit": {
-      "insuranceClaimNumberTooLong": "Schadensnummer der Versicherung zu lang (maximal 50 Zeichen)"
+      "insuranceClaimNumberTooLong": "Schadensnummer der Versicherung zu lang (maximal 50 Zeichen)",
+      "invoiceNumberTooLong": "Rechnungsnummer zu lang (maximal 50 Zeichen)",
+      "poNumberTooLong": "Bestellnummer zu lang (maximal 50 Zeichen)",
+      "workOrderNumberTooLong": "Auftragsnummer zu lang (maximal 50 Zeichen)"
     },
     "supply": {
       "nameRequired": "Name ist erforderlich",
@@ -448,9 +516,15 @@
       "notesTooLong": "Notizen zu lang"
     },
     "tollTag": {
+      "countryRequired": "Wähle ein Land oder „Sonstige“, falls deins nicht aufgeführt ist",
+      "systemNameRequired": "Gib den Namen des Mautsystems ein",
+      "systemNameTooLong": "Name des Mautsystems zu lang (maximal 50 Zeichen)",
       "systemRequired": "Mautsystem ist erforderlich",
       "tagNumberRequired": "Transpondernummer ist erforderlich",
       "tagNumberTooLong": "Transpondernummer zu lang (maximal 50 Zeichen)"
+    },
+    "financing": {
+      "categoryRequired": "Kategorie ist erforderlich"
     },
     "odometer": {
       "negative": "Kilometerstand kann nicht negativ sein",
@@ -526,6 +600,9 @@
       "fillLevelTooLarge": "Füllstand darf 100 % nicht überschreiten",
       "fillLevelInvalid": "Gib eine gültige Nummer ein"
     },
+    "tankPair": {
+      "bothOrNeither": "Gib sowohl die Tankgröße als auch die Anzahl der Tanks ein oder keins von beidem"
+    },
     "tankQuantity": {
       "negative": "Tankmenge muss größer als 0 sein",
       "tooLarge": "Tankmenge ist zu groß",
@@ -545,7 +622,19 @@
       "cylindersNegative": "Zylinder können nicht negativ sein",
       "cylindersTooLarge": "Wert für Zylinder ist zu groß",
       "cylindersInvalid": "Gib eine gültige Nummer ein",
-      "purchasePriceInvalid": "Gib eine gültige Nummer ein"
+      "purchasePriceInvalid": "Gib eine gültige Nummer ein",
+      "fiscalPowerNotWhole": "Die Steuer-PS müssen eine ganze Zahl sein",
+      "fiscalPowerNegative": "Die Steuer-PS dürfen nicht negativ sein",
+      "fiscalPowerTooLarge": "Die Steuer-PS dürfen höchstens 200 betragen",
+      "fiscalPowerInvalid": "Gib eine gültige Nummer ein",
+      "co2NotWhole": "CO₂ muss eine ganze Zahl sein",
+      "co2Negative": "CO₂ darf nicht negativ sein",
+      "co2TooLarge": "CO₂ darf höchstens 999 g/km betragen",
+      "co2Invalid": "Gib eine gültige Nummer ein",
+      "powerKwNotWhole": "Die Leistung muss eine ganze Zahl sein",
+      "powerKwNegative": "Die Leistung darf nicht negativ sein",
+      "powerKwTooLarge": "Die Leistung darf höchstens 2000 kW betragen",
+      "powerKwInvalid": "Gib eine gültige Nummer ein"
     },
     "recall": {
       "campaignNumberTooLong": "Kampagnennummer zu lang (maximal 20 Zeichen)",
@@ -557,10 +646,22 @@
       "remedyTooLong": "Beschreibung der Abhilfe zu lang (maximal 2.000 Zeichen)"
     },
     "fuel": {
+      "octaneTooSmall": "Die Oktanzahl muss mindestens 50 betragen",
+      "octaneTooLarge": "Die Oktanzahl darf 150 nicht überschreiten",
+      "octaneInvalid": "Gib eine ganzzahlige Oktanzahl ein",
       "obcTripDurationFormat": "Verwende Sekunden (z. B. 8100), HH:MM (z. B. 2:15) oder HH:MM:SS",
       "obcNegative": "Bordcomputer-Wert kann nicht negativ sein",
       "obcTooLarge": "Bordcomputer-Wert ist zu groß",
-      "obcInvalid": "Gib eine gültige Nummer ein"
+      "obcInvalid": "Gib eine gültige Nummer ein",
+      "outsideTempTooLow": "Die Außentemperatur muss mindestens {{min}} betragen",
+      "outsideTempTooHigh": "Die Außentemperatur darf höchstens {{max}} betragen",
+      "outsideTempInvalid": "Gib eine gültige Nummer ein"
+    },
+    "tireSet": {
+      "nameRequired": "Name ist erforderlich"
+    },
+    "document": {
+      "titleRequired": "Titel ist erforderlich"
     }
   },
   "httpError": {
@@ -594,5 +695,13 @@
     "unexpected": "Ein unerwarteter Fehler ist aufgetreten.",
     "actionFailed": "Fehler beim Ausführen von {{action}}. {{message}}",
     "actionFailedCheckInput": "Fehler beim Ausführen von {{action}}. Bitte überprüfe deine Eingabe."
+  },
+  "mustNotBeNegative": "Darf nicht negativ sein",
+  "mustBeANumber": "Gib eine Zahl ein",
+  "tooManyDecimals": "Höchstens {{count}} Dezimalstellen",
+  "ofMax": "{{value}} von {{max}}",
+  "numberInput": {
+    "readAs": "Gelesen als {{value}}",
+    "invalidField": "{{field}}: Gib eine gültige Zahl ein"
   }
 }

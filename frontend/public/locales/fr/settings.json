@@ -39,7 +39,7 @@
     "instanceDefaultSaved": "Unités par défaut de l’instance enregistrées",
     "instanceDefaultError": "Échec de l’enregistrement des unités par défaut de l’instance",
     "showBoth": "Afficher les deux unités",
-    "showBothDescription": "Show each value with its counterpart in parentheses, for example {{example}}.",
+    "showBothDescription": "Afficher chaque valeur avec son équivalent entre parenthèses, par exemple {{example}}.",
     "custom": "Personnalisé",
     "customToggle": "Unités personnalisées",
     "customDescription": "Choisissez une unité pour chaque grandeur. Elles remplacent le préréglage partout dans l’application.",
@@ -159,7 +159,22 @@
     "oidcTitle": "Authentification OpenID Connect (OIDC)",
     "oidcConfigured": "Configuré avec {{provider}}",
     "oidcDescription": "Configurez l’authentification unique avec votre fournisseur d’identité (Authentik, Keycloak, Auth0, Okta, etc.)",
-    "configureOIDC": "Configurer OIDC"
+    "configureOIDC": "Configurer OIDC",
+    "appliesImmediately": "Le changement s’applique dès que vous basculez.",
+    "current": "Actuel",
+    "switchToNone": "Désactiver la connexion",
+    "switchToLocal": "Passer à la connexion locale",
+    "switchToOidc": "Passer au SSO",
+    "confirmNone": "Désactiver la connexion ? Toute personne pouvant accéder à MyGarage pourra tout voir et tout modifier.",
+    "confirmLocal": "Passer à la connexion locale ? Chacun se connecte avec un nom d’utilisateur et un mot de passe, et les comptes qui n’utilisent que le SSO ne pourront plus se connecter.",
+    "confirmLocalFirstUser": "Passer à la connexion locale ? Personne n’a encore de compte : la première personne à s’inscrire deviendra administrateur. Créez le vôtre tout de suite.",
+    "confirmOidc": "Passer au SSO ? Connectez-vous via {{provider}} juste après. En cas d’échec, seul un compte doté d’un mot de passe pourra encore se connecter.",
+    "confirmOidcFirstUser": "Passer au SSO ? Connectez-vous via {{provider}} juste après. Personne n’a encore de compte : si le SSO échoue, créez-en un depuis la page de connexion. Le premier compte devient administrateur.",
+    "oidcNotReady": "Enregistrez d’abord une URL d’émetteur et un ID client dans Configurer OIDC.",
+    "switched": "Mode de connexion modifié",
+    "ssoStillOn": "Mode de connexion modifié, mais le SSO n’a pas pu être désactivé : la page de connexion le propose donc toujours. Passez au SSO puis revenez en arrière pour réessayer.",
+    "switchFailed": "Impossible de changer le mode de connexion",
+    "ssoLeftOn": "Impossible de changer le mode de connexion, et le SSO n’a pas pu être désactivé de nouveau : la page de connexion le propose donc toujours. Réessayez le changement."
   },
   "archive": {
     "title": "Véhicules archivés",
@@ -168,11 +183,39 @@
     "autoArchiveDescription": "Archive les véhicules sans activité (plein, entretien, compteur ou heures) depuis N jours. 0 désactive la fonction. S’exécute chaque jour lorsque le planificateur est activé, et s’applique à tous les véhicules de cette instance, y compris ceux des autres utilisateurs.",
     "autoArchiveDays": "Jours d’inactivité",
     "autoArchiveSaved": "Paramètre d’archivage automatique enregistré",
-    "autoArchiveError": "Échec de l’enregistrement du paramètre d’archivage automatique"
+    "autoArchiveError": "Échec de l’enregistrement du paramètre d’archivage automatique",
+    "autoArchiveInvalid": "Saisissez un nombre entier de jours, 0 ou plus"
   },
   "secretKey": {
     "label": "Clé secrète :",
     "description": "Générée automatiquement et stockée à {{path}}, ou définie via la variable d’environnement MYGARAGE_SECRET_KEY. La clé est conservée entre les redémarrages de l’application."
+  },
+  "secretsStatus": {
+    "title": "Certains réglages secrets sont illisibles",
+    "keyringUnavailable": "La clé de chiffrement des réglages est indisponible : les réglages secrets ne peuvent pas être enregistrés et ceux qui sont chiffrés ne peuvent pas être lus. Définissez MYGARAGE_SETTINGS_KEY avec une clé valide, ou rendez le répertoire des données accessible en écriture, puis rechargez cette page.",
+    "keyringUnavailableEnv": "La clé de chiffrement des réglages est indisponible : les réglages secrets ne peuvent pas être enregistrés et ceux qui sont chiffrés ne peuvent pas être lus. MYGARAGE_SETTINGS_KEY ne contient pas de clé valide : corrigez-la, puis redémarrez MyGarage.",
+    "keyringUnavailableEnvFile": "La clé de chiffrement des réglages est indisponible : les réglages secrets ne peuvent pas être enregistrés et ceux qui sont chiffrés ne peuvent pas être lus. MYGARAGE_SETTINGS_KEY_FILE ne pointe pas vers un fichier lisible contenant une clé valide : corrigez-la, puis redémarrez MyGarage.",
+    "unreadable": "Ces secrets ne peuvent pas être déchiffrés avec la clé de réglages actuelle : ils apparaissent donc comme non définis. Remettez dans MYGARAGE_SETTINGS_KEY la clé avec laquelle ils ont été enregistrés, ou saisissez-les de nouveau :",
+    "labels": {
+      "oidcClientSecret": "Secret client SSO",
+      "ntfyToken": "Jeton d’accès ntfy",
+      "gotifyToken": "Jeton d’application Gotify",
+      "pushoverUserKey": "Clé utilisateur Pushover",
+      "pushoverApiToken": "Jeton API Pushover",
+      "slackWebhookUrl": "URL du webhook Slack",
+      "discordWebhookUrl": "URL du webhook Discord",
+      "matrixAccessToken": "Jeton d’accès Matrix",
+      "telegramBotToken": "Jeton du bot Telegram",
+      "emailSmtpPassword": "Mot de passe SMTP de l’e-mail",
+      "webhookIngestToken": "Jeton d’ingestion des webhooks",
+      "llmApiKey": "Clé API du fournisseur d’IA",
+      "autorefApiKey": "Clé API AutoRef",
+      "livelinkMqttPassword": "Mot de passe MQTT LiveLink",
+      "tomtomApiKey": "Clé API TomTom",
+      "googlePlacesApiKey": "Clé API Google Places",
+      "yelpApiKey": "Clé API Yelp",
+      "foursquareApiKey": "Clé API Foursquare"
+    }
   },
   "stats": {
     "serviceRecords": "Dossiers d’entretien",
@@ -190,15 +233,28 @@
     "mobileSaved": "Préférence mobile enregistrée !",
     "mobileError": "Échec de l’enregistrement de la préférence mobile",
     "timeSaved": "Format de l’heure enregistré",
-    "timeError": "Échec de l’enregistrement du format de l’heure"
+    "timeError": "Échec de l’enregistrement du format de l’heure",
+    "dateSaved": "Format de date enregistré",
+    "dateError": "Échec de l’enregistrement du format de date"
   },
   "files": {
     "title": "Gestion des fichiers",
+    "limitsDesc": "Les limites de téléversement en vigueur et l’emplacement de stockage des fichiers téléversés. Le serveur les définit ; elles ne peuvent pas être modifiées ici.",
     "loading": "Chargement des paramètres de fichiers…",
     "loadError": "Échec du chargement des paramètres de fichiers",
+    "limitsLoadError": "Échec du chargement des limites de téléversement",
+    "uploadKind": "Téléversement",
+    "maxSize": "Taille max.",
+    "fileTypes": "Types de fichiers",
+    "kindPhotos": "Photos",
+    "kindAttachments": "Pièces jointes",
+    "kindDocuments": "Documents",
+    "sizeMb": "{{size}} Mo",
+    "limitsEnvHint": "La taille des photos et des pièces jointes vient de {{uploadVar}}, celle des documents de {{documentVar}}. Modifiez-les dans l’environnement du serveur, puis redémarrez MyGarage.",
     "storageInfo": "Informations de stockage",
     "dataDirectory": "Répertoire des données",
     "photosDirectory": "Répertoire des photos",
+    "attachmentsDirectory": "Répertoire des pièces jointes",
     "documentsDirectory": "Répertoire des documents",
     "windowSticker": "Étiquette Monroney",
     "windowStickerDesc": "Configurez l’envoi des étiquettes Monroney et le traitement OCR.",
@@ -228,6 +284,16 @@
     "testingConnection": "Test en cours…",
     "testNHTSA": "Tester la connexion NHTSA",
     "testNHTSADesc": "Teste la connectivité à l’API NHTSA en décodant un exemple de VIN.",
+    "autoref": "AutoRef (décodage des VIN européens)",
+    "autorefDesc": "Décode les VIN européens que la NHTSA ne sait pas identifier : marque, modèle, moteur et carrosserie.",
+    "enableAutoref": "Activer AutoRef",
+    "enableAutorefDesc": "Avec une clé, le mode Automatique interroge d’abord AutoRef pour les pays européens, puis se rabat sur la NHTSA. Chaque décodage envoie le VIN à AutoRef et consomme 2 requêtes de votre forfait.",
+    "autorefApiKey": "Clé API AutoRef",
+    "autorefApiKeyDesc": "Service payant avec un forfait Test gratuit (50 requêtes par mois). Demandez une clé à info@autoref.eu.",
+    "testAutoref": "Tester la clé AutoRef",
+    "testAutorefDesc": "Vérifie la clé et affiche ce qu’il reste de votre forfait. Ne consomme aucune requête.",
+    "autorefTestOk": "La clé AutoRef fonctionne : forfait {{plan}}, {{remaining}} requêtes restantes sur {{limit}} ce mois-ci.",
+    "autorefTestFailed": "Échec du test de la clé AutoRef. {{message}}",
     "nhtsaTestSuccess": "Connexion à l’API NHTSA réussie !",
     "nhtsaTestFailed": "Échec de la connexion à l’API NHTSA. Vérifiez l’URL et réessayez.",
     "carComplaints": "CarComplaints",
@@ -284,6 +350,7 @@
     "mqttParamKey": "Clé du paramètre",
     "mqttUnit": "Unité",
     "mqttAddMapping": "Ajouter une correspondance",
+    "mqttRemoveMappingFor": "Supprimer la correspondance : {{topic}} vers {{key}}",
     "mqttDiscoverHeading": "Découvrir les topics",
     "mqttDiscoverPrefix": "Préfixe de topic",
     "mqttDiscover": "Découvrir",
@@ -305,6 +372,7 @@
     "sourceSettings": "Réglages {{source}}",
     "integrationsLoadError": "Impossible de charger les intégrations.",
     "sourceVehicle": "Véhicule",
+    "sourceVehicleFor": "Véhicule pour {{name}}",
     "sourceVehicleUnset": "Non lié",
     "sourceVehicleHint": "Les relevés ne sont enregistrés qu’une fois la source liée à un véhicule.",
     "deviceIdHint": "Lettres, chiffres, tiret bas, point et tiret, en commençant par une lettre ou un chiffre.",
@@ -326,11 +394,13 @@
     "readingsHeading": "Relevés",
     "readingsSummary": "{{count}} relevés associés",
     "readingsSummary_one": "{{count}} relevé associé",
+    "readingsSummary_many": "{{count}} relevés associés",
     "readingsSummary_other": "{{count}} relevés associés",
     "readingNone": "Aucun relevé pour le moment",
     "readingsLoadError": "Impossible de charger les relevés.",
     "readingSwitchAction": "de modifier l’affichage du tableau de bord",
     "advancedMappings": "Avancé : correspondances de topics",
+    "advancedMappingsFor": "Avancé : correspondances de topics pour {{name}}",
     "deleteSource": "Supprimer la source",
     "deleteSourceAction": "de supprimer la source",
     "mappingAction": "de modifier la correspondance",
@@ -368,6 +438,30 @@
     "saveAlerts": "Enregistrer les alertes",
     "alertsSaved": "Alertes enregistrées",
     "saveAlertsAction": "d’enregistrer les alertes",
+    "brokerStatus": {
+      "connected": "Connecté",
+      "connecting": "Connexion en cours",
+      "disabled": "Désactivé",
+      "disconnected": "Non connecté",
+      "error": "Erreur",
+      "unknown": "Inconnu"
+    },
+    "presets": {
+      "mopeka": {
+        "description": "Capteurs de réservoir de propane Mopeka Pro Check.",
+        "readings": {
+          "LEVEL_PCT": "Niveau",
+          "TEMP_C": "Température",
+          "SENSOR_BATT_PCT": "Batterie",
+          "QUALITY": "Qualité du relevé",
+          "DEPTH_MM": "Profondeur",
+          "REJECTED": "Relevés rejetés",
+          "AVAILABLE": "Capteur détecté"
+        }
+      }
+    },
+    "sensorStatusLoading": "Vérification…",
+    "sensorStatusFailed": "Statut indisponible",
     "rappelconso": "RappelConso (France)",
     "rappelconsoDesc": "Rappels issus du registre public des rappels de produits, pour les véhicules immatriculés en France.",
     "enableRappelConso": "Activer RappelConso",
@@ -384,7 +478,8 @@
   "notifications": {
     "loading": "Chargement des paramètres de notification…",
     "loadError": "Échec du chargement des paramètres de notification",
-    "testFailed": "Échec de l’envoi de la notification de test via {{service}}"
+    "testFailed": "Échec de l’envoi de la notification de test via {{service}}",
+    "fixNumbers": "Non enregistré : un réglage numérique est hors limites. Corrigez-le et vos modifications seront enregistrées."
   },
   "ntfy": {
     "enable": "Activer les notifications ntfy",
@@ -486,7 +581,7 @@
       "subtitle": "Envoyer des notifications via un bot Telegram",
       "botTokenHint": "À obtenir auprès de @BotFather sur Telegram",
       "chatId": "ID du chat",
-      "chatIdPlaceholder": "-1001234567890 or 123456789",
+      "chatIdPlaceholder": "-1001234567890 ou 123456789",
       "chatIdHint": "Votre ID utilisateur, ID de groupe ou ID de canal",
       "sending": "Envoi…",
       "testConnection": "Tester la connexion",
@@ -529,7 +624,7 @@
       "title": "Configuration de l’e-mail",
       "subtitle": "Envoyer des notifications par e-mail SMTP",
       "port": "Port",
-      "smtpUsernamePlaceholder": "your-email@gmail.com",
+      "smtpUsernamePlaceholder": "votre-adresse@gmail.com",
       "smtpPasswordLabel": "Mot de passe SMTP / mot de passe d’application",
       "smtpPasswordPlaceholder": "Mot de passe d’application ou mot de passe SMTP",
       "smtpPasswordHint": "Pour Gmail, utilisez un mot de passe d’application (pas votre mot de passe habituel)",
@@ -558,6 +653,7 @@
       "recallsLabel": "Nouveaux rappels constructeur détectés",
       "recallsDesc": "Notifier lorsque des rappels constructeur NHTSA sont trouvés pour vos véhicules",
       "serviceDueLabel": "Entretien à venir",
+      "serviceDueSoonDesc": "Notifier une seule fois lorsqu’un rappel arrive bientôt à échéance (30 jours avant, ou à 90 % de l’intervalle lorsqu’aucun rythme de conduite ne permet de faire une projection)",
       "serviceOverdueLabel": "Entretien en retard",
       "serviceOverdueDesc": "Notifier lorsqu’un entretien est en retard",
       "insuranceExpiringLabel": "Assurance expirant bientôt",
@@ -611,6 +707,11 @@
     "twelveHour": "12 heures (2:30 PM)",
     "twentyFourHour": "24 heures (14:30)"
   },
+  "dateFormat": {
+    "label": "Format de date",
+    "monthFirst": "Mois en premier (10/24/2026)",
+    "dayFirst": "Jour en premier (24/10/2026)"
+  },
   "widgetKeys": {
     "createTitle": "Nouvelle clé API",
     "createdTitle": "Clé API créée",
@@ -632,6 +733,7 @@
     "noVehicles": "Vous ne possédez encore aucun véhicule.",
     "creating": "Création…",
     "submit": "Créer la clé",
+    "createAction": "de créer la clé API",
     "panel": {
       "title": "Clés API",
       "description": "Clés API en lecture seule pour les intégrations externes. Chaque clé accorde l’accès aux véhicules que vous sélectionnez.",
@@ -674,6 +776,7 @@
     "confirmRemoveProvider": "Supprimer le fournisseur {{name}} ?",
     "devicesLinked": "{{count}} appareils liés",
     "devicesLinked_one": "{{count}} appareil lié",
+    "devicesLinked_many": "{{count}} appareils liés",
     "devicesLinked_other": "{{count}} appareils liés",
     "devicesOnlineSuffix": ", {{count}} en ligne",
     "aboutLiveLinkBody": "LiveLink connecte des appareils OBD2 WiCAN PRO à MyGarage pour la télémétrie véhicule en temps réel. Suivez les paramètres moteur, détectez les sessions de conduite et recevez des alertes de codes de diagnostic.",
@@ -682,7 +785,9 @@
   },
   "backupTab": {
     "createSettingsSuccess": "Sauvegarde des paramètres créée avec succès !",
+    "createSettingsAction": "de créer la sauvegarde des réglages",
     "createFullSuccess": "Sauvegarde complète créée avec succès !",
+    "createFullAction": "de créer la sauvegarde complète",
     "confirmRestoreFull": "AVERTISSEMENT : cela écrasera toute votre base de données et tous les fichiers envoyés ! Une sauvegarde de sécurité sera créée d’abord. Êtes-vous absolument sûr ?",
     "confirmRestoreSettings": "Cela restaurera tous les paramètres depuis la sauvegarde. Une sauvegarde de sécurité sera créée d’abord. Continuer ?",
     "fullRestoreStaged": "Restauration en attente. Redémarrez MyGarage pour la terminer. D’ici là, l’application continue de fonctionner avec les données actuelles, et tout ce qui est modifié avant le redémarrage sera remplacé par la sauvegarde.",
@@ -731,6 +836,10 @@
     "red": "Rouge racing",
     "violet": "Violet",
     "green": "Vert"
+  },
+  "numberField": {
+    "between": "Saisissez un nombre entre {{min}} et {{max}}",
+    "wholeBetween": "Saisissez un nombre entier entre {{min}} et {{max}}"
   },
   "country": {
     "label": "Pays",

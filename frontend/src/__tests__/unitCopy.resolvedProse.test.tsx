@@ -223,16 +223,13 @@ describe('the fixed copy, across every locale bundle on disk', () => {
     // `de` and `fr` carry keys again because fix round 1 restored the ones whose
     // meaning never changed; `it` and `ms` were translated later and carry them
     // too; `ru` joined when its bundle reached full translation and names no
-    // unit in these keys either. `pl`, `pt-BR` and `uk` still carry none, which
-    // is stated here rather than hidden behind a total. If a restoration is ever
-    // removed, this list shrinks and the test fails before the emptiness below
-    // can go vacuous.
-    expect([...readsByBundle.keys()].sort()).toStrictEqual(['de', 'en', 'fr', 'it', 'ms', 'ru'])
-    expect(readsByBundle.get('de')).toBeGreaterThan(0)
-    expect(readsByBundle.get('fr')).toBeGreaterThan(0)
-    expect(readsByBundle.get('it')).toBeGreaterThan(0)
-    expect(readsByBundle.get('ms')).toBeGreaterThan(0)
-    expect(readsByBundle.get('ru')).toBeGreaterThan(0)
+    // unit in these keys either. `pl`, `pt-BR` and `uk` joined with the
+    // 2026-11-23 fill. If a bundle ever drops these keys, this list shrinks and
+    // the test fails before the emptiness below can go vacuous.
+    expect([...readsByBundle.keys()].sort()).toStrictEqual(['de', 'en', 'fr', 'it', 'ms', 'pl', 'pt-BR', 'ru', 'uk'])
+    for (const lang of ['de', 'fr', 'it', 'ms', 'pl', 'pt-BR', 'ru', 'uk']) {
+      expect(readsByBundle.get(lang), lang).toBeGreaterThan(0)
+    }
 
     expect(offenders).toStrictEqual([])
   })

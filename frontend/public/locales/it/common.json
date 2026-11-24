@@ -109,6 +109,30 @@
     "noSupplies": "Nessuna scorta presente.",
     "showArchived": "Mostra archiviate",
     "archived": "Archiviata",
+    "searchSupplies": "Cerca scorte...",
+    "showingResults": "Visualizzate {{shown}} scorte su {{total}}",
+    "clearFilters": "Cancella filtri",
+    "filterByCategory": "Filtra per categoria",
+    "allCategories": "Tutte le categorie",
+    "filterByVehicle": "Filtra per veicolo",
+    "allVehicles": "Tutti i veicoli",
+    "sharedVehicle": "Condiviso",
+    "outOfStock": "Esaurita",
+    "noMatches": "Nessuna scorta corrisponde ai filtri attuali",
+    "sortSupplies": "Ordina scorte",
+    "sortTrigger": "Ordina: {{label}}",
+    "sortByName": "Nome",
+    "sortByLowestStock": "Prima la giacenza più bassa",
+    "sortByCategory": "Categoria",
+    "groupSupplies": "Raggruppa scorte",
+    "groupTrigger": "Raggruppa: {{label}}",
+    "groupNone": "Nessuno",
+    "groupByCategory": "Categoria",
+    "groupByVehicle": "Veicolo",
+    "noCategory": "Nessuna categoria",
+    "gridView": "Vista a griglia",
+    "listView": "Vista a elenco",
+    "tableCaption": "Inventario scorte",
     "confirmDelete": "Eliminare questa scorta?",
     "deleted": "Scorta eliminata",
     "name": "Nome",
@@ -116,6 +140,15 @@
     "unitTypeVolume": "Volume",
     "unitTypeCount": "Conteggio pezzi",
     "unitTypeImmutable": "Il tipo di unità non può essere modificato dopo la creazione.",
+    "volumeUnit": "Unità",
+    "volumeUnitHint": "Cambiare l'unità non modifica la quantità disponibile.",
+    "volumeUnits": {
+      "mL": "Millilitri (mL)",
+      "fl_oz_us": "Once liquide USA (fl oz)",
+      "fl_oz_uk": "Once liquide UK (fl oz)",
+      "qt_us": "Quarti USA (qt)",
+      "qt_uk": "Quarti UK (qt)"
+    },
     "partNumber": "Codice ricambio",
     "barcode": "Codice a barre",
     "scanBarcode": "Scansiona",
@@ -127,6 +160,10 @@
     "sharedAcrossVehicles": "Condiviso tra tutti i veicoli",
     "onHand": "Disponibilità",
     "avgUnitCost": "Costo unitario medio",
+    "avgCostPerUnit": "Costo medio/{{unit}}",
+    "avgCostValuePerUnit": "{{value}}/{{unit}}",
+    "estimated": "Stimato",
+    "estimatedHint": "I costi stimati usano la media della scorta perché non è stato registrato alcun acquisto con data pari o precedente a quella della visita. Si aggiornano non appena ne viene registrato uno.",
     "negativeWarning": "L'utilizzo registrato supera gli acquisti registrati",
     "activeToggle": "Attivo (deseleziona per archiviare)",
     "viewHistory": "Visualizza cronologia",
@@ -158,6 +195,7 @@
       "logAdjustment": "Registra rettifica",
       "quantity": "Quantità",
       "quantityRequired": "Inserisci una quantità maggiore di 0",
+      "quantityTooSmall": "Troppo piccola per essere memorizzata: corrisponde a meno di 1 mL",
       "supplier": "Fornitore",
       "noSupplier": "Nessun fornitore",
       "receipt": "Ricevuta (opzionale)",
@@ -234,6 +272,7 @@
     "databaseSettings": "Impostazioni database",
     "databaseSettingsDesc": "Scegli SQLite (predefinito) per un uso homelab semplice o PostgreSQL per installazioni multiutente. Le migrazioni vengono applicate automaticamente all'avvio.",
     "multiNotifications": "Notifiche multicanale",
+    "multiNotificationsDesc": "Ricevi promemoria sulla manutenzione tramite Discord, Slack, Telegram, ntfy, Gotify, Pushover, Matrix o email, come preferisci per il tuo homelab.",
     "comprehensiveTracking": "Monitoraggio completo",
     "comprehensiveTrackingDesc": "Consumi, utilizzo DEF, storico pressione pneumatici, manutenzioni programmate, foto, documenti e telemetria OBD-II in tempo reale — tutto incluso.",
     "builtWithAI": "Creato con l'AI",
@@ -308,6 +347,7 @@
     "other": "Altro"
   },
   "familyCard": {
+    "actionFor": "{{action}}: {{name}}",
     "allowSsoRelink": "Consenti ricollegamento SSO per 30 minuti",
     "cancelSsoRelink": "Annulla ricollegamento SSO",
     "columnLastService": "Ultimo intervento",
@@ -405,7 +445,18 @@
     "helperText": "Digita almeno 2 caratteri per cercare nella rubrica",
     "noMatches": "Nessun contatto trovato corrispondente a \"{{query}}\"",
     "noMatchesInCategory": "Nessun contatto trovato corrispondente a \"{{query}}\" nella categoria {{category}}",
-    "addToAddressBook": "Aggiungi \"{{query}}\" alla rubrica"
+    "addToAddressBook": "Aggiungi \"{{query}}\" alla rubrica",
+    "searching": "Ricerca in corso...",
+    "searchFailed": "Impossibile cercare nella rubrica. Continua a digitare per riprovare."
+  },
+  "combobox": {
+    "results": "{{count}} risultati",
+    "results_one": "{{count}} risultato",
+    "results_many": "{{count}} risultati",
+    "results_other": "{{count}} risultati",
+    "searching": "Ricerca in corso...",
+    "noResults": "Nessun risultato",
+    "searchFailed": "Ricerca non riuscita"
   },
   "exportMenu": {
     "export": "Esporta"
@@ -451,7 +502,10 @@
       "maxLength": "L'email deve contenere meno di 255 caratteri"
     },
     "serviceVisit": {
-      "insuranceClaimNumberTooLong": "Numero pratica assicurativa troppo lungo (massimo 50 caratteri)"
+      "insuranceClaimNumberTooLong": "Numero pratica assicurativa troppo lungo (massimo 50 caratteri)",
+      "invoiceNumberTooLong": "Numero di fattura troppo lungo (massimo 50 caratteri)",
+      "poNumberTooLong": "Numero dell'ordine d'acquisto troppo lungo (massimo 50 caratteri)",
+      "workOrderNumberTooLong": "Numero dell'ordine di lavoro troppo lungo (massimo 50 caratteri)"
     },
     "supply": {
       "nameRequired": "Il nome è obbligatorio",
@@ -463,6 +517,9 @@
       "notesTooLong": "Note troppo lunghe"
     },
     "tollTag": {
+      "countryRequired": "Scegli un paese, oppure Altro se il tuo non è nell'elenco",
+      "systemNameRequired": "Inserisci il nome del sistema di pedaggio",
+      "systemNameTooLong": "Nome del sistema di pedaggio troppo lungo (massimo 50 caratteri)",
       "systemRequired": "Il sistema di telepedaggio è obbligatorio",
       "tagNumberRequired": "Il numero del dispositivo è obbligatorio",
       "tagNumberTooLong": "Numero del dispositivo troppo lungo (massimo 50 caratteri)"
@@ -566,7 +623,19 @@
       "cylindersNegative": "I cilindri non possono essere negativi",
       "cylindersTooLarge": "Valore cilindri troppo grande",
       "cylindersInvalid": "Inserisci un numero valido",
-      "purchasePriceInvalid": "Inserisci un numero valido"
+      "purchasePriceInvalid": "Inserisci un numero valido",
+      "fiscalPowerNotWhole": "La potenza fiscale deve essere un numero intero",
+      "fiscalPowerNegative": "La potenza fiscale non può essere negativa",
+      "fiscalPowerTooLarge": "La potenza fiscale può essere al massimo 200",
+      "fiscalPowerInvalid": "Inserisci un numero valido",
+      "co2NotWhole": "Il valore di CO₂ deve essere un numero intero",
+      "co2Negative": "Il valore di CO₂ non può essere negativo",
+      "co2TooLarge": "Il valore di CO₂ può essere al massimo 999 g/km",
+      "co2Invalid": "Inserisci un numero valido",
+      "powerKwNotWhole": "La potenza deve essere un numero intero",
+      "powerKwNegative": "La potenza non può essere negativa",
+      "powerKwTooLarge": "La potenza può essere al massimo 2000 kW",
+      "powerKwInvalid": "Inserisci un numero valido"
     },
     "recall": {
       "campaignNumberTooLong": "Numero campagna troppo lungo (massimo 20 caratteri)",
@@ -584,7 +653,10 @@
       "obcTripDurationFormat": "Usa secondi (es. 8100), HH:MM (es. 2:15) o HH:MM:SS",
       "obcNegative": "Il valore OBC non può essere negativo",
       "obcTooLarge": "Valore OBC troppo grande",
-      "obcInvalid": "Inserisci un numero valido"
+      "obcInvalid": "Inserisci un numero valido",
+      "outsideTempTooLow": "La temperatura esterna deve essere almeno {{min}}",
+      "outsideTempTooHigh": "La temperatura esterna deve essere al massimo {{max}}",
+      "outsideTempInvalid": "Inserisci un numero valido"
     },
     "tireSet": {
       "nameRequired": "Il nome è obbligatorio"
@@ -628,5 +700,9 @@
   "mustNotBeNegative": "Non può essere negativo",
   "mustBeANumber": "Inserisci un numero",
   "tooManyDecimals": "Al massimo {{count}} decimali",
-  "ofMax": "{{value}} di {{max}}"
+  "ofMax": "{{value}} di {{max}}",
+  "numberInput": {
+    "readAs": "Letto come {{value}}",
+    "invalidField": "{{field}}: inserisci un numero valido"
+  }
 }

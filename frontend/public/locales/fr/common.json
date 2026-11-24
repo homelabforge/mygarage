@@ -65,7 +65,7 @@
     "title": "Carnet d’adresses",
     "subtitle": "Ateliers de service, fournisseurs de pièces, concessionnaires et contacts d’assurance",
     "searchPlaceholder": "Rechercher des contacts…",
-    "categoryService": "Service",
+    "categoryService": "Entretien",
     "categoryParts": "Pièces",
     "categoryDealer": "Concessionnaire",
     "categoryInsurance": "Assurance",
@@ -161,6 +161,9 @@
     "onHand": "En stock",
     "avgUnitCost": "Coût unitaire moyen",
     "avgCostPerUnit": "Coût moy./{{unit}}",
+    "avgCostValuePerUnit": "{{value}}/{{unit}}",
+    "estimated": "Estimé",
+    "estimatedHint": "Les coûts estimés reposent sur le coût moyen de la fourniture, car aucun achat daté du jour de la visite ou d’avant n’a été enregistré. Ils seront mis à jour dès qu’un achat le sera.",
     "negativeWarning": "L’utilisation enregistrée dépasse les achats enregistrés",
     "activeToggle": "Active (décochez pour archiver)",
     "viewHistory": "Voir l’historique",
@@ -269,6 +272,7 @@
     "databaseSettings": "Paramètres de base de données",
     "databaseSettingsDesc": "Choisissez SQLite (par défaut) pour un usage homelab simple ou PostgreSQL pour des déploiements multi-utilisateurs. Les migrations s’appliquent automatiquement au démarrage.",
     "multiNotifications": "Notifications multicanales",
+    "multiNotificationsDesc": "Recevez des rappels d’entretien via Discord, Slack, Telegram, ntfy, Gotify, Pushover, Matrix ou par e-mail, selon ce qui convient à votre homelab.",
     "comprehensiveTracking": "Suivi complet",
     "comprehensiveTrackingDesc": "Consommation de carburant, utilisation de DEF, historique de pression des pneus, entretien planifié, photos, documents et télémétrie OBD-II en direct — tout est couvert.",
     "builtWithAI": "Conçu avec l’IA",
@@ -343,6 +347,7 @@
     "other": "Autre"
   },
   "familyCard": {
+    "actionFor": "{{action}} : {{name}}",
     "allowSsoRelink": "Autoriser une nouvelle liaison SSO pendant 30 minutes",
     "cancelSsoRelink": "Annuler la nouvelle liaison SSO",
     "columnLastService": "Dernier entretien",
@@ -440,7 +445,18 @@
     "helperText": "Saisissez au moins 2 caractères pour rechercher dans le carnet d’adresses",
     "noMatches": "Aucun contact trouvé correspondant à \"{{query}}\"",
     "noMatchesInCategory": "Aucun contact trouvé correspondant à \"{{query}}\" dans la catégorie {{category}}",
-    "addToAddressBook": "Ajouter \"{{query}}\" au carnet d’adresses"
+    "addToAddressBook": "Ajouter \"{{query}}\" au carnet d’adresses",
+    "searching": "Recherche…",
+    "searchFailed": "Impossible de rechercher dans le carnet d’adresses. Continuez à saisir pour réessayer."
+  },
+  "combobox": {
+    "results": "{{count}} résultats",
+    "results_one": "{{count}} résultat",
+    "results_many": "{{count}} résultats",
+    "results_other": "{{count}} résultats",
+    "searching": "Recherche…",
+    "noResults": "Aucun résultat",
+    "searchFailed": "Échec de la recherche"
   },
   "exportMenu": {
     "export": "Exporter"
@@ -486,7 +502,10 @@
       "maxLength": "L’e-mail doit contenir moins de 255 caractères"
     },
     "serviceVisit": {
-      "insuranceClaimNumberTooLong": "Numéro de réclamation d’assurance trop long (max. 50 caractères)"
+      "insuranceClaimNumberTooLong": "Numéro de réclamation d’assurance trop long (max. 50 caractères)",
+      "invoiceNumberTooLong": "Numéro de facture trop long (max. 50 caractères)",
+      "poNumberTooLong": "Numéro de bon de commande trop long (max. 50 caractères)",
+      "workOrderNumberTooLong": "Numéro d’ordre de réparation trop long (max. 50 caractères)"
     },
     "supply": {
       "nameRequired": "Le nom est requis",
@@ -634,7 +653,10 @@
       "obcTripDurationFormat": "Utilisez des secondes (ex. 8100), HH:MM (ex. 2:15) ou HH:MM:SS",
       "obcNegative": "La valeur de l’ordinateur de bord ne peut pas être négative",
       "obcTooLarge": "Valeur de l’ordinateur de bord trop élevée",
-      "obcInvalid": "Saisissez un nombre valide"
+      "obcInvalid": "Saisissez un nombre valide",
+      "outsideTempTooLow": "La température extérieure doit être d’au moins {{min}}",
+      "outsideTempTooHigh": "La température extérieure doit être d’au plus {{max}}",
+      "outsideTempInvalid": "Saisissez un nombre valide"
     },
     "tireSet": {
       "nameRequired": "Le nom est requis"
@@ -678,5 +700,9 @@
   "mustNotBeNegative": "Ne peut pas être négatif",
   "mustBeANumber": "Saisissez un nombre",
   "tooManyDecimals": "{{count}} décimales maximum",
-  "ofMax": "{{value}} sur {{max}}"
+  "ofMax": "{{value}} sur {{max}}",
+  "numberInput": {
+    "readAs": "Lu comme {{value}}",
+    "invalidField": "{{field}} : saisissez un nombre valide"
+  }
 }

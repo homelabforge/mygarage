@@ -16,6 +16,7 @@
   "yes": "Ya",
   "no": "Tidak",
   "ok": "OK",
+  "unknown": "Tidak diketahui",
   "register": {
     "subtitle": "Sediakan akaun MyGarage anda",
     "username": "Nama pengguna",
@@ -108,6 +109,30 @@
     "noSupplies": "Belum ada bekalan.",
     "showArchived": "Paparkan Diarkibkan",
     "archived": "Diarkibkan",
+    "searchSupplies": "Cari bekalan...",
+    "showingResults": "Menunjukkan {{shown}} daripada {{total}} bekalan",
+    "clearFilters": "Kosongkan penapis",
+    "filterByCategory": "Tapis mengikut kategori",
+    "allCategories": "Semua kategori",
+    "filterByVehicle": "Tapis mengikut kenderaan",
+    "allVehicles": "Semua kenderaan",
+    "sharedVehicle": "Dikongsi",
+    "outOfStock": "Kehabisan stok",
+    "noMatches": "Tiada bekalan yang sepadan dengan penapis semasa",
+    "sortSupplies": "Susun bekalan",
+    "sortTrigger": "Susun: {{label}}",
+    "sortByName": "Nama",
+    "sortByLowestStock": "Stok terendah dahulu",
+    "sortByCategory": "Kategori",
+    "groupSupplies": "Kumpulkan bekalan",
+    "groupTrigger": "Kumpulan: {{label}}",
+    "groupNone": "Tiada",
+    "groupByCategory": "Kategori",
+    "groupByVehicle": "Kenderaan",
+    "noCategory": "Tiada kategori",
+    "gridView": "Paparan grid",
+    "listView": "Paparan senarai",
+    "tableCaption": "Inventori bekalan",
     "confirmDelete": "Padam bekalan ini?",
     "deleted": "Bekalan dipadam",
     "name": "Nama",
@@ -115,6 +140,15 @@
     "unitTypeVolume": "Isi Padu",
     "unitTypeCount": "Bilangan",
     "unitTypeImmutable": "Jenis unit tidak boleh diubah selepas bekalan dicipta.",
+    "volumeUnit": "Unit",
+    "volumeUnitHint": "Menukar unit tidak mengubah jumlah dalam stok.",
+    "volumeUnits": {
+      "mL": "Mililiter (mL)",
+      "fl_oz_us": "Auns cecair AS (fl oz)",
+      "fl_oz_uk": "Auns cecair UK (fl oz)",
+      "qt_us": "Kuart AS (qt)",
+      "qt_uk": "Kuart UK (qt)"
+    },
     "partNumber": "Nombor Alat Ganti",
     "barcode": "Kod Bar",
     "scanBarcode": "Imbas",
@@ -126,6 +160,10 @@
     "sharedAcrossVehicles": "Dikongsi untuk semua kenderaan",
     "onHand": "Dalam Stok",
     "avgUnitCost": "Purata Kos Seunit",
+    "avgCostPerUnit": "Purata Kos/{{unit}}",
+    "avgCostValuePerUnit": "{{value}}/{{unit}}",
+    "estimated": "Anggaran",
+    "estimatedHint": "Kos anggaran menggunakan purata bekalan kerana tiada pembelian bertarikh pada atau sebelum lawatan yang direkodkan. Ia dikemas kini sebaik sahaja satu pembelian direkodkan.",
     "negativeWarning": "Penggunaan yang direkodkan melebihi pembelian yang direkodkan",
     "activeToggle": "Aktif (nyahpilih untuk arkibkan)",
     "viewHistory": "Lihat sejarah",
@@ -157,6 +195,7 @@
       "logAdjustment": "Rekod Pelarasan",
       "quantity": "Kuantiti",
       "quantityRequired": "Masukkan kuantiti lebih daripada 0",
+      "quantityTooSmall": "Terlalu kecil untuk disimpan: ditukar kepada kurang daripada 1 mL",
       "supplier": "Pembekal",
       "noSupplier": "Tiada pembekal",
       "receipt": "Resit (pilihan)",
@@ -233,6 +272,7 @@
     "databaseSettings": "Tetapan Pangkalan Data",
     "databaseSettingsDesc": "Pilih SQLite (lalai) untuk kegunaan homelab ringkas atau PostgreSQL untuk penggunaan berbilang pengguna. Migrasi digunakan secara automatik semasa aplikasi bermula.",
     "multiNotifications": "Pemberitahuan Pelbagai Saluran",
+    "multiNotificationsDesc": "Dapatkan peringatan tentang penyelenggaraan melalui Discord, Slack, Telegram, ntfy, Gotify, Pushover, Matrix atau e-mel, mengikut kesesuaian homelab anda.",
     "comprehensiveTracking": "Penjejakan Menyeluruh",
     "comprehensiveTrackingDesc": "Ekonomi bahan api, penggunaan DEF, sejarah tekanan tayar, penyelenggaraan berjadual, foto, dokumen dan telemetri OBD-II langsung — semuanya disokong.",
     "builtWithAI": "Dibina dengan AI",
@@ -307,6 +347,7 @@
     "other": "Lain-lain"
   },
   "familyCard": {
+    "actionFor": "{{action}}: {{name}}",
     "allowSsoRelink": "Benarkan pautan semula SSO selama 30 minit",
     "cancelSsoRelink": "Batalkan pautan semula SSO",
     "columnLastService": "Servis Terakhir",
@@ -370,9 +411,9 @@
   },
   "addressBookPage": {
     "businessNamePlaceholder": "Bengkel Auto ABC",
-    "contactNamePlaceholder": "John Doe",
+    "contactNamePlaceholder": "Ahmad bin Ali",
     "streetAddressPlaceholder": "123 Jalan Utama",
-    "cityPlaceholder": "Springfield"
+    "cityPlaceholder": "Shah Alam"
   },
   "poiCard": {
     "categoryAutoShop": "Bengkel Kereta",
@@ -404,7 +445,16 @@
     "helperText": "Taip sekurang-kurangnya 2 aksara untuk mencari dalam buku alamat",
     "noMatches": "Tiada kenalan ditemui yang sepadan dengan \"{{query}}\"",
     "noMatchesInCategory": "Tiada kenalan ditemui yang sepadan dengan \"{{query}}\" dalam kategori {{category}}",
-    "addToAddressBook": "Tambah \"{{query}}\" ke buku alamat"
+    "addToAddressBook": "Tambah \"{{query}}\" ke buku alamat",
+    "searching": "Sedang mencari...",
+    "searchFailed": "Tidak dapat mencari dalam buku alamat. Teruskan menaip untuk mencuba lagi."
+  },
+  "combobox": {
+    "results": "{{count}} hasil",
+    "results_other": "{{count}} hasil",
+    "searching": "Sedang mencari...",
+    "noResults": "Tiada padanan",
+    "searchFailed": "Carian gagal"
   },
   "exportMenu": {
     "export": "Eksport"
@@ -450,7 +500,10 @@
       "maxLength": "E-mel mestilah kurang daripada 255 aksara"
     },
     "serviceVisit": {
-      "insuranceClaimNumberTooLong": "Nombor tuntutan insurans terlalu panjang (maksimum 50 aksara)"
+      "insuranceClaimNumberTooLong": "Nombor tuntutan insurans terlalu panjang (maksimum 50 aksara)",
+      "invoiceNumberTooLong": "Nombor invois terlalu panjang (maksimum 50 aksara)",
+      "poNumberTooLong": "Nombor PO terlalu panjang (maksimum 50 aksara)",
+      "workOrderNumberTooLong": "Nombor arahan kerja terlalu panjang (maksimum 50 aksara)"
     },
     "supply": {
       "nameRequired": "Nama diperlukan",
@@ -462,6 +515,9 @@
       "notesTooLong": "Nota terlalu panjang"
     },
     "tollTag": {
+      "countryRequired": "Pilih negara, atau Lain-lain jika negara anda tiada dalam senarai",
+      "systemNameRequired": "Masukkan nama sistem tol",
+      "systemNameTooLong": "Nama sistem tol terlalu panjang (maksimum 50 aksara)",
       "systemRequired": "Sistem tol diperlukan",
       "tagNumberRequired": "Nombor tag diperlukan",
       "tagNumberTooLong": "Nombor tag terlalu panjang (maksimum 50 aksara)"
@@ -565,7 +621,19 @@
       "cylindersNegative": "Bilangan silinder tidak boleh bernilai negatif",
       "cylindersTooLarge": "Nilai bilangan silinder terlalu besar",
       "cylindersInvalid": "Masukkan nombor yang sah",
-      "purchasePriceInvalid": "Masukkan nombor yang sah"
+      "purchasePriceInvalid": "Masukkan nombor yang sah",
+      "fiscalPowerNotWhole": "Kuasa fiskal mestilah nombor bulat",
+      "fiscalPowerNegative": "Kuasa fiskal tidak boleh negatif",
+      "fiscalPowerTooLarge": "Kuasa fiskal tidak boleh melebihi 200",
+      "fiscalPowerInvalid": "Masukkan nombor yang sah",
+      "co2NotWhole": "CO₂ mestilah nombor bulat",
+      "co2Negative": "CO₂ tidak boleh negatif",
+      "co2TooLarge": "CO₂ tidak boleh melebihi 999 g/km",
+      "co2Invalid": "Masukkan nombor yang sah",
+      "powerKwNotWhole": "Kuasa mestilah nombor bulat",
+      "powerKwNegative": "Kuasa tidak boleh negatif",
+      "powerKwTooLarge": "Kuasa tidak boleh melebihi 2000 kW",
+      "powerKwInvalid": "Masukkan nombor yang sah"
     },
     "recall": {
       "campaignNumberTooLong": "Nombor kempen terlalu panjang (maksimum 50 aksara)",
@@ -583,7 +651,10 @@
       "obcTripDurationFormat": "Gunakan saat (cth. 8100), HH:MM (cth. 2:15), atau HH:MM:SS",
       "obcNegative": "Nilai OBC tidak boleh bernilai negatif",
       "obcTooLarge": "Nilai OBC terlalu besar",
-      "obcInvalid": "Masukkan nombor yang sah"
+      "obcInvalid": "Masukkan nombor yang sah",
+      "outsideTempTooLow": "Suhu luar mestilah sekurang-kurangnya {{min}}",
+      "outsideTempTooHigh": "Suhu luar tidak boleh melebihi {{max}}",
+      "outsideTempInvalid": "Masukkan nombor yang sah"
     },
     "tireSet": {
       "nameRequired": "Nama diperlukan"
@@ -627,5 +698,9 @@
   "mustNotBeNegative": "Tidak boleh bernilai negatif",
   "mustBeANumber": "Masukkan nombor",
   "tooManyDecimals": "Maksimum {{count}} tempat perpuluhan",
-  "ofMax": "{{value}} daripada {{max}}"
+  "ofMax": "{{value}} daripada {{max}}",
+  "numberInput": {
+    "readAs": "Dibaca sebagai {{value}}",
+    "invalidField": "{{field}}: masukkan nombor yang sah"
+  }
 }

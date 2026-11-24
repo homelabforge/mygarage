@@ -629,6 +629,8 @@
     "loadAction": "загрузить страховые полисы"
   },
   "lineItemEditor": {
+    "costPartsLabor": "Стоимость (запчасти + работа)",
+    "suppliesCost": "Расходники: {{amount}}",
     "notes": "Заметки",
     "misc": {
       "lineItem": "Позиция {{number}}",
@@ -1145,17 +1147,21 @@
     "detail": {
       "cost": "Стоимость",
       "editVisit": "Изменить визит",
+      "partsLabor": "Запчасти + работа",
       "noSupplies": "Для этой услуги расходные материалы не записаны.",
       "openSupply": "Открыть {{name}} в расходных материалах",
       "supplies": "Использованные материалы",
+      "suppliesCost": "Расходные материалы",
       "viewDetails": "Подробнее: {{name}}"
     },
+    "partsLaborCost": "Запчасти + работа {{amount}}",
     "miscFees": "Различные сборы",
     "noMatchingVisits": "Нет совпадающих визитов",
     "noRecords": "Нет записей",
     "noRecordsDesc": "Начните учитывать техобслуживание и ремонты автомобиля",
     "searchPlaceholder": "Поиск...",
     "serviceCount": "{{count}} услуг",
+    "suppliesCost": "Расходники {{amount}}",
     "po": "Заказ №",
     "servicesPerformed": "Выполненные услуги",
     "shopSupplies": "Материалы мастерской",

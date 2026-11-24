@@ -20,7 +20,7 @@
   "accents": {
     "blue": "Blau",
     "amber": "Bernstein",
-    "teal": "Teal",
+    "teal": "Blaugrün",
     "red": "Rot",
     "violet": "Violett",
     "green": "Grün"
@@ -45,5 +45,6 @@
   "notificationsDismiss": "Verwerfen",
   "notificationsDismissAll": "Alle verwerfen",
   "notificationsOverdue": "Überfällig",
-  "notificationsUpcoming": "Anstehend"
+  "notificationsUpcoming": "Anstehend",
+  "insurance": "Versicherung"
 }
