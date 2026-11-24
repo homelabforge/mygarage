@@ -4,6 +4,7 @@ import {
   PROTECTED,
   compareNamespace,
   deleteNestedKey,
+  englishDashes,
   discoverNamespaces,
   loadEnglishData,
   protectedSpans,
@@ -196,6 +197,19 @@ describe('translation gate: what counts as translated', () => {
     const de = { title: 'My Garage', saved: 'x {{count, number}} {{name}}', vin: 'VIN', days_one: '{{count}} Tag', days_other: '{{count}} Tage' }
     // title is an English copy; vin is invariant.
     expect(compare('de', de).translated).toBe(4)
+  })
+})
+
+describe('translation gate: no dashes in English copy', () => {
+  it('lists English values with an em-dash or en-dash, and nothing else', () => {
+    const values = new Map<string, Map<string, unknown>>([
+      ['common', new Map<string, unknown>([['a', 'Saved, done'], ['b', 'Saved \u2014 done'], ['c', '1\u20135'], ['d', 'well-known']])],
+    ])
+    expect(englishDashes(values)).toEqual(['common:b', 'common:c'])
+  })
+
+  it('finds none in the real English bundle', () => {
+    expect(englishDashes(loadEnglishData(discoverNamespaces()).valuesByNamespace)).toEqual([])
   })
 })
 

@@ -70,7 +70,7 @@
     },
     "categoryBreakdown": {
       "title": "Cost Breakdown by Category",
-      "body": "The donut chart shows how garage spending is distributed across categories, with the combined total in its center. The list beside it breaks each category down — its share of the total, a proportional bar, and the amount — sorted largest first, so you can see at a glance where the money goes."
+      "body": "The donut chart shows how garage spending is distributed across categories, with the combined total in its center. The list beside it breaks each category down (its share of the total, a proportional bar, and the amount), sorted largest first, so you can see at a glance where the money goes."
     },
     "costByVehicle": {
       "title": "Cost by Vehicle",
@@ -100,7 +100,7 @@
       "categoryColumnsLabel": "Category columns:",
       "categoryColumnsDesc": "Each vehicle's spend broken out by Maintenance, Upgrades, Inspection, Collision, Detailing, Fuel, DEF, and Financing.",
       "totalCostLabel": "Total:",
-      "totalCostDesc": "Combined running costs — service, fuel, and DEF. This does not include the vehicle's purchase price. Financing and insurance are shown separately, since they aren't running costs of driving the vehicle.",
+      "totalCostDesc": "Combined running costs: service, fuel, and DEF. This does not include the vehicle's purchase price. Financing and insurance are shown separately, since they aren't running costs of driving the vehicle.",
       "sortIntro": "The table is ordered by total running cost, highest first. Use it to spot:",
       "item1": "Most/least expensive vehicles to operate",
       "item2": "Vehicles with disproportionate maintenance costs",
@@ -321,8 +321,8 @@
     "costChangesByCategory": "Cost Changes by Category",
     "period1Value": "Period 1: {{value}}",
     "period2Value": "Period 2: {{value}}",
-    "anomalyAbove": "Spent {{spent}} — {{deviation}}% above your average of {{avg}}.",
-    "anomalyBelow": "Spent {{spent}} — {{deviation}}% below your average of {{avg}}.",
+    "anomalyAbove": "Spent {{spent}}, {{deviation}}% above your average of {{avg}}.",
+    "anomalyBelow": "Spent {{spent}}, {{deviation}}% below your average of {{avg}}.",
     "severity": {
       "critical": "Critical",
       "info": "Info",

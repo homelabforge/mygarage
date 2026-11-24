@@ -222,7 +222,6 @@
     "databaseSettings": "Datenbank-Einstellungen",
     "databaseSettingsDesc": "Wähle SQLite (Standard) für die einfache Homelab-Nutzung oder PostgreSQL für Multi-User-Bereitstellungen. Migrationen werden beim Start automatisch angewendet.",
     "multiNotifications": "Multi-Channel-Benachrichtigungen",
-    "multiNotificationsDesc": "Lass dich über Ntfy, Apprise, E-Mail oder Webhook an Wartungsarbeiten erinnern — ganz so, wie es in dein Homelab passt.",
     "comprehensiveTracking": "Umfassende Erfassung",
     "comprehensiveTrackingDesc": "Kraftstoffverbrauch, DEF-Verbrauch, Reifendruckhistorie, geplante Wartungsarbeiten, Fotos, Dokumente und Live-OBD-II-Telemetrie — alles abgedeckt.",
     "builtWithAI": "Mit KI entwickelt",

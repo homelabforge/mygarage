@@ -269,7 +269,6 @@
     "databaseSettings": "Paramètres de base de données",
     "databaseSettingsDesc": "Choisissez SQLite (par défaut) pour un usage homelab simple ou PostgreSQL pour des déploiements multi-utilisateurs. Les migrations s’appliquent automatiquement au démarrage.",
     "multiNotifications": "Notifications multicanales",
-    "multiNotificationsDesc": "Recevez des rappels d’entretien via Ntfy, Apprise, e-mail ou webhook — là où cela convient à votre homelab.",
     "comprehensiveTracking": "Suivi complet",
     "comprehensiveTrackingDesc": "Consommation de carburant, utilisation de DEF, historique de pression des pneus, entretien planifié, photos, documents et télémétrie OBD-II en direct — tout est couvert.",
     "builtWithAI": "Conçu avec l’IA",

@@ -300,6 +300,18 @@ export function isEnglishCopy(value: unknown, enValue: unknown): boolean {
 }
 
 /**
+ * English values holding an em-dash or en-dash, as `ns:key`. House style is
+ * no dashes in English copy; locales keep their own typography.
+ */
+export function englishDashes(valuesByNamespace: ReadonlyMap<string, ReadonlyMap<string, unknown>>): string[] {
+  const out: string[] = []
+  for (const [ns, values] of valuesByNamespace) {
+    for (const [key, value] of values) if (typeof value === 'string' && /[\u2013\u2014]/.test(value)) out.push(`${ns}:${key}`)
+  }
+  return out
+}
+
+/**
  * Compare one namespace of one language against English. Pure, so the gate's
  * tests can hand it fixtures.
  */

@@ -113,7 +113,6 @@
     "databaseSettings": "Ustawienia bazy danych",
     "databaseSettingsDesc": "Wybierz SQLite (domyślnie) dla prostego użytku w homelabie lub PostgreSQL dla wdrożeń wielu użytkowników. Migracje stosowane są automatycznie przy starcie.",
     "multiNotifications": "Powiadomienia wielokanałowe",
-    "multiNotificationsDesc": "Otrzymuj przypomnienia o serwisie przez Ntfy, Apprise, e-mail lub webhook — tam, gdzie najlepiej pasuje do Twojego homelaba.",
     "comprehensiveTracking": "Kompleksowe śledzenie",
     "comprehensiveTrackingDesc": "Zużycie paliwa, AdBlue, historia ciśnienia w oponach, planowy serwis, zdjęcia, dokumenty oraz telemetria OBD-II na żywo — wszystko obsługiwane.",
     "builtWithAI": "Stworzone z pomocą AI",

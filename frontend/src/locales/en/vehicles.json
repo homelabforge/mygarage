@@ -172,7 +172,7 @@
     "noRecords": "No DEF records yet",
     "noRecordsDesc": "Track diesel exhaust fluid purchases and fill levels",
     "purchase": "Purchase",
-    "readOnlyNotice": "DEF entry requires a diesel fuel type — records shown for reference",
+    "readOnlyNotice": "DEF entry requires a diesel fuel type. Records are shown for reference.",
     "recordCount": "{{count}} record(s)",
     "source": "Source",
     "tableCaption": "DEF purchase history",
@@ -271,7 +271,7 @@
       "missingHint": "Some details aren't in your records yet:",
       "editSpecs": "Edit Fluids & Torque",
       "dtcSource": "DTC",
-      "disclaimer": "Diagnostic guidance is based on logged codes and curated DTC notes — not a substitute for a professional diagnosis.",
+      "disclaimer": "Diagnostic guidance is based on logged codes and curated DTC notes. It is not a substitute for a professional diagnosis.",
       "suggestions": {
         "oil": "What oil does this vehicle use?",
         "torque": "What is the lug nut torque?",
@@ -574,7 +574,7 @@
     "totalSpent": "Total Spent",
     "towing": "Towing",
     "paginatedCount": "{{shown}} of {{total}}",
-    "pageRange": "Showing {{start}}–{{end}} of {{total}}",
+    "pageRange": "Showing {{start}} to {{end}} of {{total}}",
     "pageOf": "Page {{page}} of {{total}}",
     "volumeUnit": "Volume ({{unit}})",
     "propaneUnit": "Propane ({{unit}})",
@@ -2247,7 +2247,7 @@
   "reminderPacks": {
     "oil_and_filter": {
       "name": "Oil & Filter Service",
-      "description": "DIY engine oil and oil filter change — typically every 8,000 km or 6 months."
+      "description": "DIY engine oil and oil filter change, typically every 8,000 km or 6 months."
     },
     "tire_rotation": {
       "name": "Tire Rotation",

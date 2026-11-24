@@ -233,7 +233,6 @@
     "databaseSettings": "Tetapan Pangkalan Data",
     "databaseSettingsDesc": "Pilih SQLite (lalai) untuk kegunaan homelab ringkas atau PostgreSQL untuk penggunaan berbilang pengguna. Migrasi digunakan secara automatik semasa aplikasi bermula.",
     "multiNotifications": "Pemberitahuan Pelbagai Saluran",
-    "multiNotificationsDesc": "Dapatkan peringatan penyelenggaraan melalui Ntfy, Apprise, e-mel atau webhook — mengikut kesesuaian homelab anda.",
     "comprehensiveTracking": "Penjejakan Menyeluruh",
     "comprehensiveTrackingDesc": "Ekonomi bahan api, penggunaan DEF, sejarah tekanan tayar, penyelenggaraan berjadual, foto, dokumen dan telemetri OBD-II langsung — semuanya disokong.",
     "builtWithAI": "Dibina dengan AI",
