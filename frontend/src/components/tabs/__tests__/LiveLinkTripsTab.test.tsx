@@ -4,7 +4,6 @@ import type { ReactNode } from 'react'
 import { render, screen, waitFor } from '../../../__tests__/test-utils'
 import { fireEvent } from '@testing-library/react'
 import type { Trip, TripList, TripPointsResponse } from '../../../types/trips'
-import vehiclesEn from '../../../locales/en/vehicles.json'
 import { setActiveLocale } from '../../../constants/i18n'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -25,14 +24,8 @@ import { setActiveLocale } from '../../../constants/i18n'
 // production. TEST-harness fix only; the component's fetch/effect/[vin, t] deps
 // are unchanged (reskin = rendering-only).
 // ─────────────────────────────────────────────────────────────────────────────
-//
-// The `t` below resolves ONE key from the SHIPPED English bundle:
-// `vehicles:livelink.unknownUnit`. That key holds the whole user-visible
-// wording of the unknown-unit affordance, so a key-echoing mock would let the
-// wording change with nothing failing. Every other key still echoes.
 vi.mock('react-i18next', () => {
-  const t = (key: string) =>
-    key === 'vehicles:livelink.unknownUnit' ? vehiclesEn.livelink.unknownUnit : key
+  const t = (key: string) => key
   return {
     useTranslation: () => ({
       t,

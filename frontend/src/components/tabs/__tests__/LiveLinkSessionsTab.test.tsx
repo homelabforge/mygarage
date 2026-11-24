@@ -4,7 +4,6 @@ import { render, screen, cleanup } from '../../../__tests__/test-utils'
 import { fireEvent } from '@testing-library/react'
 import type { DriveSession, DriveSessionListResponse } from '../../../types/livelink'
 import { binarySystemFor, presetUnitsFor, type UnitSet } from '../../../types/units'
-import vehiclesEn from '../../../locales/en/vehicles.json'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Harness note (mirrors the Task-1/Task-2 LiveLink precedent — assertions and
@@ -23,15 +22,8 @@ import vehiclesEn from '../../../locales/en/vehicles.json'
 // This is a TEST-harness fix only; the component's fetch/effect logic is
 // unchanged (reskin = rendering-only).
 // ─────────────────────────────────────────────────────────────────────────────
-//
-// The `t` below resolves ONE key from the SHIPPED English bundle:
-// `vehicles:livelink.unknownUnit`. That key's value is the entire
-// user-visible wording of the L6 affordance, and a key-echoing mock would let
-// the wording change without a test noticing. Every other key still echoes, so
-// the existing key-name assertions are untouched.
 vi.mock('react-i18next', () => {
-  const t = (key: string) =>
-    key === 'vehicles:livelink.unknownUnit' ? vehiclesEn.livelink.unknownUnit : key
+  const t = (key: string) => key
   return {
     useTranslation: () => ({
       t,

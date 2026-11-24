@@ -7,7 +7,6 @@
     "loading": "Memuatkan analitik garaj...",
     "loadingAria": "Memuatkan analitik",
     "offlineCached": "Luar talian: memaparkan snapshot analitik yang dicache.",
-    "genericError": "Ralat telah berlaku",
     "exportPdfFailed": "Gagal mengeksport PDF. Sila cuba lagi.",
     "empty": {
       "title": "Belum Ada Kenderaan",
@@ -27,12 +26,9 @@
     "noCostData": "Tiada data kos tersedia",
     "runningCostsByVehicle": "Kos Operasi mengikut Kenderaan",
     "noVehicleData": "Tiada data kenderaan tersedia",
-    "runningCostsTooltip": "Kos Operasi",
     "monthlySpendingTrend": "Trend Perbelanjaan Bulanan",
-    "costAxis": "Kos ({{currency}})",
     "rollingAvg3": "Purata 3 Bulan",
     "rollingAvg6": "Purata 6 Bulan",
-    "otherCategory": "Lain-lain",
     "table": {
       "vehicle": "Kenderaan",
       "maintenance": "Penyeleng.",
@@ -170,7 +166,6 @@
     "notFound": "Analitik tidak ditemui",
     "notAvailable": "N/A",
     "offlineCached": "Luar talian: memaparkan snapshot analitik yang dicache.",
-    "genericError": "Ralat telah berlaku",
     "fillAllDates": "Sila isi semua medan tarikh",
     "comparisonFailed": "Gagal mendapatkan data perbandingan",
     "costProjection": "Unjuran Kos",
@@ -514,8 +509,6 @@
     "downloadPdf": "Muat Turun PDF",
     "exportCsv": "Eksport CSV",
     "generating": "Menjana laporan...",
-    "pdfError": "Gagal menjana laporan",
-    "csvError": "Gagal mengeksport data",
     "pdfAction": "menjana laporan",
     "csvAction": "mengeksport data"
   },

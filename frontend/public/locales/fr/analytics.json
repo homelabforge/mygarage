@@ -7,7 +7,6 @@
     "loading": "Chargement des analyses du garage…",
     "loadingAria": "Chargement des analyses",
     "offlineCached": "Hors ligne : affichage d’un instantané des analyses mis en cache.",
-    "genericError": "Une erreur s’est produite",
     "exportPdfFailed": "Échec de l’exportation du PDF. Veuillez réessayer.",
     "empty": {
       "title": "Aucun véhicule pour le moment",
@@ -27,12 +26,9 @@
     "noCostData": "Aucune donnée de coût disponible",
     "runningCostsByVehicle": "Coûts d’utilisation par véhicule",
     "noVehicleData": "Aucune donnée de véhicule disponible",
-    "runningCostsTooltip": "Coûts d’utilisation",
     "monthlySpendingTrend": "Tendance mensuelle des dépenses",
-    "costAxis": "Coût ({{currency}})",
     "rollingAvg3": "Moy. sur 3 mois",
     "rollingAvg6": "Moy. sur 6 mois",
-    "otherCategory": "Autre",
     "table": {
       "vehicle": "Véhicule",
       "maintenance": "Entre.",
@@ -170,7 +166,6 @@
     "notFound": "Analyses introuvables",
     "notAvailable": "N/D",
     "offlineCached": "Hors ligne : affichage d’un instantané des analyses mis en cache.",
-    "genericError": "Une erreur s’est produite",
     "fillAllDates": "Veuillez remplir tous les champs de date",
     "comparisonFailed": "Échec de la récupération des données de comparaison",
     "costProjection": "Projection des coûts",
@@ -514,8 +509,6 @@
     "downloadPdf": "Télécharger le PDF",
     "exportCsv": "Exporter en CSV",
     "generating": "Génération du rapport…",
-    "pdfError": "Échec de la génération du rapport",
-    "csvError": "Échec de l’exportation des données",
     "pdfAction": "de générer le rapport",
     "csvAction": "d’exporter les données"
   },

@@ -8,35 +8,27 @@
   "loading": "Загрузка...",
   "error": "Ошибка",
   "success": "Успешно",
-  "confirm": "Подтвердить",
   "back": "Назад",
   "next": "Далее",
   "search": "Поиск",
-  "noResults": "Результатов не найдено",
   "required": "Обязательно",
   "optional": "Необязательно",
   "yes": "Да",
   "no": "Нет",
   "ok": "Готово",
-  "signIn": "Войти",
-  "signOut": "Выйти",
   "register": {
-    "title": "Создать учетную запись",
     "subtitle": "Настройте свою учетную запись MyGarage",
     "username": "Имя пользователя",
     "email": "Электронная почта",
     "password": "Пароль",
     "submit": "Создать учетную запись",
     "hasAccount": "Уже есть учетная запись?",
-    "loginLink": "Войти",
-    "success": "Учетная запись успешно создана!"
+    "loginLink": "Войти"
   },
   "username": "Имя пользователя",
   "password": "Пароль",
   "email": "Электронная почта",
-  "fullName": "Полное имя",
   "login": {
-    "title": "Войти в MyGarage",
     "subtitle": "Введите свои учетные данные для доступа в гараж",
     "usernameOrEmail": "Имя пользователя",
     "password": "Пароль",
@@ -44,7 +36,6 @@
     "noAccount": "Нет учетной записи?",
     "registerLink": "Зарегистрируйтесь здесь",
     "oidcSignIn": "Войти через {{provider}}",
-    "error": "Неверное имя пользователя или пароль",
     "continueWithPassword": "Или вход по паролю",
     "signInAction": "войти",
     "ssoError": {
@@ -61,20 +52,13 @@
     }
   },
   "oidc": {
-    "signingIn": "Выполняется вход...",
     "success": "Аутентификация прошла успешно!",
     "redirecting": "Перенаправление в ваш гараж...",
-    "error": "Ошибка аутентификации",
     "linkAccount": "Привязать учетную запись",
     "linkDescription": "Привяжите существующую учетную запись к вашему единому входу (SSO)"
   },
   "errors": {
-    "generic": "Что-то пошло не так. Пожалуйста, попробуйте еще раз.",
-    "network": "Ошибка сети. Пожалуйста, проверьте ваше соединение.",
-    "unauthorized": "Пожалуйста, войдите, чтобы продолжить.",
-    "forbidden": "Доступ запрещён: недостаточно прав.",
-    "notFound": "Запрошенная страница не найдена.",
-    "validation": "Пожалуйста, проверьте введенные данные и попробуйте снова."
+    "generic": "Что-то пошло не так. Пожалуйста, попробуйте еще раз."
   },
   "footer": "MyGarage v{{version}} — Локальный трекер технического обслуживания автомобилей",
   "auth": {
@@ -84,12 +68,10 @@
     "title": "Адресная книга",
     "subtitle": "Автосервисы, поставщики запчастей, дилеры и страховые контакты",
     "searchPlaceholder": "Поиск контактов...",
-    "allCategories": "Любая категория",
     "categoryService": "Сервис",
     "categoryParts": "Запчасти",
     "categoryDealer": "Дилер",
     "categoryInsurance": "Страхование",
-    "categoryOther": "Другое",
     "addContact": "Добавить контакт",
     "addFirstContact": "Добавить первый контакт",
     "editContact": "Редактировать контакт",
@@ -97,7 +79,6 @@
     "noContacts": "Контактов пока нет.",
     "noMatchingContacts": "Нет контактов, соответствующих фильтрам.",
     "confirmDelete": "Удалить этот контакт?",
-    "deleteError": "Ошибка удаления контакта",
     "businessName": "Название компании",
     "contactName": "Контактное лицо",
     "category": "Категория",
@@ -111,15 +92,12 @@
     "zipCode": "Почтовый индекс",
     "notes": "Заметки",
     "notesPlaceholder": "Дополнительные заметки по контакту...",
-    "gasStationFlag": "Заправочная станция",
     "statePlaceholder": "Регион / область",
     "categoryAll": "Любая",
     "categoryGasStation": "Заправки",
     "editContactNamed": "Редактировать: {{name}}",
     "filterByCategory": "Фильтр по категории",
     "saveChanges": "Сохранить изменения",
-    "gasStations": "Заправки",
-    "gasStationsFilterHint": "Показывать только станции, созданные из записей заправок",
     "categoryRvPark": "Кемпинг для автодомов",
     "saveAction": "сохранить контакт",
     "deleteAction": "удалить контакт"
@@ -142,7 +120,6 @@
     "searchByAddress": "Поиск по адресу",
     "addressTooShort": "Ввести адрес (≥2 символов)",
     "addressNotFound": "По этому адресу ничего не найдено",
-    "geocodeFailed": "Ошибка геокодирования адреса",
     "geocodeAction": "геокодировать адрес",
     "categoryAutoShops": "Автосервисы",
     "categoryEvCharging": "Зарядные станции для электромобилей",
@@ -157,9 +134,7 @@
     "locationDenied": "Доступ к местоположению запрещён. Включить доступ к геоданным в настройках браузера.",
     "locationUnavailable": "Данные по местоположению недоступны.",
     "locationTimeout": "Истекло время ожидания запроса местоположения.",
-    "searchFailed": "Ошибка поиска точек интереса",
     "searchAction": "искать точки интереса",
-    "saveFailed": "Ошибка сохранения точки интереса",
     "saveAction": "сохранить точку интереса",
     "savedToAddressBook": "{{name}} сохранено в адресную книгу!"
   },
@@ -266,18 +241,10 @@
       "maxLength": "Адрес электронной почты должен быть короче 255 символов"
     },
     "serviceVisit": {
-      "descriptionRequired": "Укажите описание",
-      "descriptionTooLong": "Слишком длинное описание (не более 200 символов)",
-      "lineItemNotesTooLong": "Слишком длинные примечания (не более 1000 символов)",
-      "inspectionResultInvalid": "Неверный результат осмотра",
-      "inspectionSeverityInvalid": "Неверная степень серьёзности осмотра",
-      "notesTooLong": "Слишком длинные примечания (не более 5000 символов)",
       "insuranceClaimNumberTooLong": "Слишком длинный номер страхового требования (не более 50 символов)",
       "invoiceNumberTooLong": "Слишком длинный номер счёта (не более 50 символов)",
       "poNumberTooLong": "Слишком длинный номер заказа (не более 50 символов)",
-      "workOrderNumberTooLong": "Слишком длинный номер наряда (не более 50 символов)",
-      "lineItemsRequired": "Добавьте хотя бы одну позицию",
-      "inspectionResultRequired": "Для позиций осмотра необходимо указать результат"
+      "workOrderNumberTooLong": "Слишком длинный номер наряда (не более 50 символов)"
     },
     "supply": {
       "nameRequired": "Укажите название",
@@ -320,8 +287,7 @@
     "price": {
       "negative": "Цена не может быть отрицательной",
       "tooLarge": "Слишком большая цена",
-      "invalid": "Введите число",
-      "required": "Укажите цену"
+      "invalid": "Введите число"
     },
     "kwh": {
       "negative": "кВт·ч не может быть отрицательным",
@@ -414,7 +380,6 @@
       "remedyTooLong": "Слишком длинное описание способа устранения (не более 2000 символов)"
     },
     "fuel": {
-      "fuelTypeTooLong": "Слишком длинный тип топлива",
       "octaneTooSmall": "Октановое число должно быть не менее 50",
       "octaneTooLarge": "Октановое число не может превышать 150",
       "octaneInvalid": "Введите целое октановое число",
@@ -440,7 +405,6 @@
     "addFirstSupply": "Добавить первый расходник",
     "editSupply": "Изменить расходник",
     "loading": "Загрузка расходников...",
-    "loadError": "Ошибка загрузки расходников",
     "noSupplies": "Расходников пока нет.",
     "showArchived": "Показать архив",
     "archived": "Архивирован",
@@ -470,7 +434,6 @@
     "tableCaption": "Запасы расходников",
     "confirmDelete": "Удалить этот расходник?",
     "deleted": "Расходник удалён",
-    "deleteError": "Ошибка удаления расходника",
     "name": "Название",
     "unitType": "Тип единицы",
     "unitTypeVolume": "Объём",
@@ -505,7 +468,6 @@
     "history": {
       "title": "История: {{name}}",
       "loading": "Загрузка истории...",
-      "loadError": "Ошибка загрузки истории",
       "empty": "Покупок и расхода пока нет.",
       "ledger": "Журнал",
       "purchase": "Покупка",
@@ -514,23 +476,18 @@
       "balance": "Остаток",
       "serviceVisitDate": "Дата визита",
       "downloadReceipt": "Скачать чек",
-      "downloadError": "Ошибка скачивания чека",
       "deleteReceipt": "Удалить чек",
       "confirmDeleteReceipt": "Удалить этот чек?",
       "receiptDeleted": "Чек удалён",
-      "receiptDeleteError": "Ошибка удаления чека",
       "chooseReceipt": "Прикрепить чек",
       "uploadReceipt": "Загрузить",
       "receiptUploaded": "Чек загружен",
-      "receiptUploadError": "Ошибка загрузки чека",
       "deletePurchase": "Удалить покупку",
       "confirmDeletePurchase": "Удалить эту покупку? Чек также будет удалён.",
       "purchaseDeleted": "Покупка удалена",
-      "purchaseDeleteError": "Ошибка удаления покупки",
       "deleteAdjustment": "Удалить корректировку",
       "confirmDeleteAdjustment": "Удалить эту корректировку?",
       "adjustmentDeleted": "Корректировка удалена",
-      "adjustmentDeleteError": "Ошибка удаления корректировки",
       "logPurchase": "Записать покупку",
       "logAdjustment": "Записать корректировку",
       "quantity": "Количество",
@@ -555,7 +512,6 @@
       "title": "Израсходовано",
       "count": "Записей по расходу расходников: {{count}}",
       "loading": "Загрузка израсходованных расходников...",
-      "loadError": "Ошибка загрузки израсходованных расходников",
       "empty": "Для этого автомобиля расходники пока не записаны.",
       "quantity": "Количество",
       "viewVisit": "Открыть визит техобслуживания",
@@ -612,7 +568,6 @@
     "passwordStrength": "Надёжность пароля: {{strength}}",
     "passwordRequirements": "Требуется: 8+ символов, заглавная, строчная, цифра, спецсимвол (!@#$...)",
     "submitting": "Создание учётной записи...",
-    "failed": "Ошибка регистрации. Повторить попытку.",
     "createAccountAction": "создать учётную запись",
     "strength": {
       "weak": "Слабый",
@@ -635,15 +590,12 @@
     "returnToLogin": "Вернуться к входу",
     "missingToken": "Токен привязки отсутствует. Начать вход заново.",
     "passwordRequired": "Требуется пароль",
-    "failed": "Ошибка привязки учётной записи. Повторить попытку.",
     "linkAction": "привязать учётную запись"
   },
   "protectedRoute": {
     "loadingAriaLabel": "Загрузка"
   },
   "addressBookPage": {
-    "edit": "Изменить",
-    "delete": "Удалить",
     "businessNamePlaceholder": "Автосервис «АВС»",
     "contactNamePlaceholder": "Иван Иванов",
     "streetAddressPlaceholder": "ул. Ленина, 123",
@@ -671,7 +623,6 @@
     "cancel": "Отмена",
     "add": "Добавить",
     "adding": "Добавление...",
-    "addFailed": "Ошибка добавления записи",
     "addAction": "добавить запись"
   },
   "addressBookAutocomplete": {
@@ -742,7 +693,6 @@
     "network": "Ошибка сети. Проверьте подключение.",
     "generic": "Произошла ошибка.",
     "unexpected": "Произошла непредвиденная ошибка.",
-    "formSubmitFallback": "Произошла ошибка",
     "actionFailed": "Ошибка выполнения: {{action}}. {{message}}",
     "actionFailedCheckInput": "Ошибка выполнения: {{action}}. Проверьте введённые данные."
   },

@@ -1,8 +1,8 @@
 #!/usr/bin/env bun
 /**
- * i18n usage validation — checks CODE against the locale files.
+ * i18n usage validation: checks CODE against the locale files.
  *
- * Two checks, both in the direction validate-translations.ts cannot see. That
+ * These checks run in the direction validate-translations.ts cannot see. That
  * script checks each language AGAINST English, so English is its reference:
  *
  *  1. Every literal `t('...')` in src/ must resolve in en/<namespace>.json.
@@ -34,8 +34,14 @@
  *     that: ~1400 keys, absent from supportedLngs and both allowlists, never
  *     fetched, and contributing 50 phantom "missing keys" to every report.
  *
+ *  4. Every English key must be referenced somewhere in src/ (tests and
+ *     comments don't count): a quoted literal equal to the key, its `ns:` form
+ *     or plural base, or a template / `'x.' +` prefix it sits under. Dead keys
+ *     get translated into eight languages for nobody, and this went in at zero.
+ *     KEEP lists any exception with its reason.
+ *
  * Usage: bun run scripts/validate-i18n-usage.ts
- * Exit code: 1 on either. Unlike a missing translation (which falls back to
+ * Exit code: 1 on any of them. Unlike a missing translation (which falls back to
  * English), a key missing from English has no fallback — i18next renders the
  * raw key. Both are always bugs, so they block.
  */
@@ -168,8 +174,9 @@ export function scanFile(text: string, file: string): Violation[] {
   const bound = namespacesFor(text)
   const consts = stringConstsFor(text)
 
-  // Literal t('key') / t("key") / t('key', { ... }) only. Template literals are dynamic and
-  // every one in the codebase carries a defaultValue, so they can't render raw.
+  // Literal t('key') / t("key") / t('key', { ... }) only. Template literals are
+  // dynamic, so this check can't resolve them; check 4 still counts their
+  // prefixes as references.
   //
   // Note this runs even when the file binds no namespace. Skipping bound-less
   // files was a silent hole: the Zod schema factories take `t` as a parameter
@@ -252,8 +259,79 @@ export function scanFile(text: string, file: string): Violation[] {
   return violations
 }
 
+/**
+ * Check 4: English keys nothing in src/ references. Anything that could be a
+ * reference counts: a quoted literal equal to the key (bare, `ns:`-qualified or
+ * its plural base), or a template / `'x.' +` prefix it sits under. Over-counting
+ * only lets a dead key live; it never flags a live one.
+ */
+export interface KeyReferences {
+  literals: Set<string>
+  prefixes: Set<string>
+}
+
+export function emptyReferences(): KeyReferences {
+  return { literals: new Set(), prefixes: new Set() }
+}
+
+// A prefix has to end in a dot and name at least one segment, or a bare
+// `${x}` template would mark every key used and the check could never fail.
+const USABLE_PREFIX = /^(?:[A-Za-z]+:)?[\w-]+(?:\.[\w-]+)*\.$/
+
+// Comments name dead keys all the time ("`defList.gallons` lied to metric
+// users"), and that's not a reference. A `//` only starts a comment after
+// whitespace or at the start of a line, and a /* after whitespace or a {, so
+// URLs and accept="image/*" in strings survive.
+function stripComments(text: string): string {
+  return text.replace(/(^|[\s{])\/\*[\s\S]*?\*\//g, '$1').replace(/(^|\s)\/\/[^\n]*/g, '$1')
+}
+
+export function collectReferences(source: string, refs: KeyReferences): void {
+  const text = stripComments(source)
+  for (const m of text.matchAll(/(['"`])([\w.:-]+)\1/g)) refs.literals.add(m[2])
+  for (const m of text.matchAll(/`([\w.:-]*)\$\{/g)) {
+    if (USABLE_PREFIX.test(m[1])) refs.prefixes.add(m[1])
+  }
+  for (const m of text.matchAll(/(['"])([\w.:-]+\.)\1\s*\+/g)) {
+    if (USABLE_PREFIX.test(m[2])) refs.prefixes.add(m[2])
+  }
+}
+
+/** Keys listed here stay even with no reference. Each needs a reason. */
+export const KEEP: ReadonlyMap<string, string> = new Map()
+
+export function findUnusedKeys(
+  english: ReadonlyMap<string, ReadonlySet<string>>,
+  refs: KeyReferences,
+  keep: ReadonlyMap<string, string> = KEEP,
+): string[] {
+  const prefixes = [...refs.prefixes].map(p => {
+    const colon = p.indexOf(':')
+    return colon === -1 ? { ns: null, rest: p } : { ns: p.slice(0, colon), rest: p.slice(colon + 1) }
+  })
+  const unused: string[] = []
+  for (const [ns, keys] of english) {
+    for (const key of keys) {
+      if (keep.has(`${ns}:${key}`)) continue
+      const base = key.replace(/_(?:zero|one|two|few|many|other)$/, '')
+      const forms = [key, base, `${ns}:${key}`, `${ns}:${base}`]
+      if (forms.some(f => refs.literals.has(f))) continue
+      if (prefixes.some(p => (p.ns === null || p.ns === ns) && key.startsWith(p.rest))) continue
+      unused.push(`${ns}:${key}`)
+    }
+  }
+  return unused
+}
+
 function main(): void {
-  const violations = walk(SRC).flatMap(file => scanFile(readFileSync(file, 'utf-8'), file))
+  const files = walk(SRC)
+  const refs = emptyReferences()
+  const violations = files.flatMap(file => {
+    const text = readFileSync(file, 'utf-8')
+    collectReferences(text, refs)
+    return scanFile(text, file)
+  })
+  const unused = findUnusedKeys(englishKeys, refs)
 
   // Check 2: every shipped locale directory must be a language the app can load.
   // `en` lives in src/ (bundled), so it is never a public/locales directory.
@@ -285,9 +363,18 @@ function main(): void {
     console.log("backend/app/constants/i18n.py + i18n.ts's supportedLngs), or delete it.")
   }
 
+  if (unused.length > 0) {
+    failed = true
+    console.log(`\n✗ ${unused.length} English key(s) nothing in src/ references:\n`)
+    for (const key of unused) console.log(`  ${key}`)
+    console.log('\nDelete them from en AND every locale, or, if something builds the key in a')
+    console.log('way this scan cannot see, add it to KEEP in this script with the reason.')
+  }
+
   if (failed) process.exit(1)
 
   console.log('✓ All translation keys used in code exist in English.')
+  console.log('✓ Every English key is referenced somewhere in src/.')
   console.log('✓ All locale directories are loadable languages.')
   process.exit(0)
 }

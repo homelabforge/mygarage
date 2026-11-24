@@ -8,35 +8,27 @@
   "loading": "Wird geladen...",
   "error": "Fehler",
   "success": "Erfolgreich",
-  "confirm": "Bestätigen",
   "back": "Zurück",
   "next": "Weiter",
   "search": "Suchen",
-  "noResults": "Keine Ergebnisse gefunden",
   "required": "Erforderlich",
   "optional": "Optional",
   "yes": "Ja",
   "no": "Nein",
   "ok": "OK",
-  "signIn": "Anmelden",
-  "signOut": "Abmelden",
   "register": {
-    "title": "Konto erstellen",
     "subtitle": "Richte dein MyGarage-Konto ein",
     "username": "Benutzername",
     "email": "E-Mail",
     "password": "Passwort",
     "submit": "Konto erstellen",
     "hasAccount": "Hast du bereits ein Konto?",
-    "loginLink": "Anmelden",
-    "success": "Konto erfolgreich erstellt!"
+    "loginLink": "Anmelden"
   },
   "username": "Benutzername",
   "password": "Passwort",
   "email": "E-Mail",
-  "fullName": "Vollständiger Name",
   "login": {
-    "title": "Bei MyGarage anmelden",
     "subtitle": "Gib deine Zugangsdaten ein, um auf deine Garage zuzugreifen",
     "usernameOrEmail": "Benutzername",
     "password": "Passwort",
@@ -45,14 +37,11 @@
     "registerLink": "Hier registrieren",
     "oidcSignIn": "Mit {{provider}} anmelden",
     "continueWithPassword": "Oder mit Passwort fortfahren",
-    "error": "Ungültiger Benutzername oder ungültiges Passwort",
     "signInAction": "Anmelden"
   },
   "oidc": {
-    "signingIn": "Anmeldung wird durchgeführt...",
     "success": "Authentifizierung erfolgreich!",
     "redirecting": "Weiterleitung zu deiner Garage...",
-    "error": "Authentifizierung fehlgeschlagen",
     "linkAccount": "Konto verknüpfen",
     "linkDescription": "Verknüpfe dein bestehendes Konto mit deiner SSO-Identität"
   },
@@ -63,12 +52,10 @@
     "title": "Adressbuch",
     "subtitle": "Werkstätten, Teilelieferanten, Händler und Versicherungskontakte",
     "searchPlaceholder": "Kontakte suchen...",
-    "allCategories": "Alle Kategorien",
     "categoryService": "Service",
     "categoryParts": "Teile",
     "categoryDealer": "Händler",
     "categoryInsurance": "Versicherung",
-    "categoryOther": "Sonstige",
     "addContact": "Kontakt hinzufügen",
     "addFirstContact": "Füge deinen ersten Kontakt hinzu",
     "editContact": "Kontakt bearbeiten",
@@ -76,7 +63,6 @@
     "noContacts": "Noch keine Kontakte vorhanden.",
     "noMatchingContacts": "Keine Kontakte entsprechen deinen Filtern.",
     "confirmDelete": "Diesen Kontakt löschen?",
-    "deleteError": "Kontakt konnte nicht gelöscht werden",
     "businessName": "Firmenname",
     "contactName": "Name des Kontakts",
     "category": "Kategorie",
@@ -91,9 +77,6 @@
     "zipCode": "PLZ",
     "notes": "Notizen",
     "notesPlaceholder": "Zusätzliche Notizen zu diesem Kontakt...",
-    "gasStationFlag": "Tankstelle",
-    "gasStations": "Tankstellen",
-    "gasStationsFilterHint": "Nur Tankstellen anzeigen, die aus Kraftstoffeinträgen erstellt wurden",
     "categoryRvPark": "Wohnmobilstellplatz",
     "categoryAll": "Alle",
     "categoryGasStation": "Tankstelle",
@@ -110,13 +93,11 @@
     "addFirstSupply": "Füge deinen ersten Vorrat hinzu",
     "editSupply": "Vorrat bearbeiten",
     "loading": "Vorräte werden geladen...",
-    "loadError": "Vorräte konnten nicht geladen werden",
     "noSupplies": "Noch keine Vorräte vorhanden.",
     "showArchived": "Archivierte anzeigen",
     "archived": "Archiviert",
     "confirmDelete": "Diesen Vorrat löschen?",
     "deleted": "Vorrat gelöscht",
-    "deleteError": "Vorrat konnte nicht gelöscht werden",
     "name": "Name",
     "unitType": "Einheitentyp",
     "unitTypeVolume": "Volumen",
@@ -135,7 +116,6 @@
     "history": {
       "title": "Verlauf: {{name}}",
       "loading": "Verlauf wird geladen...",
-      "loadError": "Verlauf konnte nicht geladen werden",
       "empty": "Noch keine Einkäufe oder Verbräuche erfasst.",
       "ledger": "Bestandsbuch",
       "purchase": "Einkauf",
@@ -144,23 +124,18 @@
       "balance": "Bestand",
       "serviceVisitDate": "Besuchsdatum",
       "downloadReceipt": "Beleg herunterladen",
-      "downloadError": "Beleg konnte nicht heruntergeladen werden",
       "deleteReceipt": "Beleg löschen",
       "confirmDeleteReceipt": "Diesen Beleg löschen?",
       "receiptDeleted": "Beleg gelöscht",
-      "receiptDeleteError": "Beleg konnte nicht gelöscht werden",
       "chooseReceipt": "Beleg anhängen",
       "uploadReceipt": "Hochladen",
       "receiptUploaded": "Beleg hochgeladen",
-      "receiptUploadError": "Beleg konnte nicht hochgeladen werden",
       "deletePurchase": "Einkauf löschen",
       "confirmDeletePurchase": "Diesen Einkauf löschen? Dadurch wird auch der zugehörige Beleg entfernt.",
       "purchaseDeleted": "Einkauf gelöscht",
-      "purchaseDeleteError": "Einkauf konnte nicht gelöscht werden",
       "deleteAdjustment": "Anpassung löschen",
       "confirmDeleteAdjustment": "Diese Anpassung löschen?",
       "adjustmentDeleted": "Anpassung gelöscht",
-      "adjustmentDeleteError": "Anpassung konnte nicht gelöscht werden",
       "logPurchase": "Einkauf erfassen",
       "logAdjustment": "Anpassung erfassen",
       "quantity": "Menge",
@@ -184,7 +159,6 @@
       "title": "Verwendete Vorräte",
       "count": "{{count}} Vorratsverbräuche erfasst",
       "loading": "Verwendete Vorräte werden geladen...",
-      "loadError": "Verwendete Vorräte konnten nicht geladen werden",
       "empty": "Für dieses Fahrzeug wurden noch keine Vorräte erfasst.",
       "quantity": "Menge",
       "viewVisit": "Servicebesuch anzeigen",
@@ -217,7 +191,6 @@
     "searchByAddress": "Nach Adresse suchen",
     "addressTooShort": "Gib eine Adresse ein (≥2 Zeichen)",
     "addressNotFound": "Keine Ergebnisse für diese Adresse",
-    "geocodeFailed": "Geokodierung fehlgeschlagen",
     "categoryAutoShops": "Werkstätten",
     "categoryEvCharging": "E-Ladestationen",
     "categoryGasStations": "Tankstellen",
@@ -231,8 +204,6 @@
     "locationDenied": "Standortzugriff verweigert. Bitte aktiviere den Standortzugriff in deinen Browsereinstellungen.",
     "locationUnavailable": "Standortinformationen sind nicht verfügbar.",
     "locationTimeout": "Zeitüberschreitung bei der Standortabfrage.",
-    "searchFailed": "Suche nach POIs fehlgeschlagen",
-    "saveFailed": "POI konnte nicht gespeichert werden",
     "savedToAddressBook": "{{name}} wurde im Adressbuch gespeichert!",
     "geocodeAction": "Adresse geokodieren",
     "searchAction": "Nach Points of Interest suchen",
@@ -271,12 +242,7 @@
     "forCommunity": "für die Homelab-Community"
   },
   "errors": {
-    "generic": "Etwas ist schiefgelaufen. Bitte versuche es erneut.",
-    "network": "Netzwerkfehler. Bitte überprüfe deine Verbindung.",
-    "unauthorized": "Bitte melde dich an, um fortzufahren.",
-    "forbidden": "Du hast keine Berechtigung, dies zu tun.",
-    "notFound": "Die angeforderte Ressource wurde nicht gefunden.",
-    "validation": "Bitte überprüfe deine Eingabe und versuche es erneut."
+    "generic": "Etwas ist schiefgelaufen. Bitte versuche es erneut."
   },
   "footer": "MyGarage v{{version}} - Selbst gehosteter Tracker für die Fahrzeugwartung",
   "active": "Aktiv",
@@ -361,7 +327,6 @@
     "passwordStrength": "Passwortstärke: {{strength}}",
     "passwordRequirements": "Erforderlich: 8+ Zeichen, Großbuchstabe, Kleinbuchstabe, Zahl, Sonderzeichen (!@#$...)",
     "submitting": "Konto wird erstellt...",
-    "failed": "Registrierung fehlgeschlagen. Bitte versuche es erneut.",
     "strength": {
       "weak": "Schwach",
       "medium": "Mittel",
@@ -384,15 +349,12 @@
     "returnToLogin": "Zurück zum Login",
     "missingToken": "Verknüpfungs-Token fehlt. Bitte starte den Login-Prozess neu.",
     "passwordRequired": "Passwort ist erforderlich",
-    "failed": "Konto konnte nicht verknüpft werden. Bitte versuche es erneut.",
     "linkAction": "Konto verknüpfen"
   },
   "protectedRoute": {
     "loadingAriaLabel": "Wird geladen"
   },
   "addressBookPage": {
-    "edit": "Bearbeiten",
-    "delete": "Löschen",
     "businessNamePlaceholder": "ABC Autowerkstatt",
     "contactNamePlaceholder": "Max Mustermann",
     "streetAddressPlaceholder": "Hauptstraße 123",
@@ -420,7 +382,6 @@
     "cancel": "Abbrechen",
     "add": "Hinzufügen",
     "adding": "Wird hinzugefügt...",
-    "addFailed": "Eintrag konnte nicht hinzugefügt werden",
     "addAction": "Eintrag hinzufügen"
   },
   "addressBookAutocomplete": {
@@ -475,15 +436,7 @@
       "maxLength": "E-Mail darf maximal 255 Zeichen lang sein"
     },
     "serviceVisit": {
-      "descriptionRequired": "Beschreibung ist erforderlich",
-      "descriptionTooLong": "Beschreibung zu lang (maximal 200 Zeichen)",
-      "lineItemNotesTooLong": "Notizen zu lang (maximal 1000 Zeichen)",
-      "inspectionResultInvalid": "Ungültiges Inspektionsergebnis",
-      "inspectionSeverityInvalid": "Ungültige Inspektionsschwere",
-      "notesTooLong": "Notizen zu lang (maximal 5000 Zeichen)",
-      "insuranceClaimNumberTooLong": "Schadensnummer der Versicherung zu lang (maximal 50 Zeichen)",
-      "lineItemsRequired": "Mindestens ein Posten ist erforderlich",
-      "inspectionResultRequired": "Für Inspektionspunkte ist ein Inspektionsergebnis erforderlich"
+      "insuranceClaimNumberTooLong": "Schadensnummer der Versicherung zu lang (maximal 50 Zeichen)"
     },
     "supply": {
       "nameRequired": "Name ist erforderlich",
@@ -520,8 +473,7 @@
     "price": {
       "negative": "Preis kann nicht negativ sein",
       "tooLarge": "Preis ist zu hoch",
-      "invalid": "Gib eine gültige Nummer ein",
-      "required": "Preis ist erforderlich"
+      "invalid": "Gib eine gültige Nummer ein"
     },
     "kwh": {
       "negative": "kWh können nicht negativ sein",
@@ -569,7 +521,6 @@
       "remedyTooLong": "Beschreibung der Abhilfe zu lang (maximal 2.000 Zeichen)"
     },
     "fuel": {
-      "fuelTypeTooLong": "Kraftstoffart ist zu lang",
       "obcTripDurationFormat": "Verwende Sekunden (z. B. 8100), HH:MM (z. B. 2:15) oder HH:MM:SS",
       "obcNegative": "Bordcomputer-Wert kann nicht negativ sein",
       "obcTooLarge": "Bordcomputer-Wert ist zu groß",
@@ -641,7 +592,6 @@
     "network": "Netzwerkfehler. Bitte überprüfe deine Verbindung.",
     "generic": "Ein Fehler ist aufgetreten.",
     "unexpected": "Ein unerwarteter Fehler ist aufgetreten.",
-    "formSubmitFallback": "Ein Fehler ist aufgetreten",
     "actionFailed": "Fehler beim Ausführen von {{action}}. {{message}}",
     "actionFailedCheckInput": "Fehler beim Ausführen von {{action}}. Bitte überprüfe deine Eingabe."
   },

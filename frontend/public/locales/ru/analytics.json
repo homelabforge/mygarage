@@ -8,7 +8,6 @@
     "loading": "Загрузка аналитики по гаражу...",
     "loadingAria": "Загрузка аналитики",
     "offlineCached": "Офлайн: показан сохранённый снимок аналитики.",
-    "genericError": "Произошла ошибка",
     "exportPdfFailed": "Ошибка экспорта PDF. Попробуйте ещё раз.",
     "empty": {
       "title": "Автомобилей пока нет",
@@ -27,12 +26,9 @@
     "noCostData": "Нет данных по затратам",
     "runningCostsByVehicle": "Текущие расходы по автомобилям",
     "noVehicleData": "Нет данных по автомобилям",
-    "runningCostsTooltip": "Текущие расходы",
     "monthlySpendingTrend": "Динамика расходов по месяцам",
-    "costAxis": "Затраты ({{currency}})",
     "rollingAvg3": "Среднее за 3 мес.",
     "rollingAvg6": "Среднее за 6 мес.",
-    "otherCategory": "Прочее",
     "table": {
       "vehicle": "Автомобиль",
       "maintenance": "Обслуж.",
@@ -203,7 +199,6 @@
     "notFound": "Аналитика не найдена",
     "notAvailable": "н/д",
     "offlineCached": "Офлайн: показан сохранённый снимок аналитики.",
-    "genericError": "Произошла ошибка",
     "fillAllDates": "Заполните все поля, где есть даты",
     "comparisonFailed": "Ошибка получения данных для сравнения",
     "costProjection": "Прогноз затрат",
@@ -569,8 +564,6 @@
     "exportCsv": "Экспорт CSV",
     "exportCsvFor": "Экспорт CSV: {{report}}",
     "generating": "Формируется отчёт…",
-    "pdfError": "Ошибка формирования отчёта",
-    "csvError": "Ошибка выгрузки данных",
     "pdfAction": "сформировать отчёт",
     "csvAction": "выгрузить данные"
   },

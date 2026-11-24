@@ -7,7 +7,6 @@
     "loading": "Loading garage analytics...",
     "loadingAria": "Loading analytics",
     "offlineCached": "Offline: showing cached analytics snapshot.",
-    "genericError": "An error occurred",
     "exportPdfFailed": "Failed to export PDF. Please try again.",
     "empty": {
       "title": "No Vehicles Yet",
@@ -27,12 +26,9 @@
     "noCostData": "No cost data available",
     "runningCostsByVehicle": "Running Costs by Vehicle",
     "noVehicleData": "No vehicle data available",
-    "runningCostsTooltip": "Running Costs",
     "monthlySpendingTrend": "Monthly Spending Trend",
-    "costAxis": "Cost ({{currency}})",
     "rollingAvg3": "3-Month Avg",
     "rollingAvg6": "6-Month Avg",
-    "otherCategory": "Other",
     "table": {
       "vehicle": "Vehicle",
       "maintenance": "Maint.",
@@ -170,7 +166,6 @@
     "notFound": "Analytics not found",
     "notAvailable": "N/A",
     "offlineCached": "Offline: showing cached analytics snapshot.",
-    "genericError": "An error occurred",
     "fillAllDates": "Please fill in all date fields",
     "comparisonFailed": "Failed to fetch comparison data",
     "costProjection": "Cost Projection",
@@ -569,8 +564,6 @@
     "exportCsv": "Export CSV",
     "exportCsvFor": "Export CSV: {{report}}",
     "generating": "Generating report...",
-    "pdfError": "Failed to generate report",
-    "csvError": "Failed to export data",
     "pdfAction": "generate the report",
     "csvAction": "export the data"
   },

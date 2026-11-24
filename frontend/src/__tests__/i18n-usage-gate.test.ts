@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { scanFile } from '../../scripts/validate-i18n-usage'
+import { collectReferences, emptyReferences, findUnusedKeys, scanFile } from '../../scripts/validate-i18n-usage'
 
 // Fixtures go through the gate's real per-file scan. Keys that start with
 // `nope.` don't exist in English, so each one should come back as a violation.
@@ -42,5 +42,68 @@ describe('validate-i18n-usage: double-quoted keys', () => {
 
   it('still checks single quotes', () => {
     expect(keys(`${bound}t('detail.powertrain')\nt('nope.single')\n`)).toEqual(['nope.single'])
+  })
+})
+
+describe('validate-i18n-usage: unused English keys', () => {
+  const english = new Map<string, Set<string>>([
+    ['vehicles', new Set(['detail.powertrain', 'detail.gone', 'types.car', 'types.boat', 'days_one', 'days_other', 'days', 'field.title'])],
+    ['forms', new Set(['fuel.grade', 'fuel.dead'])],
+  ])
+  const unused = (...sources: string[]): string[] => {
+    const refs = emptyReferences()
+    for (const s of sources) collectReferences(s, refs)
+    return findUnusedKeys(english, refs)
+  }
+
+  it('reports keys nothing references', () => {
+    expect(unused('')).toEqual([
+      'vehicles:detail.powertrain',
+      'vehicles:detail.gone',
+      'vehicles:types.car',
+      'vehicles:types.boat',
+      'vehicles:days_one',
+      'vehicles:days_other',
+      'vehicles:days',
+      'vehicles:field.title',
+      'forms:fuel.grade',
+      'forms:fuel.dead',
+    ])
+  })
+
+  it('counts bare, ns-qualified, plural-base, prefix and field references as used', () => {
+    expect(
+      unused(
+        "t('detail.powertrain')",
+        't("forms:fuel.grade")',
+        "t('days', { count })",
+        'const label = t(`types.${kind}`)',
+        "const F = { titleKey: 'vehicles:field.title' }",
+      ),
+    ).toEqual(['vehicles:detail.gone', 'forms:fuel.dead'])
+  })
+
+  it('scopes an ns-qualified prefix to its namespace', () => {
+    expect(unused('t(`forms:fuel.${g}`)')).not.toContain('forms:fuel.grade')
+    expect(unused('t(`forms:fuel.${g}`)')).toContain('vehicles:detail.gone')
+  })
+
+  it("doesn't let a bare or dot-less template mark everything used", () => {
+    expect(unused('const k = `${a}`', 'const j = `${ns}:${key}`', 'const p = `types${x}`')).toHaveLength(10)
+  })
+
+  it("doesn't count a key that only a comment mentions", () => {
+    const src = "// `detail.gone` lied to metric users\n/* 'forms:fuel.dead' too */\nconst url = 'https://x.y/detail.powertrain'\n"
+    expect(unused(src)).toContain('vehicles:detail.gone')
+    expect(unused(src)).toContain('forms:fuel.dead')
+  })
+
+  it("doesn't read a /* inside a string as a comment", () => {
+    const src = '<input accept="image/*" />\n{t(\'detail.gone\')}\n{/* jsx note */}\n'
+    expect(unused(src)).not.toContain('vehicles:detail.gone')
+  })
+
+  it("counts a 'prefix.' + x concatenation", () => {
+    expect(unused("t('types.' + kind)")).not.toContain('vehicles:types.boat')
   })
 })

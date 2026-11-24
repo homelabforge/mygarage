@@ -94,13 +94,7 @@
         "us": "US-Gallone (3,785 L)",
         "uk": "UK-Gallone (4,546 L)"
       }
-    },
-    "gallonStandard": "Gallonen-Standard",
-    "gallonUs": "US-Gallone (3,785 L)",
-    "gallonUk": "UK-Gallone (4,546 L)",
-    "gallonStandardDescription": "Wird verwendet, wenn das Einheitensystem Imperial für Volumen- und MPG-Umrechnungen eingestellt ist.",
-    "gallonSaved": "Gallonen-Standard gespeichert",
-    "gallonError": "Gallonen-Standard konnte nicht gespeichert werden"
+    }
   },
   "language": {
     "label": "Sprache",
@@ -223,21 +217,11 @@
     "aboutCarComplaints": "Über CarComplaints",
     "shopFinderDesc": "Konfiguriere POI-Anbieter (Point-of-Interest), um Werkstätten und Servicezentren in der Nähe zu finden.",
     "provider": "Anbieter",
-    "active": "Aktiv",
     "apiLimits": "API-Limits",
     "options": "Optionen",
     "addService": "Anbieter hinzufügen",
     "providerRemoved": "Anbieter erfolgreich entfernt",
-    "removeProviderError": "Anbieter konnte nicht entfernt werden",
     "livelink": "LiveLink",
-    "livelinkDesc": "Echtzeit-Fahrzeugtelemetrie über WiCAN PRO OBD2-Geräte.",
-    "livelinkLoading": "LiveLink-Status wird geladen...",
-    "disabled": "Deaktiviert",
-    "receivingData": "Live-Daten werden empfangen",
-    "noDevices": "Keine Geräte konfiguriert",
-    "firmwareUpdate": "Firmware-Update für ein oder mehrere Geräte verfügbar",
-    "configureLiveLink": "LiveLink konfigurieren",
-    "configureDesc": "Verwalte WiCAN-Geräte, MQTT-Einstellungen und Telemetrie-Parameter.",
     "aboutLiveLink": "Über LiveLink",
     "removeProviderAction": "Anbieter entfernen",
     "webhooks": "Eingehende Webhooks",
@@ -246,13 +230,10 @@
     "webhookTokenPlaceholder": "Generiere ein langes, zufälliges Token",
     "webhookTokenDesc": "Erforderlich für jede eingehende Webhook-Anfrage. Leer lassen, um den Ingest zu deaktivieren.",
     "webhookHeaderHint": "Sende den Header X-Webhook-Token, der dem obigen Wert entspricht.",
-    "llmReceipt": "LLM-Belegauslesung",
-    "llmReceiptDesc": "Aktiviere die lokale oder OpenAI-kompatible Entwurfsanalyse für Kraftstoffbelege. Es wird nichts gespeichert, bis du es bestätigst.",
     "enableLlmReceipt": "Entwurfsanalyse für Belege aktivieren",
     "llmBaseUrl": "API-Basis-URL",
     "llmModel": "Modell",
-    "llmApiKey": "API-Schlüssel (optional)",
-    "llmReceiptHint": "Standardmäßig ist ein lokaler Ollama-Endpunkt eingestellt. Verwende das Steuerelement „Beleg auslesen“ im Kraftstoffformular, um einen Entwurf auszufüllen."
+    "llmApiKey": "API-Schlüssel (optional)"
   },
   "notifications": {
     "loading": "Benachrichtigungseinstellungen werden geladen...",
@@ -414,8 +395,7 @@
       "retryAttemptsDesc": "Maximale Wiederholungsversuche für dringende Ereignisse oder Ereignisse mit hoher Priorität",
       "retryDelay": "Wiederholungsverzögerung (Sekunden)",
       "retryDelayDesc": "Basisverzögerung zwischen Wiederholungsversuchen",
-      "retryNote": "Wiederholungsversuche gelten nur für dringende Ereignisse oder Ereignisse mit hoher Priorität (Rückrufe, überfälliger Service, ablaufende Versicherung)",
-      "enabledCount": "({{enabled}}/{{total}} aktiviert)"
+      "retryNote": "Wiederholungsversuche gelten nur für dringende Ereignisse oder Ereignisse mit hoher Priorität (Rückrufe, überfälliger Service, ablaufende Versicherung)"
     }
   },
   "backup": {
@@ -514,7 +494,6 @@
     "edit": "Bearbeiten",
     "remove": "Entfernen",
     "confirmRemoveProvider": "Anbieter {{name}} entfernen?",
-    "noDataDevicesOffline": "Keine Daten (Geräte offline)",
     "devicesLinked": "{{count}} Geräte verknüpft",
     "devicesLinked_one": "{{count}} Gerät verknüpft",
     "devicesLinked_other": "{{count}} Geräte verknüpft",
@@ -528,12 +507,9 @@
     "createFullSuccess": "Vollständiges Backup erfolgreich erstellt!",
     "confirmRestoreFull": "WARNUNG: Dies wird deine gesamte Datenbank und alle hochgeladenen Dateien überschreiben! Vorab wird ein Sicherheits-Backup erstellt. Bist du dir absolut sicher?",
     "confirmRestoreSettings": "Dies wird alle Einstellungen aus dem Backup wiederherstellen. Vorab wird ein Sicherheits-Backup erstellt. Fortfahren?",
-    "restoreFailed": "Wiederherstellung fehlgeschlagen",
     "confirmDelete": "Bist du sicher, dass du {{filename}} löschen möchtest?",
     "deleteSuccess": "Backup {{filename}} wurde erfolgreich gelöscht",
-    "deleteError": "Backup konnte nicht gelöscht werden",
     "uploadSuccess": "Backup erfolgreich hochgeladen!",
-    "uploadFailed": "Upload fehlgeschlagen",
     "safetyBadge": "Sicherheit",
     "totalSize": "{{size}} Gesamt",
     "dataIncludedList": "Datenbank, Fotos, Dokumente, Anhänge",
@@ -582,8 +558,6 @@
     }
   },
   "accent": {
-    "label": "Akzentfarbe",
-    "description": "Ändert die Akzentfarbe in der gesamten App.",
     "blue": "Blau",
     "amber": "Bernstein",
     "teal": "Teal",

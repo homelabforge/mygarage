@@ -8,36 +8,28 @@
   "loading": "Caricamento...",
   "error": "Errore",
   "success": "Operazione riuscita",
-  "confirm": "Conferma",
   "back": "Indietro",
   "next": "Avanti",
   "search": "Cerca",
-  "noResults": "Nessun risultato trovato",
   "required": "Obbligatorio",
   "optional": "Opzionale",
   "yes": "Sì",
   "no": "No",
   "ok": "OK",
   "unknown": "Sconosciuto",
-  "signIn": "Accedi",
-  "signOut": "Esci",
   "register": {
-    "title": "Crea account",
     "subtitle": "Configura il tuo account MyGarage",
     "username": "Nome utente",
     "email": "Email",
     "password": "Password",
     "submit": "Crea account",
     "hasAccount": "Hai già un account?",
-    "loginLink": "Accedi",
-    "success": "Account creato con successo!"
+    "loginLink": "Accedi"
   },
   "username": "Nome utente",
   "password": "Password",
   "email": "Email",
-  "fullName": "Nome completo",
   "login": {
-    "title": "Accedi a MyGarage",
     "subtitle": "Inserisci le tue credenziali per accedere al tuo garage",
     "usernameOrEmail": "Nome utente",
     "password": "Password",
@@ -46,7 +38,6 @@
     "registerLink": "Registrati qui",
     "oidcSignIn": "Accedi con {{provider}}",
     "continueWithPassword": "O continua con la password",
-    "error": "Nome utente o password non validi",
     "signInAction": "accedere",
     "ssoError": {
       "account_disabled": "L'account utente è disabilitato",
@@ -62,10 +53,8 @@
     }
   },
   "oidc": {
-    "signingIn": "Accesso in corso...",
     "success": "Autenticazione riuscita!",
     "redirecting": "Reindirizzamento al garage...",
-    "error": "Autenticazione non riuscita",
     "linkAccount": "Collega account",
     "linkDescription": "Collega il tuo account esistente con la tua identità SSO"
   },
@@ -76,12 +65,10 @@
     "title": "Rubrica",
     "subtitle": "Officine, fornitori di ricambi, concessionari e altri contatti",
     "searchPlaceholder": "Cerca contatti...",
-    "allCategories": "Tutte le categorie",
     "categoryService": "Manutenzione",
     "categoryParts": "Ricambi",
     "categoryDealer": "Concessionario",
     "categoryInsurance": "Assicurazione",
-    "categoryOther": "Altro",
     "addContact": "Aggiungi contatto",
     "addFirstContact": "Aggiungi il tuo primo contatto",
     "editContact": "Modifica contatto",
@@ -89,7 +76,6 @@
     "noContacts": "Nessun contatto presente.",
     "noMatchingContacts": "Nessun contatto corrisponde ai filtri impostati.",
     "confirmDelete": "Eliminare questo contatto?",
-    "deleteError": "Impossibile eliminare il contatto",
     "businessName": "Nome attività",
     "contactName": "Nome referente",
     "category": "Categoria",
@@ -104,9 +90,6 @@
     "zipCode": "CAP",
     "notes": "Note",
     "notesPlaceholder": "Note aggiuntive su questo contatto...",
-    "gasStationFlag": "Distributore di carburante",
-    "gasStations": "Distributori",
-    "gasStationsFilterHint": "Mostra solo distributori creati dalle registrazioni carburante",
     "categoryRvPark": "Area camper",
     "categoryGasStation": "Distributore",
     "categoryAll": "Tutti",
@@ -123,13 +106,11 @@
     "addFirstSupply": "Aggiungi la tua prima scorta",
     "editSupply": "Modifica scorta",
     "loading": "Caricamento scorte...",
-    "loadError": "Impossibile caricare le scorte",
     "noSupplies": "Nessuna scorta presente.",
     "showArchived": "Mostra archiviate",
     "archived": "Archiviata",
     "confirmDelete": "Eliminare questa scorta?",
     "deleted": "Scorta eliminata",
-    "deleteError": "Impossibile eliminare la scorta",
     "name": "Nome",
     "unitType": "Tipo di unità",
     "unitTypeVolume": "Volume",
@@ -153,7 +134,6 @@
     "history": {
       "title": "Cronologia: {{name}}",
       "loading": "Caricamento cronologia...",
-      "loadError": "Impossibile caricare la cronologia",
       "empty": "Nessun acquisto o utilizzo registrato.",
       "ledger": "Registro",
       "purchase": "Acquisto",
@@ -162,23 +142,18 @@
       "balance": "Giacenza",
       "serviceVisitDate": "Data intervento",
       "downloadReceipt": "Scarica ricevuta",
-      "downloadError": "Impossibile scaricare la ricevuta",
       "deleteReceipt": "Elimina ricevuta",
       "confirmDeleteReceipt": "Eliminare questa ricevuta?",
       "receiptDeleted": "Ricevuta eliminata",
-      "receiptDeleteError": "Impossibile eliminare la ricevuta",
       "chooseReceipt": "Allega ricevuta",
       "uploadReceipt": "Carica",
       "receiptUploaded": "Ricevuta caricata",
-      "receiptUploadError": "Impossibile caricare la ricevuta",
       "deletePurchase": "Elimina acquisto",
       "confirmDeletePurchase": "Eliminare questo acquisto? Rimuoverà anche la ricevuta associata.",
       "purchaseDeleted": "Acquisto eliminato",
-      "purchaseDeleteError": "Impossibile eliminare l'acquisto",
       "deleteAdjustment": "Elimina rettifica",
       "confirmDeleteAdjustment": "Eliminare questa rettifica?",
       "adjustmentDeleted": "Rettifica eliminata",
-      "adjustmentDeleteError": "Impossibile eliminare la rettifica",
       "logPurchase": "Registra acquisto",
       "logAdjustment": "Registra rettifica",
       "quantity": "Quantità",
@@ -202,7 +177,6 @@
       "title": "Scorte utilizzate",
       "count": "{{count}} utilizzi di scorte registrati",
       "loading": "Caricamento scorte utilizzate...",
-      "loadError": "Impossibile caricare le scorte utilizzate",
       "empty": "Nessuna scorta registrata per questo veicolo.",
       "quantity": "Quantità",
       "viewVisit": "Visualizza intervento",
@@ -229,7 +203,6 @@
     "searchByAddress": "Cerca per indirizzo",
     "addressTooShort": "Inserisci un indirizzo (almeno 2 caratteri)",
     "addressNotFound": "Nessun risultato per questo indirizzo",
-    "geocodeFailed": "Geocodifica non riuscita",
     "geocodeAction": "geocodificare l'indirizzo",
     "categoryAutoShops": "Officine",
     "categoryEvCharging": "Ricarica EV",
@@ -244,9 +217,7 @@
     "locationDenied": "Autorizzazione alla geolocalizzazione negata. Abilita l'accesso alla posizione nelle impostazioni del browser.",
     "locationUnavailable": "Le informazioni sulla posizione non sono disponibili.",
     "locationTimeout": "Richiesta di posizione scaduta.",
-    "searchFailed": "Ricerca PDI non riuscita",
     "searchAction": "cercare i punti di interesse",
-    "saveFailed": "Impossibile salvare il PDI",
     "saveAction": "salvare il punto di interesse",
     "savedToAddressBook": "{{name}} salvato nella rubrica!"
   },
@@ -283,12 +254,7 @@
     "forCommunity": "per la community homelab"
   },
   "errors": {
-    "generic": "Si è verificato un errore. Riprova.",
-    "network": "Errore di rete. Controlla la tua connessione.",
-    "unauthorized": "Effettua l'accesso per continuare.",
-    "forbidden": "Non hai i permessi necessari per questa operazione.",
-    "notFound": "La risorsa richiesta non è stata trovata.",
-    "validation": "Controlla i dati inseriti e riprova."
+    "generic": "Si è verificato un errore. Riprova."
   },
   "footer": "MyGarage v{{version}} - Tracker di manutenzione veicoli self-hosted",
   "active": "Attivo",
@@ -377,7 +343,6 @@
     "passwordStrength": "Livello di sicurezza: {{strength}}",
     "passwordRequirements": "Requisiti: 8+ caratteri, maiuscola, minuscola, numero, carattere speciale (!@#$...)",
     "submitting": "Creazione account in corso...",
-    "failed": "Registrazione non riuscita. Riprova.",
     "createAccountAction": "creare il tuo account",
     "strength": {
       "weak": "Debole",
@@ -400,15 +365,12 @@
     "returnToLogin": "Torna all'accesso",
     "missingToken": "Token di collegamento mancante. Riavvia la procedura di accesso.",
     "passwordRequired": "La password è obbligatoria",
-    "failed": "Collegamento dell'account non riuscito. Riprova.",
     "linkAction": "collegare l'account"
   },
   "protectedRoute": {
     "loadingAriaLabel": "Caricamento"
   },
   "addressBookPage": {
-    "edit": "Modifica",
-    "delete": "Elimina",
     "businessNamePlaceholder": "Officina Rossi",
     "contactNamePlaceholder": "Mario Rossi",
     "streetAddressPlaceholder": "Via Roma 123",
@@ -436,7 +398,6 @@
     "cancel": "Annulla",
     "add": "Aggiungi",
     "adding": "Aggiunta in corso...",
-    "addFailed": "Impossibile aggiungere la voce",
     "addAction": "aggiungere la voce"
   },
   "addressBookAutocomplete": {
@@ -491,15 +452,7 @@
       "maxLength": "L'email deve contenere meno di 255 caratteri"
     },
     "serviceVisit": {
-      "descriptionRequired": "La descrizione è obbligatoria",
-      "descriptionTooLong": "Descrizione troppo lunga (massimo 200 caratteri)",
-      "lineItemNotesTooLong": "Note voce troppo lunghe (massimo 1000 caratteri)",
-      "inspectionResultInvalid": "Esito ispezione non valido",
-      "inspectionSeverityInvalid": "Gravità ispezione non valida",
-      "notesTooLong": "Note troppo lunghe (massimo 5000 caratteri)",
-      "insuranceClaimNumberTooLong": "Numero pratica assicurativa troppo lungo (massimo 50 caratteri)",
-      "lineItemsRequired": "È richiesta almeno una voce di spesa",
-      "inspectionResultRequired": "L'esito dell'ispezione è obbligatorio per le voci di tipo ispezione"
+      "insuranceClaimNumberTooLong": "Numero pratica assicurativa troppo lungo (massimo 50 caratteri)"
     },
     "supply": {
       "nameRequired": "Il nome è obbligatorio",
@@ -545,8 +498,7 @@
     "price": {
       "negative": "Il prezzo non può essere negativo",
       "tooLarge": "Prezzo troppo grande",
-      "invalid": "Inserisci un numero valido",
-      "required": "Il prezzo è obbligatorio"
+      "invalid": "Inserisci un numero valido"
     },
     "kwh": {
       "negative": "I kWh non possono essere negativi",
@@ -627,7 +579,6 @@
       "remedyTooLong": "Descrizione rimedio troppo lunga (massimo 2.000 caratteri)"
     },
     "fuel": {
-      "fuelTypeTooLong": "Tipo di carburante troppo lungo",
       "octaneTooSmall": "Il numero di ottano deve essere almeno 50",
       "octaneTooLarge": "Il numero di ottano non può superare 150",
       "octaneInvalid": "Inserisci un numero di ottano intero",
@@ -672,7 +623,6 @@
     "network": "Errore di rete. Controlla la tua connessione.",
     "generic": "Si è verificato un errore.",
     "unexpected": "Si è verificato un errore imprevisto.",
-    "formSubmitFallback": "Si è verificato un errore",
     "actionFailed": "Impossibile {{action}}. {{message}}",
     "actionFailedCheckInput": "Impossibile {{action}}. Controlla i dati inseriti."
   },

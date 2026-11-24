@@ -7,7 +7,6 @@
     "loading": "Caricamento analisi del garage...",
     "loadingAria": "Caricamento analisi",
     "offlineCached": "Offline: visualizzazione dell'istantanea memorizzata nella cache.",
-    "genericError": "Si è verificato un errore",
     "exportPdfFailed": "Impossibile esportare il PDF. Riprova.",
     "empty": {
       "title": "Nessun veicolo presente",
@@ -27,12 +26,9 @@
     "noCostData": "Nessun dato di spesa disponibile",
     "runningCostsByVehicle": "Costi di gestione per veicolo",
     "noVehicleData": "Nessun dato sui veicoli disponibile",
-    "runningCostsTooltip": "Costi di gestione",
     "monthlySpendingTrend": "Andamento spesa mensile",
-    "costAxis": "Costo ({{currency}})",
     "rollingAvg3": "Media 3 mesi",
     "rollingAvg6": "Media 6 mesi",
-    "otherCategory": "Altro",
     "table": {
       "vehicle": "Veicolo",
       "maintenance": "Manut.",
@@ -170,7 +166,6 @@
     "notFound": "Analisi non trovate",
     "notAvailable": "N/D",
     "offlineCached": "Offline: visualizzazione dell'istantanea memorizzata nella cache.",
-    "genericError": "Si è verificato un errore",
     "fillAllDates": "Compila tutti i campi data",
     "comparisonFailed": "Impossibile recuperare i dati di confronto",
     "costProjection": "Proiezione dei costi",
@@ -514,8 +509,6 @@
     "downloadPdf": "Scarica PDF",
     "exportCsv": "Esporta CSV",
     "generating": "Generazione report in corso...",
-    "pdfError": "Impossibile generare il report",
-    "csvError": "Impossibile esportare i dati",
     "pdfAction": "generare il report",
     "csvAction": "esportare i dati"
   },
