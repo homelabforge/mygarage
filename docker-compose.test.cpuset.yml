@@ -1,0 +1,13 @@
+# Optional CPU pin for the PG test stack. Stack it after docker-compose.test.yml:
+#
+#   CI_CHECK_CPUSET=0-11 MYGARAGE_TEST_UID=$(id -u) MYGARAGE_TEST_GID=$(id -g) \
+#     docker compose -f docker-compose.test.yml -f docker-compose.test.cpuset.yml \
+#       -p mygarage-test run --rm mygarage-test pytest tests/migrations/ -v
+#
+# On a 13600K the P-cores are 0-11; unpinned, the suites drift onto E-cores and
+# run slow. Same variable bin/ci-check reads.
+services:
+  postgres-test:
+    cpuset: "${CI_CHECK_CPUSET:?set CI_CHECK_CPUSET, e.g. 0-11}"
+  mygarage-test:
+    cpuset: "${CI_CHECK_CPUSET:?set CI_CHECK_CPUSET, e.g. 0-11}"
