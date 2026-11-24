@@ -1,5 +1,14 @@
 import { describe, it, expect } from 'vitest'
-import { compareNamespace, deleteNestedKey, type LocaleIssueType } from '../../scripts/translation-utils'
+import { createInstance } from 'i18next'
+import {
+  PROTECTED,
+  compareNamespace,
+  deleteNestedKey,
+  discoverNamespaces,
+  loadEnglishData,
+  protectedSpans,
+  type LocaleIssueType,
+} from '../../scripts/translation-utils'
 
 const EN: Record<string, string> = {
   title: 'My Garage',
@@ -49,12 +58,23 @@ describe('translation gate: plural sets follow the language', () => {
   it('still reports a key English dropped as an extra', () => {
     expect(keysOf('de', { ...full, gone: 'weg' }, 'extra')).toEqual(['gone'])
   })
+
+  it('calls a plural-looking key with no English base an extra', () => {
+    expect(keysOf('ru', { ...full, gone_few: 'x' }, 'extra')).toEqual(['gone_few'])
+  })
+
+  it('takes a fully populated ms bundle to 100%', () => {
+    const ms = { title: 'Garaj Saya', saved: 'Disimpan {{count, number}} baris untuk {{name}}', vin: 'VIN', days_other: '{{count}} hari' }
+    const r = compare('ms', ms)
+    expect(r.issues).toEqual([])
+    expect(r.translated).toBe(r.total)
+  })
 })
 
 describe('translation gate: placeholders', () => {
   it('fails a dropped formatted placeholder', () => {
     const de = { ...full, saved: 'Gespeichert für {{name}}', days_one: '{{count}} Tag', days_other: '{{count}} Tage' }
-    expect(compare('de', de).issues.find((i) => i.type === 'interpolation')?.detail).toBe('missing {{count}}')
+    expect(compare('de', de).issues.find((i) => i.type === 'interpolation')?.detail).toBe('missing {{count, number}}')
   })
 
   it('fails a placeholder English never passes', () => {
@@ -62,9 +82,112 @@ describe('translation gate: placeholders', () => {
     expect(compare('de', de).issues.find((i) => i.type === 'interpolation')?.detail).toBe('unknown {{garage}}')
   })
 
-  it('accepts a format change on the same variable', () => {
+  // German renders 12.345 with the formatter and 12345 without, so a dropped
+  // formatter is a real bug, not a style choice.
+  it('fails a dropped formatter on the same variable', () => {
     const de = { ...full, saved: '{{count}} Zeilen für {{name}}', days_one: '{{count}} Tag', days_other: '{{count}} Tage' }
+    expect(compare('de', de).issues.find((i) => i.type === 'interpolation')?.detail).toBe(
+      'missing {{count, number}}; unknown {{count}}',
+    )
+  })
+
+  it('ignores spacing inside a placeholder', () => {
+    const de = { ...full, saved: '{{ count , number }} Zeilen für {{name}}', days_one: '{{count}} Tag', days_other: '{{count}} Tage' }
     expect(keysOf('de', de, 'interpolation')).toEqual([])
+  })
+})
+
+describe('translation gate: protected spans', () => {
+  const CMD = 'Run python tools/fix.py --device-id {{id}} --apply, then set MYGARAGE_SECRET_KEY. Use smtp.example.com:587 or https://ntfy.sh, or send /fuel. Costs {{v}}/day.'
+
+  it('derives command, env, host and slash-command spans but not unit suffixes', () => {
+    expect(protectedSpans('common:x', CMD, {})).toEqual([
+      'https://ntfy.sh',
+      '--device-id',
+      '--apply',
+      'MYGARAGE_SECRET_KEY',
+      'tools/fix.py',
+      'ntfy.sh',
+      'smtp.example.com:587',
+      '/fuel',
+    ])
+  })
+
+  it('adds the registry literal whole', () => {
+    expect(protectedSpans('common:x', 'run foo -d <db> now', { 'common:x': 'foo -d <db>' })).toEqual(['<db>', 'foo -d <db>'])
+  })
+
+  it('fails a translation that changes a protected span', () => {
+    const en = new Map<string, unknown>([['cmd', 'Set MYGARAGE_SECRET_KEY and add --apply.']])
+    const ok = compareNamespace('de', 'common', ['cmd'], en, { cmd: 'Setze MYGARAGE_SECRET_KEY und füge --apply hinzu.' })
+    const bad = compareNamespace('de', 'common', ['cmd'], en, { cmd: 'Setze MYGARAGE_SECRET_KEY und füge –apply hinzu.' })
+    expect(ok.issues).toEqual([])
+    expect(bad.issues.map((i) => [i.type, i.detail])).toEqual([['protected', 'missing "--apply"']])
+  })
+})
+
+describe('translation gate: the real English bundle', () => {
+  const english = loadEnglishData(discoverNamespaces())
+  const enValue = (nsKey: string): unknown => {
+    const [ns, key] = [nsKey.slice(0, nsKey.indexOf(':')), nsKey.slice(nsKey.indexOf(':') + 1)]
+    return english.valuesByNamespace.get(ns)?.get(key)
+  }
+
+  // A command someone pastes into a shell has to survive whole, and the
+  // pattern spans only cover its pieces. Any new one needs a registry entry.
+  it('has a registry entry for every English value that reads like a shell command', () => {
+    const commandLike = /\b(?:python3?|pg_restore|pg_dump|docker|sqlite3|sudo|curl|bunx?|uv)\s+\S/
+    const found: string[] = []
+    for (const [ns, values] of english.valuesByNamespace) {
+      for (const [key, value] of values) if (typeof value === 'string' && commandLike.test(value)) found.push(`${ns}:${key}`)
+    }
+    expect(found.sort()).toEqual(Object.keys(PROTECTED).sort())
+  })
+
+  it('keeps each registry literal inside its English value', () => {
+    expect(String(enValue('settings:backupTab.postgresRestoreMessage'))).toContain(
+      'pg_restore --clean --if-exists --no-owner --no-privileges -d <dbname> mygarage.pgdump',
+    )
+    for (const [nsKey, literal] of Object.entries(PROTECTED)) expect(String(enValue(nsKey))).toContain(literal)
+  })
+})
+
+// Runs the installed i18next, so the plural facts the gate leans on are
+// checked against the library rather than remembered.
+describe('i18next plural selection', () => {
+  const render = async (lng: string, res: Record<string, string>, count: number): Promise<string> => {
+    const i = createInstance()
+    await i.init({
+      lng,
+      fallbackLng: 'en',
+      resources: { en: { t: { d_one: 'EN one', d_other: 'EN other' } }, [lng]: { t: res } },
+      defaultNS: 't',
+      interpolation: { escapeValue: false },
+    })
+    return i.t('d', { count })
+  }
+  const full4 = { d_one: 'one', d_few: 'few', d_many: 'many', d_other: 'other' }
+
+  it('picks few and many for pl and uk', async () => {
+    for (const lng of ['pl', 'uk']) {
+      expect(await render(lng, full4, 2)).toBe('few')
+      expect(await render(lng, full4, 5)).toBe('many')
+    }
+  })
+
+  it('picks many at one million for fr, it and pt-BR', async () => {
+    for (const lng of ['fr', 'it', 'pt-BR']) {
+      expect(await render(lng, { d_one: 'one', d_many: 'many', d_other: 'other' }, 1_000_000)).toBe('many')
+    }
+  })
+
+  it('reads _other for one in ms', async () => {
+    expect(await render('ms', { d_one: 'one', d_other: 'other' }, 1)).toBe('other')
+  })
+
+  it("falls back to the locale's unsuffixed key before English", async () => {
+    expect(await render('pl', { d: 'base', d_one: 'one', d_other: 'other' }, 5)).toBe('base')
+    expect(await render('pl', { d_one: 'one', d_other: 'other' }, 5)).toBe('EN other')
   })
 })
 

@@ -366,7 +366,7 @@
       "loadError": "Erro ao carregar",
       "noRecords": "Nenhum registro",
       "odometerStartEnd": "Odômetro Início Fim",
-      "sessionCount": "{{count}} sessão(ões) registrada(s)"
+      "sessionCount": "{{count, number}} sessão(ões) registrada(s)"
     },
     "telemetryWillAppear": "A telemetria aparecerá aqui",
     "trips": {

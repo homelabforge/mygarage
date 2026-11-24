@@ -145,8 +145,7 @@
     "description": "Przeglądaj i zarządzaj pojazdami, które dodałeś do archiwum (sprzedane, zniszczone, podarowane itp.). Zarchiwizowane pojazdy pozostają w analityce, ale mogą zostać ukryte z głównej listy."
   },
   "secretKey": {
-    "label": "Tajny klucz:",
-    "description": "Generowany automatycznie i bezpiecznie przechowywany w {{path}}. Ręczna konfiguracja nie jest wymagana. Klucz jest zachowywany po ponownym uruchomieniu aplikacji."
+    "label": "Tajny klucz:"
   },
   "stats": {
     "serviceRecords": "Rejestry serwisowe",

@@ -9,7 +9,9 @@
  * renders English for that count, so it's reported as missing.
  *
  * Usage: bun run scripts/validate-translations.ts
- * Exit code: 1 if any {{interpolation}} placeholders are broken, 0 otherwise.
+ * Exit code: 1 if any {{interpolation}} placeholder (formatter included) is
+ * broken or a protected span (a command, flag, env name or URL) is missing,
+ * 0 otherwise.
  * Missing keys are reported as a non-blocking warning (they fall back to
  * English), so this can gate PRs without blocking new English strings.
  */
@@ -40,6 +42,7 @@ for (const lang of languages) {
   const empty = langIssues.filter(i => i.type === 'empty')
   const extra = langIssues.filter(i => i.type === 'extra')
   const interpolation = langIssues.filter(i => i.type === 'interpolation')
+  const protectedSpans = langIssues.filter(i => i.type === 'protected')
 
   // Count translated keys: values that differ from English, plus values that
   // are correctly identical because they contain nothing translatable.
@@ -75,19 +78,29 @@ for (const lang of languages) {
     }
     if (interpolation.length > 10) console.log(`    ... and ${interpolation.length - 10} more`)
   }
+  if (protectedSpans.length > 0) {
+    console.log(`  Changed commands, flags or names (${protectedSpans.length}):`)
+    for (const i of protectedSpans) console.log(`    - ${i.namespace}:${i.key}: ${i.detail}`)
+  }
   console.log()
 }
 
 const missingCount = issues.filter(i => i.type === 'missing').length
 const interpolationCount = issues.filter(i => i.type === 'interpolation').length
+const protectedCount = issues.filter(i => i.type === 'protected').length
 
-// Only broken {{interpolation}} placeholders are a hard failure: they're a
-// real bug in a provided translation and can't be caught by eye across every
-// key. Missing keys are a non-blocking warning; untranslated keys fall back
+// Broken placeholders and changed commands are the hard failures: they're a
+// real bug in a provided translation (a raw {{x}}, or a command that won't
+// run when pasted) and can't be caught by eye across every key. Missing keys are a non-blocking warning; untranslated keys fall back
 // to English, which is expected while a language is still in progress and
 // lets new English strings land without translating every language first.
-if (interpolationCount > 0) {
-  console.log(`✗ ${interpolationCount} broken interpolation variable(s): these break rendering.`)
+if (interpolationCount > 0 || protectedCount > 0) {
+  if (interpolationCount > 0) {
+    console.log(`✗ ${interpolationCount} broken interpolation variable(s): these break rendering.`)
+  }
+  if (protectedCount > 0) {
+    console.log(`✗ ${protectedCount} translation(s) changed a command, flag or name that has to stay verbatim.`)
+  }
   if (missingCount > 0) {
     console.log(`  (${missingCount} missing key(s) also found; those fall back to English and don't block.)`)
   }

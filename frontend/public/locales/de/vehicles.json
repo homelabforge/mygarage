@@ -685,7 +685,7 @@
       "loadError": "Fahrt-Sitzungen konnten nicht geladen werden",
       "noRecords": "Keine Fahrt-Sitzungen aufgezeichnet",
       "odometerStartEnd": "Kilometerstand Start / Ende",
-      "sessionCount": "{{count}} Sitzung(en) aufgezeichnet",
+      "sessionCount": "{{count, number}} Sitzung(en) aufgezeichnet",
       "harshAccel": "Starkes Beschleunigen",
       "harshBrake": "Starkes Bremsen",
       "idleTime": "Leerlaufzeit"

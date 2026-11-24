@@ -223,12 +223,59 @@ export function expectedKeys(
   return out
 }
 
-/** Variable names in {{name}} and {{name, format}} placeholders. */
-export function interpolationNames(value: string): Set<string> {
-  return new Set([...value.matchAll(/\{\{\s*(\w+)\s*(?:,[^}]*)?\}\}/g)].map(m => m[1]))
+/**
+ * Placeholders with their formatter, spacing normalised: `{{ count , number }}`
+ * comes back as `{{count, number}}`. The formatter matters, German shows
+ * 12.345 with `number` and 12345 without.
+ */
+export function placeholderTokens(value: string): Set<string> {
+  return new Set(
+    [...value.matchAll(/\{\{\s*(\w+)\s*(?:,\s*([^}]*?)\s*)?\}\}/g)].map(m =>
+      m[2] ? `{{${m[1]}, ${m[2]}}}` : `{{${m[1]}}}`,
+    ),
+  )
 }
 
-export type LocaleIssueType = 'missing' | 'extra' | 'empty' | 'interpolation'
+/**
+ * Whole command lines a user pastes into a shell. The pattern spans below only
+ * catch their pieces, so these have to come through verbatim as one string.
+ */
+export const PROTECTED: Readonly<Record<string, string>> = {
+  'settings:backupTab.postgresRestoreMessage':
+    'pg_restore --clean --if-exists --no-owner --no-privileges -d <dbname> mygarage.pgdump',
+  'forms:modal.livelink.odometerUnitTorqueMiRepair':
+    'python tools/repair_wican_odometer_unit.py --device-id {{deviceId}} --key TORQUE_ODOMETER --to km',
+}
+
+// Bits of English that are code, not copy. Placeholders get swapped for a NUL
+// first so `{{unit}}/day` doesn't read as a /day command.
+const SPAN_PATTERNS: readonly RegExp[] = [
+  /\bhttps?:\/\/[^\s)'"\0]*[^\s)'".,;:!?\0]/g,
+  /<[^<>\s\0]+>/g,
+  /(?<![\w-])--[a-z][\w-]*/g,
+  /\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b/g,
+  /\b[\w./-]*\w\.(?:py|pgdump|sql|db|sqlite|json|ya?ml|env|sh|csv|toml|log)\b/g,
+  /\b[\w-]+(?:\.[\w-]+)+:\d{2,5}\b/g,
+  /(?<=^|[\s"'(\u00ab\u201c])\/[a-z][a-z0-9_]*\b(?!\/)/g,
+]
+
+/** Substrings of an English value a translation has to keep verbatim. */
+export function protectedSpans(
+  nsKey: string,
+  enValue: string,
+  registry: Readonly<Record<string, string>> = PROTECTED,
+): string[] {
+  const masked = enValue.replace(/\{\{[^}]*\}\}/g, '\0')
+  const spans: string[] = []
+  for (const re of SPAN_PATTERNS) {
+    for (const m of masked.matchAll(re)) if (!spans.includes(m[0])) spans.push(m[0])
+  }
+  const literal = registry[nsKey]
+  if (literal !== undefined && !spans.includes(literal)) spans.push(literal)
+  return spans
+}
+
+export type LocaleIssueType = 'missing' | 'extra' | 'empty' | 'interpolation' | 'protected'
 
 export interface LocaleIssue {
   lang: string
@@ -280,15 +327,19 @@ export function compareNamespace(
       continue
     }
     if (typeof enValue === 'string' && typeof value === 'string') {
-      const enVars = interpolationNames(enValue)
-      const trVars = interpolationNames(value)
-      const lost = [...enVars].filter(v => !trVars.has(v))
-      const added = [...trVars].filter(v => !enVars.has(v))
+      const enTokens = placeholderTokens(enValue)
+      const trTokens = placeholderTokens(value)
+      const lost = [...enTokens].filter(v => !trTokens.has(v))
+      const added = [...trTokens].filter(v => !enTokens.has(v))
       if (lost.length > 0 || added.length > 0) {
         const parts: string[] = []
-        if (lost.length > 0) parts.push(`missing {{${lost.join('}}, {{')}}}`)
-        if (added.length > 0) parts.push(`unknown {{${added.join('}}, {{')}}}`)
+        if (lost.length > 0) parts.push(`missing ${lost.join(', ')}`)
+        if (added.length > 0) parts.push(`unknown ${added.join(', ')}`)
         issues.push({ lang, namespace: ns, type: 'interpolation', key, detail: parts.join('; ') })
+      }
+      const dropped = protectedSpans(`${ns}:${key}`, enValue).filter(span => !value.includes(span))
+      if (dropped.length > 0) {
+        issues.push({ lang, namespace: ns, type: 'protected', key, detail: dropped.map(d => `missing "${d}"`).join('; ') })
       }
     }
     if (!isEnglishCopy(value, enValue)) translated++

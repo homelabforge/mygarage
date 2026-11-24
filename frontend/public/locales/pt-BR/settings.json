@@ -145,8 +145,7 @@
     "description": "Visualize e gerencie os veículos que você adicionou ao arquivo (vendidos, destruídos, doados, etc.). Os veículos arquivados permanecem nas análises, mas podem ser ocultados da lista principal."
   },
   "secretKey": {
-    "label": "Chave secreta:",
-    "description": "Gerada automaticamente e armazenada com segurança em {{path}}. Nenhuma configuração manual é necessária. A chave é preservada após a reinicialização do aplicativo."
+    "label": "Chave secreta:"
   },
   "stats": {
     "serviceRecords": "Registros de serviço",

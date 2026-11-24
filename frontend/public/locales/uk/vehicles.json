@@ -366,7 +366,7 @@
       "loadError": "Помилка завантаження",
       "noRecords": "Немає записів",
       "odometerStartEnd": "Одометр Початок Кінець",
-      "sessionCount": "{{count}} сесій записано"
+      "sessionCount": "{{count, number}} сесій записано"
     },
     "telemetryWillAppear": "Тут з'явиться телеметрія",
     "trips": {

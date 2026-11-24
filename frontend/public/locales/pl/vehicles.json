@@ -366,7 +366,7 @@
       "loadError": "Błąd ładowania",
       "noRecords": "Brak rekordów",
       "odometerStartEnd": "Drogomierz Początek Koniec",
-      "sessionCount": "{{count}} sesji zarejestrowanych"
+      "sessionCount": "{{count, number}} sesji zarejestrowanych"
     },
     "telemetryWillAppear": "Tutaj pojawi się telemetria",
     "trips": {
