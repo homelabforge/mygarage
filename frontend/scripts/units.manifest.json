@@ -2686,8 +2686,8 @@
     {
       "path": "src/components/shell/HamburgerPanel.tsx",
       "disposition": "no unit behaviour",
-      "digest": "d480c0603a78ec6ff484bebd3e142c531ae2186d76fc2c4900ddd125687e61d5",
-      "reason": "no unit behaviour: dispositioned under the CORRECTED scan: every unit stem, token, quantity name and canonical field suffix this codebase uses, matched case-insensitively with NO word boundary. The earlier word-boundary version was a floor (it called AnalyticsHelpModal.tsx clean while it renders \"Average MPG:\" to every user) and it was superseded before any disposition in this file was written. This file matched 1 of them; every hit was read in context and none is a unit decision or a unit-bearing quantity."
+      "digest": "4a59a8f52391aae846cc7e882ab4bd2e4f8fe5ccb593b11183e6a300bda11bc7",
+      "reason": "no unit behaviour: dispositioned under the CORRECTED scan: every unit stem, token, quantity name and canonical field suffix this codebase uses, matched case-insensitively with NO word boundary. The earlier word-boundary version was a floor (it called AnalyticsHelpModal.tsx clean while it renders \"Average MPG:\" to every user) and it was superseded before any disposition in this file was written. This file matched 1 of them; every hit was read in context and none is a unit decision or a unit-bearing quantity. 2026-11-23: a `wide` prop shows the panel at 900px and up while TopNav has hidden links that don't fit; layout only, no unit involved."
     },
     {
       "path": "src/components/shell/Logo.tsx",
@@ -2728,8 +2728,8 @@
     {
       "path": "src/components/shell/TopNav.tsx",
       "disposition": "no unit behaviour",
-      "digest": "df6167c5f8c8739fe92f79580d81137c9693d1e41e69a88bcf9e741377b8d347",
-      "reason": "no unit behaviour: dispositioned under the CORRECTED scan: every unit stem, token, quantity name and canonical field suffix this codebase uses, matched case-insensitively with NO word boundary. The earlier word-boundary version was a floor (it called AnalyticsHelpModal.tsx clean while it renders \"Average MPG:\" to every user) and it was superseded before any disposition in this file was written. This file matched 1 of them; every hit was read in context and none is a unit decision or a unit-bearing quantity. 2026-11-22 (#305, #308 iOS safe area): the bar takes the safe-area insets (pt-safe-top, pr-safe-right, pl-safe-left). Class names and CSS offsets only; no quantity, unit label or conversion touched."
+      "digest": "46ad000ed36374d9010830f86b2a54509451cea0269304ada1b8cf9943a15617",
+      "reason": "no unit behaviour: dispositioned under the CORRECTED scan: every unit stem, token, quantity name and canonical field suffix this codebase uses, matched case-insensitively with NO word boundary. The earlier word-boundary version was a floor (it called AnalyticsHelpModal.tsx clean while it renders \"Average MPG:\" to every user) and it was superseded before any disposition in this file was written. This file matched 1 of them; every hit was read in context and none is a unit decision or a unit-bearing quantity. 2026-11-22 (#305, #308 iOS safe area): the bar takes the safe-area insets (pt-safe-top, pr-safe-right, pl-safe-left). Class names and CSS offsets only; no quantity, unit label or conversion touched. 2026-11-23: the inline links hide behind the hamburger when they don't fit (measured with a ResizeObserver); layout only, no unit involved."
     },
     {
       "path": "src/components/shell/TopNavLink.tsx",

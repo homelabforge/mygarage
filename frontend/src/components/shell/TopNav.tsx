@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
 import { Menu, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { IconButton } from '../ui'
@@ -20,17 +20,50 @@ import { DESKTOP_NAV_ITEMS } from './navItems'
 export default function TopNav() {
   const { t } = useTranslation('nav')
   const [menuOpen, setMenuOpen] = useState(false)
+  const rowRef = useRef<HTMLDivElement>(null)
+  const navRef = useRef<HTMLElement>(null)
+  const clusterRef = useRef<HTMLDivElement>(null)
+  // The links' width depends on the language (English needs a 1164px window,
+  // Polish 1510), so no fixed breakpoint fits them all. When they don't fit,
+  // hide them and use the hamburger instead of scrolling the bar sideways.
+  const [linksDontFit, setLinksDontFit] = useState(false)
+
+  useLayoutEffect(() => {
+    const row = rowRef.current
+    const nav = navRef.current
+    const cluster = clusterRef.current
+    if (!row || !nav || !cluster || typeof ResizeObserver === 'undefined') return
+    const check = (): void => {
+      const style = getComputedStyle(row)
+      const gap = parseFloat(style.columnGap) || 0
+      const inner = row.clientWidth - (parseFloat(style.paddingLeft) || 0) - (parseFloat(style.paddingRight) || 0)
+      const logo = row.firstElementChild as HTMLElement | null
+      // The controls only, not the cluster: the hamburger shows while the links
+      // are hidden, and counting it would keep them hidden once they fit again.
+      const controls = cluster.firstElementChild as HTMLElement | null
+      const room = inner - (logo?.offsetWidth ?? 0) - (controls?.offsetWidth ?? 0) - 2 * gap
+      setLinksDontFit(nav.scrollWidth > room)
+    }
+    const observer = new ResizeObserver(check)
+    for (const el of [row, nav, cluster]) observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
 
   return (
     <header className="sticky top-0 z-nav border-b border-hair bg-(--color-nav) pt-safe-top pr-safe-right pl-safe-left backdrop-blur-[12px]">
-      <div className="mx-auto flex h-[62px] max-w-[1320px] items-center gap-6 px-[clamp(16px,3vw,30px)]">
+      <div ref={rowRef} data-nav-row="" className="mx-auto flex h-[62px] max-w-[1320px] items-center gap-6 px-[clamp(16px,3vw,30px)]">
         <Logo />
-        <nav className="hidden items-center gap-0.5 nav:flex">
+        {/* Still laid out when hidden, so the observer can tell when the links fit again. */}
+        <nav
+          ref={navRef}
+          aria-hidden={linksDontFit || undefined}
+          className={`hidden items-center gap-0.5 nav:flex ${linksDontFit ? 'invisible absolute' : ''}`}
+        >
           {DESKTOP_NAV_ITEMS.map((item) => (
             <TopNavLink key={item.to} to={item.to} label={t(item.labelKey)} variant="inline" />
           ))}
         </nav>
-        <div className="ml-auto flex items-center gap-2">
+        <div ref={clusterRef} data-nav-cluster="" className="ml-auto flex items-center gap-2">
           <RightCluster />
           <IconButton
             icon={menuOpen ? X : Menu}
@@ -38,11 +71,11 @@ export default function TopNav() {
             variant="surface"
             aria-expanded={menuOpen}
             onClick={() => setMenuOpen((v) => !v)}
-            className="max-md:hidden nav:hidden"
+            className={linksDontFit ? 'max-md:hidden' : 'max-md:hidden nav:hidden'}
           />
         </div>
       </div>
-      {menuOpen ? <HamburgerPanel onNavigate={() => setMenuOpen(false)} /> : null}
+      {menuOpen ? <HamburgerPanel wide={linksDontFit} onNavigate={() => setMenuOpen(false)} /> : null}
     </header>
   )
 }
