@@ -3,6 +3,7 @@ import { render, RenderOptions } from '@testing-library/react'
 import { BrowserRouter } from 'react-router-dom'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { basePath } from '../utils/basePath'
+import { ConfirmProvider } from '../components/ui/ConfirmDialog'
 import { createTestQueryClient } from './queryClient'
 
 // Custom render with common providers
@@ -12,7 +13,7 @@ const AllTheProviders = ({ children }: { children: React.ReactNode }) => {
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter basename={basePath() || undefined}>
-        {children}
+        <ConfirmProvider>{children}</ConfirmProvider>
       </BrowserRouter>
     </QueryClientProvider>
   )

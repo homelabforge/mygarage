@@ -11,6 +11,7 @@ import { useAuth } from './contexts/AuthContext'
 import Layout from './components/Layout'
 import InstallPrompt from './components/InstallPrompt'
 import AppToaster from './components/AppToaster'
+import { ConfirmProvider } from './components/ui'
 import { useLanguageSync } from './hooks/useLanguageSync'
 import { useAccentSync } from './hooks/useAccentSync'
 import { useThemeSync } from './hooks/useThemeSync'
@@ -79,6 +80,7 @@ function App() {
         <AuthProvider>
           <PreferenceSyncProvider>
           <BrowserRouter basename={basePath() || undefined}>
+            <ConfirmProvider>
             <Suspense fallback={<LoadingFallback />}>
               <Routes>
                 {/* Public routes */}
@@ -125,6 +127,7 @@ function App() {
             </Suspense>
             <InstallPrompt />
             <AppToaster />
+            </ConfirmProvider>
           </BrowserRouter>
           </PreferenceSyncProvider>
         </AuthProvider>
