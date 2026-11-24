@@ -688,3 +688,141 @@ async def test_vehicle_supply_usages_requires_access(client, auth_headers, test_
     assert (
         await client.get(f"/api/vehicles/{test_vehicle['vin']}/supply-usages")
     ).status_code == 401
+
+
+# -- S-frac: a counted supply takes whole numbers; old rows stay as they were --
+
+_WHOLE = "A count supply takes whole numbers"
+
+
+async def _count_visit(client: AsyncClient, auth_headers, vin: str, quantity: str = "2"):
+    """A visit on 2026-02-01 that used `quantity` of a count supply (avg 8.00)."""
+    sid = await _supply(client, auth_headers, unit="count")
+    r = await client.post(
+        f"/api/vehicles/{vin}/service-visits",
+        json={
+            "date": "2026-02-01",
+            "line_items": [
+                {
+                    "description": "Filters",
+                    "cost": 0,
+                    "supplies_used": [{"supply_id": sid, "quantity": quantity}],
+                }
+            ],
+        },
+        headers=auth_headers,
+    )
+    assert r.status_code == 201, r.text
+    return sid, r.json()
+
+
+async def _fetch(client: AsyncClient, auth_headers, vin: str, visit_id: int) -> dict[str, Any]:
+    r = await client.get(f"/api/vehicles/{vin}/service-visits/{visit_id}", headers=auth_headers)
+    assert r.status_code == 200, r.text
+    return r.json()
+
+
+async def _put_items(client, auth_headers, vin, visit, quantity, **extra):
+    li = visit["line_items"][0]
+    sid = li["supply_usages"][0]["supply_id"]
+    return await client.put(
+        f"/api/vehicles/{vin}/service-visits/{visit['id']}",
+        json={
+            **extra,
+            "line_items": [
+                {
+                    "id": li["id"],
+                    "description": "Filters",
+                    "cost": 0,
+                    "supplies_used": [{"supply_id": sid, "quantity": quantity}],
+                }
+            ],
+        },
+        headers=auth_headers,
+    )
+
+
+async def _make_old_fraction(db_session: AsyncSession, visit: dict[str, Any]) -> None:
+    """Rewrite the visit's count usage to 2.5, the way a pre-check row would sit."""
+    usage = await db_session.get(SupplyUsage, visit["line_items"][0]["supply_usages"][0]["id"])
+    assert usage is not None
+    usage.quantity = Decimal("2.5")
+    await db_session.commit()
+
+
+async def test_new_count_usage_with_a_fraction_is_422(client, auth_headers, test_vehicle):
+    sid = await _supply(client, auth_headers, unit="count")
+    r = await client.post(
+        f"/api/vehicles/{test_vehicle['vin']}/service-visits",
+        json={
+            "date": "2026-02-01",
+            "line_items": [
+                {
+                    "description": "Filters",
+                    "cost": 0,
+                    "supplies_used": [{"supply_id": sid, "quantity": "1.5"}],
+                }
+            ],
+        },
+        headers=auth_headers,
+    )
+    assert r.status_code == 422, r.text
+    assert r.json()["detail"] == _WHOLE
+
+
+async def test_editing_a_count_usage_to_a_fraction_is_422(client, auth_headers, test_vehicle):
+    vin = test_vehicle["vin"]
+    _sid, visit = await _count_visit(client, auth_headers, vin)
+    r = await _put_items(client, auth_headers, vin, visit, "2.5")
+    assert r.status_code == 422, r.text
+    assert r.json()["detail"] == _WHOLE
+    after = await _fetch(client, auth_headers, vin, visit["id"])
+    assert Decimal(after["line_items"][0]["supply_usages"][0]["quantity"]) == 2
+
+
+async def test_moving_the_date_and_fractioning_a_count_is_422(client, auth_headers, test_vehicle):
+    vin = test_vehicle["vin"]
+    sid, visit = await _count_visit(client, auth_headers, vin)
+    # A costed purchase between the old and new dates, so the move re-prices the row.
+    bought = await client.post(
+        f"/api/supplies/{sid}/purchases",
+        json={"date": "2026-03-01", "quantity": "10", "total_cost": "200.00"},
+        headers=auth_headers,
+    )
+    assert bought.status_code == 201, bought.text
+    r = await _put_items(client, auth_headers, vin, visit, "2.5", date="2026-03-15")
+    assert r.status_code == 422, r.text
+    assert r.json()["detail"] == _WHOLE
+    after = await _fetch(client, auth_headers, vin, visit["id"])
+    assert after["date"].startswith("2026-02-01")
+    assert Decimal(after["line_items"][0]["supply_usages"][0]["quantity"]) == 2
+
+
+async def test_old_fractional_count_survives_an_unrelated_edit(
+    client, auth_headers, test_vehicle, db_session: AsyncSession
+):
+    vin = test_vehicle["vin"]
+    _sid, visit = await _count_visit(client, auth_headers, vin)
+    await _make_old_fraction(db_session, visit)
+    r = await client.put(
+        f"/api/vehicles/{vin}/service-visits/{visit['id']}",
+        json={"notes": "rotated too"},
+        headers=auth_headers,
+    )
+    assert r.status_code == 200, r.text
+    after = await _fetch(client, auth_headers, vin, visit["id"])
+    assert Decimal(after["line_items"][0]["supply_usages"][0]["quantity"]) == Decimal("2.5")
+
+
+async def test_old_fractional_count_resubmitted_unchanged_saves(
+    client, auth_headers, test_vehicle, db_session: AsyncSession
+):
+    """What the browser sends: the line item and its usage resubmitted as is."""
+    vin = test_vehicle["vin"]
+    _sid, visit = await _count_visit(client, auth_headers, vin)
+    await _make_old_fraction(db_session, visit)
+    r = await _put_items(client, auth_headers, vin, visit, 2.5, notes="rotated too")
+    assert r.status_code == 200, r.text
+    after = await _fetch(client, auth_headers, vin, visit["id"])
+    assert Decimal(after["line_items"][0]["supply_usages"][0]["quantity"]) == Decimal("2.5")
+    assert after["notes"] == "rotated too"

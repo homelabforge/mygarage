@@ -2564,3 +2564,26 @@ async def test_a_use_elsewhere_restores_once_whichever_file_has_the_estimate(
     # 10f6e9d7, b-estimated a-then-b: 37.45, B's estimate came in frozen.
     assert await _usage_rows(db_session, copy_id) == [_SETTLED]
     assert await _visit_count(db_session, b) == 1
+
+
+async def test_json_import_keeps_a_fractional_count(
+    client: AsyncClient, auth_headers, db_session: AsyncSession, new_vehicle
+):
+    """S-frac: the API refuses new fractional counts, but a backup restores history as it was."""
+    tag = _tag()
+    source = await new_vehicle()
+    target = await new_vehicle()
+    ids = await _seed(db_session, source, tag)
+    await db_session.execute(
+        update(SupplyUsage)
+        .where(SupplyUsage.supply_id == ids["shared"])
+        .values(quantity=Decimal("2.5"))
+    )
+    await db_session.commit()
+
+    backup = await export_json(client, auth_headers, source)
+    data = await import_json(client, auth_headers, target, backup)
+
+    assert data["errors"] == []
+    [item] = (await _visit(db_session, target)).line_items
+    assert {u.supply_id: u.quantity for u in item.supply_usages}[ids["shared"]] == Decimal("2.5")
