@@ -695,11 +695,15 @@ function ServiceVisitForm({
           return t('service.supplyQuantityInvalid', { number: n })
         }
         const unit = unitsBySupplyId.get(usage.supply_id)
-        // The replaced `step` was `'1'` for count-type supplies and `'0.01'`
-        // otherwise, so a count could not take a fraction. The backend only
-        // enforces `gt=0` (schemas/supply.py:75), so dropping this check
-        // rather than moving it would let "2.5 oil filters" through.
-        if (unit === 'count' && !Number.isInteger(usage.quantity)) {
+        // No "2.5 oil filters". The API refuses it too, this just says so sooner.
+        // An old visit saved with 2.5 before that still saves when edited for
+        // something else: only a number that differs from what's saved on this
+        // same line item and supply gets checked, same as the API.
+        const saved = visit?.line_items
+          .find((li) => item.id != null && li.id === item.id)
+          ?.supply_usages?.find((su) => su.supply_id === usage.supply_id)
+        const unchanged = saved !== undefined && Number(saved.quantity) === usage.quantity
+        if (unit === 'count' && !Number.isInteger(usage.quantity) && !unchanged) {
           return t('service.supplyQuantityWholeNumber', { number: n })
         }
         // The API takes nothing under 1 mL, the smallest amount the ledger tracks.

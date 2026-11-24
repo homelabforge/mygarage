@@ -196,6 +196,7 @@
       "quantity": "Kuantiti",
       "quantityRequired": "Masukkan kuantiti lebih daripada 0",
       "quantityTooSmall": "Terlalu kecil untuk disimpan: ditukar kepada kurang daripada 1 mL",
+      "quantityWholeNumber": "Bekalan ini dikira dalam unit, jadi masukkan nombor bulat",
       "supplier": "Pembekal",
       "noSupplier": "Tiada pembekal",
       "receipt": "Resit (pilihan)",

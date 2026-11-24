@@ -407,8 +407,9 @@ function validateSupplyQuantity(value: unknown, unit: SupplyUnit, t: TFunction):
   if (typeof value !== 'number' || Number.isNaN(value) || value <= 0) {
     return t('supplies.history.quantityRequired')
   }
+  // 2.5 oil filters isn't a thing, and the API says so too.
   if (unit === 'count') {
-    return value >= 0.001 ? true : t('supplies.history.quantityRequired')
+    return Number.isInteger(value) ? true : t('supplies.history.quantityWholeNumber')
   }
   return toCanonical(value, unit) >= 0.001 ? true : t('supplies.history.quantityTooSmall')
 }

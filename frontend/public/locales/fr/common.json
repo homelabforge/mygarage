@@ -196,6 +196,7 @@
       "quantity": "Quantité",
       "quantityRequired": "Saisissez une quantité supérieure à 0",
       "quantityTooSmall": "Quantité trop faible pour être enregistrée : moins de 1 mL après conversion",
+      "quantityWholeNumber": "Cette fourniture se compte à l’unité, saisissez un nombre entier",
       "supplier": "Fournisseur",
       "noSupplier": "Aucun fournisseur",
       "receipt": "Reçu (facultatif)",

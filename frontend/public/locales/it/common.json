@@ -196,6 +196,7 @@
       "quantity": "Quantità",
       "quantityRequired": "Inserisci una quantità maggiore di 0",
       "quantityTooSmall": "Troppo piccola per essere memorizzata: corrisponde a meno di 1 mL",
+      "quantityWholeNumber": "Questa scorta è a pezzi singoli, inserisci un numero intero",
       "supplier": "Fornitore",
       "noSupplier": "Nessun fornitore",
       "receipt": "Ricevuta (opzionale)",

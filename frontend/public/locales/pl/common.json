@@ -196,6 +196,7 @@
       "quantity": "Ilość",
       "quantityRequired": "Wprowadź ilość większą niż 0",
       "quantityTooSmall": "Za mało, by zapisać: po przeliczeniu daje mniej niż 1 mL",
+      "quantityWholeNumber": "Ten materiał jest liczony w sztukach, więc wprowadź liczbę całkowitą",
       "supplier": "Dostawca",
       "noSupplier": "Brak dostawcy",
       "receipt": "Paragon (opcjonalnie)",

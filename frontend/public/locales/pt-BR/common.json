@@ -196,6 +196,7 @@
       "quantity": "Quantidade",
       "quantityRequired": "Insira uma quantidade maior que 0",
       "quantityTooSmall": "Pequeno demais para armazenar: equivale a menos de 1 mL",
+      "quantityWholeNumber": "Este suprimento é contado em unidades, então insira um número inteiro",
       "supplier": "Fornecedor",
       "noSupplier": "Sem fornecedor",
       "receipt": "Recibo (opcional)",

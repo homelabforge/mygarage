@@ -3893,6 +3893,7 @@
   "common:supplies.history.quantity": "822bab8d:917b54f0:d",
   "common:supplies.history.quantityRequired": "86fb2dda:961d2abb:d",
   "common:supplies.history.quantityTooSmall": "284a5601:ee7b978e:d",
+  "common:supplies.history.quantityWholeNumber": "82eca7d5:883d8b2e:d",
   "common:supplies.history.supplier": "72e2f033:c1fd02f3:d",
   "common:supplies.history.noSupplier": "adc2faba:d25a4a74:d",
   "common:supplies.history.receipt": "2189fb09:982bf0cf:d",
