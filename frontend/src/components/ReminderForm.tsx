@@ -488,7 +488,7 @@ function ReminderForm({ vin, reminder, currentMileage, currentHours, onClose, on
         </>
       }
     >
-      <form id="reminder-form" onSubmit={handleSubmit} className="p-6 space-y-4">
+      <form id="reminder-form" onSubmit={handleSubmit} className="space-y-4">
         {error && (
           <div className="bg-danger/10 border border-danger rounded-lg p-3 flex items-center gap-2">
             <AlertTriangle aria-hidden="true" className="w-5 h-5 text-danger" />

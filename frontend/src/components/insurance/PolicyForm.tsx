@@ -399,7 +399,7 @@ export default function PolicyForm({ mode, policy, initialVin, onClose, onSucces
           </>
         }
       >
-        <form id="insurance-form" onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-5">
+        <form id="insurance-form" onSubmit={handleSubmit(onSubmit)} className="space-y-5">
           {mode === 'create' && (
             <div>
               <Button

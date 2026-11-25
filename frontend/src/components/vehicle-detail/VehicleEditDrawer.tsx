@@ -386,11 +386,11 @@ function VehicleEditForm({
         // gate exists to prevent: a section mounting on stale truth registers
         // fields the fresh seed never populates, and reset() then submits
         // those as explicit `null`, clearing real columns.
-        <div className="flex items-center justify-center p-6 text-sm text-text-mute">
+        <div className="flex items-center justify-center py-6 text-sm text-text-mute">
           {t('common:loading')}
         </div>
       ) : (
-      <form id="vehicle-edit-form" onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-6">
+      <form id="vehicle-edit-form" onSubmit={handleSubmit(onSubmit)} className="space-y-6">
         {/* Basic — one flat group, no section heading. DEF Tracking below is
             the one place a heading still earns its keep. */}
         <section>

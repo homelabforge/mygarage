@@ -89,7 +89,7 @@ function SupplyHistoryModal({ supply, onClose, initialForm }: SupplyHistoryModal
       width="lg"
       icon={History}
     >
-      <div className="p-6 space-y-6">
+      <div className="space-y-6">
         <div className="grid grid-cols-2 gap-4">
           <div className="bg-garage-bg border border-garage-border rounded-lg p-3">
             <div className="text-xs text-garage-text-muted">{t('supplies.onHand')}</div>

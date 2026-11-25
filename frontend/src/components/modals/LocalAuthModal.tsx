@@ -148,7 +148,7 @@ export default function LocalAuthModal({
         </div>
       }
     >
-      <div className="p-6 space-y-4">
+      <div className="space-y-4">
         {/* Case 1: Auth never enabled - show registration option */}
         {!authEverEnabled && (
             <div className="p-4 bg-primary/10 border border-primary/30 rounded-lg">

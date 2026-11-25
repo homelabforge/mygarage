@@ -111,7 +111,7 @@ export default function TollTransactionForm({ vin, tollTags, transaction, onClos
         </>
       }
     >
-        <form id="toll-transaction-form" onSubmit={handleSubmit(onSubmit as Parameters<typeof handleSubmit>[0])} className="p-6 space-y-4">
+        <form id="toll-transaction-form" onSubmit={handleSubmit(onSubmit as Parameters<typeof handleSubmit>[0])} className="space-y-4">
           {error && (
             <div className="bg-danger/10 border border-danger rounded-lg p-3">
               <p className="text-sm text-danger">{error}</p>

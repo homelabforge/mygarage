@@ -120,7 +120,7 @@ export default function CreateWidgetKeyModal({ isOpen, onClose }: Props) {
       }
     >
       {revealed ? (
-        <div className="space-y-4 p-6">
+        <div className="space-y-4">
           <div className="flex items-start gap-3 rounded-lg border border-danger-500/40 bg-danger-500/10 p-4">
             <AlertTriangle className="h-5 w-5 flex-shrink-0 text-danger-500" />
             <div className="text-sm text-danger-500">
@@ -147,7 +147,7 @@ export default function CreateWidgetKeyModal({ isOpen, onClose }: Props) {
           </div>
         </div>
       ) : (
-        <form id="create-widget-key-form" onSubmit={handleSubmit} className="space-y-4 p-6">
+        <form id="create-widget-key-form" onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-garage-text">
               {t('widgetKeys.nameLabel')}

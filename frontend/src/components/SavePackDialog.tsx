@@ -168,7 +168,7 @@ export default function SavePackDialog({
         </>
       }
     >
-      <div className="p-6 space-y-4">
+      <div className="space-y-4">
         <p className="text-sm text-text-mute">{t('savePack.intro')}</p>
         {error && (
           <p

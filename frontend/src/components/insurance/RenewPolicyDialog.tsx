@@ -90,7 +90,7 @@ export default function RenewPolicyDialog({ policy, onClose, onSuccess }: RenewP
         </>
       }
     >
-      <form id="renew-policy-form" onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-4">
+      <form id="renew-policy-form" onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         <p className="text-sm text-text-dim">{t('insurance.renewExplain')}</p>
         <Field
           id="renew_premium"

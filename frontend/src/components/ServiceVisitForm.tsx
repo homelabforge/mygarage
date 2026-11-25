@@ -951,7 +951,7 @@ function ServiceVisitForm({
           // cannot focus it, so Save silently does nothing. Every constraint
           // that used to live on an input is enforced by validateForm below.
           noValidate
-          className="p-6 space-y-6"
+          className="space-y-6"
         >
           {error && (
             <div className="bg-danger/10 border border-danger rounded-lg p-3 flex items-center gap-2">

@@ -119,7 +119,7 @@ export default function BillingEntryForm({
         </>
       }
     >
-        <form id="billing-entry-form" onSubmit={handleSubmit(onSubmit as Parameters<typeof handleSubmit>[0])} className="p-6 space-y-6">
+        <form id="billing-entry-form" onSubmit={handleSubmit(onSubmit as Parameters<typeof handleSubmit>[0])} className="space-y-6">
           {error && (
             <div className="bg-danger/10 border border-danger rounded-lg p-3">
               <p className="text-sm text-danger">{error}</p>

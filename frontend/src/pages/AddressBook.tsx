@@ -420,7 +420,7 @@ export function AddressBookForm({ entry, onClose, onSuccess }: AddressBookFormPr
         </div>
       }
     >
-      <form id="address-book-form" onSubmit={handleSubmit(onSubmit)} className="space-y-4 p-6">
+      <form id="address-book-form" onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         {error && (
           <div className="rounded-lg border border-danger bg-danger/10 p-3">
             <p className="text-sm text-danger">{error}</p>

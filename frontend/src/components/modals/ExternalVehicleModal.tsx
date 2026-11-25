@@ -162,7 +162,7 @@ export default function ExternalVehicleModal({
 
   return (
     <Drawer open={isOpen} onClose={onClose} title={title} width="md">
-      <div className="space-y-4 p-4">
+      <div className="space-y-4">
         <Field id="ext-nickname" label={t('externalVehicles.nickname')} required>
           <Input
             id="ext-nickname"
