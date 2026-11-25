@@ -255,3 +255,20 @@ test('the notes drawer dims the calendar, sticky week header included', async ({
   expect(gap(dimmed, plain), `the backdrop dims the grid (${plain} to ${dimmed})`).toBeGreaterThan(4)
   expect(gap(headerNow, dimmed), `the week header sits under the backdrop too (${headerNow} vs grid ${dimmed})`).toBeLessThanOrEqual(2)
 })
+
+test('Shift+Tab straight after opening the notes drawer stays inside it', async ({ page }) => {
+  // Nothing to focus in the notes body, so focus parks on the panel. Shift+Tab
+  // from there used to fall out of the drawer.
+  await page.goto('/calendar')
+  await expect(page.locator('.sx__calendar')).toBeVisible({ timeout: 15000 })
+  await page.getByRole('button', { name: 'View notes' }).first().click()
+  const drawer = page.getByTestId('drawer')
+  await expect(drawer).toContainText(NOTES)
+  await expect(drawer).toBeFocused()
+  const inside = (): Promise<boolean> => drawer.evaluate((el) => el.contains(document.activeElement))
+  await page.keyboard.press('Shift+Tab')
+  expect(await inside(), 'Shift+Tab off the panel left the drawer').toBe(true)
+  await expect(drawer).not.toBeFocused()
+  await page.keyboard.press('Tab')
+  expect(await inside(), 'Tab left the drawer').toBe(true)
+})

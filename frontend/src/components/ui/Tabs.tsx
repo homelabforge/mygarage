@@ -107,9 +107,9 @@ export default function Tabs({ items, activeId, onChange, label, variant = 'unde
             className={`ui-focus-ring ui-motion flex shrink-0 cursor-pointer items-center gap-2 whitespace-nowrap text-sm ${skin}`}
           >
             {Icon ? <Icon aria-hidden="true" className="h-4 w-4 shrink-0" /> : null}
-            {/* Single node. Hidden with CSS on narrow screens when there is an
-                icon to stand in for it — never duplicated into a second span. */}
-            <span className={Icon ? 'hidden sm:inline' : undefined}>{item.label}</span>
+            {/* Single node, never a second span. With an icon it's sr-only below
+                sm, so the icon stands in visually and the tab keeps its name. */}
+            <span className={Icon ? 'sr-only sm:not-sr-only' : undefined}>{item.label}</span>
             {item.count !== undefined ? (
               // A real Badge, not an inline pill: Badge already routes the
               // figure through Mono, which is where the G8.2 mono rule lives.

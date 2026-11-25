@@ -47,13 +47,16 @@ import type { DeviceStatusWord } from '../integrationStatus'
  * wire features by kind (see `wicanWire`).
  */
 
-// Status words take the status tokens, never a chart slot: these mean
-// good/bad, not "which series".
+// The status icon takes the status tokens, never a chart slot: these mean
+// good/bad, not "which series". The word stays neutral, since success and
+// danger ink fail contrast as small text on white (same call as Calendar).
 const STATUS_COLOR: Readonly<Record<DeviceStatusWord, string>> = {
   online: 'text-success',
   offline: 'text-danger',
   unknown: 'text-text-mute',
 }
+// Unknown keeps the mute word: there's no status to read yet.
+const wordColor = (status: DeviceStatusWord, ink: string): string => (status === 'unknown' ? 'text-text-mute' : ink)
 
 interface Props {
   device: LiveLinkDevice
@@ -220,13 +223,17 @@ export default function DeviceRow({
       </td>
       <td className="py-2 px-3">
         <div className="flex flex-col gap-0.5">
-          <span className={`flex items-center gap-1 text-xs ${STATUS_COLOR[status]}`}>
-            {status === 'online' ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
+          <span className={`flex items-center gap-1 text-xs ${wordColor(status, 'text-text')}`}>
+            {status === 'online'
+              ? <Wifi className={`w-3 h-3 ${STATUS_COLOR[status]}`} />
+              : <WifiOff className={`w-3 h-3 ${STATUS_COLOR[status]}`} />}
             {t(DEVICE_STATUS_LABEL[status].labelKey)}
           </span>
           {wicanWire && (
-            <span className={`flex items-center gap-1 text-xs ${STATUS_COLOR[ecu]}`}>
-              {ecu === 'online' ? <Link2 className="w-3 h-3" /> : <Link2Off className="w-3 h-3" />}
+            <span className={`flex items-center gap-1 text-xs ${wordColor(ecu, 'text-text-mid')}`}>
+              {ecu === 'online'
+                ? <Link2 className={`w-3 h-3 ${STATUS_COLOR[ecu]}`} />
+                : <Link2Off className={`w-3 h-3 ${STATUS_COLOR[ecu]}`} />}
               {t('modal.livelink.ecuLabel')} {t(ECU_STATUS_LABEL[ecu].labelKey)}
             </span>
           )}

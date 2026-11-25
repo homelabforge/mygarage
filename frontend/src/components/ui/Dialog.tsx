@@ -58,8 +58,9 @@ export default function Dialog({
   const footerRef = useRef<HTMLDivElement>(null)
   const [entered, setEntered] = useState(false)
   const titleId = useId()
-  // Whether the last press started on the backdrop itself. See onBackdropClick.
+  // Whether the last press started, and ended, on the backdrop itself. See onBackdropClick.
   const downOnBackdrop = useRef(false)
+  const upOnBackdrop = useRef(false)
 
   // Same deal as Drawer: callers pass inline arrows, and re-running the
   // effect on every render would bounce focus around.
@@ -109,14 +110,21 @@ export default function Dialog({
 
   const onBackdropPointerDown = (event: PointerEvent<HTMLDivElement>): void => {
     downOnBackdrop.current = event.target === event.currentTarget
+    upOnBackdrop.current = false
   }
 
-  // Both ends have to be on the backdrop. A drag that starts in a field and lets
-  // go out here gets its click sent to the overlay, and that's not a dismiss.
+  const onBackdropPointerUp = (event: PointerEvent<HTMLDivElement>): void => {
+    upOnBackdrop.current = event.target === event.currentTarget
+  }
+
+  // Both ends have to be on the backdrop. A drag between a field and out here,
+  // either way round, gets its click sent to the overlay, and that's not a dismiss.
   const onBackdropClick = (event: MouseEvent<HTMLDivElement>): void => {
     const startedHere = downOnBackdrop.current
+    const endedHere = upOnBackdrop.current
     downOnBackdrop.current = false
-    if (startedHere && event.target === event.currentTarget) onCloseRef.current()
+    upOnBackdrop.current = false
+    if (startedHere && endedHere && event.target === event.currentTarget) onCloseRef.current()
   }
 
   return createPortal(
@@ -124,6 +132,7 @@ export default function Dialog({
       ref={overlayRef}
       data-testid="dialog-backdrop"
       onPointerDown={onBackdropPointerDown}
+      onPointerUp={onBackdropPointerUp}
       onClick={onBackdropClick}
       className={`fixed inset-0 z-dialog-backdrop modal-safe-pad flex items-center justify-center bg-black/50 transition-opacity duration-(--duration-fast) ease-standard motion-reduce:transition-none ${
         entered ? 'opacity-100' : 'opacity-0'

@@ -68,9 +68,10 @@ describe('ConfirmDialog', () => {
       [
         'backdrop',
         () => {
-          // A real click presses first; Dialog only dismisses when both ends are on the backdrop.
+          // A real click presses and lets go first; Dialog only dismisses when both ends are on the backdrop.
           const backdrop = screen.getByTestId('dialog-backdrop')
           fireEvent.pointerDown(backdrop)
+          fireEvent.pointerUp(backdrop)
           fireEvent.click(backdrop)
         },
         false,
@@ -114,6 +115,22 @@ describe('ConfirmDialog', () => {
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Cancel' }))
     // Danger is the default tone.
     expect(screen.getByRole('button', { name: 'Delete' })).toHaveClass('text-danger')
+  })
+
+  it('breaks a long unbroken name instead of scrolling sideways', () => {
+    let confirm: Confirm = () => Promise.resolve(false)
+    render(
+      <ConfirmProvider>
+        <Caller onConfirm={(c) => (confirm = c)} />
+      </ConfirmProvider>,
+      { container: root },
+    )
+    const long = 'x'.repeat(120)
+    act(() => {
+      void confirm({ message: `Delete ${long}?`, detail: long, confirmLabel: 'Delete' })
+    })
+    expect(screen.getByText(`Delete ${long}?`)).toHaveClass('wrap-anywhere')
+    expect(screen.getByText(long)).toHaveClass('wrap-anywhere')
   })
 
   it('tone default uses the primary button and cancelLabel overrides Cancel', () => {

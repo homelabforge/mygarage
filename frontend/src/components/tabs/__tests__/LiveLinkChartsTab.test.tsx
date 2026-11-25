@@ -309,3 +309,39 @@ describe('LiveLinkChartsTab chart theme', () => {
     expect(captured.strokes.p1).toMatch(/^var\(--color-chart-[1-8]\)$/)
   })
 })
+
+describe('LiveLinkChartsTab colour reuse', () => {
+  const NINE = Array.from({ length: 9 }, (_, i) => mkParam(i + 1, `p${i + 1}`, `Param ${i + 1}`, 'V'))
+
+  it('never hands out a colour that is already on screen while others are free', async () => {
+    getVehicleParameters.mockResolvedValue({ parameters: NINE, total: 9 })
+    getTelemetry.mockImplementation(async (_vin, _start, _end, keys) => ({
+      ...TELEMETRY,
+      series: (keys ?? []).map((key) => ({
+        param_key: key, display_name: `Param ${key.slice(1)}`, unit: 'V', min_value: 1, max_value: 2, avg_value: 1.5,
+        data: [{ timestamp: 'x', value: 1 }],
+      })),
+    }))
+    render(<LiveLinkChartsTab vin="V1" />)
+    const chip = (n: number): HTMLElement => screen.getByRole('button', { name: new RegExp(`^Param ${n}\\b`) })
+    await waitFor(() => expect(chip(1)).toHaveAttribute('aria-pressed', 'true'))
+    // Pick all nine, so the ninth wraps onto slot 8, then keep only the ninth.
+    for (let n = 4; n <= 9; n++) fireEvent.click(chip(n))
+    for (let n = 1; n <= 8; n++) fireEvent.click(chip(n))
+    fireEvent.click(chip(1))
+    await waitFor(() => expect(getTelemetry).toHaveBeenLastCalledWith('V1', expect.any(String), expect.any(String), ['p9', 'p1'], undefined))
+
+    const swatch = (n: number): string => chip(n).querySelector<HTMLElement>('[data-testid="series-swatch"]')?.style.backgroundColor ?? ''
+    const card = async (n: number): Promise<string> => {
+      const label = await screen.findByText(`Param ${n}`, { selector: 'p' })
+      return (label.parentElement as HTMLElement).style.borderLeft
+    }
+    // The cards only show once the refetched chart is up, so the strokes are that render's.
+    expect(await card(9)).toContain('var(--color-chart-1)')
+    expect(await card(1)).toContain('var(--color-chart-2)')
+    expect(captured.strokes.p9).toBe('var(--color-chart-1)')
+    expect(captured.strokes.p1).toBe('var(--color-chart-2)')
+    expect(swatch(9)).toBe('var(--color-chart-1)')
+    expect(swatch(1)).toBe('var(--color-chart-2)')
+  })
+})

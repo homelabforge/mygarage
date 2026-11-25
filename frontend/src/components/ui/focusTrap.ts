@@ -28,17 +28,33 @@ export function isRendered(el: HTMLElement): boolean {
   return window.getComputedStyle(el).visibility !== 'hidden'
 }
 
-/** Wraps Tab and Shift+Tab at the panel's ends. Anything in between is left
- *  to the browser. */
+/** What Tab can actually reach in here: rendered, enabled, not under inert. */
+function tabbables(panel: HTMLElement): HTMLElement[] {
+  return [...panel.querySelectorAll<HTMLElement>(TAB_TRAP_SELECTOR)].filter(
+    (el) => isRendered(el) && !el.matches(':disabled') && !el.closest('[inert]'),
+  )
+}
+
+/** Wraps Tab and Shift+Tab at the panel's ends. Focus on the panel itself
+ *  counts as before the first control, so Shift+Tab from there wraps too.
+ *  Anything in between is left to the browser. */
 export function trapTab(event: KeyboardEvent, panel: HTMLElement | null): void {
-  const focusable = panel?.querySelectorAll<HTMLElement>(TAB_TRAP_SELECTOR)
-  if (!focusable || focusable.length === 0) return
+  if (!panel) return
+  const focusable = tabbables(panel)
+  const active = document.activeElement
+  if (focusable.length === 0) {
+    // Nothing to land on, so stay on the panel rather than leak out.
+    event.preventDefault()
+    panel.focus()
+    return
+  }
   const first = focusable[0]
   const last = focusable[focusable.length - 1]
-  if (event.shiftKey && document.activeElement === first) {
+  const onPanel = active === panel
+  if (event.shiftKey && (active === first || onPanel)) {
     event.preventDefault()
     last.focus()
-  } else if (!event.shiftKey && document.activeElement === last) {
+  } else if (!event.shiftKey && (active === last || onPanel)) {
     event.preventDefault()
     first.focus()
   }

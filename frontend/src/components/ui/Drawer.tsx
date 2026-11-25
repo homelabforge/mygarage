@@ -136,12 +136,9 @@ export default function Drawer({
     }
   }, [open, nested])
 
-  // Closing-transition mount lifecycle — deliberately a separate effect from
-  // the one above, so that effect's [open]-only dependency (load-bearing,
-  // see its own comment) stays untouched. Keeps the panel mounted for the
-  // tail of the exit transition instead of unmounting in the same render
-  // that flips `open` false, which previously skipped the slide/fade
-  // entirely (Finding 2).
+  // Keeps the panel mounted through its exit slide, then unmounts. Its own
+  // effect so the one above keeps its [open, nested] deps (no onClose, see
+  // onCloseRef). Unmounting on the render that flips open skipped the slide.
   useEffect(() => {
     if (open) {
       setRendered(true)
@@ -252,6 +249,10 @@ export default function Drawer({
 
   const backdropZ = nested ? 'z-drawer-nested-backdrop' : 'z-drawer-backdrop'
   const panelZ = nested ? 'z-drawer-nested' : 'z-drawer'
+  // Still sliding out. It's already off the stack, so make it dead to clicks,
+  // keys and focus, or a Cancelled form can still submit on its way out.
+  const closing = !open
+  const gone = closing ? 'pointer-events-none' : ''
 
   return createPortal(
     <>
@@ -259,9 +260,10 @@ export default function Drawer({
         ref={backdropRef}
         data-testid="drawer-backdrop"
         onClick={onClose}
+        inert={closing || undefined}
         className={`fixed inset-0 ${backdropZ} bg-black/50 transition-opacity duration-(--duration-fast) ease-standard motion-reduce:transition-none ${
           entered ? 'opacity-100' : 'opacity-0'
-        }`}
+        } ${gone}`}
         aria-hidden="true"
       />
       <div
@@ -271,9 +273,10 @@ export default function Drawer({
         aria-label={title}
         data-testid="drawer"
         tabIndex={-1}
+        inert={closing || undefined}
         className={`fixed right-0 top-0 ${panelZ} flex h-full w-(--drawer-w) flex-col border-l border-border bg-surface pt-safe-top pr-safe-right pl-drawer-safe shadow-drawer transition-transform duration-(--duration-drawer) ease-standard motion-reduce:transition-none ${
           entered ? 'translate-x-0' : 'translate-x-full'
-        } ${WIDTH[width]}`}
+        } ${WIDTH[width]} ${gone}`}
       >
         <header className="sticky top-0 flex items-center justify-between gap-3 border-b border-border bg-surface px-6 py-4">
           <h2 className="flex items-center gap-2 text-base font-bold text-text">

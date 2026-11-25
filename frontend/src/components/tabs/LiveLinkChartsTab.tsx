@@ -38,11 +38,12 @@ const TIME_RANGES: TimeRange[] = ['1h', '6h', '24h', '7d', '30d']
 /**
  * Give a newly picked parameter the lowest chart slot nobody is wearing, so
  * dropping one never repaints the others. Past 8 picks it wraps; at that point
- * the chart wants fewer lines anyway.
+ * the chart wants fewer lines anyway. Taken goes by colour (slot mod 8), so a
+ * wrapped slot 8 still blocks slot 0's colour.
  */
 function withSlot(slots: Readonly<Record<string, number>>, paramKey: string): Record<string, number> {
   if (slots[paramKey] !== undefined) return { ...slots }
-  const taken = new Set(Object.values(slots))
+  const taken = new Set(Object.values(slots).map((slot) => slot % 8))
   let slot = 0
   while (taken.has(slot) && slot < 8) slot++
   return { ...slots, [paramKey]: slot < 8 ? slot : Object.keys(slots).length }

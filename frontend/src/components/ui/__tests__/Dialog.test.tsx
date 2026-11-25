@@ -74,6 +74,54 @@ describe('Dialog', () => {
     expect(document.activeElement).toBe(last)
   })
 
+  it('Shift+Tab and Tab from the panel itself stay inside', () => {
+    render(
+      <Dialog open onClose={() => {}} title="Notes" closeLabel="Close">
+        <p>Just text.</p>
+      </Dialog>,
+      { container: root },
+    )
+    const panel = screen.getByRole('dialog', { name: 'Notes' })
+    const close = screen.getByRole('button', { name: 'Close' })
+    expect(document.activeElement).toBe(panel)
+    expect(fireEvent.keyDown(panel, { key: 'Tab', shiftKey: true })).toBe(false)
+    expect(document.activeElement).toBe(close)
+    panel.focus()
+    expect(fireEvent.keyDown(panel, { key: 'Tab' })).toBe(false)
+    expect(document.activeElement).toBe(close)
+  })
+
+  it('wraps at the last control that is actually there', () => {
+    // A hidden file input, a disabled fieldset and an inert box all match the
+    // selector, and none of them can take focus.
+    render(
+      <Dialog open onClose={() => {}} title="Upload" closeLabel="Close">
+        <button>Choose file</button>
+        <input type="file" aria-label="File" style={{ display: 'none' }} />
+        <div style={{ visibility: 'hidden' }}><button>Ghost</button></div>
+        <fieldset disabled><input aria-label="Locked" /></fieldset>
+        <div inert><button>Asleep</button></div>
+      </Dialog>,
+      { container: root },
+    )
+    const close = screen.getByRole('button', { name: 'Close' })
+    const choose = screen.getByRole('button', { name: 'Choose file' })
+    close.focus()
+    fireEvent.keyDown(close, { key: 'Tab', shiftKey: true })
+    expect(document.activeElement).toBe(choose)
+    fireEvent.keyDown(choose, { key: 'Tab' })
+    expect(document.activeElement).toBe(close)
+  })
+
+  it('Tab with nothing to land on keeps focus on the panel', () => {
+    render(<Dialog open onClose={() => {}} labelledBy="m"><p id="m">Working on it</p></Dialog>, { container: root })
+    const panel = screen.getByRole('dialog')
+    expect(document.activeElement).toBe(panel)
+    expect(fireEvent.keyDown(panel, { key: 'Tab' })).toBe(false)
+    expect(fireEvent.keyDown(panel, { key: 'Tab', shiftKey: true })).toBe(false)
+    expect(document.activeElement).toBe(panel)
+  })
+
   it('initialFocus first-field focuses the first field, not a button before it', () => {
     render(
       <Dialog open onClose={() => {}} title="Upload">
@@ -113,10 +161,12 @@ describe('Dialog', () => {
       { container: root },
     )
     fireEvent.pointerDown(screen.getByText('Body'))
+    fireEvent.pointerUp(screen.getByText('Body'))
     fireEvent.click(screen.getByText('Body'))
     expect(onClose).not.toHaveBeenCalled()
     const backdrop = screen.getByTestId('dialog-backdrop')
     fireEvent.pointerDown(backdrop)
+    fireEvent.pointerUp(backdrop)
     fireEvent.click(backdrop)
     expect(onClose).toHaveBeenCalledOnce()
   })
@@ -130,7 +180,22 @@ describe('Dialog', () => {
       { container: root },
     )
     fireEvent.pointerDown(screen.getByRole('textbox', { name: 'Title' }))
+    fireEvent.pointerUp(screen.getByTestId('dialog-backdrop'))
     fireEvent.click(screen.getByTestId('dialog-backdrop'))
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('a press that starts on the backdrop and lets go in the panel does not close', () => {
+    // The click still lands on the overlay (the common ancestor), so both ends count.
+    const onClose = vi.fn()
+    render(
+      <Dialog open onClose={onClose} title="Upload"><input aria-label="Title" /></Dialog>,
+      { container: root },
+    )
+    const backdrop = screen.getByTestId('dialog-backdrop')
+    fireEvent.pointerDown(backdrop)
+    fireEvent.pointerUp(screen.getByRole('textbox', { name: 'Title' }))
+    fireEvent.click(backdrop)
     expect(onClose).not.toHaveBeenCalled()
   })
 
@@ -142,6 +207,7 @@ describe('Dialog', () => {
     )
     const backdrop = screen.getByTestId('dialog-backdrop')
     fireEvent.pointerDown(backdrop)
+    fireEvent.pointerUp(backdrop)
     fireEvent.click(backdrop)
     expect(onClose).toHaveBeenCalledOnce()
     // A bare click with no press of its own (a synthetic one) mustn't ride on the old press.

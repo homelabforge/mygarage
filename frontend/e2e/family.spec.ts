@@ -115,6 +115,46 @@ test.describe('Family drawers', () => {
     await expect(family).not.toHaveAttribute('inert')
   })
 
+  test('a cancelled Add user is dead on its way out, and Family takes keys straight away', async ({ page }) => {
+    // Slow the slide-out right down, so there's a window to poke at.
+    await page.addStyleTag({ content: ':root { --duration-drawer: 2s !important }' })
+    const family = await openFamily(page)
+    const addButton = family.getByRole('button', { name: 'Add User' })
+    await addButton.click()
+    const addUser = page.getByRole('dialog', { name: 'Add User' })
+    await expect(addUser).toBeVisible()
+    const create = addUser.getByRole('button', { name: 'Create', exact: true })
+    await expect.poll(() => hitsItself(create), { message: 'Add user never finished sliding in' }).toBe(true)
+    const username = addUser.locator('input[type="text"]').first()
+    await username.fill('half-typed')
+
+    const panel = await addUser.elementHandle()
+    const createBox = (await create.boundingBox())!
+    await addUser.getByRole('button', { name: 'Cancel' }).click()
+
+    // Still on screen and sliding, but nothing in it takes a click or focus.
+    const exiting = await panel!.evaluate((el, box) => {
+      const hit = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2)
+      return {
+        stillThere: el.isConnected,
+        inert: el.hasAttribute('inert'),
+        createTakesClick: hit !== null && el.contains(hit),
+        focusInside: el.contains(document.activeElement),
+      }
+    }, createBox)
+    expect(exiting).toEqual({ stillThere: true, inert: true, createTakesClick: false, focusInside: false })
+
+    // Focus is back on Family's Add User, and Enter there works mid-exit: it reopens the drawer.
+    await expect(addButton).toBeFocused()
+    expect(await panel!.evaluate((el) => el.isConnected), 'the exit already finished, so this proved nothing').toBe(true)
+    await page.keyboard.press('Enter')
+    await expect(addUser).not.toHaveAttribute('inert')
+    await expect(family).toHaveAttribute('inert', '')
+    await page.keyboard.press('Escape')
+    await expect(addUser).toBeHidden()
+    await expect(family).not.toHaveAttribute('inert')
+  })
+
   test('Delete user takes the typed token and deletes the seeded user', async ({ page }) => {
     const family = await openFamily(page)
     await family.getByRole('button', { name: `Delete user: ${THROWAWAY.full_name}` }).click()

@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { act, fireEvent, screen } from '@testing-library/react'
+import { act, fireEvent, screen, within } from '@testing-library/react'
 import type { ReactElement } from 'react'
 import { render } from '../../__tests__/test-utils'
 import { ThemeProvider, useTheme } from '../../contexts/ThemeContext'
@@ -191,6 +191,27 @@ describe('Calendar light-theme contrast', () => {
     fireEvent.click(screen.getByRole('button', { name: 'calendar.bulkMode' }))
     fireEvent.click(screen.getAllByRole('button', { name: 'calendar.selectEvent' })[0])
     expect([...inNormalMode, ...seen()]).toEqual([])
+  })
+
+  it('summary card words and numbers stay neutral; only icons and borders carry colour', async () => {
+    feed.summary = { total: 7, overdue: 1, upcoming_7_days: 6, upcoming_30_days: 6 }
+    render(
+      <ThemeProvider>
+        <CalendarPage />
+      </ThemeProvider>,
+    )
+    const grid = (await screen.findByText('calendar.totalEvents')).closest('.grid') as HTMLElement
+    const cards = [...grid.children] as HTMLElement[]
+    expect(cards).toHaveLength(4)
+    for (const card of cards) {
+      for (const el of card.querySelectorAll('span, p')) {
+        expect(el.getAttribute('class') ?? '', el.textContent ?? '').toMatch(/\btext-garage-text(?:-muted)?\b/)
+      }
+    }
+    // The 30-day card keeps its accent border and icon.
+    const thirty = within(grid).getByText('calendar.next30Days').closest('.border') as HTMLElement
+    expect(thirty).toHaveClass('border-primary')
+    expect(thirty.querySelector('svg')).toHaveClass('text-(--accent-fg)')
   })
 
   it('the pattern catches what it is for', () => {

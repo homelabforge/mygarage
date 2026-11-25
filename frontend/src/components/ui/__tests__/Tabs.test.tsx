@@ -24,6 +24,22 @@ describe('Tabs', () => {
     expect(screen.getByRole('tab', { name: 'Fuel' })).toBeInTheDocument()
   })
 
+  it('an icon tab keeps its name at phone width, where the label is visually hidden', () => {
+    // jsdom has no Tailwind, so stand in the below-sm rules. display:none would
+    // drop the label out of the accessible name; sr-only keeps it in.
+    const phone = document.createElement('style')
+    phone.textContent = '.hidden { display: none } .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden }'
+    document.head.appendChild(phone)
+    try {
+      render(<Tabs items={ITEMS} activeId="overview" onChange={() => {}} label="Sections" />)
+      const tab = screen.getByRole('tab', { name: 'Fuel' })
+      expect(screen.getByText('Fuel', { selector: 'span' })).toHaveClass('sr-only', 'sm:not-sr-only')
+      expect(tab).toBeInTheDocument()
+    } finally {
+      phone.remove()
+    }
+  })
+
   it('marks the active tab', () => {
     render(<Tabs items={ITEMS} activeId="fuel" onChange={() => {}} label="Sections" />)
     expect(screen.getByRole('tab', { name: 'Fuel' })).toHaveAttribute('aria-selected', 'true')

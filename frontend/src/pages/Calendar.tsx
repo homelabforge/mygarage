@@ -555,9 +555,9 @@ function CalendarInner({ householdTimeZone }: { householdTimeZone: string | null
           <div className="bg-garage-surface border border-primary rounded-lg p-4">
             <div className="flex items-center gap-2 mb-2">
               <Clock className="w-5 h-5 text-(--accent-fg)" />
-              <span className="text-sm text-(--accent-fg)">{t('calendar.next30Days')}</span>
+              <span className="text-sm text-garage-text">{t('calendar.next30Days')}</span>
             </div>
-            <p className="text-2xl font-bold text-(--accent-fg)">{summary.upcoming_30_days}</p>
+            <p className="text-2xl font-bold text-garage-text">{summary.upcoming_30_days}</p>
           </div>
         </div>
 

@@ -133,12 +133,13 @@ export function ConfirmProvider({ children }: { children: ReactNode }): ReactEle
           </>
         }
       >
-        {/* divs, not p: message and detail are ReactNodes and may be blocks. */}
-        <div id={messageId} className="text-sm font-semibold text-text">
+        {/* divs, not p: message and detail are ReactNodes and may be blocks.
+            wrap-anywhere so a long unbroken name can't scroll the box sideways. */}
+        <div id={messageId} className="text-sm font-semibold text-text wrap-anywhere">
           {options?.message}
         </div>
         {options?.detail ? (
-          <div id={detailId} className="mt-2 text-sm text-text-mid">
+          <div id={detailId} className="mt-2 text-sm text-text-mid wrap-anywhere">
             {options.detail}
           </div>
         ) : null}
