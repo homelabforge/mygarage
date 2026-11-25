@@ -552,6 +552,12 @@ COMPUTED_VOCAB: dict[tuple[str, str], tuple[str, str]] = {
         "app.services.document_reader_service.read_document",
         "a constant per branch",
     ),
+    # The invoice reader sets the source to a constant per branch ("text",
+    # "ocr", or "llm" for the vision model); nothing reads it from a row.
+    ("ServiceInvoiceReadResponse", "source"): (
+        "app.services.service_invoice_service.read_service_invoice",
+        "a constant per branch",
+    ),
     # The VIN decoder (#211) sets the quality to a constant per branch and
     # never reads it from a row.
     ("VINDecodeResponse", "decode_quality"): (

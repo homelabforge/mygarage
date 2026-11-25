@@ -2,12 +2,16 @@
 
 import logging
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile, status
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.database import get_db
 from app.models.user import User
 from app.schemas.service_visit import (
+    ServiceInvoiceReadResponse,
     ServiceLineItemCreate,
     ServiceLineItemResponse,
     ServiceVisitCreate,
@@ -15,12 +19,16 @@ from app.schemas.service_visit import (
     ServiceVisitResponse,
     ServiceVisitUpdate,
 )
-from app.services.auth import require_auth
+from app.services.auth import get_vehicle_or_403, require_auth
+from app.services.service_invoice_service import read_service_invoice
 from app.services.service_visit_service import ServiceVisitService
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/vehicles/{vin}/service-visits", tags=["Service Visits"])
+limiter = Limiter(key_func=get_remote_address)
+
+MAX_INVOICE_UPLOAD_BYTES = settings.max_upload_size_bytes
 
 
 @router.get("", response_model=ServiceVisitListResponse)
@@ -214,3 +222,53 @@ async def delete_line_item(
     service = ServiceVisitService(db)
     await service.delete_line_item(vin, visit_id, line_item_id, current_user)
     return None
+
+
+@router.post("/read-invoice", response_model=ServiceInvoiceReadResponse)
+@limiter.limit(settings.rate_limit_uploads)
+async def read_invoice(
+    request: Request,
+    vin: str,
+    file: UploadFile = File(...),
+    allow_external_vision: bool = Query(
+        False, description="The person's yes to an AI model outside the household's network"
+    ),
+    db: AsyncSession = Depends(get_db),
+    current_user: User | None = Depends(require_auth),
+):
+    """Read a workshop invoice, job card or quote (PDF or photo) into a draft
+    service visit. Writes nothing: the form fills from the draft and the
+    person saves.
+
+    **Raises:**
+    - **409** ``ai_reading_not_configured``: AI document reading is off
+    - **409** ``{"code": "vision_consent_required", "host"}``: the model is
+      outside the network and ``allow_external_vision`` was not set
+    - **413**: the file is too large
+    - **502**: the AI endpoint failed
+    """
+    vin = vin.upper().strip()
+    await get_vehicle_or_403(vin, current_user, db, require_write=True)
+
+    # Size from the spooled file before reading it into memory (see fuel.py).
+    file.file.seek(0, 2)
+    file_size = file.file.tell()
+    file.file.seek(0)
+    if file_size > MAX_INVOICE_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"Invoice file exceeds maximum of {MAX_INVOICE_UPLOAD_BYTES // (1024 * 1024)}MB",
+        )
+    file_bytes = await file.read()
+    if not file_bytes:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="The file is empty")
+
+    result = await read_service_invoice(
+        db,
+        file_bytes=file_bytes,
+        filename=file.filename,
+        content_type=file.content_type,
+        user=current_user,
+        allow_external_vision=allow_external_vision,
+    )
+    return ServiceInvoiceReadResponse.model_validate(result)

@@ -417,8 +417,8 @@ class TestCoerceFields:
 
 
 class TestPrompts:
-    def test_registry_names_both_kinds(self):
-        assert set(PROMPTS) == {"registration_certificate", "insurance_policy"}
+    def test_registry_names_every_kind(self):
+        assert set(PROMPTS) == {"registration_certificate", "insurance_policy", "service_invoice"}
         for prompt in PROMPTS.values():
             assert prompt.keys
             assert "JSON" in prompt.system
