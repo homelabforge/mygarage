@@ -13,10 +13,13 @@ const HOSTS = new Set(['Drawer', 'FormModalWrapper', 'Dialog'])
 // The primitives themselves render {children} into the padded body.
 const SKIP = new Set(['components/ui/Drawer.tsx', 'components/ui/Dialog.tsx', 'components/FormModalWrapper.tsx'])
 // Horizontal padding only, with or without a variant prefix (sm:px-4).
-const H_PAD = /(^|[\s:])(p|px|pl|pr|ps|pe)-(\d|\[|px\b)/g
+// The value can be a number, a bracket or a v4 var: p-6, px-[10px], p-(--gap).
+const H_PAD = /(^|[\s:])(p|px|pl|pr|ps|pe)-(\d|\[|\(|px\b)/
 // A full border (border, border-2) draws its own box, like a dropzone or an
 // error alert. Its edge is what lines up with the title, so its padding is inside.
-const BOXED = /(^|\s)border(-\d+|-\[[^\]]+\])?(?=\s|$)/
+// Both ternary branches land in one string, so a border that's only on in one
+// branch still counts. Accepted gap.
+const BOXED = /(^|\s)border(-[1-9]\d*|-\[\d[^\]]*\])?(?=\s|$)/
 
 type El = ts.JsxElement | ts.JsxSelfClosingElement
 type Top = { host: boolean; node: El }
@@ -83,6 +86,14 @@ function tops(node: ts.Node, out: Top[] = []): Top[] {
   return out
 }
 
+const WRAPPERS = new Set(['memo', 'React.memo', 'forwardRef', 'React.forwardRef'])
+
+/** memo(fn) and forwardRef(fn) hide the real component one call deep, maybe two. */
+function unwrap(fn: ts.Node): ts.Node {
+  while (ts.isCallExpression(fn) && WRAPPERS.has(fn.expression.getText()) && fn.arguments.length > 0) fn = fn.arguments[0]
+  return fn
+}
+
 /** Outermost elements a component returns, across every return. */
 function returnedTops(fn: ts.Node): Top[] {
   const out: Top[] = []
@@ -101,7 +112,7 @@ function findFn(sf: ts.SourceFile, name: string): ts.Node | null {
     if (ts.isFunctionDeclaration(st) && st.name?.text === name) return st
     if (ts.isVariableStatement(st)) {
       for (const d of st.declarationList.declarations) {
-        if (ts.isIdentifier(d.name) && d.name.text === name && d.initializer) return d.initializer
+        if (ts.isIdentifier(d.name) && d.name.text === name && d.initializer) return unwrap(d.initializer)
       }
     }
   }
@@ -111,7 +122,10 @@ function findFn(sf: ts.SourceFile, name: string): ts.Node | null {
 function findDefault(sf: ts.SourceFile): ts.Node | null {
   for (const st of sf.statements) {
     if (ts.isFunctionDeclaration(st) && st.modifiers?.some((m) => m.kind === ts.SyntaxKind.DefaultKeyword)) return st
-    if (ts.isExportAssignment(st) && ts.isIdentifier(st.expression)) return findFn(sf, st.expression.text)
+    if (ts.isExportAssignment(st)) {
+      const fn = unwrap(st.expression)
+      return ts.isIdentifier(fn) ? findFn(sf, fn.text) : fn
+    }
   }
   return null
 }
@@ -175,10 +189,10 @@ function scan(root: string, files: string[], fs: Fs = diskFs): string[] {
           const where = `${relative(root, inFile)}:${lineOf(parse(inFile), t.node)}`
           if (t.host) {
             const cls = classText(t.node)
-            const pads = BOXED.test(cls) ? null : cls.match(H_PAD)
+            const pads = BOXED.test(cls) ? [] : cls.split(/\s+/).filter((c) => H_PAD.test(c))
             rows.push(
-              pads
-                ? `PAD ${host} -> ${via}<${tag}> ${where}  [${pads.map((s) => s.trim()).join(' ')}]`
+              pads.length > 0
+                ? `PAD ${host} -> ${via}<${tag}> ${where}  [${pads.join(' ')}]`
                 : `ok  ${host} -> ${via}<${tag}> ${where}`,
             )
             return
@@ -186,8 +200,10 @@ function scan(root: string, files: string[], fs: Fs = diskFs): string[] {
           // a nested Drawer/Dialog is its own host, and one level is enough
           if (HOSTS.has(tag) || followed) return
           const r = resolveComp(inFile, tag)
-          if (!r) return
-          returnedTops(r.fn).forEach((i) => check(i, r.file, `${via}<${tag}>/`, true))
+          const inner = r ? returnedTops(r.fn) : []
+          // can't see inside it, so say so instead of passing quietly
+          if (!r || inner.length === 0) rows.push(`comp ${host} -> ${via}<${tag}> ${where} (${r ? 'no JSX' : 'unresolved'})`)
+          if (r) inner.forEach((i) => check(i, r.file, `${via}<${tag}>/`, true))
         }
         x.children.forEach((c) => tops(c).forEach((t) => check(t, file, '', false)))
       }
@@ -210,6 +226,17 @@ function scanInline(sources: Record<string, string>): string[] {
 }
 
 const padded = (rows: string[]): string[] => rows.filter((r) => r.startsWith('PAD'))
+
+/** Component names the walk couldn't open, deduped. */
+const unresolved = (rows: string[]): string[] =>
+  [...new Set(rows.filter((r) => r.startsWith('comp')).map((r) => /-> <(\w+)>/.exec(r)?.[1] ?? r))].sort()
+
+// Things the walk can't open on purpose. Anything new here needs a reason, or
+// it's a form wrapper the guard just stopped seeing.
+const UNRESOLVED_OK: Readonly<Record<string, string>> = {
+  Field: 'ui primitive behind the barrel, a label and its control, no body padding',
+  EmptyState: 'ui primitive behind the barrel, a centred empty message',
+}
 
 describe('drawer and dialog bodies own their padding', () => {
   it('no outermost body element pads itself horizontally', () => {
@@ -264,7 +291,34 @@ describe('drawer and dialog bodies own their padding', () => {
     ])
   })
 
-  it('lets a bordered box keep its padding, but not a one-sided border', () => {
+  it('flags every horizontal spelling: variants, logical sides, brackets and v4 vars', () => {
+    const rows = scanInline({
+      'Spell.tsx': [
+        'export function Spell() {',
+        '  return (',
+        '    <Drawer open onClose={close} title="t">',
+        '      <div className="sm:px-6" />',
+        '      <div className="pr-[10px]" />',
+        '      <div className="ps-2" />',
+        '      <div className="pe-2" />',
+        '      <div className="p-(--gap)" />',
+        '      <div className="px-(--x)" />',
+        '    </Drawer>',
+        '  )',
+        '}',
+      ].join('\n'),
+    })
+    expect(padded(rows)).toEqual([
+      'PAD Spell.tsx:3 <Drawer> -> <div> Spell.tsx:4  [sm:px-6]',
+      'PAD Spell.tsx:3 <Drawer> -> <div> Spell.tsx:5  [pr-[10px]]',
+      'PAD Spell.tsx:3 <Drawer> -> <div> Spell.tsx:6  [ps-2]',
+      'PAD Spell.tsx:3 <Drawer> -> <div> Spell.tsx:7  [pe-2]',
+      'PAD Spell.tsx:3 <Drawer> -> <div> Spell.tsx:8  [p-(--gap)]',
+      'PAD Spell.tsx:3 <Drawer> -> <div> Spell.tsx:9  [px-(--x)]',
+    ])
+  })
+
+  it('lets a bordered box keep its padding, but not a one-sided, zero or colour-only border', () => {
     const rows = scanInline({
       'Box.tsx': [
         'export function Box() {',
@@ -272,12 +326,18 @@ describe('drawer and dialog bodies own their padding', () => {
         '    <Dialog open onClose={close} title="t">',
         '      <div className={`border-2 border-dashed rounded-lg p-8 ${drag}`} />',
         '      <div className="border-b p-4" />',
+        '      <div className="border-0 p-6" />',
+        '      <div className="border-[color:var(--x)] px-4" />',
         '    </Dialog>',
         '  )',
         '}',
       ].join('\n'),
     })
-    expect(padded(rows)).toEqual(['PAD Box.tsx:3 <Dialog> -> <div> Box.tsx:5  [p-4]'])
+    expect(padded(rows)).toEqual([
+      'PAD Box.tsx:3 <Dialog> -> <div> Box.tsx:5  [p-4]',
+      'PAD Box.tsx:3 <Dialog> -> <div> Box.tsx:6  [p-6]',
+      'PAD Box.tsx:3 <Dialog> -> <div> Box.tsx:7  [px-4]',
+    ])
   })
 
   it('follows a component into its own file and flags its padded root', () => {
@@ -305,5 +365,49 @@ describe('drawer and dialog bodies own their padding', () => {
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
+  })
+
+  it('unwraps memo and forwardRef to reach the padded root', () => {
+    const rows = scanInline({
+      'Wrapped.tsx': [
+        "import { memo, forwardRef } from 'react'",
+        'const MemoForm = memo(function MemoForm() {',
+        '  return <form className="p-6" />',
+        '})',
+        'const RefForm = React.forwardRef((props, ref) => <form ref={ref} className="px-4" />)',
+        'export function Host() {',
+        '  return (',
+        '    <Drawer open onClose={close} title="t">',
+        '      <MemoForm />',
+        '      <RefForm />',
+        '    </Drawer>',
+        '  )',
+        '}',
+      ].join('\n'),
+    })
+    expect(padded(rows)).toEqual([
+      'PAD Wrapped.tsx:8 <Drawer> -> <MemoForm>/<form> Wrapped.tsx:3  [p-6]',
+      'PAD Wrapped.tsx:8 <Drawer> -> <RefForm>/<form> Wrapped.tsx:5  [px-4]',
+    ])
+  })
+
+  it('reports a component it cannot follow, so a new form wrapper cannot hide', () => {
+    const rows = scanInline({
+      'Pkg.tsx': [
+        "import { MysteryForm } from 'some-pkg'",
+        'export function Host() {',
+        '  return (',
+        '    <Drawer open onClose={close} title="t">',
+        '      <MysteryForm />',
+        '    </Drawer>',
+        '  )',
+        '}',
+      ].join('\n'),
+    })
+    expect(unresolved(rows)).toEqual(['MysteryForm'])
+  })
+
+  it('src only has the allowlisted components it cannot open', () => {
+    expect(unresolved(scan(SRC, walk(SRC)))).toEqual(Object.keys(UNRESOLVED_OK).sort())
   })
 })

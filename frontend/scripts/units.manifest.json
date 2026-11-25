@@ -2201,8 +2201,8 @@
     {
       "path": "src/components/insurance/PolicyHistoryDialog.tsx",
       "disposition": "no unit behaviour",
-      "digest": "d8c9527cb53f065bb99ff242f963b9c51696050ea6f21b59c384f3cec72a7d88",
-      "reason": "no unit behaviour: household insurance (2026-09-19, migration 107), the term chain with the premium change. Reviewed by reading it: currency amounts, dates and text only; no distance, volume, mass, pressure, temperature or consumption value is read, converted or displayed. 2026-11-24 (ui-primitives): the p-6 wrapper inside the drawer body is gone, the drawer pads it already. Layout only, no unit behaviour moved."
+      "digest": "8c2b49443954ba96b28e8950298cb5c4aca008664b9259682a83af62630bf2ed",
+      "reason": "no unit behaviour: household insurance (2026-09-19, migration 107), the term chain with the premium change. Reviewed by reading it: currency amounts, dates and text only; no distance, volume, mass, pressure, temperature or consumption value is read, converted or displayed. 2026-11-24 (ui-primitives): the p-6 wrapper inside the drawer body is gone, the drawer pads it already. Layout only, no unit behaviour moved. 2026-11-24 (ui-primitives): the now bare wrapper div is a fragment, it carried no spacing. Layout only, no unit behaviour moved."
     },
     {
       "path": "src/components/insurance/RenewPolicyDialog.tsx",
