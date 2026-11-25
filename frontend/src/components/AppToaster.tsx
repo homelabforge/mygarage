@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Toaster, useSonner } from 'sonner'
 import { useTheme } from '../contexts/ThemeContext'
-import { useAnyDrawerOpen } from './ui/openDrawers'
+import { useAnyDrawerOpen } from './ui/modalStack'
 
 type Corner = 'top-left' | 'bottom-left'
 
@@ -31,11 +31,12 @@ type Corner = 'top-left' | 'bottom-left'
  * the installed iPhone app (sonner's default top is the bare 24px/16px).
  *
  * Portalled to document.body on purpose. Rendered in place it is a child of
- * #root, which Drawer marks `inert` while open (Drawer.tsx:46) — and `inert`
- * strips its subtree from the accessibility tree, so every toast raised from
- * inside a drawer went unannounced and could not be dismissed. It still
- * painted, which is why the defect went unnoticed. The portal makes it a
- * sibling of #root; React portals preserve context, so useTheme still works.
+ * #root, which the modal stack (ui/modalStack.ts) marks `inert` while a
+ * drawer or dialog is open, and `inert` strips its subtree from the
+ * accessibility tree, so every toast raised from inside a drawer went
+ * unannounced and could not be dismissed. It still painted, which is why the
+ * defect went unnoticed. The portal makes it a sibling of #root; React portals
+ * preserve context, so useTheme still works.
  */
 export default function AppToaster() {
   const { theme } = useTheme()

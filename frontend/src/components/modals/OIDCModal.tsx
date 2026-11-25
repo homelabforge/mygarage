@@ -170,7 +170,7 @@ export default function OIDCModal({ isOpen, onClose, config, onSaved }: OIDCModa
         </div>
       }
     >
-      <div className="p-6 space-y-4">
+      <div className="space-y-4">
           {/* OIDC Info Box */}
           <div className="p-4 bg-primary/10 border border-primary/30 rounded-lg">
             <div className="flex items-start gap-3">

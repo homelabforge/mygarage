@@ -6,7 +6,7 @@ import { toast } from 'sonner'
 import type { Note } from '../types/note'
 import { useNotes, useDeleteNote } from '../hooks/queries/useNotes'
 import { getActionErrorMessage } from '../utils/httpErrorHandler'
-import { Button, IconButton, Card, Mono, EmptyState } from './ui'
+import { Button, IconButton, Card, Mono, EmptyState, useConfirm } from './ui'
 
 interface NoteListProps {
   vin: string
@@ -16,13 +16,14 @@ interface NoteListProps {
 
 export default function NoteList({ vin, onAddClick, onEditClick }: NoteListProps) {
   const { t } = useTranslation('vehicles')
+  const confirm = useConfirm()
   const { data, isLoading, error } = useNotes(vin)
   const deleteMutation = useDeleteNote(vin)
 
   const notes = useMemo(() => data?.notes ?? [], [data?.notes])
 
-  const handleDelete = (noteId: number) => {
-    if (!confirm(t('noteList.confirmDelete'))) {
+  const handleDelete = async (noteId: number): Promise<void> => {
+    if (!(await confirm({ message: t('noteList.confirmDelete'), confirmLabel: t('common:delete') }))) {
       return
     }
 
@@ -101,7 +102,7 @@ export default function NoteList({ vin, onAddClick, onEditClick }: NoteListProps
                     variant="danger"
                     size="sm"
                     disabled={deleteMutation.isPending && deleteMutation.variables === note.id}
-                    onClick={() => handleDelete(note.id)}
+                    onClick={() => void handleDelete(note.id)}
                   />
                 </div>
               </div>

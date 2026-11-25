@@ -89,7 +89,7 @@ export default function ReconcileDuplicatesDialog({
         </>
       }
     >
-      <div className="p-6 space-y-4">
+      <div className="space-y-4">
         <p className="text-sm text-text-mute">{t('duplicates.intro')}</p>
         {!isLoading && !complete && (
           <p role="alert" className="text-sm text-warning">{t('duplicates.incomplete')}</p>

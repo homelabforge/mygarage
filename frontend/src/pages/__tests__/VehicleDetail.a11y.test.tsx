@@ -108,6 +108,7 @@ import vehicleService from '../../services/vehicleService'
 import { livelinkService } from '../../services/livelinkService'
 import type { Vehicle, VehicleType } from '../../types/vehicle'
 import VehicleDetail from '../VehicleDetail'
+import { withConfirm } from '../../__tests__/confirmHelpers'
 
 const mockedVehicleService = vi.mocked(vehicleService)
 const mockedLivelinkService = vi.mocked(livelinkService)
@@ -144,7 +145,8 @@ function renderVehicleDetail(initialPath = '/vehicles/TEST12345678901234') {
           <Route path="/" element={<div>Dashboard</div>} />
         </Routes>
       </MemoryRouter>
-    </QueryClientProvider>
+    </QueryClientProvider>,
+    { wrapper: withConfirm }
   )
 }
 

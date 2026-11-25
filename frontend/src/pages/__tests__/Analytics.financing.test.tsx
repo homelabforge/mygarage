@@ -7,7 +7,13 @@ import type { ReactNode } from 'react'
 import type { MonthlyCostSummary, VehicleAnalytics } from '../../types/analytics'
 import { setActiveDateFormat } from '../../constants/i18n'
 
-const captured = vi.hoisted(() => ({ barCharts: [] as unknown[], lineCharts: [] as unknown[] }))
+const captured = vi.hoisted(() => ({
+  barCharts: [] as unknown[],
+  lineCharts: [] as unknown[],
+  // Off by default: when on, every Tooltip renders its content with a fake hover.
+  tooltipPayload: null as unknown[] | null,
+  lines: {} as Record<string, { stroke?: string; strokeDasharray?: string }>,
+}))
 vi.mock('recharts', () => {
   const Pass = ({ children }: { children?: ReactNode }) => <>{children}</>
   return {
@@ -22,8 +28,13 @@ vi.mock('recharts', () => {
     },
     PieChart: Pass,
     RadarChart: Pass,
-    Line: () => null,
-    Bar: ({ name }: { name?: string }) => <span data-testid="bar-series">{name}</span>,
+    Line: ({ dataKey, stroke, strokeDasharray }: { dataKey: string; stroke?: string; strokeDasharray?: string }) => {
+      captured.lines[dataKey] = { stroke, strokeDasharray }
+      return null
+    },
+    Bar: ({ name, fill, stroke, strokeWidth }: { name?: string; fill?: string; stroke?: string; strokeWidth?: number }) => (
+      <span data-testid="bar-series" data-fill={fill} data-stroke={stroke} data-stroke-width={strokeWidth}>{name}</span>
+    ),
     Pie: () => null,
     Cell: () => null,
     Radar: () => null,
@@ -33,7 +44,10 @@ vi.mock('recharts', () => {
     XAxis: () => null,
     YAxis: () => null,
     CartesianGrid: () => null,
-    Tooltip: () => null,
+    Tooltip: ({ content }: { content?: (props: unknown) => ReactNode }) =>
+      captured.tooltipPayload && content ? (
+        <div data-testid="tooltip-host">{content({ active: true, payload: captured.tooltipPayload, label: 'Jan 2026' })}</div>
+      ) : null,
     Legend: () => null,
   }
 })
@@ -223,6 +237,8 @@ beforeEach(() => {
   vi.clearAllMocks()
   captured.barCharts = []
   captured.lineCharts = []
+  captured.tooltipPayload = null
+  captured.lines = {}
 })
 
 afterEach(() => {
@@ -370,5 +386,168 @@ describe('Analytics — PDF export', () => {
       setActiveDateFormat('mdy')
       open.mockRestore()
     }
+  })
+})
+
+describe('Analytics: chart tooltips and series use the theme tokens', () => {
+  // An RV, so propane and spot rental mount too, with one point in every
+  // series: all 10 tooltip charts render.
+  const EVERY_CHART: VehicleAnalytics = {
+    ...WITH_FINANCING,
+    vehicle_type: 'RV',
+    cost_analysis: {
+      ...WITH_FINANCING.cost_analysis,
+      service_type_breakdown: [
+        { service_type: 'Oil Change', count: 2, average_cost: '50.00', total_cost: '100.00' },
+        { service_type: 'Brakes', count: 1, average_cost: '300.00', total_cost: '300.00' },
+      ],
+    },
+    fuel_economy: {
+      ...WITH_FINANCING.fuel_economy,
+      data_points: [{ date: '2026-01-10', l_per_100km: '9.5', odometer_km: '1000', liters: '40', cost: '60.00' }],
+    },
+    hours_economy: {
+      ...WITH_FINANCING.hours_economy,
+      data_points: [{ date: '2026-01-10', engine_hours: '10', liters: '20', cost: '30.00', cost_per_hr: '3.00', l_per_hr: '2.0' }],
+    },
+    hours_accumulated: [{ date: '2026-01-10', engine_hours: '10', source: 'fuel' }],
+    propane_analysis: {
+      total_spent: '40.00',
+      total_liters: '20',
+      avg_price_per_liter: '2.00',
+      record_count: 1,
+      monthly_trend: [{ year: 2026, month: 1, month_name: 'January', total_cost: 40, total_liters: 20, avg_price_per_liter: 2 }],
+    },
+    spot_rental_analysis: {
+      total_cost: '500.00',
+      billing_count: 1,
+      monthly_average: '500.00',
+      monthly_trend: [{ year: 2026, month: 1, month_name: 'January', total_cost: 500, monthly_rate: 400, electric: 60, water: 20, waste: 20 }],
+    },
+  }
+
+  function respondWithEverything(): void {
+    mockedApiGet.mockImplementation((url: string) => {
+      if (url.endsWith('/vendors')) {
+        return Promise.resolve({
+          data: {
+            total_vendors: 1,
+            vendors: [{ vendor_name: 'Shop', total_spent: '100.00', average_cost: '50.00', service_count: 2, service_types: [] }],
+          },
+        })
+      }
+      if (url.endsWith('/seasonal')) {
+        return Promise.resolve({
+          data: {
+            annual_average: '100.00',
+            seasons: [{ season: 'Winter', total_cost: '100.00', average_cost: '50.00', service_count: 2, common_services: [], variance_from_annual: '0' }],
+          },
+        })
+      }
+      if (url.includes('/tires')) return Promise.reject(new Error('no tires'))
+      return Promise.resolve({ data: EVERY_CHART })
+    })
+  }
+
+  // One entry that every tooltip's content() can read from.
+  const HOVER = [
+    {
+      name: 'Fuel',
+      dataKey: 'Fuel',
+      value: 12,
+      color: 'var(--color-chart-2)',
+      payload: { lPer100km: 9.5, odometer_km: 1000, lPerHr: 2, costPerHr: 3, vendor: 'Shop', spending: 100, services: 2, season: 'Winter', cost: 100, avgCost: 50 },
+    },
+  ]
+
+  it('renders all 10 tooltip boxes on surface tokens with muted lines as a class', async () => {
+    captured.tooltipPayload = HOVER
+    respondWithEverything()
+    renderAnalytics()
+    await screen.findByText('vehicle.seasonalSpendingPatterns')
+    await screen.findByText('vehicle.spendingByVendor')
+
+    const hosts = screen.getAllByTestId('tooltip-host')
+    expect(hosts).toHaveLength(10)
+    for (const host of hosts) {
+      const box = host.firstElementChild as HTMLElement
+      expect(box).not.toBeNull()
+      expect(box.style.backgroundColor).not.toBe('rgb(26, 31, 40)')
+      expect(box.className).toContain('bg-surface-2')
+      // the old muted grey was an inline #9ca3af
+      expect(host.innerHTML).not.toContain('156, 163, 175')
+      expect(host.innerHTML.toLowerCase()).not.toContain('#9ca3af')
+    }
+    // and the muted lines survive as the token class (not just dropped)
+    expect(hosts.filter((h) => h.querySelector('.text-text-mute')).length).toBeGreaterThanOrEqual(8)
+  })
+
+  it('colours the stacked monthly bars by category, Service on Maintenance blue', async () => {
+    respondWithEverything()
+    renderAnalytics()
+    await screen.findByText('vehicle.monthlyCostTrend')
+    const fills = Object.fromEntries(
+      screen.getAllByTestId('bar-series').map((el) => [el.textContent, el.getAttribute('data-fill')])
+    )
+    expect(fills).toMatchObject({
+      'vehicle.categoryService': 'var(--color-chart-1)',
+      'vehicle.categoryFuel': 'var(--color-chart-2)',
+      'vehicle.categoryFinancing': 'var(--color-chart-6)',
+      'vehicle.categorySpotRental': 'var(--color-chart-4)',
+    })
+  })
+})
+
+describe('Analytics: stacked segments get a 2px gap in their panel colour', () => {
+  it('strokes the monthly stack with the card surface and the spot-rental stack with the page bg', async () => {
+    mockedApiGet.mockImplementation((url: string) => {
+      if (url.endsWith('/vendors') || url.endsWith('/seasonal') || url.includes('/tires')) return Promise.reject(new Error('n/a'))
+      return Promise.resolve({
+        data: {
+          ...WITH_FINANCING,
+          vehicle_type: 'RV',
+          spot_rental_analysis: {
+            total_cost: '500.00',
+            billing_count: 1,
+            monthly_average: '500.00',
+            monthly_trend: [{ year: 2026, month: 1, month_name: 'January', total_cost: 500, monthly_rate: 400, electric: 60, water: 20, waste: 20 }],
+          },
+        },
+      })
+    })
+    renderAnalytics()
+    await screen.findByText('vehicle.monthlySpotRentalCosts')
+    const bars = Object.fromEntries(
+      screen.getAllByTestId('bar-series').map((el) => [el.textContent, [el.getAttribute('data-stroke'), el.getAttribute('data-stroke-width')]])
+    )
+    for (const k of ['vehicle.categoryService', 'vehicle.categoryFuel', 'vehicle.categoryFinancing', 'vehicle.categorySpotRental']) {
+      expect(bars[k], k).toEqual(['var(--color-surface)', '2'])
+    }
+    for (const k of ['vehicle.monthlyRate', 'vehicle.electric', 'vehicle.water', 'vehicle.waste']) {
+      expect(bars[k], k).toEqual(['var(--color-bg)', '2'])
+    }
+  })
+})
+
+describe('Analytics: the cost trend key matches its lines', () => {
+  it('draws each key swatch with the same colour and dash as its line', async () => {
+    respondWith(WITH_LEASE_ONLY_MONTHS)
+    renderAnalytics()
+    await screen.findByText('vehicle.costTrendsTitle')
+    const keys: Array<[string, string]> = [
+      ['vehicle.legendLineActual', 'actualCost'],
+      ['vehicle.legendLine3m', 'rollingAvg3m'],
+      ['vehicle.legendLine6m', 'rollingAvg6m'],
+    ]
+    const dashes = new Set<string>()
+    for (const [label, dataKey] of keys) {
+      const line = screen.getByText(label).parentElement!.querySelector('svg line')
+      expect(line, label).not.toBeNull()
+      expect(line!.getAttribute('stroke'), label).toBe(captured.lines[dataKey].stroke)
+      expect(line!.getAttribute('stroke-dasharray') ?? undefined, label).toBe(captured.lines[dataKey].strokeDasharray)
+      dashes.add(line!.getAttribute('stroke-dasharray') ?? 'solid')
+    }
+    // the three keys are tellable apart
+    expect(dashes.size).toBe(3)
   })
 })

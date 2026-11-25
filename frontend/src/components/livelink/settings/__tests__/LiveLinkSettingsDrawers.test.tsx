@@ -55,6 +55,7 @@ const expectOnly = (expected: string | null): void => {
 }
 
 import LiveLinkSettingsDrawers from '../LiveLinkSettingsDrawers'
+import { withConfirm } from '../../../../__tests__/confirmHelpers'
 
 const tab = (id: string, kind: string | null): IntegrationTab =>
   ({
@@ -72,24 +73,24 @@ const tab = (id: string, kind: string | null): IntegrationTab =>
 
 describe('LiveLinkSettingsDrawers', () => {
   it('opens the general drawer for the gear, and only it', () => {
-    render(<LiveLinkSettingsDrawers target={{ type: 'general' }} onClose={vi.fn()} onChanged={vi.fn()} />)
+    render(<LiveLinkSettingsDrawers target={{ type: 'general' }} onClose={vi.fn()} onChanged={vi.fn()} />, { wrapper: withConfirm })
     expectOnly('general-drawer')
   })
 
   it('opens nothing when there is no target', () => {
-    render(<LiveLinkSettingsDrawers target={null} onClose={vi.fn()} onChanged={vi.fn()} />)
+    render(<LiveLinkSettingsDrawers target={null} onClose={vi.fn()} onChanged={vi.fn()} />, { wrapper: withConfirm })
     expectOnly(null)
   })
 
   it('opens the Mosquitto drawer for the broker tab, and only it', () => {
     const broker = tab('broker', null)
-    render(<LiveLinkSettingsDrawers target={{ type: 'tab', tab: broker }} onClose={vi.fn()} onChanged={vi.fn()} />)
+    render(<LiveLinkSettingsDrawers target={{ type: 'tab', tab: broker }} onClose={vi.fn()} onChanged={vi.fn()} />, { wrapper: withConfirm })
     expectOnly('mosquitto-drawer')
   })
 
   it('opens the WiCAN drawer for the WiCAN tab, and only it', () => {
     const wican = tab('wican', 'wican')
-    render(<LiveLinkSettingsDrawers target={{ type: 'tab', tab: wican }} onClose={vi.fn()} onChanged={vi.fn()} />)
+    render(<LiveLinkSettingsDrawers target={{ type: 'tab', tab: wican }} onClose={vi.fn()} onChanged={vi.fn()} />, { wrapper: withConfirm })
     expectOnly('wican-drawer')
   })
 
@@ -103,7 +104,7 @@ describe('LiveLinkSettingsDrawers', () => {
     ['obdlink', 'obdlink', 'devices-drawer'],
   ])('opens the right drawer for the %s tab, and only it', (id, kind, drawer) => {
     const t = tab(id, kind)
-    render(<LiveLinkSettingsDrawers target={{ type: 'tab', tab: t }} onClose={vi.fn()} onChanged={vi.fn()} />)
+    render(<LiveLinkSettingsDrawers target={{ type: 'tab', tab: t }} onClose={vi.fn()} onChanged={vi.fn()} />, { wrapper: withConfirm })
     expectOnly(drawer)
   })
 

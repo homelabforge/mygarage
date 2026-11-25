@@ -16,7 +16,7 @@ import FamilyManagementModal from '@/components/modals/FamilyManagementModal'
 import ArchivedVehiclesList from '@/components/ArchivedVehiclesList'
 import InstanceCountryDefaultCard from '@/components/settings/InstanceCountryDefaultCard'
 import InstanceUnitDefaultsCard from '@/components/settings/InstanceUnitDefaultsCard'
-import { NumberInput, Select, Toggle } from '../ui'
+import { NumberInput, Select, Toggle, useConfirm } from '../ui'
 import { getActiveLocale } from '@/constants/i18n'
 import { parseDecimalInput } from '@/utils/decimalInput'
 
@@ -53,6 +53,7 @@ function ssoPayload(config: OIDCAdminConfigResponse, enabled: boolean): Omit<OID
  */
 export default function SettingsSystemTab() {
   const { t } = useTranslation('settings')
+  const confirm = useConfirm()
   const { isAuthenticated, isAdmin, user: currentUser, refreshUser } = useAuth()
   const canManageInstance = useCanManageInstance()
   const { triggerSave, registerSaveHandler, unregisterSaveHandler } = useSettings()
@@ -322,7 +323,7 @@ export default function SettingsSystemTab() {
           : authEverEnabled === false
             ? t('auth.confirmOidcFirstUser', { provider })
             : t('auth.confirmOidc', { provider })
-    if (!confirm(message)) return
+    if (!(await confirm({ message, confirmLabel: t('common:continue'), tone: 'default' }))) return
 
     // Whether this switch is the one turning SSO on, so a failed mode write can undo it.
     // Set before the PUT, since a lost reply can still have committed. The re-read decides.

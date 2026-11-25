@@ -86,6 +86,7 @@ vi.mock('../../hooks/useUnitPreference', () => {
 
 import TireList from '../TireList'
 import { FOUR_LAYOUT } from '../../__tests__/factories'
+import { withConfirm } from '../../__tests__/confirmHelpers'
 
 const STORED_FL_TIRE = {
   id: 1,
@@ -122,19 +123,19 @@ describe('TireList under a metric set', () => {
     // Rendered twice against the SAME stored 7.50 mm, because "still shows mm"
     // is true of a component that never converts at all. Only the second half
     // can tell the adapter is being consulted.
-    const { unmount } = render(<TireList vin="1HGCM82633A004352" />)
+    const { unmount } = render(<TireList vin="1HGCM82633A004352" />, { wrapper: withConfirm })
     expect(screen.getByText('7.50 mm')).toBeInTheDocument()
     unmount()
 
     h.units = { ...METRIC, tread: 'in32' }
-    render(<TireList vin="1HGCM82633A004352" />)
+    render(<TireList vin="1HGCM82633A004352" />, { wrapper: withConfirm })
 
     expect(screen.getByText('9/32 in')).toBeInTheDocument()
     expect(screen.queryByText('7.50 mm')).not.toBeInTheDocument()
   })
 
   it('reads the card pressure in the same unit the form accepts', () => {
-    render(<TireList vin="1HGCM82633A004352" />)
+    render(<TireList vin="1HGCM82633A004352" />, { wrapper: withConfirm })
 
     // The binary `UnitFormatter.formatPressure` this component migrated off
     // rendered BAR for a metric user while its own form has always accepted
@@ -146,7 +147,7 @@ describe('TireList under a metric set', () => {
   })
 
   it('shows canonical millimetres unconverted in the form, at hundredths', () => {
-    render(<TireList vin="1HGCM82633A004352" />)
+    render(<TireList vin="1HGCM82633A004352" />, { wrapper: withConfirm })
     fireEvent.click(screen.getByLabelText('tireList.edit'))
 
     const tread = screen.getByLabelText('tireList.treadWithUnit') as HTMLInputElement
@@ -159,7 +160,7 @@ describe('TireList under a metric set', () => {
     const mutate = vi.fn()
     useUpsertTireMock.mockReturnValue({ mutate, isPending: false })
 
-    render(<TireList vin="1HGCM82633A004352" />)
+    render(<TireList vin="1HGCM82633A004352" />, { wrapper: withConfirm })
     fireEvent.click(screen.getByLabelText('tireList.edit'))
 
     const pressure = screen.getByLabelText('tireList.pressureWithUnit') as HTMLInputElement
@@ -176,7 +177,7 @@ describe('TireList under a metric set', () => {
     const mutate = vi.fn()
     useUpsertTireMock.mockReturnValue({ mutate, isPending: false })
 
-    render(<TireList vin="1HGCM82633A004352" />)
+    render(<TireList vin="1HGCM82633A004352" />, { wrapper: withConfirm })
     fireEvent.click(screen.getByLabelText('tireList.edit'))
 
     // mm renders at two decimals.
@@ -195,7 +196,7 @@ describe('TireList under a metric set', () => {
     const mutate = vi.fn()
     useAddTireReadingMock.mockReturnValue({ mutate, isPending: false })
 
-    render(<TireList vin="1HGCM82633A004352" />)
+    render(<TireList vin="1HGCM82633A004352" />, { wrapper: withConfirm })
     fireEvent.click(screen.getByText('tireList.addReading'))
 
     const odo = screen.getByLabelText('tireList.odometerWithUnit') as HTMLInputElement
@@ -226,7 +227,7 @@ describe('TireList under a metric set', () => {
       error: null,
     })
 
-    render(<TireList vin="1HGCM82633A004352" />)
+    render(<TireList vin="1HGCM82633A004352" />, { wrapper: withConfirm })
 
     // Surface one, the card: 1,609.34 km / 1.609344 = 999.997514515 mi,
     // ~1,000 mi at the projection's approximate precision.
@@ -249,7 +250,7 @@ describe('TireList under a metric set', () => {
     const mutate = vi.fn()
     useUpsertTireMock.mockReturnValue({ mutate, isPending: false })
 
-    render(<TireList vin="1HGCM82633A004352" />)
+    render(<TireList vin="1HGCM82633A004352" />, { wrapper: withConfirm })
     fireEvent.click(screen.getByText('tireList.add'))
 
     // The same default an imperial user sees as 3 thirty-seconds.
@@ -268,7 +269,7 @@ describe('TireList under a metric set', () => {
     const mutate = vi.fn()
     useUpsertTireMock.mockReturnValue({ mutate, isPending: false })
 
-    render(<TireList vin="1HGCM82633A004352" />)
+    render(<TireList vin="1HGCM82633A004352" />, { wrapper: withConfirm })
     expect(screen.getByText('9/32 in')).toBeInTheDocument()
 
     fireEvent.click(screen.getByLabelText('tireList.edit'))

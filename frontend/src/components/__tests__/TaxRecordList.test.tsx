@@ -22,6 +22,7 @@ vi.mock('../TaxRecordForm', () => ({
 }))
 
 import TaxRecordList from '../TaxRecordList'
+import { answerConfirm } from '../../__tests__/confirmHelpers'
 
 const recA = { id: 1, date: '2026-03-01', tax_type: 'registration', amount: '85.50', renewal_date: '2027-03-01', notes: 'annual' } as unknown as TaxRecord
 const recB = { id: 2, date: '2026-04-01', tax_type: 'inspection', amount: '40.00', renewal_date: null, notes: '' } as unknown as TaxRecord
@@ -37,7 +38,6 @@ const anyTable = () => screen.getByRole('table')
 
 beforeEach(() => {
   vi.clearAllMocks()
-  vi.spyOn(window, 'confirm').mockReturnValue(true)
   useTaxRecordsMock.mockReturnValue({ data: { records: [recA, recB] }, isLoading: false, error: null })
 })
 
@@ -86,20 +86,19 @@ describe('TaxRecordList — row actions + add', () => {
     expect(screen.getByTestId('tax-form')).toHaveTextContent('editing:1')
   })
 
-  it('clicking a row Delete (confirm accepted) calls the delete mutation with the record id (fails if delete is unwired or the confirm gate is dropped)', () => {
+  it('clicking a row Delete (confirm accepted) calls the delete mutation with the record id (fails if delete is unwired or the confirm gate is dropped)', async () => {
     render(<TaxRecordList vin="V1" />)
     const firstRow = within(anyTable()).getByText('forms:taxTypes.registration').closest('tr') as HTMLElement
     fireEvent.click(within(firstRow).getByRole('button', { name: 'common:delete' }))
-    expect(window.confirm).toHaveBeenCalled()
+    await answerConfirm('confirm', 'taxList.confirmDelete')
     expect(deleteMutate).toHaveBeenCalledWith(1, expect.anything())
   })
 
-  it('clicking a row Delete with confirm REJECTED does NOT call the delete mutation (B4 — fails if the handler ignores a false confirm and deletes anyway)', () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(false)
+  it('clicking a row Delete with confirm REJECTED does NOT call the delete mutation (B4: fails if the handler ignores a false confirm and deletes anyway)', async () => {
     render(<TaxRecordList vin="V1" />)
     const firstRow = within(anyTable()).getByText('forms:taxTypes.registration').closest('tr') as HTMLElement
     fireEvent.click(within(firstRow).getByRole('button', { name: 'common:delete' }))
-    expect(window.confirm).toHaveBeenCalled()
+    await answerConfirm('cancel', 'taxList.confirmDelete')
     expect(deleteMutate).not.toHaveBeenCalled()
   })
 

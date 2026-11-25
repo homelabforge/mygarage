@@ -16,6 +16,7 @@ vi.mock('@/services/vehicleService', () => ({
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 
 import TorqueSettingsDrawer from '../TorqueSettingsDrawer'
+import { withConfirm } from '../../../../__tests__/confirmHelpers'
 
 const TAB = { id: 'torque', label: 'Torque', kind: 'torque' } as unknown as IntegrationTab
 const device = (id: string, kind: string) => ({
@@ -48,7 +49,7 @@ beforeEach(() => {
 
 describe('TorqueSettingsDrawer', () => {
   it('lists only Torque sources, and warns about metric units', async () => {
-    render(<TorqueSettingsDrawer open tab={TAB} onClose={vi.fn()} onChanged={vi.fn()} />)
+    render(<TorqueSettingsDrawer open tab={TAB} onClose={vi.fn()} onChanged={vi.fn()} />, { wrapper: withConfirm })
 
     expect(await screen.findByText('tq_7dca3766', { selector: 'button' })).toBeInTheDocument()
     expect(screen.queryByText('wican1')).not.toBeInTheDocument()
@@ -57,7 +58,7 @@ describe('TorqueSettingsDrawer', () => {
 
   it('needs a vehicle before it can create a source, then reveals its URL and token', async () => {
     const onChanged = vi.fn()
-    render(<TorqueSettingsDrawer open tab={TAB} onClose={vi.fn()} onChanged={onChanged} />)
+    render(<TorqueSettingsDrawer open tab={TAB} onClose={vi.fn()} onChanged={onChanged} />, { wrapper: withConfirm })
     const create = await screen.findByRole('button', { name: 'modal.torque.create' })
     expect(create).toBeDisabled()
 
@@ -76,7 +77,7 @@ describe('TorqueSettingsDrawer', () => {
 
   it('does not show a revealed token again after reopening', async () => {
     // The token is shown once; the server keeps only its hash.
-    const { rerender } = render(<TorqueSettingsDrawer open tab={TAB} onClose={vi.fn()} onChanged={vi.fn()} />)
+    const { rerender } = render(<TorqueSettingsDrawer open tab={TAB} onClose={vi.fn()} onChanged={vi.fn()} />, { wrapper: withConfirm })
     await screen.findAllByRole('option', { name: 'Mirage' })
     fireEvent.change(screen.getByLabelText('settings:integrations.sourceVehicle'), {
       target: { value: VEHICLE.vin },

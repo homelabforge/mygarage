@@ -11,7 +11,7 @@ import type { TaxRecord } from '../types/tax'
 import { taxTypeLabel } from '../schemas/tax'
 import TaxRecordForm from './TaxRecordForm'
 import { useTaxRecords, useDeleteTaxRecord } from '../hooks/queries/useTaxRecords'
-import { Button, IconButton, Card, Mono, EmptyState, DataTable } from './ui'
+import { Button, IconButton, Card, Mono, EmptyState, DataTable, useConfirm } from './ui'
 import type { DataTableColumn } from './ui'
 
 interface TaxRecordListProps {
@@ -24,6 +24,7 @@ export default function TaxRecordList({ vin }: TaxRecordListProps) {
   const { data, isLoading, error } = useTaxRecords(vin)
   const deleteMutation = useDeleteTaxRecord(vin)
   const { t } = useTranslation('vehicles')
+  const confirm = useConfirm()
   const [showForm, setShowForm] = useState(false)
   const [editingRecord, setEditingRecord] = useState<TaxRecord | undefined>()
 
@@ -39,8 +40,8 @@ export default function TaxRecordList({ vin }: TaxRecordListProps) {
     setShowForm(true)
   }
 
-  const handleDelete = (id: number) => {
-    if (!confirm(t('taxList.confirmDelete'))) {
+  const handleDelete = async (id: number): Promise<void> => {
+    if (!(await confirm({ message: t('taxList.confirmDelete'), confirmLabel: t('common:delete') }))) {
       return
     }
 
@@ -84,7 +85,7 @@ export default function TaxRecordList({ vin }: TaxRecordListProps) {
             variant="danger"
             size="sm"
             disabled={deleteMutation.isPending && deleteMutation.variables === r.id}
-            onClick={() => handleDelete(r.id)}
+            onClick={() => void handleDelete(r.id)}
           />
         </div>
       ),

@@ -171,7 +171,7 @@ function CompleteReminderDialog({
         </>
       }
     >
-      <form id="complete-reminder-form" onSubmit={handleSubmit} className="p-6 space-y-4">
+      <form id="complete-reminder-form" onSubmit={handleSubmit} className="space-y-4">
         {error && (
           <p role="alert" className="text-sm text-danger bg-danger/10 border border-danger rounded-lg p-3">
             {error}

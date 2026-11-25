@@ -28,7 +28,7 @@ import { readSuppliesView, rememberSuppliesView, type SuppliesViewPrefs } from '
 import { makeSupplySchema, SUPPLY_UNIT_TYPES, type SupplyFormData } from '@/schemas/supplies'
 import {
   Select, Field, Input, Textarea, Checkbox, Button, SearchField, Chip, Dropdown, DataTable,
-  type DropdownItem, type DataTableColumn,
+  useConfirm, type DropdownItem, type DataTableColumn,
 } from '@/components/ui'
 import FormModalWrapper from '@/components/FormModalWrapper'
 import SupplyHistoryModal from '@/components/SupplyHistoryModal'
@@ -41,6 +41,7 @@ import { withUnitSession } from '@/contexts/UnitSession'
 
 export default function Supplies() {
   const { t } = useTranslation('common')
+  const confirm = useConfirm()
   const [includeArchived, setIncludeArchived] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [editingSupply, setEditingSupply] = useState<Supply | null>(null)
@@ -175,8 +176,8 @@ export default function Supplies() {
     setEditingSupply(null)
   }
 
-  const handleDelete = (supply: Supply) => {
-    if (!confirm(t('supplies.confirmDelete'))) return
+  const handleDelete = async (supply: Supply): Promise<void> => {
+    if (!(await confirm({ message: t('supplies.confirmDelete'), confirmLabel: t('common:delete') }))) return
 
     deleteMutation.mutate(supply.id, {
       onSuccess: () => toast.success(t('supplies.deleted')),
@@ -246,7 +247,7 @@ export default function Supplies() {
         <Edit className="w-4 h-4" />
       </button>
       <button
-        onClick={() => handleDelete(supply)}
+        onClick={() => void handleDelete(supply)}
         disabled={deleteMutation.isPending && deleteMutation.variables === supply.id}
         className="text-garage-text-muted hover:text-danger transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         aria-label={t('common:delete')}
@@ -754,7 +755,7 @@ function SupplyFormBody({ supply, onClose, onSuccess, categorySuggestions = [] }
         </>
       }
     >
-      <form id="supply-form" onSubmit={handleSubmit(onSubmit)} className="space-y-4 p-6">
+      <form id="supply-form" onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         {error && (
           <div className="rounded-lg border border-danger bg-danger/10 p-3">
             <p className="text-sm text-danger">{error}</p>

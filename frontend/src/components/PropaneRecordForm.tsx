@@ -346,7 +346,7 @@ function PropaneRecordForm({
         </>
       }
     >
-        <form id="propane-record-form" onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-4">
+        <form id="propane-record-form" onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           {error && (
             <div className="bg-danger/10 border border-danger rounded-lg p-3">
               <p className="text-sm text-danger">{error}</p>

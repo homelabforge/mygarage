@@ -31,6 +31,7 @@ vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.f
 
 import { toast } from 'sonner'
 import RecallList from '../RecallList'
+import { answerConfirm } from '../../__tests__/confirmHelpers'
 
 const VEHICLE = { vin: 'V1', year: 2020, make: 'Honda', model: 'Civic', vehicle_type: 'Car' }
 
@@ -59,7 +60,6 @@ const PROPS = { vin: 'V1', onAddClick, onEditClick, onRefresh: vi.fn() }
 
 beforeEach(() => {
   vi.clearAllMocks()
-  vi.spyOn(window, 'confirm').mockReturnValue(true)
   serve()
   useRecallRecordsMock.mockReturnValue({ data: { recalls: [active], total: 1, active_count: 1, resolved_count: 0 }, isLoading: false, error: null })
 })
@@ -77,10 +77,10 @@ describe('RecallList — rendering + row actions', () => {
     expect(onEditClick).toHaveBeenCalledWith(active)
   })
 
-  it('clicking Delete (confirm accepted) calls the delete mutation with the recall id (fails if delete is unwired or the confirm gate is dropped)', () => {
+  it('clicking Delete (confirm accepted) calls the delete mutation with the recall id (fails if delete is unwired or the confirm gate is dropped)', async () => {
     renderWithQueryClient(<RecallList {...PROPS} />)
     fireEvent.click(screen.getByRole('button', { name: 'common:delete' }))
-    expect(window.confirm).toHaveBeenCalled()
+    await answerConfirm('confirm', 'recallList.confirmDelete')
     expect(deleteMutate).toHaveBeenCalledWith(1, expect.anything())
   })
 })

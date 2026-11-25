@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { Drawer, Button, Field, Input, NumberInput, Textarea } from '@/components/ui'
+import { Drawer, Button, Field, Input, NumberInput, Textarea, useConfirm } from '@/components/ui'
 import VINInput from '@/components/VINInput'
 import MakeSelect from '@/components/MakeSelect'
 import ModelSelect from '@/components/ModelSelect'
@@ -41,6 +41,7 @@ export default function ExternalVehicleModal({
   onSaved,
 }: ExternalVehicleModalProps) {
   const { t } = useTranslation('vehicles')
+  const confirm = useConfirm()
   const [form, setForm] = useState<ExternalVehicleInput>(emptyForm())
   const [yearText, setYearText] = useState('')
   const [saving, setSaving] = useState(false)
@@ -143,9 +144,9 @@ export default function ExternalVehicleModal({
     }
   }
 
-  const handleDelete = async () => {
+  const handleDelete = async (): Promise<void> => {
     if (!vehicle) return
-    if (!window.confirm(t('externalVehicles.confirmDelete'))) return
+    if (!(await confirm({ message: t('externalVehicles.confirmDelete'), confirmLabel: t('common:delete') }))) return
     setDeleting(true)
     try {
       await deleteExternalVehicle(vehicle.id)
@@ -161,7 +162,7 @@ export default function ExternalVehicleModal({
 
   return (
     <Drawer open={isOpen} onClose={onClose} title={title} width="md">
-      <div className="space-y-4 p-4">
+      <div className="space-y-4">
         <Field id="ext-nickname" label={t('externalVehicles.nickname')} required>
           <Input
             id="ext-nickname"
@@ -230,7 +231,7 @@ export default function ExternalVehicleModal({
 
         <div className="flex flex-wrap justify-between gap-2 pt-2">
           {vehicle ? (
-            <Button variant="danger" onClick={handleDelete} disabled={deleting || saving}>
+            <Button variant="danger" onClick={() => void handleDelete()} disabled={deleting || saving}>
               {t('externalVehicles.delete')}
             </Button>
           ) : (

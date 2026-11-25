@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import api from '../services/api'
 import { getActionErrorMessage } from '../utils/httpErrorHandler'
 import { Car, Wrench, Fuel, Shield, FileText, HelpCircle, Droplets, Landmark } from 'lucide-react'
@@ -26,9 +27,7 @@ import { useCurrencyPreference } from '../hooks/useCurrencyPreference'
 import { useTimeFormat } from '../hooks/useTimeFormat'
 import { formatDateTime } from '../utils/parseAPITimestamp'
 import { getActiveDateOrder } from '../constants/i18n'
-
-// Colors for pie chart categories (10 categories: Maintenance, Upgrades, Inspection, Collision, Detailing, Fuel, DEF, Insurance, Taxes, Financing)
-const COLORS = ['#3B82F6', '#8B5CF6', '#F59E0B', '#EF4444', '#10B981', '#06B6D4', '#14B8A6', '#EC4899', '#6B7280', '#84CC16']
+import { CHART_AVG_LONG, CHART_AVG_SHORT, CHART_AXIS, CHART_GAP_SURFACE, CHART_OTHER, ChartTooltipBox, categoryColor, chartLegendText, hasCategorySlot } from '../components/charts/chartTheme'
 
 // Running-cost total for one month: service, fuel and DEF. Financing has its
 // own bar/legend entry but is excluded here, same as it's excluded from
@@ -138,7 +137,7 @@ export default function GarageAnalytics() {
       window.URL.revokeObjectURL(url)
     } catch (err) {
       console.error('PDF export failed:', err)
-      alert(t('garage.exportPdfFailed'))
+      toast.error(t('garage.exportPdfFailed'))
     }
   }
 
@@ -189,15 +188,6 @@ export default function GarageAnalytics() {
     fetchAnalytics()
   }, [t])
 
-  // Custom tooltip styling for charts
-  const customTooltipStyle = {
-    backgroundColor: '#1a1f28',
-    border: '1px solid #3a4050',
-    borderRadius: '8px',
-    padding: '12px',
-    color: '#e4e6eb',
-  }
-
   if (loading) {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -226,15 +216,14 @@ export default function GarageAnalytics() {
 
   const { total_costs, cost_breakdown_by_category, cost_by_vehicle, monthly_trends } = analytics
 
-  // Cost-by-category: assign each category a stable colour by its ORIGINAL
-  // (backend) order, so a slice's colour stays matched to its sidebar swatch
-  // even after we sort largest-first below.
+  // Cost-by-category: the colour follows the category name, never its order in
+  // the response, so a slice keeps its colour when the mix changes.
   const categoryMeta = cost_breakdown_by_category
-    .map((item, index) => ({
+    .map((item) => ({
       category: item.category,
       amount: item.amount,
       value: parseFloat(item.amount),
-      color: COLORS[index % COLORS.length],
+      color: categoryColor(item.category),
     }))
     .filter((c) => c.value > 0)
   const categoryTotal = categoryMeta.reduce((sum, c) => sum + c.value, 0)
@@ -243,8 +232,24 @@ export default function GarageAnalytics() {
     .map((c) => ({ ...c, percent: categoryTotal > 0 ? (c.value / categoryTotal) * 100 : 0 }))
   const formatPercent = (pct: number) => (pct > 0 && pct < 1 ? '<1%' : `${Math.round(pct)}%`)
 
-  // Donut slices follow the sidebar order (largest-first), same stable colour.
-  const pieData = sortedCategories.map((c) => ({ name: c.category, value: c.value, color: c.color }))
+  // Donut slices follow the sidebar order (largest-first). Categories with no
+  // slot of their own share one grey Other slice at the end, and its tooltip
+  // lists them. The sidebar still gets a row each, so no amount goes missing.
+  const folded = sortedCategories.filter((c) => !hasCategorySlot(c.category))
+  type Slice = { name: string; value: number; color: string; folded?: Array<{ category: string; amount: string }> }
+  const pieData: Slice[] = [
+    ...sortedCategories
+      .filter((c) => hasCategorySlot(c.category))
+      .map((c) => ({ name: c.category, value: c.value, color: c.color })),
+    ...(folded.length > 0
+      ? [{
+          name: t('vehicle.other'),
+          value: folded.reduce((sum, c) => sum + c.value, 0),
+          color: CHART_OTHER,
+          folded: folded.map((c) => ({ category: c.category, amount: c.amount })),
+        }]
+      : []),
+  ]
 
   // Running costs: nickname + total, top 10. Bar-list widths are relative to
   // the largest running cost.
@@ -422,17 +427,23 @@ export default function GarageAnalytics() {
                       </Pie>
                       <Tooltip
                         cursor={false}
-                        wrapperStyle={{ outline: 'none' }}
+                        // over the centre total, which sits on top of the chart
+                        wrapperStyle={{ outline: 'none', zIndex: 10 }}
                         content={({ active, payload }) => {
                           if (active && payload && payload.length) {
                             const data = payload[0]
+                            const slice = data.payload as Slice | undefined
                             return (
-                              <div style={customTooltipStyle}>
-                                <p style={{ fontWeight: '600', marginBottom: '4px' }}>{data.name}</p>
-                                <p style={{ fontSize: '14px', color: '#9ca3af' }}>
+                              <ChartTooltipBox title={data.name}>
+                                <p className="text-sm text-text-mute">
                                   {formatCurrency(data.value as number, { currencyCode, locale })}
                                 </p>
-                              </div>
+                                {slice?.folded?.map((f) => (
+                                  <p key={f.category} className="mt-1 text-sm text-text-mute">
+                                    {f.category}: {formatCurrency(f.amount, { currencyCode, locale })}
+                                  </p>
+                                ))}
+                              </ChartTooltipBox>
                             )
                           }
                           return null
@@ -454,10 +465,11 @@ export default function GarageAnalytics() {
               {/* Sidebar category list */}
               <div className="sm:w-1/2 lg:w-full space-y-3">
                 {sortedCategories.map((c) => (
-                  <div key={c.category}>
+                  <div key={c.category} data-testid="category-row" data-category={c.category}>
                     <div className="flex items-center justify-between text-sm mb-1">
                       <span className="flex items-center gap-2 text-garage-text">
                         <span
+                          data-testid="category-swatch"
                           className="w-2.5 h-2.5 rounded-full shrink-0"
                           style={{ backgroundColor: c.color }}
                         />
@@ -601,7 +613,7 @@ export default function GarageAnalytics() {
             <ComposedChart data={trendData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
               <XAxis
                 dataKey="month"
-                stroke="#9E9E9E"
+                stroke={CHART_AXIS}
                 style={{ fontSize: '12px' }}
                 tickLine={false}
                 axisLine={false}
@@ -614,32 +626,26 @@ export default function GarageAnalytics() {
                 content={({ active, payload }) => {
                   if (active && payload && payload.length) {
                     return (
-                      <div style={customTooltipStyle}>
-                        <p style={{ fontWeight: '600', marginBottom: '8px' }}>
-                          {payload[0].payload.month}
-                        </p>
+                      <ChartTooltipBox title={payload[0].payload.month}>
                         {payload.map((entry, index) =>
                           // A rolling average is null on months with no running costs.
                           entry.value == null ? null : (
-                            <p
-                              key={index}
-                              style={{ fontSize: '14px', color: '#9ca3af', marginBottom: '4px' }}
-                            >
+                            <p key={index} className="mb-1 text-sm text-text-mute">
                               {entry.name}: {formatCurrency(entry.value as number, { currencyCode, locale })}
                             </p>
                           )
                         )}
-                      </div>
+                      </ChartTooltipBox>
                     )
                   }
                   return null
                 }}
               />
-              <Legend wrapperStyle={{ paddingTop: '10px', fontSize: '12px' }} />
-              <Bar dataKey="Service" name={t('garage.cards.maintenance')} fill="#3B82F6" stackId="a" maxBarSize={40} />
-              <Bar dataKey="Fuel" name={t('garage.cards.fuel')} fill="#10B981" stackId="a" maxBarSize={40} />
-              <Bar dataKey="DEF" name={t('garage.cards.def')} fill="#14B8A6" stackId="a" maxBarSize={40} />
-              <Bar dataKey="Financing" name={t('garage.cards.financing')} fill="#84CC16" stackId="a" maxBarSize={40} />
+              <Legend formatter={chartLegendText} wrapperStyle={{ paddingTop: '10px', fontSize: '12px' }} />
+              <Bar dataKey="Service" name={t('garage.cards.maintenance')} fill={categoryColor('Service')} stackId="a" stroke={CHART_GAP_SURFACE} strokeWidth={2} maxBarSize={40} />
+              <Bar dataKey="Fuel" name={t('garage.cards.fuel')} fill={categoryColor('Fuel')} stackId="a" stroke={CHART_GAP_SURFACE} strokeWidth={2} maxBarSize={40} />
+              <Bar dataKey="DEF" name={t('garage.cards.def')} fill={categoryColor('DEF')} stackId="a" stroke={CHART_GAP_SURFACE} strokeWidth={2} maxBarSize={40} />
+              <Bar dataKey="Financing" name={t('garage.cards.financing')} fill={categoryColor('Financing')} stackId="a" stroke={CHART_GAP_SURFACE} strokeWidth={2} maxBarSize={40} />
 
               {/* Rolling average trend lines over the running-cost months; each
                   mounts once there are enough of those months to average. */}
@@ -647,7 +653,7 @@ export default function GarageAnalytics() {
                 <Line
                   type="monotone"
                   dataKey="avg3"
-                  stroke="#10B981"
+                  stroke={CHART_AVG_SHORT}
                   strokeWidth={2}
                   strokeDasharray="5 5"
                   dot={false}
@@ -659,9 +665,9 @@ export default function GarageAnalytics() {
                 <Line
                   type="monotone"
                   dataKey="avg6"
-                  stroke="#8B5CF6"
+                  stroke={CHART_AVG_LONG}
                   strokeWidth={2}
-                  strokeDasharray="5 5"
+                  strokeDasharray="3 3"
                   dot={false}
                   name={t('garage.rollingAvg6')}
                   connectNulls

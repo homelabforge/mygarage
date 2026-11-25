@@ -27,7 +27,7 @@ import {
   ADDRESS_BOOK_CATEGORIES,
   chipForPoiCategory,
 } from '../schemas/addressBook'
-import { Chip, Button, Field, Input, Textarea, Select, SearchField } from '../components/ui'
+import { Chip, Button, Field, Input, Textarea, Select, SearchField, useConfirm } from '../components/ui'
 import type { IconType } from '../components/ui/types'
 import ClickableCard from '../components/ClickableCard'
 import FormModalWrapper from '../components/FormModalWrapper'
@@ -275,6 +275,7 @@ interface AddressBookFormProps {
 
 export function AddressBookForm({ entry, onClose, onSuccess }: AddressBookFormProps) {
   const { t } = useTranslation('common')
+  const confirm = useConfirm()
   const isEdit = !!entry
   const [error, setError] = useState<string | null>(null)
 
@@ -378,9 +379,9 @@ export function AddressBookForm({ entry, onClose, onSuccess }: AddressBookFormPr
     }
   }
 
-  const handleDelete = async () => {
+  const handleDelete = async (): Promise<void> => {
     if (!entry) return
-    if (!confirm(t('addressBook.confirmDelete'))) return
+    if (!(await confirm({ message: t('addressBook.confirmDelete'), confirmLabel: t('common:delete') }))) return
     try {
       await api.delete(`/address-book/${entry.id}`)
       onSuccess()
@@ -412,14 +413,14 @@ export function AddressBookForm({ entry, onClose, onSuccess }: AddressBookFormPr
             </Button>
           </div>
           {isEdit && (
-            <Button variant="danger" icon={Trash2} onClick={handleDelete} disabled={isSubmitting}>
+            <Button variant="danger" icon={Trash2} onClick={() => void handleDelete()} disabled={isSubmitting}>
               {t('common:delete')}
             </Button>
           )}
         </div>
       }
     >
-      <form id="address-book-form" onSubmit={handleSubmit(onSubmit)} className="space-y-4 p-6">
+      <form id="address-book-form" onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         {error && (
           <div className="rounded-lg border border-danger bg-danger/10 p-3">
             <p className="text-sm text-danger">{error}</p>

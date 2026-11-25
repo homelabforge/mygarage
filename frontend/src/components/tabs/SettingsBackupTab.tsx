@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 import api from '@/services/api'
 import { getActionErrorMessage } from '@/utils/httpErrorHandler'
+import { useConfirm } from '@/components/ui'
 import { formatDateTime } from '@/utils/parseAPITimestamp'
 import { useTimeFormat } from '@/hooks/useTimeFormat'
 import { useAuth } from '@/contexts/AuthContext'
@@ -64,6 +65,7 @@ function isPostgresBackupTarget(stats: BackupStats | null): boolean {
 
 export default function SettingsBackupTab() {
   const { t } = useTranslation('settings')
+  const confirm = useConfirm()
   const { refreshPublicSettings } = useAuth()
   const { timeFormat } = useTimeFormat()
   const [loading, setLoading] = useState(true)
@@ -145,7 +147,7 @@ export default function SettingsBackupTab() {
     document.body.removeChild(a)
   }
 
-  const handleRestore = async (filename: string, isFullBackup: boolean) => {
+  const handleRestore = async (filename: string, isFullBackup: boolean): Promise<void> => {
     if (isFullBackup && isPostgresBackupTarget(stats)) {
       setMessage({ type: 'warning', text: t('backupTab.postgresRestoreMessage') })
       return
@@ -155,7 +157,7 @@ export default function SettingsBackupTab() {
       ? t('backupTab.confirmRestoreFull')
       : t('backupTab.confirmRestoreSettings')
 
-    if (!confirm(confirmMessage)) {
+    if (!(await confirm({ message: confirmMessage, confirmLabel: t('common:restore'), tone: 'default' }))) {
       return
     }
 
@@ -201,8 +203,8 @@ export default function SettingsBackupTab() {
     await loadData()
   }
 
-  const handleDelete = async (filename: string) => {
-    if (!confirm(t('backupTab.confirmDelete', { filename }))) {
+  const handleDelete = async (filename: string): Promise<void> => {
+    if (!(await confirm({ message: t('backupTab.confirmDelete', { filename }), confirmLabel: t('common:delete') }))) {
       return
     }
 
@@ -413,7 +415,7 @@ export default function SettingsBackupTab() {
                           <Download size={16} />
                         </button>
                         <button
-                          onClick={() => handleRestore(backup.filename, false)}
+                          onClick={() => void handleRestore(backup.filename, false)}
                           className="p-1 text-success-500 hover:bg-success-500/10 rounded"
                           title={t('backup.restore')}
                         >
@@ -421,7 +423,7 @@ export default function SettingsBackupTab() {
                         </button>
                         {!backup.is_safety && (
                           <button
-                            onClick={() => handleDelete(backup.filename)}
+                            onClick={() => void handleDelete(backup.filename)}
                             className="p-1 text-danger-500 hover:bg-danger-500/10 rounded"
                             title={t('common:delete')}
                           >
@@ -569,7 +571,7 @@ export default function SettingsBackupTab() {
                           <Download size={16} />
                         </button>
                         <button
-                          onClick={() => handleRestore(backup.filename, true)}
+                          onClick={() => void handleRestore(backup.filename, true)}
                           disabled={postgresRestoreDisabled}
                           className="p-1 text-danger-500 hover:bg-danger-500/10 rounded disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
                           title={
@@ -582,7 +584,7 @@ export default function SettingsBackupTab() {
                         </button>
                         {!backup.is_safety && (
                           <button
-                            onClick={() => handleDelete(backup.filename)}
+                            onClick={() => void handleDelete(backup.filename)}
                             className="p-1 text-danger-500 hover:bg-danger-500/10 rounded"
                             title={t('common:delete')}
                           >

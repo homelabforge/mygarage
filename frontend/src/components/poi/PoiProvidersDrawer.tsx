@@ -5,7 +5,7 @@ import { Pencil, Plus, SlidersHorizontal, Trash2 } from 'lucide-react'
 
 import AddProviderModal from '@/components/modals/AddProviderModal'
 import EditProviderModal from '@/components/modals/EditProviderModal'
-import { Button, Chip, Drawer, IconButton } from '@/components/ui'
+import { Button, Chip, Drawer, IconButton, useConfirm } from '@/components/ui'
 import api from '@/services/api'
 import { getActionErrorMessage } from '@/utils/httpErrorHandler'
 
@@ -38,6 +38,7 @@ interface Props {
 
 export default function PoiProvidersDrawer({ open, onClose }: Props): ReactElement {
   const { t } = useTranslation('settings')
+  const confirm = useConfirm()
   const [providers, setProviders] = useState<POIProvider[]>([])
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [adding, setAdding] = useState(false)
@@ -59,7 +60,7 @@ export default function PoiProvidersDrawer({ open, onClose }: Props): ReactEleme
   }, [open, loadProviders])
 
   const remove = async (provider: POIProvider): Promise<void> => {
-    if (!confirm(t('integrationsTab.confirmRemoveProvider', { name: provider.name }))) return
+    if (!(await confirm({ message: t('integrationsTab.confirmRemoveProvider', { name: provider.name }), confirmLabel: t('common:remove') }))) return
     try {
       await api.delete(`/settings/poi-providers/${provider.name}`)
       await loadProviders()

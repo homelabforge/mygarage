@@ -28,6 +28,7 @@ vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 import { toast } from 'sonner'
 
 import OdometerRecordList from '../OdometerRecordList'
+import { answerConfirm, withConfirm } from '../../__tests__/confirmHelpers'
 
 const record = { id: 1, vin: 'V1', date: '2026-03-01', odometer_km: '80467', notes: 'road trip' } as unknown as OdometerRecord
 const livelink = { id: 2, vin: 'V1', date: '2026-03-02', odometer_km: '80500', notes: null, source: 'livelink' } as unknown as OdometerRecord
@@ -48,7 +49,6 @@ const km = (canonical: number): string => makeUnitFormat(METRIC_UNITS).distance.
 
 beforeEach(() => {
   vi.clearAllMocks()
-  vi.spyOn(window, 'confirm').mockReturnValue(true)
   // latest (80500) is deliberately DISTINCT from the single row (80467) so the hero
   // test proves the hero binds to latest_odometer_km, not to a row value.
   useOdometerRecordsMock.mockReturnValue({ data: { records: [record], latest_odometer_km: '80500' }, isLoading: false, error: null })
@@ -56,7 +56,7 @@ beforeEach(() => {
 
 describe('OdometerRecordList — DataTable rows scoped to the named table', () => {
   it('renders the mileage cell INSIDE the named table and the unit-aware header (fails if the DataTable/caption is dropped or the mileage column vanishes; scoping stops the hero tile from satisfying it)', () => {
-    render(<OdometerRecordList {...PROPS} />)
+    render(<OdometerRecordList {...PROPS} />, { wrapper: withConfirm })
     // the row value renders as "80,467 km"; the hero shows
     // the DISTINCT latest (80500) and lives OUTSIDE the table, so within(table()) proves
     // the row CELL renders (scoping stops the hero tile from satisfying it).
@@ -66,7 +66,7 @@ describe('OdometerRecordList — DataTable rows scoped to the named table', () =
   })
 
   it('renders the EXACT latest-mileage value inside the hero card, and the hero lives OUTSIDE the table (fails if the hero value is dropped, wrong, unformatted, or leaks into the table)', () => {
-    render(<OdometerRecordList {...PROPS} />)
+    render(<OdometerRecordList {...PROPS} />, { wrapper: withConfirm })
     // The hero label <p> and its <Mono size="2xl"> value are siblings in one <div>;
     // scope to that container and assert the exact formatted LATEST (80500 ≠ the row's
     // 80467), proving the hero shows the latest value, not merely that a label exists.
@@ -80,7 +80,7 @@ describe('OdometerRecordList — DataTable rows scoped to the named table', () =
 describe('OdometerRecordList — LiveLink source badge', () => {
   it('renders the info badge on the livelink row and NOT on the ordinary row (fails if the badge is always-/never-shown, sits on the wrong row, or loses its accessible text)', () => {
     useOdometerRecordsMock.mockReturnValue({ data: { records: [record, livelink], latest_odometer_km: '80500' }, isLoading: false, error: null })
-    render(<OdometerRecordList {...PROPS} />)
+    render(<OdometerRecordList {...PROPS} />, { wrapper: withConfirm })
     // Identify each row by content unique to it: the ordinary row by its notes,
     // the livelink row by its distinct mileage (80500, scoped inside the table so the
     // hero's 80500 does not interfere).
@@ -93,21 +93,21 @@ describe('OdometerRecordList — LiveLink source badge', () => {
 
 describe('OdometerRecordList — row actions + empty state', () => {
   it('clicking row Edit calls onEditClick with THE WHOLE record (fails if edit is unwired or passes a truncated object)', () => {
-    render(<OdometerRecordList {...PROPS} />)
+    render(<OdometerRecordList {...PROPS} />, { wrapper: withConfirm })
     fireEvent.click(within(table()).getByRole('button', { name: 'common:edit' }))
     expect(onEditClick).toHaveBeenCalledWith(record)
   })
 
-  it('clicking row Delete (confirm accepted) calls the delete mutation with the record id (fails if delete is unwired or the confirm gate is dropped)', () => {
-    render(<OdometerRecordList {...PROPS} />)
+  it('clicking row Delete (confirm accepted) calls the delete mutation with the record id (fails if delete is unwired or the confirm gate is dropped)', async () => {
+    render(<OdometerRecordList {...PROPS} />, { wrapper: withConfirm })
     fireEvent.click(within(table()).getByRole('button', { name: 'common:delete' }))
-    expect(window.confirm).toHaveBeenCalled()
+    await answerConfirm('confirm', 'odometerList.confirmDelete')
     expect(deleteMutate).toHaveBeenCalledWith(1, expect.anything())
   })
 
   it('with zero records, the empty-state CTA fires onAddClick (fails if the CTA is unwired or the title text changes)', () => {
     useOdometerRecordsMock.mockReturnValue({ data: { records: [], latest_odometer_km: null }, isLoading: false, error: null })
-    render(<OdometerRecordList {...PROPS} />)
+    render(<OdometerRecordList {...PROPS} />, { wrapper: withConfirm })
     expect(screen.getByText('odometerList.noRecords')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'odometerList.addFirstReading' }))
     expect(onAddClick).toHaveBeenCalled()
@@ -119,7 +119,7 @@ describe('OdometerRecordList: the CSV import toast', () => {
     importMutate.mockImplementation((_form: FormData, options: { onSuccess: (r: unknown) => void }) =>
       options.onSuccess({ success_count: 1, skipped_count: 0, error_count: 0, errors: [], warnings: [] }),
     )
-    const { container } = render(<OdometerRecordList {...PROPS} />)
+    const { container } = render(<OdometerRecordList {...PROPS} />, { wrapper: withConfirm })
     const input = container.querySelector<HTMLInputElement>('input[type="file"]')!
     fireEvent.change(input, { target: { files: [new File(['Date\n'], 'odometer.csv')] } })
     expect(toast.success).toHaveBeenCalledTimes(1)
@@ -136,7 +136,7 @@ describe('OdometerRecordList: the CSV import toast', () => {
         warnings: ['Row 2: kept as text'],
       }),
     )
-    const { container } = render(<OdometerRecordList {...PROPS} />)
+    const { container } = render(<OdometerRecordList {...PROPS} />, { wrapper: withConfirm })
     const input = container.querySelector<HTMLInputElement>('input[type="file"]')!
     fireEvent.change(input, { target: { files: [new File(['Date\n'], 'odometer.csv')] } })
     // main: 'odometerRecordList.importCompleted', the warning dropped
@@ -157,7 +157,7 @@ describe('OdometerRecordList: the CSV import toast', () => {
         warnings: ['w1', 'w2', 'w3', 'w4', 'w5', 'w6', 'w7'],
       }),
     )
-    const { container } = render(<OdometerRecordList {...PROPS} />)
+    const { container } = render(<OdometerRecordList {...PROPS} />, { wrapper: withConfirm })
     const input = container.querySelector<HTMLInputElement>('input[type="file"]')!
     fireEvent.change(input, { target: { files: [new File(['Date\n'], 'odometer.csv')] } })
     // Before: warnings first, and all seven of them.

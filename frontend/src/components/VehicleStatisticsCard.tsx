@@ -244,17 +244,21 @@ function VehicleStatisticsCard({ stats, selectMode = false, selected = false, on
               : null}
           </p>
         )}
-        {/* Four metric tiles */}
-        <div className="grid grid-cols-4 gap-2">
-          <Tile icon={Wrench} value={stats.total_service_records} label={t('vehicleStats.service')} />
-          <Tile icon={Fuel} value={stats.total_fuel_records} label={t('vehicleStats.fuel')} />
-          <Tile
-            icon={Bell}
-            value={stats.total_maintenance_items}
-            label={t('vehicleStats.maintenance')}
-            tone={stats.overdue_maintenance_count > 0 ? 'danger' : 'default'}
-          />
-          <Tile icon={FileText} value={stats.total_documents} label={t('vehicleStats.docs')} />
+        {/* Four metric tiles, 2x2 until a quarter fits the widest caption word:
+            pl PRZYPOMNIENIA, 92.42px in Inter Variable 600 at 10.5px. 488 is 4 x
+            (92.42 + 20 padding + 2 slack) + 3 gaps, rounded up to 8. */}
+        <div data-testid="vehicle-stat-tiles" className="@container">
+          <div className="grid grid-cols-2 gap-2 @min-[488px]:grid-cols-4">
+            <Tile icon={Wrench} value={stats.total_service_records} label={t('vehicleStats.service')} />
+            <Tile icon={Fuel} value={stats.total_fuel_records} label={t('vehicleStats.fuel')} />
+            <Tile
+              icon={Bell}
+              value={stats.total_maintenance_items}
+              label={t('vehicleStats.maintenance')}
+              tone={stats.overdue_maintenance_count > 0 ? 'danger' : 'default'}
+            />
+            <Tile icon={FileText} value={stats.total_documents} label={t('vehicleStats.docs')} />
+          </div>
         </div>
 
         {/* Recent activity */}

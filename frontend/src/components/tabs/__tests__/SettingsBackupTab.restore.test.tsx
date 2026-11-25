@@ -25,6 +25,7 @@ vi.mock('@/hooks/useTimeFormat', () => ({
 
 import api from '@/services/api'
 import SettingsBackupTab from '../SettingsBackupTab'
+import { answerConfirm, withConfirm } from '../../../__tests__/confirmHelpers'
 
 const mockedApi = vi.mocked(api)
 const FULL = 'mygarage-full-2026-10-02-120000.tar.gz'
@@ -62,30 +63,32 @@ beforeEach(() => {
   mockedApi.post.mockResolvedValue({
     data: { success: true, message: 'Restore staged. Restart MyGarage to finish.', details: {} },
   })
-  vi.spyOn(window, 'confirm').mockReturnValue(true)
 })
 
 describe('SettingsBackupTab full restore', () => {
   it('says the restore finishes when MyGarage restarts', async () => {
-    render(<SettingsBackupTab />)
+    render(<SettingsBackupTab />, { wrapper: withConfirm })
     fireEvent.click(await screen.findByTitle('backup.restoreOverwrite'))
+    await answerConfirm('confirm', 'backupTab.confirmRestoreFull')
     await waitFor(() => expect(mockedApi.post).toHaveBeenCalledWith(`/backup/restore/${FULL}`))
     expect(await screen.findByText('backupTab.fullRestoreStaged')).toBeInTheDocument()
   })
 
   it('refreshes the public settings after a settings restore, and not after a full one', async () => {
-    render(<SettingsBackupTab />)
+    render(<SettingsBackupTab />, { wrapper: withConfirm })
     fireEvent.click(await screen.findByTitle('backup.restoreOverwrite'))
+    await answerConfirm('confirm', 'backupTab.confirmRestoreFull')
     expect(await screen.findByText('backupTab.fullRestoreStaged')).toBeInTheDocument()
     expect(refreshPublicSettings).not.toHaveBeenCalled()
 
     fireEvent.click(screen.getByTitle('backup.restore'))
+    await answerConfirm('confirm', 'backupTab.confirmRestoreSettings')
     await waitFor(() => expect(mockedApi.post).toHaveBeenCalledWith(`/backup/restore/${SETTINGS}`))
     await waitFor(() => expect(refreshPublicSettings).toHaveBeenCalledTimes(1))
   })
 
   it('says up front that a full restore needs a restart, and shows no notice with nothing staged', async () => {
-    render(<SettingsBackupTab />)
+    render(<SettingsBackupTab />, { wrapper: withConfirm })
     expect(await screen.findByText(/backupTab\.infoRestartFinishesRestore/)).toBeInTheDocument()
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
   })
@@ -96,7 +99,7 @@ describe('SettingsBackupTab full restore', () => {
       pending = null
       return Promise.resolve({ data: { success: true } })
     })
-    render(<SettingsBackupTab />)
+    render(<SettingsBackupTab />, { wrapper: withConfirm })
 
     const notice = await screen.findByRole('status')
     expect(within(notice).getByText('backupTab.restorePendingTitle')).toBeInTheDocument()
@@ -110,7 +113,7 @@ describe('SettingsBackupTab full restore', () => {
 
   it('offers Cancel for a staged restore whose details are unreadable', async () => {
     pending = { source_backup: null, staged_at: null }
-    render(<SettingsBackupTab />)
+    render(<SettingsBackupTab />, { wrapper: withConfirm })
 
     const notice = await screen.findByRole('status')
     expect(within(notice).getByText('backupTab.restorePendingUnreadable')).toBeInTheDocument()
@@ -127,9 +130,10 @@ describe('SettingsBackupTab full restore', () => {
       message: 'Request failed with status code 503',
       response: { status: 503, data: { detail: refusal } },
     })
-    render(<SettingsBackupTab />)
+    render(<SettingsBackupTab />, { wrapper: withConfirm })
 
     fireEvent.click(await screen.findByTitle('backup.restore'))
+    await answerConfirm('confirm', 'backupTab.confirmRestoreSettings')
 
     // Through the shared helper: the action (the mocked t's key), then the fix.
     expect(await screen.findByText(`Failed to backupTab.restoreAction. ${refusal}`)).toBeInTheDocument()
@@ -141,11 +145,28 @@ describe('SettingsBackupTab full restore', () => {
       pending = null
       return Promise.reject(new Error('400'))
     })
-    render(<SettingsBackupTab />)
+    render(<SettingsBackupTab />, { wrapper: withConfirm })
     expect(await screen.findByRole('status')).toBeInTheDocument()
 
     fireEvent.click(screen.getByTitle('backup.restoreOverwrite'))
+    await answerConfirm('confirm', 'backupTab.confirmRestoreFull')
 
     await waitFor(() => expect(screen.queryByRole('status')).not.toBeInTheDocument())
+  })
+})
+
+describe('SettingsBackupTab: Cancel on the confirm does nothing', () => {
+  it('a cancelled restore restores nothing', async () => {
+    render(<SettingsBackupTab />, { wrapper: withConfirm })
+    fireEvent.click(await screen.findByTitle('backup.restoreOverwrite'))
+    await answerConfirm('cancel', 'backupTab.confirmRestoreFull')
+    expect(mockedApi.post).not.toHaveBeenCalled()
+  })
+
+  it('a cancelled delete deletes nothing', async () => {
+    render(<SettingsBackupTab />, { wrapper: withConfirm })
+    fireEvent.click((await screen.findAllByTitle('common:delete'))[0])
+    await answerConfirm('cancel', /^backupTab\.confirmDelete/)
+    expect(mockedApi.delete).not.toHaveBeenCalled()
   })
 })

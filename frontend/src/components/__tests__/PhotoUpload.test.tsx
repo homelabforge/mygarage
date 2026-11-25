@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '../../__tests__/test-utils'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { fireEvent, render, screen } from '../../__tests__/test-utils'
 import userEvent from '@testing-library/user-event'
 import api from '../../services/api'
 
@@ -125,5 +125,51 @@ describe('PhotoUpload — centered upload modal: guard + upload', () => {
     expect(
       await screen.findByText('Failed to photoUpload.uploadAction. Please check your input.')
     ).toBeInTheDocument()
+  })
+})
+
+describe('PhotoUpload as a dialog', () => {
+  let root: HTMLElement
+  beforeEach(() => {
+    root = document.body.appendChild(document.createElement('div'))
+    root.id = 'root'
+  })
+  afterEach(() => root.remove())
+
+  it('is a named dialog outside #root', () => {
+    render(<PhotoUpload vin="V1" onSuccess={vi.fn()} onClose={vi.fn()} />, { container: root })
+    const dialog = screen.getByRole('dialog', { name: 'photoUpload.title' })
+    expect(root.contains(dialog)).toBe(false)
+  })
+
+  it('Upload sits in the footer, outside the form, and still belongs to it', () => {
+    // The tests above submit by clicking it, so a lost form= stops them uploading.
+    render(<PhotoUpload vin="V1" onSuccess={vi.fn()} onClose={vi.fn()} />, { container: root })
+    const upload = screen.getByRole('button', { name: 'photoUpload.uploadBtn' }) as HTMLButtonElement
+    expect(upload.closest('form')).toBeNull()
+    expect(upload.form?.id).toBe('photo-upload-form')
+  })
+})
+
+describe('PhotoUpload mid-upload', () => {
+  it('Escape and Cancel leave it open until the upload lands', async () => {
+    let finish: (value: unknown) => void = () => {}
+    postMock.mockReturnValueOnce(new Promise((resolve) => { finish = resolve }))
+    const user = userEvent.setup({ applyAccept: false })
+    const onSuccess = vi.fn(); const onClose = vi.fn()
+    render(<PhotoUpload vin="V1" onSuccess={onSuccess} onClose={onClose} />)
+    await user.upload(fileInput(), new File(['x'], 'front.jpg', { type: 'image/jpeg' }))
+    await user.click(screen.getByRole('button', { name: 'photoUpload.uploadBtn' }))
+    await vi.waitFor(() => expect(postMock).toHaveBeenCalledTimes(1))
+
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' })
+    const cancel = screen.getByRole('button', { name: 'photoUpload.cancel' })
+    expect(cancel).toBeDisabled()
+    fireEvent.click(cancel)
+    expect(onClose).not.toHaveBeenCalled()
+
+    finish({ data: {} })
+    await vi.waitFor(() => expect(onSuccess).toHaveBeenCalledTimes(1))
+    expect(onClose).toHaveBeenCalledTimes(1)
   })
 })

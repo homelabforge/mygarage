@@ -35,6 +35,7 @@ vi.mock('@/hooks/useUnitPreference', async () => {
 })
 
 import MqttDeviceDrawer from '../MqttDeviceDrawer'
+import { answerConfirm, escapeConfirm } from '../../../../__tests__/confirmHelpers'
 
 const TAB = {
   id: 'device:rvgateway',
@@ -113,14 +114,26 @@ describe('MqttDeviceDrawer', () => {
   })
 
   it('deletes after confirmation, refreshes the card, and closes', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
     const { onChanged, onClose } = openDrawer()
 
     fireEvent.click(await screen.findByRole('button', { name: 'integrations.deleteSource' }))
+    await answerConfirm('confirm', 'forms:modal.livelink.confirmDeleteDevice')
 
     await waitFor(() => expect(svc.deleteDevice).toHaveBeenCalledWith('rvgateway'))
     expect(onChanged).toHaveBeenCalled()
     expect(onClose).toHaveBeenCalled()
+  })
+
+  // Regression pin: Escape on the delete confirm must not close the drawer.
+  it('Escape closes the delete confirm and leaves the drawer open', async () => {
+    const { onClose } = openDrawer()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'integrations.deleteSource' }))
+    await escapeConfirm('forms:modal.livelink.confirmDeleteDevice')
+
+    expect(onClose).not.toHaveBeenCalled()
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(svc.deleteDevice).not.toHaveBeenCalled()
   })
 
   it("opens a handmade device's mappings and keeps a preset device's closed", async () => {

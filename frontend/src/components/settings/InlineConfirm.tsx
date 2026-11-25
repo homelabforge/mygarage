@@ -1,8 +1,7 @@
 /**
  * A question asked in place, under the control that raised it: a heading, the
- * consequence, Cancel and a confirming action. Quick Settings uses it because
- * a drawer is no place for a full-screen overlay; the settings page's unit
- * editor shows the same body inside its overlay.
+ * consequence, Cancel and a confirming action. Quick Settings keeps it on
+ * purpose, so the question sits right under the button that raised it.
  */
 
 import { useTranslation } from 'react-i18next'
@@ -17,10 +16,6 @@ export interface InlineConfirmProps {
   onCancel: () => void
   /** The consequence being confirmed. */
   children: React.ReactNode
-  /** Replaces the in-place box (the page overlay's panel supplies its own). */
-  className?: string
-  /** `md` for a dialog panel: a larger heading and full-size buttons. */
-  size?: 'sm' | 'md'
 }
 
 export default function InlineConfirm({
@@ -30,21 +25,19 @@ export default function InlineConfirm({
   onConfirm,
   onCancel,
   children,
-  className = 'mt-3 space-y-3 rounded-lg border border-garage-border bg-garage-bg p-3',
-  size = 'sm',
 }: InlineConfirmProps): React.ReactElement {
   const { t } = useTranslation()
   return (
-    <div role="group" aria-labelledby={id} className={className}>
-      <h3 id={id} className={`font-semibold text-garage-text ${size === 'sm' ? 'text-sm' : 'text-lg'}`}>
+    <div role="group" aria-labelledby={id} className="mt-3 space-y-3 rounded-lg border border-garage-border bg-garage-bg p-3">
+      <h3 id={id} className="text-sm font-semibold text-garage-text">
         {title}
       </h3>
       {children}
       <div className="flex gap-3 justify-end">
-        <Button type="button" variant="secondary" size={size} onClick={onCancel}>
+        <Button type="button" variant="secondary" size="sm" onClick={onCancel}>
           {t('common:cancel')}
         </Button>
-        <Button type="button" size={size} onClick={onConfirm}>
+        <Button type="button" size="sm" onClick={onConfirm}>
           {confirmLabel}
         </Button>
       </div>

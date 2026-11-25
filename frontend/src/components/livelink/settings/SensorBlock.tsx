@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Check, Pencil, SlidersHorizontal, Trash2 } from 'lucide-react'
 
-import { Button, IconButton, Input, Select } from '@/components/ui'
+import { Button, IconButton, Input, Select, useConfirm } from '@/components/ui'
 import { livelinkService } from '@/services/livelinkService'
 import type { DeviceReadingsResponse, LiveLinkDevice } from '@/types/livelink'
 import type { Vehicle } from '@/types/vehicle'
@@ -33,6 +33,7 @@ interface Props {
 
 export default function SensorBlock({ device, vehicles, onChanged }: Props): ReactElement {
   const { t } = useTranslation('settings')
+  const confirm = useConfirm()
   const idBase = useId()
   const [readings, setReadings] = useState<DeviceReadingsResponse | null>(null)
   const [readingsFailed, setReadingsFailed] = useState(false)
@@ -72,7 +73,7 @@ export default function SensorBlock({ device, vehicles, onChanged }: Props): Rea
 
   const remove = async (): Promise<void> => {
     // ||, not ??: a name cleared before blanks were stored as null is still ''.
-    if (!confirm(t('integrations.confirmDeleteSensor', { name: device.label || device.device_id }))) return
+    if (!(await confirm({ message: t('integrations.confirmDeleteSensor', { name: device.label || device.device_id }), confirmLabel: t('common:delete') }))) return
     setBusy(true)
     try {
       await livelinkService.deleteDevice(device.device_id)

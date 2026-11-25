@@ -1,7 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { render } from '../../../__tests__/test-utils'
-import { expectSafeOverlay } from '../../../__tests__/safeOverlay'
 
 const post = vi.fn().mockResolvedValue({ data: {} })
 vi.mock('@/services/api', () => ({ default: { post: (...a: unknown[]) => post(...a) } }))
@@ -85,9 +84,9 @@ describe('BulkArchiveModal', () => {
   it('posts no sale price or date once the reason hides them', async () => {
     // What was typed under Sold stays in state after a switch to Totaled. The
     // check skipped the hidden field but the post still sent it, so -5 was a 422.
-    const { container } = render(<BulkArchiveModal {...PROPS} />)
+    render(<BulkArchiveModal {...PROPS} />)
     fireEvent.change(screen.getByLabelText(/modal\.salePrice/), { target: { value: '-5' } })
-    fireEvent.change(container.querySelector('input[type="date"]')!, { target: { value: '2026-01-15' } })
+    fireEvent.change(document.querySelector('input[type="date"]')!, { target: { value: '2026-01-15' } })
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'Totaled' } })
     fireEvent.click(screen.getByRole('button', { name: /archive/i }))
 
@@ -102,15 +101,25 @@ describe('BulkArchiveModal', () => {
   it('renders over a translucent backdrop, not an opaque one', () => {
     // bg-opacity-50 was removed in Tailwind v4 and this project is on v4, so it
     // emitted no CSS at all and bg-black painted a solid sheet over the page.
-    const { container } = render(<BulkArchiveModal {...PROPS} />)
-    const backdrop = container.querySelector('.fixed.inset-0')
+    render(<BulkArchiveModal {...PROPS} />)
+    const backdrop = screen.getByRole('dialog').parentElement
 
     expect(backdrop?.className).toContain('bg-black/50')
     expect(backdrop?.className).not.toContain('bg-opacity-')
   })
+})
 
-  it('centres inside the iPhone safe area (#305)', () => {
-    const { container } = render(<BulkArchiveModal {...PROPS} />)
-    expectSafeOverlay(container.querySelector('.fixed.inset-0 > div')!)
+describe('BulkArchiveModal as a dialog', () => {
+  let root: HTMLElement
+  beforeEach(() => {
+    root = document.body.appendChild(document.createElement('div'))
+    root.id = 'root'
+  })
+  afterEach(() => root.remove())
+
+  it('is a named dialog outside #root', () => {
+    render(<BulkArchiveModal {...PROPS} />, { container: root })
+    const dialog = screen.getByRole('dialog', { name: 'modal.bulkArchiveTitle' })
+    expect(root.contains(dialog)).toBe(false)
   })
 })

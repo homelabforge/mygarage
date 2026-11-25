@@ -15,6 +15,7 @@ vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 
 import { toast } from 'sonner'
 import PhotoGallery from '../PhotoGallery'
+import { answerConfirm } from '../../__tests__/confirmHelpers'
 
 const photo: Photo = {
   id: 1, filename: 'front.jpg', path: '/p/front.jpg', thumbnail_url: null,
@@ -27,7 +28,6 @@ const PROPS = { vin: 'V1', onAddClick }
 
 beforeEach(() => {
   vi.clearAllMocks()
-  vi.spyOn(window, 'confirm').mockReturnValue(true)
   listPhotos.mockResolvedValue({ photos: [photo], total: 1 })
   localStorage.clear()
 })
@@ -45,16 +45,15 @@ describe('PhotoGallery — rendering + row actions', () => {
     render(<PhotoGallery {...PROPS} />)
     await screen.findByText('Front view')
     fireEvent.click(screen.getByRole('button', { name: 'photoGallery.deletePhoto' }))
-    expect(window.confirm).toHaveBeenCalled()
+    await answerConfirm('confirm', 'photoGallery.misc.confirmDelete')
     await waitFor(() => expect(deletePhoto).toHaveBeenCalledWith('V1', 'front.jpg'))
   })
 
   it('clicking Delete with confirm REJECTED does NOT call deletePhoto (fails if the confirm gate is bypassed)', async () => {
-    ;(window.confirm as unknown as ReturnType<typeof vi.fn>).mockReturnValue(false)
     render(<PhotoGallery {...PROPS} />)
     await screen.findByText('Front view')
     fireEvent.click(screen.getByRole('button', { name: 'photoGallery.deletePhoto' }))
-    expect(window.confirm).toHaveBeenCalled()
+    await answerConfirm('cancel', 'photoGallery.misc.confirmDelete')
     expect(deletePhoto).not.toHaveBeenCalled()
   })
 
@@ -116,6 +115,7 @@ describe('PhotoGallery failures', () => {
     render(<PhotoGallery {...PROPS} />)
     await screen.findByText('Front view')
     fireEvent.click(screen.getByRole('button', { name: 'photoGallery.deletePhoto' }))
+    await answerConfirm('confirm', 'photoGallery.misc.confirmDelete')
 
     await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(1))
     expect(vi.mocked(toast.error).mock.calls[0]).toEqual([

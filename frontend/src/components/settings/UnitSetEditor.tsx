@@ -24,10 +24,9 @@
  *
  * ★ `compact` IS THE QUICK SETTINGS LAYOUT. A 400 px drawer cannot take the
  * page's: eleven selects left open push every other preference out of sight,
- * so under Custom they sit in an accordion, closed until asked for. And the
- * confirmation above is a full-screen overlay on the page, which is no place
- * to send someone from a drawer, so in compact mode it appears in place under
- * the buttons (`InlineConfirm`, which the overlay also renders).
+ * so under Custom they sit in an accordion, closed until asked for. The page
+ * asks through the app's confirm dialog; compact keeps the question in place
+ * under the buttons (`InlineConfirm`), by choice.
  */
 
 import { useState } from 'react'
@@ -42,7 +41,7 @@ import {
   type UnitSet,
 } from '@/types/units'
 import { gallonStandardFor } from '@/utils/publicUnitDefaults'
-import { Select } from '../ui'
+import { Select, useConfirm } from '../ui'
 import { segmentClass } from './choiceStyles'
 import InlineConfirm from './InlineConfirm'
 
@@ -112,6 +111,8 @@ export default function UnitSetEditor({
   onSelect,
 }: UnitSetEditorProps): React.ReactElement {
   const { t } = useTranslation('settings')
+  const confirm = useConfirm()
+  // Compact only: the page asks through the confirm dialog instead.
   const [pendingPreset, setPendingPreset] = useState<PresetChoice | null>(null)
   // Compact only. Closed on every mount, even for a Custom account: the drawer
   // opens for many reasons and editing eleven units is the rarest of them.
@@ -128,7 +129,14 @@ export default function UnitSetEditor({
   // account whose secondary gallon is UK too.
   //
   // units-exempt(compare): WARNING COPY, keyed on which button was pressed. There is no quantity here and nothing canonical to convert: the comparison names the preset the user is moving TO, and the gallon half beside it is read from the resolved set through `gallonStandardFor` rather than from a collapsed system. Kind-scoped, so a comparison of an actual quantity added to this line would still be reported.
-  const losesUkGallon = pendingPreset?.value === 'imperial' && gallonStandardFor(units) === 'uk'
+  const losesUkGallon = (preset: PresetChoice): boolean => preset.value === 'imperial' && gallonStandardFor(units) === 'uk'
+
+  const consequence = (preset: PresetChoice): React.ReactElement => (
+    <div className="space-y-2">
+      <p className="text-sm text-garage-text-muted">{t('units.presetConfirmMessage')}</p>
+      {losesUkGallon(preset) && <p className="text-sm text-warning">{t('units.presetConfirmGallon')}</p>}
+    </div>
+  )
 
   const chooseQuantity = (field: keyof UnitSet, token: string): void => {
     const next = withUnitField(units, field, token)
@@ -138,15 +146,25 @@ export default function UnitSetEditor({
     onSelect({ unit_preference: 'custom', units: next })
   }
 
+  // ★ NO SAME-VALUE EARLY RETURN, anywhere on this path. An account can be
+  // TAGGED with a preset while resolving to something else entirely, and
+  // pressing the highlighted button is that user's only way to clear the
+  // overrides masking it. Skipping the request because "nothing changed"
+  // preserves the exact defect this phase exists to remove.
   const confirmPreset = (): void => {
     if (pendingPreset === null) return
-    // ★ NO SAME-VALUE EARLY RETURN, anywhere on this path. An account can be
-    // TAGGED with a preset while resolving to something else entirely, and
-    // pressing the highlighted button is that user's only way to clear the
-    // overrides masking it. Skipping the request because "nothing changed"
-    // preserves the exact defect this phase exists to remove.
     onSelect({ unit_preference: pendingPreset.value, units: null })
     setPendingPreset(null)
+  }
+
+  const askPreset = async (preset: PresetChoice): Promise<void> => {
+    const ok = await confirm({
+      message: t('units.presetConfirmTitle', { preset: t(preset.labelKey) }),
+      detail: consequence(preset),
+      confirmLabel: t('units.presetConfirmAction'),
+      tone: 'default',
+    })
+    if (ok) onSelect({ unit_preference: preset.value, units: null })
   }
 
   const segment = (
@@ -207,25 +225,10 @@ export default function UnitSetEditor({
     </>
   )
 
-  const confirm =
-    pendingPreset === null ? null : (
-      <InlineConfirm
-        id={`${idPrefix}-preset-confirm`}
-        title={t('units.presetConfirmTitle', { preset: t(pendingPreset.labelKey) })}
-        confirmLabel={t('units.presetConfirmAction')}
-        onConfirm={confirmPreset}
-        onCancel={() => setPendingPreset(null)}
-        className={
-          compact
-            ? undefined
-            : 'bg-garage-surface border border-garage-border rounded-lg p-6 max-w-md mx-4 space-y-4'
-        }
-        size={compact ? 'sm' : 'md'}
-      >
-        <p className="text-sm text-garage-text-muted">{t('units.presetConfirmMessage')}</p>
-        {losesUkGallon && <p className="text-sm text-warning">{t('units.presetConfirmGallon')}</p>}
-      </InlineConfirm>
-    )
+  const choosePreset = (preset: PresetChoice): void => {
+    if (compact) setPendingPreset(preset)
+    else void askPreset(preset)
+  }
 
   return (
     <div className="@container">
@@ -236,7 +239,7 @@ export default function UnitSetEditor({
       </label>
       <div className={compact ? 'flex gap-2' : 'flex flex-col gap-3 @md:flex-row'}>
         {PRESETS.map((preset) =>
-          segment(isChosen(preset.value), t(preset.labelKey), () => setPendingPreset(preset))
+          segment(isChosen(preset.value), t(preset.labelKey), () => choosePreset(preset))
         )}
         {segment(isChosen('custom'), t('units.custom'), () => {
           onSelect({ unit_preference: 'custom', units })
@@ -244,7 +247,17 @@ export default function UnitSetEditor({
         })}
       </div>
 
-      {compact && confirm}
+      {compact && pendingPreset !== null && (
+        <InlineConfirm
+          id={`${idPrefix}-preset-confirm`}
+          title={t('units.presetConfirmTitle', { preset: t(pendingPreset.labelKey) })}
+          confirmLabel={t('units.presetConfirmAction')}
+          onConfirm={confirmPreset}
+          onCancel={() => setPendingPreset(null)}
+        >
+          {consequence(pendingPreset)}
+        </InlineConfirm>
+      )}
 
       {description}
 
@@ -283,12 +296,6 @@ export default function UnitSetEditor({
         ) : (
           <div className="mt-4">{renderCustomGrid()}</div>
         ))}
-
-      {!compact && confirm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 modal-safe-inset">
-          {confirm}
-        </div>
-      )}
     </div>
   )
 }

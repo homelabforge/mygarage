@@ -8,7 +8,7 @@ import api from '../services/api'
 import { getActionErrorMessage } from '../utils/httpErrorHandler'
 import { apiRelative } from '../utils/basePath'
 import type { Attachment } from '../types/attachment'
-import { Card, IconButton, EmptyState, Mono } from './ui'
+import { Card, IconButton, EmptyState, Mono, useConfirm } from './ui'
 
 interface ServiceVisitAttachmentListProps {
   visitId: number
@@ -20,6 +20,7 @@ export default function ServiceVisitAttachmentList({
   refreshTrigger,
 }: ServiceVisitAttachmentListProps) {
   const { t } = useTranslation('vehicles')
+  const confirm = useConfirm()
   const dateLocale = useDateLocale()
   const [attachments, setAttachments] = useState<Attachment[]>([])
   const [loading, setLoading] = useState(true)
@@ -41,8 +42,8 @@ export default function ServiceVisitAttachmentList({
     fetchAttachments().finally(() => setLoading(false))
   }, [fetchAttachments, refreshTrigger])
 
-  const handleDelete = async (attachmentId: number) => {
-    if (!confirm(t('serviceVisitAttachments.confirmDelete'))) {
+  const handleDelete = async (attachmentId: number): Promise<void> => {
+    if (!(await confirm({ message: t('serviceVisitAttachments.confirmDelete'), confirmLabel: t('common:delete') }))) {
       return
     }
 
@@ -134,7 +135,7 @@ export default function ServiceVisitAttachmentList({
                 variant="danger"
                 size="sm"
                 disabled={deletingId === attachment.id}
-                onClick={() => handleDelete(attachment.id)}
+                onClick={() => void handleDelete(attachment.id)}
               />
             </div>
           </div>

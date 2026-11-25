@@ -36,9 +36,8 @@ interface AddPastPeriodDrawerProps {
  * allows to be sent (an open period has no dismount pair at all), while a
  * create form has neither an existing period to seed from nor a partial
  * shape to respect -- every field starts empty and the corner and both
- * dates are required before Save can submit. A nested drawer, because it
- * opens from the history drawer and a modal opened from a drawer is inert
- * in this app.
+ * dates are required before Save can submit. A nested drawer, so it stacks
+ * on the history drawer it opens from.
  */
 function AddPastPeriodDrawer({
   vin,

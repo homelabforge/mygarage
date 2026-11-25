@@ -145,6 +145,10 @@
   --z-index-drawer:           60;
   --z-index-drawer-nested-backdrop: 65;
   --z-index-drawer-nested:          70;
+  /* Dialogs sit above drawer-nested (65/70), so a confirm from a nested
+     drawer is on top. Toasts still beat everything. */
+  --z-index-dialog-backdrop: 75;
+  --z-index-dialog:          80;
 
   /* Motion — design §4.8. --ease-* generates ease-standard. --duration-*
      does NOT generate a named utility despite being a documented namespace
@@ -180,6 +184,46 @@
   --spacing-safe-right:  env(safe-area-inset-right);
 
   --animate-slide-up: slideUp 0.3s ease-out;
+}
+
+/* Static on purpose: nothing but var() strings built at runtime and arbitrary
+ * bg-(--color-cal-...) classes read these, and plain @theme drops a var no
+ * utility uses. Dark steps here, light steps in html.light. */
+@theme static {
+  /* dataviz reference categorical palette, checked 2026-11-24 with
+   *   node validate_palette.js "<8 hex>" --mode dark|light --surface <hex>
+   * (plans/2026-11-24-ui-primitives-assets/validate_palette.js):
+   *   dark on #0f1319 and #141922: all PASS.
+   *   light on #ffffff and #f6f8fb: all PASS, contrast WARN on slots 3-5
+   *   (2.82/2.17/2.69 on white), so those need relief: keep the legends.
+   * chart-other is a neutral grey for the fold, not a hue: dark 5.02 on
+   * #0f1319, light 3.87 on #ffffff. */
+  --color-chart-1: #3987e5;
+  --color-chart-2: #d95926;
+  --color-chart-3: #199e70;
+  --color-chart-4: #c98500;
+  --color-chart-5: #d55181;
+  --color-chart-6: #0ca30c;
+  --color-chart-7: #9085e9;
+  --color-chart-8: #e66767;
+  --color-chart-other: #7d8594;
+
+  /* Calendar event colours, off chart slots 1, 8 and 4 plus the grey. They
+   * resolve on <html>, so they follow html.light through the chart and
+   * surface tokens without overrides of their own. --color-text on every
+   * container is 12.4:1 or better dark, 14.2:1 or better light. */
+  --color-cal-maintenance:           var(--color-chart-1);
+  --color-cal-maintenance-container: color-mix(in oklab, var(--color-cal-maintenance) 18%, var(--color-surface));
+  --color-cal-maintenance-on:        var(--color-text);
+  --color-cal-insurance:             var(--color-chart-8);
+  --color-cal-insurance-container:   color-mix(in oklab, var(--color-cal-insurance) 18%, var(--color-surface));
+  --color-cal-insurance-on:          var(--color-text);
+  --color-cal-warranty:              var(--color-chart-4);
+  --color-cal-warranty-container:    color-mix(in oklab, var(--color-cal-warranty) 18%, var(--color-surface));
+  --color-cal-warranty-on:           var(--color-text);
+  --color-cal-service:               var(--color-chart-other);
+  --color-cal-service-container:     color-mix(in oklab, var(--color-cal-service) 18%, var(--color-surface));
+  --color-cal-service-on:            var(--color-text);
 }
 
 @keyframes slideUp {
@@ -279,6 +323,17 @@
     /* White knob on this measures 4.8:1 — comfortably past the 3:1 a
        non-text UI boundary needs. On the dark-theme track it is 9.5:1. */
     --color-toggle-track-off: #64748b;
+
+    /* Light steps of the chart palette (validator notes on @theme static). */
+    --color-chart-1:     #2a78d6;
+    --color-chart-2:     #eb6834;
+    --color-chart-3:     #1baf7a;
+    --color-chart-4:     #eda100;
+    --color-chart-5:     #e87ba4;
+    --color-chart-6:     #008300;
+    --color-chart-7:     #6250d6;
+    --color-chart-8:     #e34948;
+    --color-chart-other: #7a8291;
   }
 
   /* Better touch targets for mobile */
@@ -382,10 +437,41 @@
 /* Schedule-X Calendar — fill container height */
 .sx-calendar-wrapper {
   font-family: var(--font-sans);
+  /* Schedule-X's sticky week header is z-index 100. Keep it in here, or it
+     paints over the drawer backdrop and the sticky nav. */
+  isolation: isolate;
 }
 
 .sx-calendar-wrapper .sx-react-calendar-wrapper {
   height: 100%;
+}
+
+/* Schedule-X's palette pointed at ours, so the calendar follows the theme.
+ * Its .is-dark sits on an inner element, hence the second selector.
+ * design-tokens.test.ts checks every --sx colour is here or skipped. */
+.sx-calendar-wrapper,
+.sx-calendar-wrapper .is-dark {
+  --sx-color-primary: var(--accent-solid);
+  --sx-color-on-primary: var(--accent-on-solid);
+  --sx-color-primary-container: var(--accent-soft);
+  --sx-color-on-primary-container: var(--accent-fg);
+  --sx-color-surface: var(--color-surface);
+  --sx-color-background: var(--color-surface);
+  --sx-color-on-surface: var(--color-text);
+  --sx-color-on-background: var(--color-text);
+  --sx-color-surface-container: var(--color-surface-2);
+  --sx-color-surface-container-low: var(--color-surface-2);
+  --sx-color-surface-container-high: var(--color-surface-3);
+  --sx-color-surface-dim: var(--color-surface-2);
+  --sx-color-surface-bright: var(--color-surface-3);
+  --sx-color-outline: var(--color-text-mute);
+  --sx-color-outline-variant: var(--color-border);
+  --sx-color-neutral: var(--color-text-mute);
+  --sx-color-neutral-variant: var(--color-border);
+  --sx-internal-color-text: var(--color-text);
+  --sx-internal-color-light-gray: var(--color-surface-2);
+  --sx-internal-color-gray-ripple-background: var(--color-surface-3);
+  --sx-border: 1px solid var(--color-border);
 }
 
 /* --- Interaction layer (design §4.8) ---------------------------------

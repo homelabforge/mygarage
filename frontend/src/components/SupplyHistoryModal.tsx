@@ -31,7 +31,7 @@ import { formatDateForDisplay, formatDateForInput } from '@/utils/dateUtils'
 import { FormError } from '@/components/FormError'
 import FormModalWrapper from '@/components/FormModalWrapper'
 import CurrencyInput from '@/components/common/CurrencyInput'
-import { Badge, NumberInput, Select, registerDecimal } from '@/components/ui'
+import { Badge, NumberInput, Select, registerDecimal, useConfirm } from '@/components/ui'
 import type { Supply } from '@/types/supplies'
 import type { AddressBookEntry } from '@/types/addressBook'
 import type { components } from '@/types/api.generated'
@@ -89,7 +89,7 @@ function SupplyHistoryModal({ supply, onClose, initialForm }: SupplyHistoryModal
       width="lg"
       icon={History}
     >
-      <div className="p-6 space-y-6">
+      <div className="space-y-6">
         <div className="grid grid-cols-2 gap-4">
           <div className="bg-garage-bg border border-garage-border rounded-lg p-3">
             <div className="text-xs text-garage-text-muted">{t('supplies.onHand')}</div>
@@ -178,6 +178,7 @@ interface LedgerRowProps {
 
 function PurchaseRow({ entry, supply, unit }: LedgerRowProps) {
   const { t } = useTranslation('common')
+  const confirm = useConfirm()
   const { formatCurrency } = useCurrencyPreference()
   const deletePurchase = useDeletePurchase(supply.id)
   const deleteReceipt = useDeleteReceipt(supply.id)
@@ -209,16 +210,16 @@ function PurchaseRow({ entry, supply, unit }: LedgerRowProps) {
     }
   }
 
-  const handleDeletePurchase = () => {
-    if (!confirm(t('supplies.history.confirmDeletePurchase'))) return
+  const handleDeletePurchase = async (): Promise<void> => {
+    if (!(await confirm({ message: t('supplies.history.confirmDeletePurchase'), confirmLabel: t('common:delete') }))) return
     deletePurchase.mutate(entry.id, {
       onSuccess: () => toast.success(t('supplies.history.purchaseDeleted')),
       onError: (err) => toast.error(getActionErrorMessage(err, t('supplies.history.purchaseDeleteAction'))),
     })
   }
 
-  const handleDeleteReceipt = () => {
-    if (!confirm(t('supplies.history.confirmDeleteReceipt'))) return
+  const handleDeleteReceipt = async (): Promise<void> => {
+    if (!(await confirm({ message: t('supplies.history.confirmDeleteReceipt'), confirmLabel: t('common:delete') }))) return
     deleteReceipt.mutate(entry.id, {
       onSuccess: () => toast.success(t('supplies.history.receiptDeleted')),
       onError: (err) => toast.error(getActionErrorMessage(err, t('supplies.history.receiptDeleteAction'))),
@@ -273,7 +274,7 @@ function PurchaseRow({ entry, supply, unit }: LedgerRowProps) {
             </button>
             <button
               type="button"
-              onClick={handleDeleteReceipt}
+              onClick={() => void handleDeleteReceipt()}
               disabled={deleteReceipt.isPending}
               className="p-1.5 text-garage-text-muted hover:text-danger rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               aria-label={t('supplies.history.deleteReceipt')}
@@ -314,7 +315,7 @@ function PurchaseRow({ entry, supply, unit }: LedgerRowProps) {
         )}
         <button
           type="button"
-          onClick={handleDeletePurchase}
+          onClick={() => void handleDeletePurchase()}
           disabled={deletePurchase.isPending}
           className="p-1.5 text-garage-text-muted hover:text-danger rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           aria-label={t('supplies.history.deletePurchase')}
@@ -329,6 +330,7 @@ function PurchaseRow({ entry, supply, unit }: LedgerRowProps) {
 
 function UsageRow({ entry, supply, unit }: LedgerRowProps) {
   const { t } = useTranslation('common')
+  const confirm = useConfirm()
   const { formatCurrency } = useCurrencyPreference()
   const deleteAdjustment = useDeleteAdjustment(supply.id)
   const isJob = entry.service_visit_id != null
@@ -337,8 +339,8 @@ function UsageRow({ entry, supply, unit }: LedgerRowProps) {
   // isn't scoped to a single vehicle).
   const isStandaloneAdjustment = entry.service_line_item_id == null
 
-  const handleDeleteAdjustment = () => {
-    if (!confirm(t('supplies.history.confirmDeleteAdjustment'))) return
+  const handleDeleteAdjustment = async (): Promise<void> => {
+    if (!(await confirm({ message: t('supplies.history.confirmDeleteAdjustment'), confirmLabel: t('common:delete') }))) return
     deleteAdjustment.mutate(entry.id, {
       onSuccess: () => toast.success(t('supplies.history.adjustmentDeleted')),
       onError: (err) => toast.error(getActionErrorMessage(err, t('supplies.history.adjustmentDeleteAction'))),
@@ -373,7 +375,7 @@ function UsageRow({ entry, supply, unit }: LedgerRowProps) {
       {isStandaloneAdjustment && (
         <button
           type="button"
-          onClick={handleDeleteAdjustment}
+          onClick={() => void handleDeleteAdjustment()}
           disabled={deleteAdjustment.isPending}
           className="p-1.5 text-garage-text-muted hover:text-danger rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
           aria-label={t('supplies.history.deleteAdjustment')}

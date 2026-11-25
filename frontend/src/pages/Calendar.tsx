@@ -26,30 +26,65 @@ import { identifierValue, vinForDisplay } from '../utils/vehicleIdentifier'
 import { cameFromNestedControl } from '../components/ClickableCard'
 import { todayInHousehold } from '@/constants/i18n'
 import { useAuth } from '@/contexts/AuthContext'
+import { useTheme } from '@/contexts/ThemeContext'
+import { Drawer } from '@/components/ui'
+
+type EventType = 'maintenance' | 'insurance' | 'warranty' | 'service'
+
+interface EventColors {
+  main: string
+  container: string
+  onContainer: string
+}
+
+interface EventCalendar {
+  colorName: EventType
+  lightColors: EventColors
+  darkColors: EventColors
+}
+
+// Schedule-X copies these straight into --sx-color-* on <html>, so a var()
+// works, and the --color-cal-* tokens flip with html.light. Same strings both ways.
+function eventCalendar(type: EventType): EventCalendar {
+  const colors = {
+    main: `var(--color-cal-${type})`,
+    container: `var(--color-cal-${type}-container)`,
+    onContainer: `var(--color-cal-${type}-on)`,
+  }
+  return { colorName: type, lightColors: colors, darkColors: colors }
+}
 
 // Map event type -> Schedule-X calendarId for per-type coloring
-const EVENT_CALENDARS = {
-  maintenance: {
-    colorName: 'maintenance',
-    lightColors: { main: '#3b82f6', container: '#dbeafe', onContainer: '#1e3a5f' },
-    darkColors: { main: '#60a5fa', onContainer: '#bfdbfe', container: '#1e3a8a' },
-  },
-  insurance: {
-    colorName: 'insurance',
-    lightColors: { main: '#ef4444', container: '#fee2e2', onContainer: '#7f1d1d' },
-    darkColors: { main: '#f87171', onContainer: '#fecaca', container: '#991b1b' },
-  },
-  warranty: {
-    colorName: 'warranty',
-    lightColors: { main: '#f59e0b', container: '#fef3c7', onContainer: '#78350f' },
-    darkColors: { main: '#fbbf24', onContainer: '#fde68a', container: '#92400e' },
-  },
-  service: {
-    colorName: 'service',
-    lightColors: { main: '#6b7280', container: '#f3f4f6', onContainer: '#374151' },
-    darkColors: { main: '#9ca3af', onContainer: '#d1d5db', container: '#4b5563' },
-  },
-} as const
+export const EVENT_CALENDARS: Record<EventType, EventCalendar> = {
+  maintenance: eventCalendar('maintenance'),
+  insurance: eventCalendar('insurance'),
+  warranty: eventCalendar('warranty'),
+  service: eventCalendar('service'),
+}
+
+// The same tokens for the legend swatches and the event-type chips. Spelled out
+// so Tailwind sees every class.
+const EVENT_SWATCH: Record<EventType, string> = {
+  maintenance: 'bg-(--color-cal-maintenance-container) border-l-4 border-(--color-cal-maintenance)',
+  insurance: 'bg-(--color-cal-insurance-container) border-l-4 border-(--color-cal-insurance)',
+  warranty: 'bg-(--color-cal-warranty-container) border-l-4 border-(--color-cal-warranty)',
+  service: 'bg-(--color-cal-service-container) border-l-4 border-(--color-cal-service)',
+}
+const EVENT_CHIP: Record<EventType, string> = {
+  maintenance: 'bg-(--color-cal-maintenance-container) text-(--color-cal-maintenance-on)',
+  insurance: 'bg-(--color-cal-insurance-container) text-(--color-cal-insurance-on)',
+  warranty: 'bg-(--color-cal-warranty-container) text-(--color-cal-warranty-on)',
+  service: 'bg-(--color-cal-service-container) text-(--color-cal-service-on)',
+}
+// A selected type filter is its event chip with a coloured edge, so filters match the grid.
+const EVENT_FILTER_ON: Record<EventType, string> = {
+  maintenance: `${EVENT_CHIP.maintenance} border border-(--color-cal-maintenance)`,
+  insurance: `${EVENT_CHIP.insurance} border border-(--color-cal-insurance)`,
+  warranty: `${EVENT_CHIP.warranty} border border-(--color-cal-warranty)`,
+  service: `${EVENT_CHIP.service} border border-(--color-cal-service)`,
+}
+// Anything the backend adds later reads as maintenance, like the old chip did.
+const eventChip = (type: string): string => EVENT_CHIP[type as EventType] ?? EVENT_CHIP.maintenance
 
 /**
  * Backend event type -> translation key.
@@ -116,8 +151,10 @@ function CalendarInner({ householdTimeZone }: { householdTimeZone: string | null
   const [eventsService] = useState(() => createEventsServicePlugin())
   const [calendarControls] = useState(() => createCalendarControlsPlugin())
 
-  // Detect dark mode from <html> class
-  const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark')
+  // Only read at mount: the adapter builds the app once and ignores config after.
+  // The effect below carries later switches to the live instance.
+  const { theme } = useTheme()
+  const isDark = theme === 'dark'
 
   const calendar = useCalendarApp({
     views: [createViewMonthGrid(), createViewWeek(), createViewDay()],
@@ -242,6 +279,11 @@ function CalendarInner({ householdTimeZone }: { householdTimeZone: string | null
   useEffect(() => {
     loadEvents()
   }, [loadEvents])
+
+  // Theme switch goes to the mounted calendar, no remount, so the date and view stay.
+  useEffect(() => {
+    calendar?.setTheme(theme)
+  }, [calendar, theme])
 
   // Keep the Schedule-X grid's month/weekday names in sync with a live language switch
   useEffect(() => {
@@ -497,25 +539,25 @@ function CalendarInner({ householdTimeZone }: { householdTimeZone: string | null
           }`}>
             <div className="flex items-center gap-2 mb-2">
               <AlertCircle className={`w-5 h-5 ${summary.overdue > 0 ? 'text-danger' : 'text-garage-text-muted'}`} />
-              <span className={`text-sm ${summary.overdue > 0 ? 'text-danger' : 'text-garage-text-muted'}`}>{t('calendar.overdue')}</span>
+              <span className={`text-sm ${summary.overdue > 0 ? 'text-garage-text' : 'text-garage-text-muted'}`}>{t('calendar.overdue')}</span>
             </div>
-            <p className={`text-2xl font-bold ${summary.overdue > 0 ? 'text-danger' : 'text-garage-text'}`}>{summary.overdue}</p>
+            <p className="text-2xl font-bold text-garage-text">{summary.overdue}</p>
           </div>
 
           <div className="bg-garage-surface border border-warning rounded-lg p-4">
             <div className="flex items-center gap-2 mb-2">
               <Clock className="w-5 h-5 text-warning" />
-              <span className="text-sm text-warning">{t('calendar.next7Days')}</span>
+              <span className="text-sm text-garage-text">{t('calendar.next7Days')}</span>
             </div>
-            <p className="text-2xl font-bold text-warning">{summary.upcoming_7_days}</p>
+            <p className="text-2xl font-bold text-garage-text">{summary.upcoming_7_days}</p>
           </div>
 
           <div className="bg-garage-surface border border-primary rounded-lg p-4">
             <div className="flex items-center gap-2 mb-2">
               <Clock className="w-5 h-5 text-(--accent-fg)" />
-              <span className="text-sm text-(--accent-fg)">{t('calendar.next30Days')}</span>
+              <span className="text-sm text-garage-text">{t('calendar.next30Days')}</span>
             </div>
-            <p className="text-2xl font-bold text-(--accent-fg)">{summary.upcoming_30_days}</p>
+            <p className="text-2xl font-bold text-garage-text">{summary.upcoming_30_days}</p>
           </div>
         </div>
 
@@ -533,12 +575,12 @@ function CalendarInner({ householdTimeZone }: { householdTimeZone: string | null
                 onClick={() => setBulkMode(!bulkMode)}
                 className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
                   bulkMode
-                    ? 'bg-primary text-(--accent-on-solid)'
+                    ? 'bg-(--accent-solid) text-(--accent-on-solid)'
                     : 'bg-garage-bg text-garage-text-muted border border-garage-border hover:border-primary'
                 }`}
               >
                 {bulkMode ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
-                <span className="hidden sm:inline">{t('calendar.bulkMode')}</span>
+                <span className="sr-only sm:not-sr-only">{t('calendar.bulkMode')}</span>
               </button>
 
               <button
@@ -546,7 +588,7 @@ function CalendarInner({ householdTimeZone }: { householdTimeZone: string | null
                 className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm bg-garage-bg text-garage-text-muted border border-garage-border hover:border-primary transition-colors"
               >
                 <Download className="w-4 h-4" />
-                <span className="hidden sm:inline">{t('calendar.exportICal')}</span>
+                <span className="sr-only sm:not-sr-only">{t('calendar.exportICal')}</span>
               </button>
             </div>
           </div>
@@ -589,7 +631,7 @@ function CalendarInner({ householdTimeZone }: { householdTimeZone: string | null
                   <button
                     onClick={handleBulkComplete}
                     disabled={selectedEvents.length === 0 || bulkCompleting}
-                    className="px-3 py-1 rounded-lg text-sm bg-success text-white hover:bg-success-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    className="px-3 py-1 rounded-lg text-sm bg-success text-on-status hover:bg-success-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
                     {bulkCompleting ? t('calendar.completing') : t('calendar.completeSelected')}
                   </button>
@@ -615,7 +657,7 @@ function CalendarInner({ householdTimeZone }: { householdTimeZone: string | null
                     onClick={() => toggleVehicle(vehicle.vin)}
                     className={`px-3 py-1 rounded-lg text-sm transition-colors ${
                       selectedVehicles.length === 0 || selectedVehicles.includes(vehicle.vin)
-                        ? 'bg-primary text-(--accent-on-solid)'
+                        ? 'bg-(--accent-solid) text-(--accent-on-solid)'
                         : 'bg-garage-bg text-garage-text-muted border border-garage-border'
                     }`}
                   >
@@ -636,7 +678,7 @@ function CalendarInner({ householdTimeZone }: { householdTimeZone: string | null
                   onClick={() => toggleEventType('maintenance')}
                   className={`px-3 py-1 rounded-lg text-sm transition-colors ${
                     selectedTypes.includes('maintenance')
-                      ? 'bg-blue-600 text-white'
+                      ? EVENT_FILTER_ON.maintenance
                       : 'bg-garage-bg text-garage-text-muted border border-garage-border'
                   }`}
                 >
@@ -646,7 +688,7 @@ function CalendarInner({ householdTimeZone }: { householdTimeZone: string | null
                   onClick={() => toggleEventType('insurance')}
                   className={`px-3 py-1 rounded-lg text-sm transition-colors ${
                     selectedTypes.includes('insurance')
-                      ? 'bg-red-600 text-white'
+                      ? EVENT_FILTER_ON.insurance
                       : 'bg-garage-bg text-garage-text-muted border border-garage-border'
                   }`}
                 >
@@ -656,7 +698,7 @@ function CalendarInner({ householdTimeZone }: { householdTimeZone: string | null
                   onClick={() => toggleEventType('warranty')}
                   className={`px-3 py-1 rounded-lg text-sm transition-colors ${
                     selectedTypes.includes('warranty')
-                      ? 'bg-amber-600 text-white'
+                      ? EVENT_FILTER_ON.warranty
                       : 'bg-garage-bg text-garage-text-muted border border-garage-border'
                   }`}
                 >
@@ -666,7 +708,7 @@ function CalendarInner({ householdTimeZone }: { householdTimeZone: string | null
                   onClick={() => setShowHistory(!showHistory)}
                   className={`px-3 py-1 rounded-lg text-sm transition-colors ${
                     showHistory
-                      ? 'bg-gray-600 text-white'
+                      ? EVENT_FILTER_ON.service
                       : 'bg-garage-bg text-garage-text-muted border border-garage-border'
                   }`}
                 >
@@ -757,23 +799,19 @@ function CalendarInner({ householdTimeZone }: { householdTimeZone: string | null
                           {event.is_recurring && <RotateCw className="w-3 h-3 text-(--accent-fg)" />}
                           {/* Phase 3: Estimated badge */}
                           {event.is_estimated && (
-                            <span className="flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-amber-500/20 text-amber-500">
+                            <span className="flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-warning text-on-status">
                               <Gauge className="w-3 h-3" />
                               {t('calendar.misc.estBadge')}
                             </span>
                           )}
                           {/* Phase 3: Mileage badge */}
                           {event.due_mileage_km && (
-                            <span className="flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-blue-500/20 text-blue-500">
+                            <span className="flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-(--accent-soft) text-(--accent-fg)">
                               <Gauge className="w-3 h-3" />
                               {formatFor(event.vehicle_distance_unit).distance.formatPrimary(parseFloat(event.due_mileage_km))}
                             </span>
                           )}
-                          <span className={`text-xs font-medium uppercase ${
-                            event.type === 'insurance' ? 'text-red-500' :
-                            event.type === 'warranty' ? 'text-amber-500' :
-                            'text-blue-500'
-                          }`}>
+                          <span className={`text-xs font-medium uppercase px-1.5 py-0.5 rounded ${eventChip(event.type)}`}>
                             {t(EVENT_TYPE_KEYS[event.type] ?? EVENT_TYPE_FALLBACK_KEY)}
                           </span>
                         </div>
@@ -787,11 +825,11 @@ function CalendarInner({ householdTimeZone }: { householdTimeZone: string | null
                           <div className="flex flex-wrap gap-1.5 mt-1.5">
                             {event.status && (
                               <span className={`text-xs px-1.5 py-0.5 rounded ${
-                                event.status === 'overdue' ? 'bg-danger/20 text-danger' :
-                                event.status === 'due_soon' ? 'bg-warning/20 text-warning' :
-                                event.status === 'snoozed' ? 'bg-garage-bg text-garage-text-muted' :
-                                event.status === 'never_performed' ? 'bg-purple-500/20 text-purple-400' :
-                                'bg-success/20 text-success'
+                                event.status === 'overdue' ? 'bg-danger text-on-status' :
+                                event.status === 'due_soon' ? 'bg-warning text-on-status' :
+                                event.status === 'snoozed' ? 'bg-badge-bg text-badge-tx' :
+                                event.status === 'never_performed' ? 'bg-(--accent-soft) text-(--accent-fg)' :
+                                'bg-success text-on-status'
                               }`}>
                                 {event.status === 'due_soon' ? t('calendar.misc.statusDueSoon') :
                                  event.status === 'snoozed' ? t('calendar.misc.statusSnoozed') :
@@ -812,9 +850,9 @@ function CalendarInner({ householdTimeZone }: { householdTimeZone: string | null
                               const displayValue = distance.toDisplay(km) ?? 0
                               return (
                                 <span className={`text-xs px-1.5 py-0.5 rounded ${
-                                  displayValue <= 0 ? 'bg-danger/20 text-danger' :
-                                  displayValue <= warnThresholdInDisplay ? 'bg-warning/20 text-warning' :
-                                  'bg-garage-bg text-garage-text-muted'
+                                  displayValue <= 0 ? 'bg-danger text-on-status' :
+                                  displayValue <= warnThresholdInDisplay ? 'bg-warning text-on-status' :
+                                  'bg-badge-bg text-badge-tx'
                                 }`}>
                                   {displayValue <= 0
                                     ? t('calendar.misc.distanceOver', { distance: distance.formatPrimary(Math.abs(km)) })
@@ -865,20 +903,21 @@ function CalendarInner({ householdTimeZone }: { householdTimeZone: string | null
         <div className="mt-6 bg-garage-surface border border-garage-border rounded-lg p-4">
           <h3 className="text-sm font-medium text-garage-text mb-3">{t('calendar.legend')}</h3>
           <div className="flex flex-wrap gap-4">
+            {/* Each swatch is a tiny event block: tinted fill, coloured edge. */}
             <div className="flex items-center gap-2">
-              <div className="w-4 h-4 bg-blue-600 rounded"></div>
+              <div className={`w-4 h-4 rounded-sm ${EVENT_SWATCH.maintenance}`}></div>
               <span className="text-sm text-garage-text">{t('calendar.misc.legendMaintenance')}</span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-4 h-4 bg-red-600 rounded"></div>
+              <div className={`w-4 h-4 rounded-sm ${EVENT_SWATCH.insurance}`}></div>
               <span className="text-sm text-garage-text">{t('calendar.misc.legendInsurance')}</span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-4 h-4 bg-amber-600 rounded"></div>
+              <div className={`w-4 h-4 rounded-sm ${EVENT_SWATCH.warranty}`}></div>
               <span className="text-sm text-garage-text">{t('calendar.misc.legendWarranty')}</span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-4 h-4 bg-gray-600 rounded opacity-60"></div>
+              <div className={`w-4 h-4 rounded-sm ${EVENT_SWATCH.service}`}></div>
               <span className="text-sm text-garage-text">{t('serviceList.title')}</span>
             </div>
             <div className="flex items-center gap-2">
@@ -887,7 +926,7 @@ function CalendarInner({ householdTimeZone }: { householdTimeZone: string | null
             </div>
             {/* Phase 3: New legend items */}
             <div className="flex items-center gap-2">
-              <span className="flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-amber-500/20 text-amber-500">
+              <span className="flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-warning text-on-status">
                 <Gauge className="w-3 h-3" />
                 {t('calendar.misc.estBadge')}
               </span>
@@ -901,99 +940,78 @@ function CalendarInner({ householdTimeZone }: { householdTimeZone: string | null
         </div>
       </div>
 
-      {/* Phase 3: Notes Modal */}
-      {showNotesModal && selectedEventForNotes && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 modal-safe-pad">
-          <div className="bg-garage-surface border border-garage-border rounded-lg max-w-2xl w-full max-h-[min(80vh,100%)] overflow-auto">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-xl font-bold text-garage-text">{t('calendar.eventNotes')}</h3>
-                <button
-                  onClick={() => setShowNotesModal(false)}
-                  className="p-1 hover:bg-garage-bg rounded transition-colors"
-                >
-                  <X className="w-5 h-5 text-garage-text-muted" />
-                </button>
-              </div>
-
-              <div className="space-y-4">
-                {/* Event details */}
-                <div>
-                  <h4 className="text-sm font-medium text-garage-text-muted mb-2">{t('calendar.misc.eventLabel')}</h4>
-                  <div className="bg-garage-bg border border-garage-border rounded-lg p-3">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className={`text-xs font-medium uppercase px-2 py-1 rounded ${
-                        selectedEventForNotes.type === 'insurance' ? 'bg-red-500/20 text-red-500' :
-                        selectedEventForNotes.type === 'warranty' ? 'bg-amber-500/20 text-amber-500' :
-                        'bg-blue-500/20 text-blue-500'
-                      }`}>
-                        {t(EVENT_TYPE_KEYS[selectedEventForNotes.type] ?? EVENT_TYPE_FALLBACK_KEY)}
-                      </span>
-                      {selectedEventForNotes.is_recurring && (
-                        <RotateCw className="w-3 h-3 text-(--accent-fg)" />
-                      )}
-                      {selectedEventForNotes.is_estimated && (
-                        <span className="flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-amber-500/20 text-amber-500">
-                          <Gauge className="w-3 h-3" />
-                          {t('calendar.misc.estBadge')}
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-lg font-medium text-garage-text mb-1">
-                      {selectedEventForNotes.title}
-                    </p>
-                    <p className="text-sm text-garage-text-muted">
-                      {selectedEventForNotes.vehicle_nickname} • {formatDate(selectedEventForNotes.date)}
-                    </p>
-                    {selectedEventForNotes.due_mileage_km && (
-                      <p className="text-sm text-garage-text-muted mt-2">
-                        {t('calendar.misc.dueAt', {
-                          distance: formatFor(selectedEventForNotes.vehicle_distance_unit).distance.formatPrimary(
-                            parseFloat(selectedEventForNotes.due_mileage_km)
-                          ),
-                        })}
-                      </p>
-                    )}
-                    {treadLine(selectedEventForNotes) && (
-                      <p className="text-sm text-garage-text-muted mt-2">{treadLine(selectedEventForNotes)}</p>
-                    )}
-                  </div>
+      {/* Phase 3: Notes, in a side drawer. It stays mounted so the close slides out. */}
+      <Drawer
+        open={showNotesModal && selectedEventForNotes !== null}
+        onClose={() => setShowNotesModal(false)}
+        title={t('calendar.eventNotes')}
+        closeLabel={t('calendar.misc.close')}
+        width="sm"
+      >
+        {selectedEventForNotes && (
+          <div className="space-y-4">
+            {/* Event details */}
+            <div>
+              <h4 className="text-sm font-medium text-garage-text-muted mb-2">{t('calendar.misc.eventLabel')}</h4>
+              <div className="bg-garage-bg border border-garage-border rounded-lg p-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className={`text-xs font-medium uppercase px-2 py-1 rounded ${eventChip(selectedEventForNotes.type)}`}>
+                    {t(EVENT_TYPE_KEYS[selectedEventForNotes.type] ?? EVENT_TYPE_FALLBACK_KEY)}
+                  </span>
+                  {selectedEventForNotes.is_recurring && (
+                    <RotateCw className="w-3 h-3 text-(--accent-fg)" />
+                  )}
+                  {selectedEventForNotes.is_estimated && (
+                    <span className="flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-warning text-on-status">
+                      <Gauge className="w-3 h-3" />
+                      {t('calendar.misc.estBadge')}
+                    </span>
+                  )}
                 </div>
-
-                {/* Notes content */}
-                <div>
-                  <h4 className="text-sm font-medium text-garage-text-muted mb-2">{t('noteList.title')}</h4>
-                  <div className="bg-garage-bg border border-garage-border rounded-lg p-4">
-                    <p className="text-garage-text whitespace-pre-wrap">
-                      {selectedEventForNotes.notes || t('calendar.misc.noNotes')}
-                    </p>
-                  </div>
-                </div>
-
-                {selectedEventForNotes.description && (
-                  <div>
-                    <h4 className="text-sm font-medium text-garage-text-muted mb-2">{t('documentList.descriptionLabel')}</h4>
-                    <div className="bg-garage-bg border border-garage-border rounded-lg p-4">
-                      <p className="text-garage-text whitespace-pre-wrap">
-                        {selectedEventForNotes.description}
-                      </p>
-                    </div>
-                  </div>
+                <p className="text-lg font-medium text-garage-text mb-1">
+                  {selectedEventForNotes.title}
+                </p>
+                <p className="text-sm text-garage-text-muted">
+                  {selectedEventForNotes.vehicle_nickname} • {formatDate(selectedEventForNotes.date)}
+                </p>
+                {selectedEventForNotes.due_mileage_km && (
+                  <p className="text-sm text-garage-text-muted mt-2">
+                    {t('calendar.misc.dueAt', {
+                      distance: formatFor(selectedEventForNotes.vehicle_distance_unit).distance.formatPrimary(
+                        parseFloat(selectedEventForNotes.due_mileage_km)
+                      ),
+                    })}
+                  </p>
+                )}
+                {treadLine(selectedEventForNotes) && (
+                  <p className="text-sm text-garage-text-muted mt-2">{treadLine(selectedEventForNotes)}</p>
                 )}
               </div>
+            </div>
 
-              <div className="mt-6 flex justify-end">
-                <button
-                  onClick={() => setShowNotesModal(false)}
-                  className="px-4 py-2 bg-primary text-(--accent-on-solid) rounded-lg hover:bg-primary-600 transition-colors"
-                >
-                  {t('calendar.misc.close')}
-                </button>
+            {/* Notes content */}
+            <div>
+              <h4 className="text-sm font-medium text-garage-text-muted mb-2">{t('noteList.title')}</h4>
+              <div className="bg-garage-bg border border-garage-border rounded-lg p-4">
+                <p className="text-garage-text whitespace-pre-wrap">
+                  {selectedEventForNotes.notes || t('calendar.misc.noNotes')}
+                </p>
               </div>
             </div>
+
+            {selectedEventForNotes.description && (
+              <div>
+                <h4 className="text-sm font-medium text-garage-text-muted mb-2">{t('documentList.descriptionLabel')}</h4>
+                <div className="bg-garage-bg border border-garage-border rounded-lg p-4">
+                  <p className="text-garage-text whitespace-pre-wrap">
+                    {selectedEventForNotes.description}
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
-        </div>
-      )}
+        )}
+      </Drawer>
     </div>
   )
 }

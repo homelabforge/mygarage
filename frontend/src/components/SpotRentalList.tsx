@@ -12,7 +12,7 @@ import BillingEntryForm from './BillingEntryForm'
 import api from '../services/api'
 import { getActionErrorMessage } from '../utils/httpErrorHandler'
 import { useSpotRentals, useDeleteSpotRental } from '../hooks/queries/useSpotRentals'
-import { Button, IconButton, Chip, Mono, EmptyState } from './ui'
+import { Button, IconButton, Chip, Mono, EmptyState, useConfirm } from './ui'
 
 interface SpotRentalListProps {
   vin: string
@@ -20,6 +20,7 @@ interface SpotRentalListProps {
 
 export default function SpotRentalList({ vin }: SpotRentalListProps) {
   const { t } = useTranslation('vehicles')
+  const confirm = useConfirm()
   const queryClient = useQueryClient()
   const { currencyCode, locale } = useCurrencyPreference()
   const { data, isLoading, error } = useSpotRentals(vin)
@@ -43,8 +44,8 @@ export default function SpotRentalList({ vin }: SpotRentalListProps) {
     setShowForm(true)
   }
 
-  const handleDelete = async (id: number) => {
-    if (!confirm(t('spotRentalList.confirmDelete'))) {
+  const handleDelete = async (id: number): Promise<void> => {
+    if (!(await confirm({ message: t('spotRentalList.confirmDelete'), confirmLabel: t('common:delete') }))) {
       return
     }
 
@@ -79,8 +80,8 @@ export default function SpotRentalList({ vin }: SpotRentalListProps) {
     setShowBillingForm(true)
   }
 
-  const handleDeleteBilling = async (rentalId: number, billingId: number) => {
-    if (!confirm(t('spotRentalList.confirmDeleteBilling'))) {
+  const handleDeleteBilling = async (rentalId: number, billingId: number): Promise<void> => {
+    if (!(await confirm({ message: t('spotRentalList.confirmDeleteBilling'), confirmLabel: t('common:delete') }))) {
       return
     }
 
@@ -233,7 +234,7 @@ export default function SpotRentalList({ vin }: SpotRentalListProps) {
                       variant="danger"
                       size="sm"
                       disabled={deleteRental.isPending && deleteRental.variables === rental.id}
-                      onClick={() => handleDelete(rental.id)}
+                      onClick={() => void handleDelete(rental.id)}
                     />
                   </div>
                 </div>
@@ -363,7 +364,7 @@ export default function SpotRentalList({ vin }: SpotRentalListProps) {
                           <Mono size="xs" weight="semibold">{formatDateForDisplay(billing.billing_date)}</Mono>
                           <div className="flex gap-1">
                             <IconButton icon={Edit} label={t('spotRentalList.editBilling')} variant="ghost" size="sm" onClick={() => handleEditBilling(rental.id, billing)} />
-                            <IconButton icon={Trash2} label={t('spotRentalList.deleteBilling')} variant="danger" size="sm" onClick={() => handleDeleteBilling(rental.id, billing.id)} />
+                            <IconButton icon={Trash2} label={t('spotRentalList.deleteBilling')} variant="danger" size="sm" onClick={() => void handleDeleteBilling(rental.id, billing.id)} />
                           </div>
                         </div>
                         <div className="grid grid-cols-5 gap-2">

@@ -2,12 +2,12 @@
  * Bulk archive modal — archive multiple vehicles with shared metadata.
  */
 
-import { useState } from 'react'
+import { useId, useState, type ReactElement } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Archive, Eye, EyeOff } from 'lucide-react'
 import { toast } from 'sonner'
 import api from '@/services/api'
-import { NumberInput, Select } from '@/components/ui'
+import { Button, Dialog, NumberInput, Select } from '@/components/ui'
 import { moneyTextError } from '@/schemas/shared'
 import { parseOptionalDecimal } from '@/utils/decimalInput'
 
@@ -23,8 +23,9 @@ interface BulkArchiveModalProps {
   onConfirm: () => void
 }
 
-export default function BulkArchiveModal({ isOpen, vins, onClose, onConfirm }: BulkArchiveModalProps) {
+export default function BulkArchiveModal({ isOpen, vins, onClose, onConfirm }: BulkArchiveModalProps): ReactElement | null {
   const { t } = useTranslation('forms')
+  const descriptionId = useId()
   const [loading, setLoading] = useState(false)
   const [archiveReason, setArchiveReason] = useState<ArchiveReason>('Sold')
   const [salePrice, setSalePrice] = useState('')
@@ -87,130 +88,117 @@ export default function BulkArchiveModal({ isOpen, vins, onClose, onConfirm }: B
   const showFinancialFields = showsSaleFields(archiveReason)
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 modal-safe-pad">
-      <div className="bg-garage-surface border border-garage-border rounded-lg max-w-lg w-full max-h-[min(90vh,100%)] overflow-y-auto">
-        <div className="p-6 space-y-4">
-          <div className="flex items-center gap-3">
-            <div className="rounded-full bg-primary/10 p-2">
-              <Archive className="h-5 w-5 text-(--accent-fg)" />
+    <Dialog
+      open={isOpen}
+      onClose={handleClose}
+      title={t('modal.bulkArchiveTitle')}
+      describedBy={descriptionId}
+      size="lg"
+      footer={
+        <>
+          <Button variant="secondary" data-dialog-cancel onClick={handleClose} disabled={loading}>
+            {t('common:cancel')}
+          </Button>
+          <Button variant="primary" icon={Archive} onClick={handleArchive} disabled={loading}>
+            {loading ? t('modal.archiving') : t('modal.bulkArchiveAction', { count: vins.length })}
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <p id={descriptionId} className="text-sm text-garage-text-muted">
+          {t('modal.bulkArchiveDescription', { count: vins.length })}
+        </p>
+
+        <div>
+          <label className="block text-sm font-medium text-garage-text mb-2">
+            {t('modal.reason')} <span className="text-danger">*</span>
+          </label>
+          <Select
+            value={archiveReason}
+            onChange={(e) => setArchiveReason(e.target.value as ArchiveReason)}
+            options={[
+              { value: 'Sold', label: t('modal.remove.reasonSold') },
+              { value: 'Totaled', label: t('modal.remove.reasonTotaled') },
+              { value: 'Gifted', label: t('modal.remove.reasonGifted') },
+              { value: 'Trade-in', label: t('modal.remove.reasonTradeIn') },
+              { value: 'Other', label: t('modal.remove.reasonOther') },
+            ]}
+          />
+        </div>
+
+        {showFinancialFields && (
+          <>
+            <div>
+              <label htmlFor="bulk-archive-sale-price" className="block text-sm font-medium text-garage-text mb-2">
+                {archiveReason === 'Sold' ? t('modal.salePrice') : t('modal.tradeInValue')} ({t('common:optional')})
+              </label>
+              <NumberInput
+                id="bulk-archive-sale-price"
+                value={salePrice}
+                onChange={(e) => {
+                  setSalePrice(e.target.value)
+                  setSalePriceError(undefined)
+                }}
+                placeholder="25000"
+                invalid={!!salePriceError}
+                aria-describedby={salePriceError ? 'bulk-archive-sale-price-error' : undefined}
+              />
+              {salePriceError && (
+                <p id="bulk-archive-sale-price-error" role="alert" className="mt-1 text-xs text-danger">
+                  {salePriceError}
+                </p>
+              )}
             </div>
             <div>
-              <h2 className="text-xl font-bold text-garage-text">{t('modal.bulkArchiveTitle')}</h2>
-              <p className="text-sm text-garage-text-muted">
-                {t('modal.bulkArchiveDescription', { count: vins.length })}
-              </p>
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-garage-text mb-2">
-              {t('modal.reason')} <span className="text-danger">*</span>
-            </label>
-            <Select
-              value={archiveReason}
-              onChange={(e) => setArchiveReason(e.target.value as ArchiveReason)}
-              options={[
-                { value: 'Sold', label: t('modal.remove.reasonSold') },
-                { value: 'Totaled', label: t('modal.remove.reasonTotaled') },
-                { value: 'Gifted', label: t('modal.remove.reasonGifted') },
-                { value: 'Trade-in', label: t('modal.remove.reasonTradeIn') },
-                { value: 'Other', label: t('modal.remove.reasonOther') },
-              ]}
-            />
-          </div>
-
-          {showFinancialFields && (
-            <>
-              <div>
-                <label htmlFor="bulk-archive-sale-price" className="block text-sm font-medium text-garage-text mb-2">
-                  {archiveReason === 'Sold' ? t('modal.salePrice') : t('modal.tradeInValue')} ({t('common:optional')})
-                </label>
-                <NumberInput
-                  id="bulk-archive-sale-price"
-                  value={salePrice}
-                  onChange={(e) => {
-                    setSalePrice(e.target.value)
-                    setSalePriceError(undefined)
-                  }}
-                  placeholder="25000"
-                  invalid={!!salePriceError}
-                  aria-describedby={salePriceError ? 'bulk-archive-sale-price-error' : undefined}
-                />
-                {salePriceError && (
-                  <p id="bulk-archive-sale-price-error" role="alert" className="mt-1 text-xs text-danger">
-                    {salePriceError}
-                  </p>
-                )}
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-garage-text mb-2">
-                  {archiveReason === 'Sold' ? t('modal.saleDate') : t('modal.tradeInDate')} ({t('common:optional')})
-                </label>
-                <input
-                  type="date"
-                  value={saleDate}
-                  onChange={(e) => setSaleDate(e.target.value)}
-                  className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-lg text-garage-text focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-              </div>
-            </>
-          )}
-
-          <div>
-            <label className="block text-sm font-medium text-garage-text mb-2">
-              {t('common:notes')} ({t('common:optional')})
-            </label>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder={t('modal.archiveNotesPlaceholder')}
-              rows={3}
-              maxLength={1000}
-              className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-lg text-garage-text focus:outline-none focus:ring-2 focus:ring-primary resize-none"
-            />
-          </div>
-
-          <div className="p-4 bg-garage-bg border border-garage-border rounded-lg">
-            <label className="flex items-center gap-3 cursor-pointer">
+              <label className="block text-sm font-medium text-garage-text mb-2">
+                {archiveReason === 'Sold' ? t('modal.saleDate') : t('modal.tradeInDate')} ({t('common:optional')})
+              </label>
               <input
-                type="checkbox"
-                checked={visible}
-                onChange={(e) => setVisible(e.target.checked)}
-                className="w-4 h-4 accent-(--accent-solid) bg-garage-bg border-garage-border rounded focus:ring-primary focus:ring-2"
+                type="date"
+                value={saleDate}
+                onChange={(e) => setSaleDate(e.target.value)}
+                className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-lg text-garage-text focus:outline-none focus:ring-2 focus:ring-primary"
               />
-              <div className="flex items-center gap-2">
-                {visible ? (
-                  <Eye className="w-4 h-4 text-(--accent-fg)" />
-                ) : (
-                  <EyeOff className="w-4 h-4 text-garage-text-muted" />
-                )}
-                <span className="text-sm font-medium text-garage-text">
-                  {t('modal.showInMainList')}
-                </span>
-              </div>
-            </label>
-          </div>
+            </div>
+          </>
+        )}
 
-          <div className="flex justify-end gap-2 pt-2">
-            <button
-              type="button"
-              onClick={handleClose}
-              disabled={loading}
-              className="rounded-lg border border-garage-border px-4 py-2 text-sm text-garage-text"
-            >
-              {t('common:cancel')}
-            </button>
-            <button
-              type="button"
-              onClick={handleArchive}
-              disabled={loading}
-              className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-(--accent-on-solid) disabled:opacity-50"
-            >
-              {loading ? t('modal.archiving') : t('modal.bulkArchiveAction', { count: vins.length })}
-            </button>
-          </div>
+        <div>
+          <label className="block text-sm font-medium text-garage-text mb-2">
+            {t('common:notes')} ({t('common:optional')})
+          </label>
+          <textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder={t('modal.archiveNotesPlaceholder')}
+            rows={3}
+            maxLength={1000}
+            className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-lg text-garage-text focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+          />
+        </div>
+
+        <div className="p-4 bg-garage-bg border border-garage-border rounded-lg">
+          <label className="flex items-center gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={visible}
+              onChange={(e) => setVisible(e.target.checked)}
+              className="w-4 h-4 accent-(--accent-solid) bg-garage-bg border-garage-border rounded focus:ring-primary focus:ring-2"
+            />
+            <div className="flex items-center gap-2">
+              {visible ? (
+                <Eye className="w-4 h-4 text-(--accent-fg)" />
+              ) : (
+                <EyeOff className="w-4 h-4 text-garage-text-muted" />
+              )}
+              <span className="text-sm font-medium text-garage-text">
+                {t('modal.showInMainList')}
+              </span>
+            </div>
+          </label>
         </div>
       </div>
-    </div>
+    </Dialog>
   )
 }

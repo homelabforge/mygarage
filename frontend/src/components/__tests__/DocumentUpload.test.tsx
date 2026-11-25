@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '../../__tests__/test-utils'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { fireEvent, render, screen } from '../../__tests__/test-utils'
 import userEvent from '@testing-library/user-event'
 
 const uploadMock = vi.fn().mockResolvedValue({})
@@ -149,5 +149,51 @@ describe('DocumentUpload: the size cap (B5-7)', () => {
     await user.upload(fileInput(), new File([new Uint8Array(1024 * 1024 + 1)], 'big.pdf', { type: 'application/pdf' }))
 
     expect(screen.queryByText('documentUpload.misc.fileTooLargeLimit')).not.toBeInTheDocument()
+  })
+})
+
+describe('DocumentUpload as a dialog', () => {
+  let root: HTMLElement
+  beforeEach(() => {
+    root = document.body.appendChild(document.createElement('div'))
+    root.id = 'root'
+  })
+  afterEach(() => root.remove())
+
+  it('is a named dialog outside #root', () => {
+    render(<DocumentUpload vin="V1" onSuccess={vi.fn()} onClose={vi.fn()} />, { container: root })
+    const dialog = screen.getByRole('dialog', { name: 'documentUpload.title' })
+    expect(root.contains(dialog)).toBe(false)
+  })
+
+  it('Upload sits in the footer, outside the form, and still belongs to it', () => {
+    // The tests above submit by clicking it, so a lost form= stops them uploading.
+    render(<DocumentUpload vin="V1" onSuccess={vi.fn()} onClose={vi.fn()} />, { container: root })
+    const upload = screen.getByRole('button', { name: 'documentUpload.uploadBtn' }) as HTMLButtonElement
+    expect(upload.closest('form')).toBeNull()
+    expect(upload.form?.id).toBe('document-upload-form')
+  })
+})
+
+describe('DocumentUpload mid-upload', () => {
+  it('Escape and Cancel leave it open until the upload lands', async () => {
+    let finish: (value: unknown) => void = () => {}
+    uploadMock.mockReturnValueOnce(new Promise((resolve) => { finish = resolve }))
+    const user = userEvent.setup({ applyAccept: false })
+    const onSuccess = vi.fn(); const onClose = vi.fn()
+    render(<DocumentUpload vin="V1" onSuccess={onSuccess} onClose={onClose} />)
+    await user.upload(fileInput(), new File(['%PDF-1.4'], 'policy.pdf', { type: 'application/pdf' }))
+    await user.click(screen.getByRole('button', { name: 'documentUpload.uploadBtn' }))
+    await vi.waitFor(() => expect(uploadMock).toHaveBeenCalledTimes(1))
+
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' })
+    const cancel = screen.getByRole('button', { name: 'common:cancel' })
+    expect(cancel).toBeDisabled()
+    fireEvent.click(cancel)
+    expect(onClose).not.toHaveBeenCalled()
+
+    finish({})
+    await vi.waitFor(() => expect(onSuccess).toHaveBeenCalledTimes(1))
+    expect(onClose).toHaveBeenCalledTimes(1)
   })
 })

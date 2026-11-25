@@ -48,6 +48,7 @@ vi.mock('@/utils/parseAPITimestamp', () => ({ formatAPITimestamp: () => '2026-07
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 
 import LiveLinkDTCsTab from '../LiveLinkDTCsTab'
+import { answerConfirm } from '../../../__tests__/confirmHelpers'
 
 // B2 + M1: three DISTINCT states so active-critical, active-info and cleared are never conflated —
 // contract-valid typed builders (`satisfies VehicleDTC`, all required fields incl. `vin`/`device_id`/
@@ -129,20 +130,20 @@ describe('LiveLinkDTCsTab — rendering + status markers', () => {
   })
 })
 
-describe('LiveLinkDTCsTab — clear DTC (native confirm, LD5)', () => {
+describe('LiveLinkDTCsTab: clear DTC (in-app confirm, LD5)', () => {
   it('clear accepted → clearVehicleDTC(vin, id) fires (fails if the id is wrong or the mutation unwired)', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
     render(<LiveLinkDTCsTab vin="V1" />)
     await screen.findByText('P0301')
     fireEvent.click(screen.getByRole('button', { name: 'livelink.dtcs.markAsCleared' }))
+    await answerConfirm('confirm', 'livelink.dtcs.confirmClear P0301')
     await waitFor(() => expect(clearVehicleDTC.mock.calls).toStrictEqual([['V1', 42]])) // M1: exact identity (vin, id)
   })
 
   it('clear rejected → clearVehicleDTC is NOT called (fails if the confirm gate is dropped, D16)', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(false)
     render(<LiveLinkDTCsTab vin="V1" />)
     await screen.findByText('P0301')
     fireEvent.click(screen.getByRole('button', { name: 'livelink.dtcs.markAsCleared' }))
+    await answerConfirm('cancel', 'livelink.dtcs.confirmClear P0301')
     expect(clearVehicleDTC.mock.calls).toStrictEqual([]) // M1: exact — NO call fired
   })
 })

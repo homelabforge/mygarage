@@ -159,6 +159,40 @@ describe('Drawer', () => {
     expect(document.activeElement).toBe(saveButton)
   })
 
+  it('Shift+Tab and Tab from the panel itself stay inside', () => {
+    // Calendar notes has nothing to focus in its body, so focus parks on the
+    // panel. Shift+Tab from there used to fall straight out of the drawer.
+    render(
+      <Drawer open onClose={() => {}} title="Notes" footer={<button>Done</button>}>
+        <p>Just text.</p>
+      </Drawer>,
+    )
+    const panel = screen.getByTestId('drawer')
+    expect(document.activeElement).toBe(panel)
+    expect(fireEvent.keyDown(panel, { key: 'Tab', shiftKey: true })).toBe(false)
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Done' }))
+    panel.focus()
+    expect(fireEvent.keyDown(panel, { key: 'Tab' })).toBe(false)
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Close' }))
+  })
+
+  it('wraps at the last control that is actually there, not a hidden file input', () => {
+    // An upload with no file picked yet: the display:none input comes last.
+    render(
+      <Drawer open onClose={() => {}} title="Upload">
+        <button>Choose file</button>
+        <input type="file" aria-label="File" style={{ display: 'none' }} />
+      </Drawer>,
+    )
+    const close = screen.getByRole('button', { name: 'Close' })
+    const choose = screen.getByRole('button', { name: 'Choose file' })
+    close.focus()
+    fireEvent.keyDown(close, { key: 'Tab', shiftKey: true })
+    expect(document.activeElement).toBe(choose)
+    fireEvent.keyDown(choose, { key: 'Tab' })
+    expect(document.activeElement).toBe(close)
+  })
+
   it('stays mounted through the closing transition, then unmounts once it ends', () => {
     // The component used to return null in the same render that flipped
     // `open` false, so React tore down the DOM synchronously and the exit
@@ -543,10 +577,73 @@ describe('Drawer — nested overlay', () => {
         <Drawer open nested onClose={childClose} title="Child">c</Drawer>
       </>
     )
-    // Dispatch from inside the child so the capture-phase listener runs first,
-    // matching a real keypress on a focused field in the child panel.
+    // Dispatch from inside the child, like a real keypress on a focused field.
+    // The modal stack routes Escape to the top layer by rank, and nested wins.
     fireEvent.keyDown(screen.getByRole('dialog', { name: 'Child' }), { key: 'Escape' })
     expect(childClose).toHaveBeenCalledOnce()
     expect(parentClose).not.toHaveBeenCalled()
+  })
+})
+
+describe('Drawer: on the way out', () => {
+  it('goes inert the moment it starts closing, and its backdrop eats a stray second click', () => {
+    const onChildClose = vi.fn()
+    const ui = (childOpen: boolean): ReactElement => (
+      <Drawer open onClose={() => {}} title="Family">
+        <button>Add user</button>
+        <Drawer
+          open={childOpen}
+          nested
+          onClose={onChildClose}
+          title="Add user"
+          footer={<button type="submit" form="add-user-form">Create</button>}
+        >
+          <form id="add-user-form">
+            <input aria-label="Username" />
+          </form>
+        </Drawer>
+      </Drawer>
+    )
+    const { rerender } = render(ui(false))
+    const trigger = screen.getByRole('button', { name: 'Add user' })
+    trigger.focus()
+    rerender(ui(true))
+    const child = screen.getByRole('dialog', { name: 'Add user' })
+    const childBackdrop = screen.getAllByTestId('drawer-backdrop').find((el) => el.classList.contains('z-drawer-nested-backdrop'))!
+    const username = screen.getByRole('textbox', { name: 'Username' })
+    fireEvent.change(username, { target: { value: 'half-typed' } })
+    expect(document.activeElement).toBe(username)
+    expect(child).not.toHaveAttribute('inert')
+
+    // Cancel. The child is still mounted and sliding out.
+    rerender(ui(false))
+    expect(child.isConnected).toBe(true)
+    expect(child).toHaveAttribute('inert')
+    expect(child).toHaveClass('pointer-events-none')
+    // The backdrop has nothing to protect, so it stays hit-testable and soaks
+    // up the second click of a double-click instead of letting it through to
+    // whatever's underneath. That click is a no-op, not a second close.
+    expect(childBackdrop).not.toHaveAttribute('inert')
+    expect(childBackdrop).not.toHaveClass('pointer-events-none')
+    fireEvent.click(childBackdrop)
+    expect(onChildClose).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'Create' }).closest('[inert]')).toBe(child)
+    // Focus went back to the trigger in the live parent, not left in the dying form.
+    expect(document.activeElement).toBe(trigger)
+    expect(trigger.closest('[inert]')).toBeNull()
+
+    fireEvent.transitionEnd(child)
+    expect(child.isConnected).toBe(false)
+  })
+
+  it('drops the inert again if it reopens mid-exit', () => {
+    const { rerender } = render(<Drawer open onClose={() => {}} title="Add Fuel"><input aria-label="Litres" /></Drawer>)
+    const panel = screen.getByTestId('drawer')
+    rerender(<Drawer open={false} onClose={() => {}} title="Add Fuel"><input aria-label="Litres" /></Drawer>)
+    expect(panel).toHaveAttribute('inert')
+    rerender(<Drawer open onClose={() => {}} title="Add Fuel"><input aria-label="Litres" /></Drawer>)
+    expect(panel).not.toHaveAttribute('inert')
+    expect(panel).not.toHaveClass('pointer-events-none')
+    expect(screen.getByTestId('drawer-backdrop')).not.toHaveAttribute('inert')
   })
 })

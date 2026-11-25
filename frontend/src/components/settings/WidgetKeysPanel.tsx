@@ -9,7 +9,7 @@ import {
   useWidgetKeys,
 } from '@/hooks/queries/useWidgetKeys'
 import { parseAPITimestamp } from '@/utils/parseAPITimestamp'
-import { Badge } from '@/components/ui'
+import { Badge, CardHeader } from '@/components/ui'
 import CreateWidgetKeyModal from '../modals/CreateWidgetKeyModal'
 import type { WidgetKeySummary } from '@/types/widgetKey'
 
@@ -57,28 +57,24 @@ export default function WidgetKeysPanel(): React.ReactElement {
 
   return (
     <section className="space-y-4 rounded-lg border border-garage-border bg-garage-surface p-6">
-      <header className="flex items-start justify-between gap-4">
-        <div className="flex items-start gap-3">
-          <Key className="mt-0.5 h-5 w-5 text-garage-text-muted" />
-          <div>
-            <h3 className="text-base font-semibold text-garage-text">
-              {t('widgetKeys.panel.title')}
-            </h3>
-            <p className="mt-0.5 text-sm text-garage-text-muted">
-              {t('widgetKeys.panel.description')}
-            </p>
-          </div>
-        </div>
-        <button
-          type="button"
-          onClick={() => setModalOpen(true)}
-          disabled={disabledByAuthMode}
-          className="btn btn-primary inline-flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <Plus className="h-4 w-4" />
-          {t('widgetKeys.panel.newKey')}
-        </button>
-      </header>
+      {/* Same header as the IntegrationCards below it, accent icon and all. */}
+      <CardHeader
+        title={t('widgetKeys.panel.title')}
+        description={t('widgetKeys.panel.description')}
+        icon={Key}
+        iconPosition="leading"
+        actions={
+          <button
+            type="button"
+            onClick={() => setModalOpen(true)}
+            disabled={disabledByAuthMode}
+            className="btn btn-primary inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Plus className="h-4 w-4" />
+            {t('widgetKeys.panel.newKey')}
+          </button>
+        }
+      />
 
       {disabledByAuthMode ? (
         <div className="flex items-start gap-3 rounded-lg border border-warning-500/40 bg-warning-500/10 p-4 text-sm text-warning-500">

@@ -6,7 +6,7 @@ import { toast } from 'sonner'
 import type { HoursRecord, HoursSource } from '../types/hours'
 import { useHoursRecords, useDeleteHoursRecord } from '../hooks/queries/useHoursRecords'
 import { getActionErrorMessage } from '../utils/httpErrorHandler'
-import { Button, IconButton, Card, Mono, DataTable, EmptyState } from './ui'
+import { Button, IconButton, Card, Mono, DataTable, EmptyState, useConfirm } from './ui'
 import type { DataTableColumn } from './ui'
 
 interface HoursRecordListProps {
@@ -24,6 +24,7 @@ interface HoursRecordListProps {
  */
 export default function HoursRecordList({ vin, onAddClick, onEditClick }: HoursRecordListProps) {
   const { t } = useTranslation('vehicles')
+  const confirm = useConfirm()
 
   const { data, isLoading, error } = useHoursRecords(vin)
   const deleteMutation = useDeleteHoursRecord(vin)
@@ -33,8 +34,8 @@ export default function HoursRecordList({ vin, onAddClick, onEditClick }: HoursR
     ? (typeof data.latest_engine_hours === 'string' ? parseFloat(data.latest_engine_hours) : data.latest_engine_hours)
     : null
 
-  const handleDelete = (recordId: number) => {
-    if (!confirm(t('hoursList.confirmDelete'))) {
+  const handleDelete = async (recordId: number): Promise<void> => {
+    if (!(await confirm({ message: t('hoursList.confirmDelete'), confirmLabel: t('common:delete') }))) {
       return
     }
 
@@ -86,7 +87,7 @@ export default function HoursRecordList({ vin, onAddClick, onEditClick }: HoursR
             variant="danger"
             size="sm"
             disabled={deleteMutation.isPending && deleteMutation.variables === r.id}
-            onClick={() => handleDelete(r.id)}
+            onClick={() => void handleDelete(r.id)}
           />
         </div>
       ),

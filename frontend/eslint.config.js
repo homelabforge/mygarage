@@ -226,6 +226,21 @@ export default defineConfig(
       'no-restricted-syntax': ['warn', ...I18N_RESTRICTED],
     },
   },
+  // No native confirm/alert/prompt: they ignore the theme, the locale and the
+  // modal stack. Use useConfirm(), toast or a Dialog. no-alert skips self.*,
+  // so that spelling gets its own entry.
+  {
+    files: ['src/**/*.{ts,tsx}'],
+    rules: {
+      'no-alert': 'error',
+      'no-restricted-properties': [
+        'error',
+        { object: 'self', property: 'confirm', message: 'Use useConfirm() instead.' },
+        { object: 'self', property: 'alert', message: 'Use toast instead.' },
+        { object: 'self', property: 'prompt', message: 'Use a Dialog instead.' },
+      ],
+    },
+  },
   // openapi-typescript emits double-quoted strings and the file is regenerated
   // by CI's check:api-freshness — hand-fixing quote style would fight the
   // generator forever. Silence only `quotes`; every other rule still applies.

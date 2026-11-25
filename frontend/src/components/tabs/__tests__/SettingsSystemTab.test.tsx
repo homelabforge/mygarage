@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { SettingsProvider, useSettings } from '@/contexts/SettingsContext'
@@ -62,6 +62,7 @@ import api from '@/services/api'
 import { toast } from 'sonner'
 import SettingsSystemTab from '../SettingsSystemTab'
 import { SECRETS_STATUS_QUERY_KEY } from '@/hooks/queries/useSecretsStatus'
+import { answerConfirm, withConfirm } from '../../../__tests__/confirmHelpers'
 
 const mockedApi = vi.mocked(api)
 
@@ -81,6 +82,7 @@ function renderTab(): QueryClient {
         <ActiveSystemTab />
       </SettingsProvider>
     </QueryClientProvider>,
+    { wrapper: withConfirm },
   )
   return queryClient
 }
@@ -219,6 +221,7 @@ describe('SettingsSystemTab: a save sends only what changed', () => {
           <SaveButton />
         </SettingsProvider>
       </QueryClientProvider>,
+      { wrapper: withConfirm },
     )
     await screen.findByText('common:errors.generic')
     fireEvent.click(screen.getByText('trigger-save'))
@@ -274,8 +277,6 @@ describe('SettingsSystemTab: the auth tabs only show a panel', () => {
 })
 
 describe('SettingsSystemTab: switching the mode', () => {
-  let confirmSpy: ReturnType<typeof vi.spyOn>
-
   beforeEach(() => {
     vi.clearAllMocks()
     // Reset, not just clear: a test that fails early leaves its queued Once replies
@@ -283,10 +284,6 @@ describe('SettingsSystemTab: switching the mode', () => {
     mockedApi.put.mockReset().mockResolvedValue({ data: {} })
     mockedApi.post.mockReset().mockResolvedValue({ data: {} })
     refreshUser.mockReset()
-    confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
-  })
-  afterEach(() => {
-    confirmSpy.mockRestore()
   })
 
   it('to SSO: enables OIDC first, then saves the mode, then re-reads auth', async () => {
@@ -294,9 +291,9 @@ describe('SettingsSystemTab: switching the mode', () => {
     renderTab()
     fireEvent.click(await screen.findByRole('button', { name: /auth\.oidc/ }))
     await clickWhenEnabled('auth.switchToOidc')
+    await answerConfirm('confirm', 'auth.confirmOidc|Rauthy')
 
     await waitFor(() => expect(refreshUser).toHaveBeenCalledTimes(1))
-    expect(confirmSpy).toHaveBeenCalledWith('auth.confirmOidc|Rauthy')
     const putOrder = mockedApi.put.mock.invocationCallOrder[0]
     const postOrder = mockedApi.post.mock.invocationCallOrder[0]
     expect(putOrder).toBeLessThan(postOrder)
@@ -313,6 +310,7 @@ describe('SettingsSystemTab: switching the mode', () => {
     renderTab()
     fireEvent.click(await screen.findByRole('button', { name: /auth\.oidc/ }))
     await clickWhenEnabled('auth.switchToOidc')
+    await answerConfirm('confirm')
 
     await waitFor(() => expect(refreshUser).toHaveBeenCalledTimes(1))
     expect(mockedApi.put).toHaveBeenCalledWith(
@@ -327,6 +325,7 @@ describe('SettingsSystemTab: switching the mode', () => {
     renderTab()
     fireEvent.click(await screen.findByRole('button', { name: /auth\.local/ }))
     await clickWhenEnabled('auth.switchToLocal')
+    await answerConfirm('confirm')
 
     await waitFor(() => expect(refreshUser).toHaveBeenCalledTimes(1))
     expect(mockedApi.post.mock.invocationCallOrder[0]).toBeLessThan(
@@ -339,13 +338,12 @@ describe('SettingsSystemTab: switching the mode', () => {
   })
 
   it('a cancelled confirm writes nothing', async () => {
-    confirmSpy.mockReturnValue(false)
     serveSettings('local')
     renderTab()
     fireEvent.click(await screen.findByRole('button', { name: /auth\.none/ }))
     await clickWhenEnabled('auth.switchToNone')
+    await answerConfirm('cancel', 'auth.confirmNone')
 
-    expect(confirmSpy).toHaveBeenCalledWith('auth.confirmNone')
     expect(mockedApi.post).not.toHaveBeenCalled()
     expect(mockedApi.put).not.toHaveBeenCalled()
   })
@@ -365,8 +363,7 @@ describe('SettingsSystemTab: switching the mode', () => {
     renderTab()
     fireEvent.click(await screen.findByRole('button', { name: /auth\.local/ }))
     await clickWhenEnabled('auth.switchToLocal')
-
-    await waitFor(() => expect(confirmSpy).toHaveBeenCalledWith('auth.confirmLocalFirstUser'))
+    await answerConfirm('confirm', 'auth.confirmLocalFirstUser')
   })
 
   it('tells a fresh install to register if SSO fails, since nobody has a password yet', async () => {
@@ -374,8 +371,7 @@ describe('SettingsSystemTab: switching the mode', () => {
     renderTab()
     fireEvent.click(await screen.findByRole('button', { name: /auth\.oidc/ }))
     await clickWhenEnabled('auth.switchToOidc')
-
-    await waitFor(() => expect(confirmSpy).toHaveBeenCalledWith('auth.confirmOidcFirstUser|Rauthy'))
+    await answerConfirm('confirm', 'auth.confirmOidcFirstUser|Rauthy')
   })
 
   it('a mode write that never landed: shows the saved mode and still re-reads auth', async () => {
@@ -384,6 +380,7 @@ describe('SettingsSystemTab: switching the mode', () => {
     renderTab()
     fireEvent.click(await screen.findByRole('button', { name: /auth\.none/ }))
     await clickWhenEnabled('auth.switchToNone')
+    await answerConfirm('confirm')
 
     await waitFor(() => expect(refreshUser).toHaveBeenCalledTimes(1))
     expect(await screen.findByRole('button', { name: /auth\.local/ })).toHaveTextContent('auth.current')
@@ -400,6 +397,7 @@ describe('SettingsSystemTab: switching the mode', () => {
     renderTab()
     fireEvent.click(await screen.findByRole('button', { name: /auth\.local/ }))
     await clickWhenEnabled('auth.switchToLocal')
+    await answerConfirm('confirm')
 
     await waitFor(() => expect(refreshUser).toHaveBeenCalledTimes(1))
     expect(await screen.findByRole('button', { name: /auth\.local/ })).toHaveTextContent('auth.current')
@@ -418,6 +416,7 @@ describe('SettingsSystemTab: switching the mode', () => {
     renderTab()
     fireEvent.click(await screen.findByRole('button', { name: /auth\.oidc/ }))
     await clickWhenEnabled('auth.switchToOidc')
+    await answerConfirm('confirm')
 
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('auth.switchFailed'))
     expect(mockedApi.put).toHaveBeenCalledTimes(2)
@@ -446,6 +445,7 @@ describe('SettingsSystemTab: switching the mode', () => {
     renderTab()
     fireEvent.click(await screen.findByRole('button', { name: /auth\.oidc/ }))
     await clickWhenEnabled('auth.switchToOidc')
+    await answerConfirm('confirm')
 
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('auth.ssoLeftOn'))
     expect(mockedApi.put).toHaveBeenCalledTimes(2)
@@ -461,6 +461,7 @@ describe('SettingsSystemTab: switching the mode', () => {
     renderTab()
     fireEvent.click(await screen.findByRole('button', { name: /auth\.oidc/ }))
     await clickWhenEnabled('auth.switchToOidc')
+    await answerConfirm('confirm')
 
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('auth.switchFailed'))
     expect(mockedApi.post).not.toHaveBeenCalled()
@@ -474,6 +475,7 @@ describe('SettingsSystemTab: switching the mode', () => {
     renderTab()
     fireEvent.click(await screen.findByRole('button', { name: /auth\.oidc/ }))
     await clickWhenEnabled('auth.switchToOidc')
+    await answerConfirm('confirm')
 
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('auth.switchFailed'))
     expect(mockedApi.post).not.toHaveBeenCalled()
@@ -493,6 +495,7 @@ describe('SettingsSystemTab: switching the mode', () => {
     renderTab()
     fireEvent.click(await screen.findByRole('button', { name: /auth\.oidc/ }))
     await clickWhenEnabled('auth.switchToOidc')
+    await answerConfirm('confirm')
 
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith('auth.switched'))
     expect(mockedApi.put).toHaveBeenCalledTimes(1)
@@ -513,6 +516,7 @@ describe('SettingsSystemTab: switching the mode', () => {
     renderTab()
     fireEvent.click(await screen.findByRole('button', { name: /auth\.oidc/ }))
     await clickWhenEnabled('auth.switchToOidc')
+    await answerConfirm('confirm')
 
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('auth.switchFailed'))
     expect(mockedApi.put).toHaveBeenCalledTimes(1)
@@ -524,6 +528,7 @@ describe('SettingsSystemTab: switching the mode', () => {
     renderTab()
     fireEvent.click(await screen.findByRole('button', { name: /auth\.oidc/ }))
     await clickWhenEnabled('auth.switchToOidc')
+    await answerConfirm('confirm')
 
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('auth.switchFailed'))
     expect(mockedApi.put).toHaveBeenCalledTimes(1)
@@ -542,6 +547,7 @@ describe('SettingsSystemTab: switching the mode', () => {
     renderTab()
     fireEvent.click(await screen.findByRole('button', { name: /auth\.none/ }))
     await clickWhenEnabled('auth.switchToNone')
+    await answerConfirm('confirm')
 
     await waitFor(() => expect(refreshUser).toHaveBeenCalledTimes(1))
     expect(await screen.findByRole('button', { name: /auth\.none/ })).toHaveTextContent('auth.current')
@@ -558,6 +564,7 @@ describe('SettingsSystemTab: switching the mode', () => {
     renderTab()
     fireEvent.click(await screen.findByRole('button', { name: /auth\.local/ }))
     await clickWhenEnabled('auth.switchToLocal')
+    await answerConfirm('confirm')
 
     expect(await screen.findByText('common:errors.generic')).toBeInTheDocument()
     expect(mockedApi.post).toHaveBeenCalledWith('/settings/batch', { settings: { auth_mode: 'local' } })
@@ -574,11 +581,13 @@ describe('SettingsSystemTab: switching the mode', () => {
     renderTab()
     fireEvent.click(await screen.findByRole('button', { name: /auth\.none/ }))
     await clickWhenEnabled('auth.switchToNone')
+    await answerConfirm('confirm')
     expect(await screen.findByText('common:errors.generic')).toBeInTheDocument()
 
     serveSettings('none')
     fireEvent.click(await screen.findByRole('button', { name: /auth\.none/ }))
     await clickWhenEnabled('auth.switchToNone')
+    await answerConfirm('confirm')
 
     await waitFor(() => expect(refreshUser).toHaveBeenCalledTimes(2))
     await waitFor(() => expect(screen.queryByText('common:errors.generic')).not.toBeInTheDocument())
@@ -591,6 +600,7 @@ describe('SettingsSystemTab: switching the mode', () => {
     await waitFor(() => expect(mockedApi.get).toHaveBeenCalledWith('/auth/oidc/config/admin'))
     fireEvent.click(await screen.findByRole('button', { name: /auth\.none/ }))
     await clickWhenEnabled('auth.switchToNone')
+    await answerConfirm('confirm')
 
     await waitFor(() => expect(refreshUser).toHaveBeenCalledTimes(1))
     expect(mockedApi.post).toHaveBeenCalledWith('/settings/batch', { settings: { auth_mode: 'none' } })
@@ -616,8 +626,7 @@ describe('SettingsSystemTab: switching the mode', () => {
     await waitFor(() => expect(mockedApi.get).toHaveBeenCalledWith('/auth/users/count'))
     fireEvent.click(await screen.findByRole('button', { name: /auth\.oidc/ }))
     await clickWhenEnabled('auth.switchToOidc')
-
-    await waitFor(() => expect(confirmSpy).toHaveBeenCalledWith('auth.confirmOidc|Rauthy'))
+    await answerConfirm('confirm', 'auth.confirmOidc|Rauthy')
   })
 
   it('a failed settings load leaves Switch off, since the saved mode is unknown', async () => {

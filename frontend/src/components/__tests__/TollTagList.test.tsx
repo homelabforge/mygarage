@@ -14,6 +14,7 @@ vi.mock('../../hooks/queries/useTollRecords', () => ({
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 
 import TollTagList from '../TollTagList'
+import { answerConfirm } from '../../__tests__/confirmHelpers'
 
 const activeTag = {
   id: 1, toll_system: 'E-ZPass', tag_number: '0012345678', status: 'active', notes: 'daily commute',
@@ -26,7 +27,6 @@ const PROPS = { vin: 'V1', onAddClick, onEditClick }
 
 beforeEach(() => {
   vi.clearAllMocks()
-  vi.spyOn(window, 'confirm').mockReturnValue(true)
   useTollTagsMock.mockReturnValue({ data: { toll_tags: [activeTag] }, isLoading: false, error: null })
 })
 
@@ -43,18 +43,17 @@ describe('TollTagList — rendering + row actions', () => {
     expect(onEditClick).toHaveBeenCalledWith(activeTag)
   })
 
-  it('clicking row Delete (confirm accepted) calls the delete mutation with the tag id (fails if delete is unwired or the confirm gate is dropped)', () => {
+  it('clicking row Delete (confirm accepted) calls the delete mutation with the tag id (fails if delete is unwired or the confirm gate is dropped)', async () => {
     render(<TollTagList {...PROPS} />)
     fireEvent.click(screen.getByRole('button', { name: 'common:delete' }))
-    expect(window.confirm).toHaveBeenCalled()
+    await answerConfirm('confirm', 'tollTagList.confirmDelete')
     expect(deleteMutate).toHaveBeenCalledWith(1, expect.anything())
   })
 
-  it('clicking row Delete with confirm REJECTED does NOT call the delete mutation (B4 — fails if the handler ignores a false confirm and deletes anyway)', () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(false)
+  it('clicking row Delete with confirm REJECTED does NOT call the delete mutation (B4: fails if the handler ignores a false confirm and deletes anyway)', async () => {
     render(<TollTagList {...PROPS} />)
     fireEvent.click(screen.getByRole('button', { name: 'common:delete' }))
-    expect(window.confirm).toHaveBeenCalled()
+    await answerConfirm('cancel', 'tollTagList.confirmDelete')
     expect(deleteMutate).not.toHaveBeenCalled()
   })
 

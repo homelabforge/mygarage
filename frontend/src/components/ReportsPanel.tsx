@@ -248,6 +248,10 @@ export default function ReportsPanel({ vin }: ReportsPanelProps) {
           </div>
         </div>
       )}
+      {/* Always mounted, so screen readers pick up the text when it swaps in. */}
+      <div role="status" aria-live="polite" className="sr-only">
+        {isGenerating ? t('reports.generating') : null}
+      </div>
     </div>
   )
 }

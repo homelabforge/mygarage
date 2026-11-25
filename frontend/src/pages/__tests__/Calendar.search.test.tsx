@@ -2,6 +2,7 @@
  * The Calendar search (#226): it matches a vehicle's identifier (its VIN, or
  * the serial a tractor has instead), never the generated key. The render
  * harness is Calendar.selection.test.tsx's.
+ * Also pins the toolbar icon buttons keeping their names below sm.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
@@ -13,9 +14,12 @@ const capturedCalendarConfig = vi.hoisted(() => ({ current: null as Record<strin
 vi.mock('@schedule-x/react', () => ({
   useCalendarApp: (config: Record<string, unknown>) => {
     capturedCalendarConfig.current = config
-    return {}
+    return { setTheme: vi.fn() }
   },
   ScheduleXCalendar: () => null,
+}))
+vi.mock('../../contexts/ThemeContext', () => ({
+  useTheme: () => ({ theme: 'dark', toggleTheme: vi.fn(), setTheme: vi.fn() }),
 }))
 vi.mock('@schedule-x/calendar', () => ({
   createViewDay: () => ({ name: 'day' }),
@@ -122,5 +126,23 @@ describe('Calendar search matches what identifies a vehicle (#226)', () => {
     await search('qabcdefgh')
     await waitFor(() => expect(screen.queryByText('Grease the deck')).not.toBeInTheDocument())
     expect(screen.queryByText('Oil change')).not.toBeInTheDocument()
+  })
+})
+
+describe('the toolbar icon buttons keep their names on a phone', () => {
+  it('Bulk mode and Export iCal are named when the label is visually hidden', async () => {
+    // jsdom has no Tailwind, so stand in the below-sm rules. display:none drops
+    // the label out of the name, sr-only keeps it in.
+    const phone = document.createElement('style')
+    phone.textContent = '.hidden { display: none } .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden }'
+    document.head.appendChild(phone)
+    try {
+      render(<CalendarPage />)
+      await screen.findByText('Grease the deck')
+      expect(screen.getByRole('button', { name: 'calendar.bulkMode' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'calendar.exportICal' })).toBeInTheDocument()
+    } finally {
+      phone.remove()
+    }
   })
 })

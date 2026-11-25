@@ -1,6 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '../../__tests__/test-utils'
-import { expectSafeOverlay } from '../../__tests__/safeOverlay'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { fireEvent, render, screen } from '../../__tests__/test-utils'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import InsurancePDFUpload from '../InsurancePDFUpload'
@@ -48,11 +47,6 @@ describe('InsurancePDFUpload — portal (coupled contract, keep green)', () => {
     const heading = screen.getByRole('heading', { name: 'insurancePdfUpload.title' })
     expect(document.body).toContainElement(heading)
     expect(container).not.toContainElement(heading)
-  })
-
-  it('centres inside the iPhone safe area (#305)', () => {
-    render(<InsurancePDFUpload onDataExtracted={vi.fn()} onClose={vi.fn()} />)
-    expectSafeOverlay(screen.getByRole('heading', { name: 'insurancePdfUpload.title' }))
   })
 })
 
@@ -333,5 +327,42 @@ describe('InsurancePDFUpload — Europe and photos (#211)', () => {
     await screen.findByText('insurancePdfUpload.parseSuccess')
     expect(screen.getByText('insurancePdfUpload.confidenceRejected')).toHaveAttribute('data-tone', 'danger')
     expect(screen.getByText('insurancePdfUpload.readFromPdf')).toBeInTheDocument()
+  })
+})
+
+describe('InsurancePDFUpload as a dialog', () => {
+  let root: HTMLElement
+  beforeEach(() => {
+    root = document.body.appendChild(document.createElement('div'))
+    root.id = 'root'
+  })
+  afterEach(() => root.remove())
+
+  it('is a named dialog outside #root', () => {
+    render(<InsurancePDFUpload onDataExtracted={vi.fn()} onClose={vi.fn()} />, { container: root })
+    const dialog = screen.getByRole('dialog', { name: 'insurancePdfUpload.title' })
+    expect(root.contains(dialog)).toBe(false)
+  })
+})
+
+describe('InsurancePDFUpload mid-parse', () => {
+  it('Escape and the close X leave it open while the parse runs', async () => {
+    let finish: (value: unknown) => void = () => {}
+    postMock.mockReturnValueOnce(new Promise((resolve) => { finish = resolve }))
+    const user = userEvent.setup()
+    const onClose = vi.fn()
+    render(<InsurancePDFUpload onDataExtracted={vi.fn()} onClose={onClose} />)
+    await user.upload(fileInput(), new File(['%PDF-1.4'], 'policy.pdf', { type: 'application/pdf' }))
+    await user.click(screen.getByRole('button', { name: 'insurancePdfUpload.parse' }))
+    await vi.waitFor(() => expect(postMock).toHaveBeenCalledTimes(1))
+
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' })
+    fireEvent.click(screen.getByRole('button', { name: 'common:close' }))
+    expect(onClose).not.toHaveBeenCalled()
+
+    finish({ data: { success: true, data: emptyData, confidence: {}, vehicles: [], confidence_score: 0, parser_used: 'generic', warnings: [] } })
+    expect(await screen.findByText('insurancePdfUpload.parseSuccess')).toBeInTheDocument()
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' })
+    expect(onClose).toHaveBeenCalledTimes(1)
   })
 })

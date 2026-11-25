@@ -45,6 +45,8 @@ vi.mock('../SensorAlerts', () => ({
 }))
 
 import SensorBlock from '../SensorBlock'
+import { Drawer } from '../../../ui'
+import { answerConfirm, escapeConfirm, withConfirm } from '../../../../__tests__/confirmHelpers'
 
 const VEHICLE = { vin: '4EZFD3821P6080615', nickname: 'Durango', year: 2023, make: 'KZ', model: 'Durango' }
 const sensor = (overrides: Partial<LiveLinkDevice> = {}): LiveLinkDevice =>
@@ -61,7 +63,7 @@ const sensor = (overrides: Partial<LiveLinkDevice> = {}): LiveLinkDevice =>
 
 const renderBlock = (device = sensor()) => {
   const onChanged = vi.fn()
-  render(<SensorBlock device={device} vehicles={[VEHICLE as never]} onChanged={onChanged} />)
+  render(<SensorBlock device={device} vehicles={[VEHICLE as never]} onChanged={onChanged} />, { wrapper: withConfirm })
   return { onChanged }
 }
 
@@ -161,10 +163,10 @@ describe('SensorBlock', () => {
   })
 
   it('deletes after confirmation', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
     const { onChanged } = renderBlock()
 
     fireEvent.click(await screen.findByRole('button', { name: 'integrations.deleteSensor' }))
+    await answerConfirm('confirm', 'Delete Front tank and all of its readings? This cannot be undone.')
 
     await waitFor(() => expect(svc.deleteDevice).toHaveBeenCalledWith('mopeka-t1'))
     expect(onChanged).toHaveBeenCalled()
@@ -172,20 +174,38 @@ describe('SensorBlock', () => {
 
   it('names a sensor with a stored blank label by its device id in the delete prompt', async () => {
     // A name cleared before blanks were stored as null is still '' in the row.
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
     renderBlock(sensor({ label: '' }))
 
     fireEvent.click(await screen.findByRole('button', { name: 'integrations.deleteSensor' }))
 
-    expect(confirm).toHaveBeenCalledWith('Delete mopeka-t1 and all of its readings? This cannot be undone.')
+    await answerConfirm('cancel', 'Delete mopeka-t1 and all of its readings? This cannot be undone.')
   })
 
   it('keeps the sensor when the confirmation is declined', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(false)
     renderBlock()
 
     fireEvent.click(await screen.findByRole('button', { name: 'integrations.deleteSensor' }))
+    await answerConfirm('cancel')
 
+    expect(svc.deleteDevice).not.toHaveBeenCalled()
+  })
+
+  // Regression pin: the block lives in the preset drawer, and Escape on its
+  // confirm must close the confirm only.
+  it('Escape closes the delete confirm and leaves the host drawer open', async () => {
+    const onClose = vi.fn()
+    render(
+      <Drawer open onClose={onClose} title="Host drawer">
+        <SensorBlock device={sensor()} vehicles={[VEHICLE as never]} onChanged={vi.fn()} />
+      </Drawer>,
+      { wrapper: withConfirm },
+    )
+
+    fireEvent.click(await screen.findByRole('button', { name: 'integrations.deleteSensor' }))
+    await escapeConfirm()
+
+    expect(onClose).not.toHaveBeenCalled()
+    expect(screen.getByRole('dialog', { name: 'Host drawer' })).toBeInTheDocument()
     expect(svc.deleteDevice).not.toHaveBeenCalled()
   })
 })

@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Copy, Key } from 'lucide-react'
 
-import { Button, Drawer } from '@/components/ui'
+import { Button, Drawer, useConfirm } from '@/components/ui'
 import { livelinkService } from '@/services/livelinkService'
 import type {
   BackfillResultResponse,
@@ -45,6 +45,7 @@ export default function DeviceTable({
   onChanged,
 }: Props): ReactElement {
   const { t } = useTranslation('forms')
+  const confirm = useConfirm()
   const tokenId = useId()
   const [sources, setSources] = useState<Record<string, SourceInfo>>({})
   const [deviceTokenModal, setDeviceTokenModal] = useState<{
@@ -94,7 +95,7 @@ export default function DeviceTable({
   }
 
   const handleDeleteDevice = async (deviceId: string): Promise<void> => {
-    if (!confirm(t('modal.livelink.confirmDeleteDevice'))) {
+    if (!(await confirm({ message: t('modal.livelink.confirmDeleteDevice'), confirmLabel: t('common:delete') }))) {
       return
     }
     try {
@@ -119,7 +120,7 @@ export default function DeviceTable({
   }
 
   const handleRevokeDeviceToken = async (deviceId: string): Promise<void> => {
-    if (!confirm(t('modal.livelink.confirmRevokeDeviceToken'))) {
+    if (!(await confirm({ message: t('modal.livelink.confirmRevokeDeviceToken'), confirmLabel: t('common:revoke') }))) {
       return
     }
     try {

@@ -1,8 +1,8 @@
-import { useRef, useState, type ChangeEvent } from 'react'
+import { useRef, useState, type ChangeEvent, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ScanBarcode } from 'lucide-react'
 import { toast } from 'sonner'
-import { Button } from '@/components/ui'
+import { Button, Dialog, Input } from '@/components/ui'
 
 interface BarcodeScanButtonProps {
   onScan: (value: string) => void
@@ -26,11 +26,26 @@ export default function BarcodeScanButton({ onScan, label }: BarcodeScanButtonPr
   const { t } = useTranslation('common')
   const inputRef = useRef<HTMLInputElement>(null)
   const [scanning, setScanning] = useState(false)
+  const [manualOpen, setManualOpen] = useState(false)
+  const [typed, setTyped] = useState('')
 
-  const promptManualEntry = () => {
-    const typed = window.prompt(t('supplies.barcodeManualPrompt'))
-    const value = typed?.trim()
+  const promptManualEntry = (): void => {
+    setTyped('')
+    setManualOpen(true)
+  }
+
+  const acceptManual = (): void => {
+    const value = typed.trim()
+    setManualOpen(false)
     if (value) onScan(value)
+  }
+
+  // React events bubble through the portal, so without the stop this submit
+  // reaches the supply form around the button and saves the supply.
+  const submitManual = (e: FormEvent<HTMLFormElement>): void => {
+    e.preventDefault()
+    e.stopPropagation()
+    acceptManual()
   }
 
   const handleClick = () => {
@@ -101,6 +116,32 @@ export default function BarcodeScanButton({ onScan, label }: BarcodeScanButtonPr
       >
         {label || t('supplies.scanBarcode')}
       </Button>
+      <Dialog
+        open={manualOpen}
+        onClose={() => setManualOpen(false)}
+        title={t('supplies.barcodeManualPrompt')}
+        size="sm"
+        footer={
+          <>
+            <Button variant="secondary" data-dialog-cancel onClick={() => setManualOpen(false)}>
+              {t('common:cancel')}
+            </Button>
+            <Button variant="primary" onClick={acceptManual}>
+              {t('common:ok')}
+            </Button>
+          </>
+        }
+      >
+        <form onSubmit={submitManual}>
+          <Input
+            value={typed}
+            onChange={(e) => setTyped(e.target.value)}
+            // The title already reads the prompt; the field just says what it holds.
+            aria-label={t('supplies.barcode')}
+            autoComplete="off"
+          />
+        </form>
+      </Dialog>
     </>
   )
 }

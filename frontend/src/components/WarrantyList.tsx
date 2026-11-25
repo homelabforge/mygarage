@@ -11,7 +11,7 @@ import { getActionErrorMessage } from '../utils/httpErrorHandler'
 import { formatCurrency } from '../utils/formatUtils'
 import { useCurrencyPreference } from '../hooks/useCurrencyPreference'
 import { serviceItemSearch } from '../constants/serviceVisit'
-import { Button, IconButton, Mono, EmptyState } from './ui'
+import { Button, IconButton, Mono, EmptyState, useConfirm } from './ui'
 
 interface WarrantyListProps {
   vin: string
@@ -21,14 +21,15 @@ interface WarrantyListProps {
 
 export default function WarrantyList({ vin, onAddClick, onEditClick }: WarrantyListProps) {
   const { t } = useTranslation('vehicles')
+  const confirm = useConfirm()
   const { data: warranties = [], isLoading, error } = useWarrantyRecords(vin)
   const deleteMutation = useDeleteWarrantyRecord(vin)
   const dateLocale = useDateLocale()
   const u = useUnitFormat()
   const { currencyCode, locale } = useCurrencyPreference()
 
-  const handleDelete = (warrantyId: number) => {
-    if (!confirm(t('warrantyList.confirmDelete'))) {
+  const handleDelete = async (warrantyId: number): Promise<void> => {
+    if (!(await confirm({ message: t('warrantyList.confirmDelete'), confirmLabel: t('common:delete') }))) {
       return
     }
 
@@ -115,7 +116,7 @@ export default function WarrantyList({ vin, onAddClick, onEditClick }: WarrantyL
                     variant="danger"
                     size="sm"
                     disabled={deleteMutation.isPending && deleteMutation.variables === warranty.id}
-                    onClick={() => handleDelete(warranty.id)}
+                    onClick={() => void handleDelete(warranty.id)}
                   />
                 </div>
               </div>

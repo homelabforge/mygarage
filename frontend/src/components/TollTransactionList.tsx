@@ -11,7 +11,7 @@ import { useCurrencyPreference } from '../hooks/useCurrencyPreference'
 import { useTollTransactions, useTollTags, useTollTransactionSummary, useDeleteTollTransaction } from '../hooks/queries/useTollRecords'
 import api from '../services/api'
 import { getActionErrorMessage } from '../utils/httpErrorHandler'
-import { Button, IconButton, Card, Mono, EmptyState, DataTable, Select } from './ui'
+import { Button, IconButton, Card, Mono, EmptyState, DataTable, Select, useConfirm } from './ui'
 import type { DataTableColumn } from './ui'
 
 interface TollTransactionListProps {
@@ -22,6 +22,7 @@ interface TollTransactionListProps {
 
 export default function TollTransactionList({ vin, onAddClick, onEditClick }: TollTransactionListProps) {
   const { t } = useTranslation('vehicles')
+  const confirm = useConfirm()
   const queryClient = useQueryClient()
   const dateLocale = useDateLocale()
   const { currencyCode, locale } = useCurrencyPreference()
@@ -44,7 +45,7 @@ export default function TollTransactionList({ vin, onAddClick, onEditClick }: To
   const loading = loadingTransactions || loadingTags
 
   const handleDelete = async (transactionId: number): Promise<void> => {
-    if (!confirm(t('tollList.confirmDelete'))) {
+    if (!(await confirm({ message: t('tollList.confirmDelete'), confirmLabel: t('common:delete') }))) {
       return
     }
 
@@ -227,7 +228,7 @@ export default function TollTransactionList({ vin, onAddClick, onEditClick }: To
                     variant="danger"
                     size="sm"
                     disabled={deleteMutation.isPending && deleteMutation.variables === transaction.id}
-                    onClick={() => handleDelete(transaction.id)}
+                    onClick={() => void handleDelete(transaction.id)}
                   />
                 </div>
               </div>

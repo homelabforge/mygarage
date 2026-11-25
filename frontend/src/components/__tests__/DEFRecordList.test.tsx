@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import type { DEFRecord } from '../../types/def'
 
 // Mock the DEF query hooks so this stays a unit test — no QueryClient/api wiring.
@@ -82,6 +82,7 @@ vi.mock('../../hooks/useCurrencyPreference', () => ({
 
 import { METRIC_UNITS, UK_IMPERIAL_UNITS } from '../../__tests__/factories'
 import DEFRecordList from '../DEFRecordList'
+import { answerConfirm, withConfirm } from '../../__tests__/confirmHelpers'
 
 const mockRecord: DEFRecord = {
   id: 1,
@@ -117,7 +118,7 @@ beforeEach(() => {
 
 describe('DEFRecordList — readOnly gating (non-diesel vehicles)', () => {
   it('shows the read-only notice and hides add/edit affordances when readOnly', () => {
-    render(<DEFRecordList vin="TEST12345678901234" readOnly />)
+    render(<DEFRecordList vin="TEST12345678901234" readOnly />, { wrapper: withConfirm })
 
     expect(screen.getByText('defList.readOnlyNotice')).toBeInTheDocument()
     expect(screen.queryByText('defList.addDEF')).not.toBeInTheDocument()
@@ -133,14 +134,14 @@ describe('DEFRecordList — readOnly gating (non-diesel vehicles)', () => {
       error: null,
     })
 
-    render(<DEFRecordList vin="TEST12345678901234" readOnly />)
+    render(<DEFRecordList vin="TEST12345678901234" readOnly />, { wrapper: withConfirm })
 
     expect(screen.getByText('defList.readOnlyNotice')).toBeInTheDocument()
     expect(screen.queryByText('defList.addFirstRecord')).not.toBeInTheDocument()
   })
 
   it('shows add/edit affordances and no notice when not readOnly (diesel)', () => {
-    render(<DEFRecordList vin="TEST12345678901234" />)
+    render(<DEFRecordList vin="TEST12345678901234" />, { wrapper: withConfirm })
 
     expect(screen.queryByText('defList.readOnlyNotice')).not.toBeInTheDocument()
     expect(screen.getByText('defList.addDEF')).toBeInTheDocument()
@@ -153,30 +154,30 @@ describe('DEFRecordList — DataTable structure + unit-aware header (M3/B7)', ()
   afterEach(() => { unitPrefMock.system = 'metric' })
 
   it('renders a DataTable whose accessible name IS the translated caption (M3 — proves the hand-rolled <table> → <DataTable> migration landed)', () => {
-    render(<DEFRecordList vin="TEST12345678901234" />)
+    render(<DEFRecordList vin="TEST12345678901234" />, { wrapper: withConfirm })
     expect(screen.getByRole('table', { name: 'defList.tableCaption' })).toBeInTheDocument()
   })
 
   it('interpolates the SYSTEM volume unit into the header — L in metric, gal in imperial (B7) (fails if the impl omits {{unit}}, hardcodes gal for both, or reverts to the static `defList.gallons` key)', () => {
     // getVolumeUnit → 'L' (metric) / 'gal' (imperial); the local mock renders it into the header.
     unitPrefMock.system = 'metric'
-    const metric = render(<DEFRecordList vin="TEST12345678901234" />)
+    const metric = render(<DEFRecordList vin="TEST12345678901234" />, { wrapper: withConfirm })
     const metricTable = screen.getByRole('table', { name: 'defList.tableCaption' })
     expect(within(metricTable).getByRole('columnheader', { name: 'defList.volumeUnit (L)' })).toBeInTheDocument()
     expect(within(metricTable).queryByRole('columnheader', { name: 'defList.gallons' })).not.toBeInTheDocument()
     metric.unmount()
     unitPrefMock.system = 'imperial'
-    render(<DEFRecordList vin="TEST12345678901234" />)
+    render(<DEFRecordList vin="TEST12345678901234" />, { wrapper: withConfirm })
     const imperialTable = screen.getByRole('table', { name: 'defList.tableCaption' })
     expect(within(imperialTable).getByRole('columnheader', { name: 'defList.volumeUnit (gal)' })).toBeInTheDocument()
   })
 
   it('renders the Type column as a Chip — purchase for a manual record, auto for an auto_fuel_sync record (SDQ-A category chip landed)', () => {
-    const { unmount } = render(<DEFRecordList vin="TEST12345678901234" />)
+    const { unmount } = render(<DEFRecordList vin="TEST12345678901234" />, { wrapper: withConfirm })
     expect(within(screen.getByRole('table', { name: 'defList.tableCaption' })).getByText('defList.purchase')).toBeInTheDocument()
     unmount()
     useDEFRecordsMock.mockReturnValue({ data: { records: [{ ...mockRecord, id: 2, entry_type: 'auto_fuel_sync' }] }, isLoading: false, error: null })
-    render(<DEFRecordList vin="TEST12345678901234" />)
+    render(<DEFRecordList vin="TEST12345678901234" />, { wrapper: withConfirm })
     expect(within(screen.getByRole('table', { name: 'defList.tableCaption' })).getByText('defList.auto')).toBeInTheDocument()
   })
 
@@ -185,7 +186,7 @@ describe('DEFRecordList — DataTable structure + unit-aware header (M3/B7)', ()
       record_count: 3, total_cost: 74.25, total_liters: 62.4, estimated_km_remaining: 2500,
       estimated_days_remaining: 40, liters_per_1000_km: null, avg_cost_per_liter: null, data_confidence: 'high',
     } })
-    render(<DEFRecordList vin="TEST12345678901234" />)
+    render(<DEFRecordList vin="TEST12345678901234" />, { wrapper: withConfirm })
     expect(screen.getByText('defList.totalSpent')).toBeInTheDocument()
   })
 })
@@ -232,7 +233,7 @@ describe('DEFRecordList — one gallon per page, taken from the user', () => {
       },
     })
 
-    render(<DEFRecordList vin="TEST12345678901234" />)
+    render(<DEFRecordList vin="TEST12345678901234" />, { wrapper: withConfirm })
 
     // A distance: the vehicle's miles.
     expect(screen.getByText('defList.estimatedRemaining (mi)')).toBeInTheDocument()
@@ -246,7 +247,7 @@ describe('DEFRecordList — one gallon per page, taken from the user', () => {
     unitPrefMock.system = 'imperial'
     unitPrefMock.units = UK_IMPERIAL_UNITS
 
-    render(<DEFRecordList vin="TEST12345678901234" />)
+    render(<DEFRecordList vin="TEST12345678901234" />, { wrapper: withConfirm })
 
     // 4.7 L/1000km is 1.7 imperial gal/1000mi (2.0 US ones).
     expect(screen.getByText('1.7')).toBeInTheDocument()
@@ -261,12 +262,37 @@ describe('DEFRecordList — one gallon per page, taken from the user', () => {
   })
 
   it('stays in litres for a metric set', () => {
-    render(<DEFRecordList vin="TEST12345678901234" />)
+    render(<DEFRecordList vin="TEST12345678901234" />, { wrapper: withConfirm })
 
     expect(screen.getByText('4.7')).toBeInTheDocument()
     expect(screen.getByText('L/1,000 km')).toBeInTheDocument()
     expect(screen.getByText('defList.avgCostPerVolume (L)')).toBeInTheDocument()
     expect(screen.getByText('$1.19')).toBeInTheDocument()
     expect(screen.getByText('defList.volumeTotal (20.8 L)')).toBeInTheDocument()
+  })
+})
+
+describe('DEFRecordList: delete asks first', () => {
+  it('a confirmed delete deletes that record', async () => {
+    const mutate = vi.fn()
+    useDeleteDEFRecordMock.mockReturnValue({ mutate, isPending: false, variables: undefined })
+    render(<DEFRecordList vin="TEST12345678901234" />, { wrapper: withConfirm })
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'common:delete' })[0])
+    await answerConfirm('confirm', 'defList.confirmDelete')
+
+    expect(mutate).toHaveBeenCalledTimes(1)
+    expect(mutate.mock.calls[0][0]).toBe(1)
+  })
+
+  it('a cancelled delete deletes nothing', async () => {
+    const mutate = vi.fn()
+    useDeleteDEFRecordMock.mockReturnValue({ mutate, isPending: false, variables: undefined })
+    render(<DEFRecordList vin="TEST12345678901234" />, { wrapper: withConfirm })
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'common:delete' })[0])
+    await answerConfirm('cancel', 'defList.confirmDelete')
+
+    expect(mutate).not.toHaveBeenCalled()
   })
 })

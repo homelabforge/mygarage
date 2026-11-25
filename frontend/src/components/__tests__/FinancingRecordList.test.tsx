@@ -18,6 +18,7 @@ vi.mock('../FinancingRecordForm', () => ({
 }))
 
 import FinancingRecordList from '../FinancingRecordList'
+import { answerConfirm } from '../../__tests__/confirmHelpers'
 
 const recA = {
   id: 1, date: '2026-03-01', category: 'lease_payment', amount: '450.00', vendor_id: 5, notes: 'monthly',
@@ -29,7 +30,6 @@ const table = () => screen.getByRole('table', { name: 'financingList.tableCaptio
 
 beforeEach(() => {
   vi.clearAllMocks()
-  vi.spyOn(window, 'confirm').mockReturnValue(true)
   useFinancingRecordsMock.mockReturnValue({ data: { financing_records: [recA, recB] }, isLoading: false, error: null })
 })
 
@@ -93,20 +93,19 @@ describe('FinancingRecordList — row actions + add', () => {
     expect(screen.getByTestId('financing-form')).toHaveTextContent('editing:1')
   })
 
-  it('clicking a row Delete (confirm accepted) calls the delete mutation with the record id (fails if delete is unwired or the confirm gate is dropped)', () => {
+  it('clicking a row Delete (confirm accepted) calls the delete mutation with the record id (fails if delete is unwired or the confirm gate is dropped)', async () => {
     render(<FinancingRecordList vin="V1" />)
     const firstRow = within(table()).getByText('forms:financingCategories.leasePayment').closest('tr') as HTMLElement
     fireEvent.click(within(firstRow).getByRole('button', { name: 'common:delete' }))
-    expect(window.confirm).toHaveBeenCalled()
+    await answerConfirm('confirm', 'financingList.confirmDelete')
     expect(deleteMutate).toHaveBeenCalledWith(1, expect.anything())
   })
 
-  it('clicking a row Delete with confirm REJECTED does NOT call the delete mutation (fails if the handler ignores a false confirm and deletes anyway)', () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(false)
+  it('clicking a row Delete with confirm REJECTED does NOT call the delete mutation (fails if the handler ignores a false confirm and deletes anyway)', async () => {
     render(<FinancingRecordList vin="V1" />)
     const firstRow = within(table()).getByText('forms:financingCategories.leasePayment').closest('tr') as HTMLElement
     fireEvent.click(within(firstRow).getByRole('button', { name: 'common:delete' }))
-    expect(window.confirm).toHaveBeenCalled()
+    await answerConfirm('cancel', 'financingList.confirmDelete')
     expect(deleteMutate).not.toHaveBeenCalled()
   })
 

@@ -78,8 +78,8 @@ export default function GarageAnalyticsHelpDrawer({ open, onClose }: GarageAnaly
           <h3 className="mb-2 text-lg font-semibold text-text">{t('garageHelp.monthlyTrend.title')}</h3>
           <div className="space-y-2 text-text-mid">
             <p>{t('garageHelp.monthlyTrend.intro')}</p>
-            <p><strong className="text-text">{t('garageHelp.monthlyTrend.rolling3Label')}</strong> {t('garageHelp.monthlyTrend.rolling3Desc')}</p>
-            <p><strong className="text-text">{t('garageHelp.monthlyTrend.rolling6Label')}</strong> {t('garageHelp.monthlyTrend.rolling6Desc')}</p>
+            <p><strong className="text-text">{t('garageHelp.monthlyTrend.rolling3Label')}</strong> {t('garageHelp.monthlyTrend.rolling3Line')}</p>
+            <p><strong className="text-text">{t('garageHelp.monthlyTrend.rolling6Label')}</strong> {t('garageHelp.monthlyTrend.rolling6Line')}</p>
             <p className="pt-1">{t('garageHelp.monthlyTrend.useTrends')}</p>
             <ul className="ml-4 list-inside list-disc space-y-1">
               <li>{t('garageHelp.monthlyTrend.item1')}</li>

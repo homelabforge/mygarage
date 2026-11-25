@@ -213,6 +213,9 @@ describe('DeviceRow status line', () => {
   // row looked up rather than a raw status it printed.
   const statusLine = (): HTMLElement =>
     screen.getByText(/^forms:modal\.livelink\.deviceStatus\./).closest('span') as HTMLElement
+  // The icon wears the status colour. The word stays neutral: success and danger
+  // ink fail contrast as small text on white.
+  const statusIcon = (line: HTMLElement): Element => line.querySelector('svg') as Element
 
   it('reads an uploading Torque phone as online, though it never reports a status', () => {
     renderRow(undefined, {
@@ -221,14 +224,18 @@ describe('DeviceRow status line', () => {
       showFirmware: false,
     })
     expect(statusLine()).toHaveTextContent('forms:modal.livelink.deviceStatus.online')
-    expect(statusLine()).toHaveClass('text-green-500')
+    expect(statusLine()).toHaveClass('text-text')
+    expect(statusLine()).not.toHaveClass('text-success')
+    expect(statusIcon(statusLine())).toHaveClass('text-success')
     expect(screen.queryByText('unknown')).not.toBeInTheDocument()
   })
 
   it('reads a disabled device as offline, whatever status it froze at', () => {
     renderRow(undefined, { device: { ...device, device_status: 'online', online: false } })
     expect(statusLine()).toHaveTextContent('forms:modal.livelink.deviceStatus.offline')
-    expect(statusLine()).toHaveClass('text-red-500')
+    expect(statusLine()).toHaveClass('text-text')
+    expect(statusLine()).not.toHaveClass('text-danger')
+    expect(statusIcon(statusLine())).toHaveClass('text-danger')
   })
 
   it('says a device that has never reported has no status yet, not that it is offline', () => {
@@ -236,14 +243,17 @@ describe('DeviceRow status line', () => {
       device: { ...device, device_status: 'unknown', online: false, last_seen: null },
     })
     expect(statusLine()).toHaveTextContent('forms:modal.livelink.deviceStatus.unknown')
-    expect(statusLine()).toHaveClass('text-gray-500')
+    expect(statusLine()).toHaveClass('text-text-mute')
+    expect(statusIcon(statusLine())).toHaveClass('text-text-mute')
   })
 
   it('translates the ECU line', () => {
     renderRow()
-    expect(screen.getByText(/modal\.livelink\.ecuLabel/)).toHaveTextContent(
-      'modal.livelink.ecuLabel forms:modal.livelink.ecuStatus.offline',
-    )
+    const ecu = screen.getByText(/modal\.livelink\.ecuLabel/)
+    expect(ecu).toHaveTextContent('modal.livelink.ecuLabel forms:modal.livelink.ecuStatus.offline')
+    expect(ecu).toHaveClass('text-text-mid')
+    expect(ecu).not.toHaveClass('text-danger')
+    expect(statusIcon(ecu)).toHaveClass('text-danger')
   })
 
   it('offers no battery check to a device that is not online, whatever status it froze at', () => {

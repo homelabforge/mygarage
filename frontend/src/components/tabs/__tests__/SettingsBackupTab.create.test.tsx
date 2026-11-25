@@ -22,6 +22,7 @@ vi.mock('@/hooks/useTimeFormat', () => ({
 
 import api from '@/services/api'
 import SettingsBackupTab from '../SettingsBackupTab'
+import { withConfirm } from '../../../__tests__/confirmHelpers'
 
 const mockedApi = vi.mocked(api)
 
@@ -66,7 +67,7 @@ describe.each([
   // One test, so the generic-text checks fail with the 503 detail they are the controls for.
   it('shows the preflight 503 detail, which says what to fix, and no other server detail', async () => {
     mockedApi.post.mockRejectedValueOnce(httpError(503, REFUSAL))
-    render(<SettingsBackupTab />)
+    render(<SettingsBackupTab />, { wrapper: withConfirm })
 
     fireEvent.click(await screen.findByRole('button', { name: button }))
 
@@ -98,7 +99,7 @@ describe.each([
 
   it('shows a 403 detail too', async () => {
     mockedApi.post.mockRejectedValue(httpError(403, 'Permission denied: cannot write to backup directory'))
-    render(<SettingsBackupTab />)
+    render(<SettingsBackupTab />, { wrapper: withConfirm })
 
     fireEvent.click(await screen.findByRole('button', { name: button }))
 

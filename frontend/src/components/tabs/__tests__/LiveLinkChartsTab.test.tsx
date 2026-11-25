@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor, cleanup } from '../../../__tests__/test-utils'
-import { fireEvent } from '@testing-library/react'
+import { act, fireEvent } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import type { LiveLinkParameter, LiveLinkParameterListResponse, TelemetryQueryResponse } from '../../../types/livelink'
 
@@ -62,21 +62,36 @@ vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 const captured = vi.hoisted(() => ({
   lineChartData: undefined as unknown,
   tooltipLabelFormatter: undefined as ((label: ReactNode) => ReactNode) | undefined,
+  tooltipStyle: undefined as Record<string, unknown> | undefined,
+  tooltipItemStyle: undefined as Record<string, unknown> | undefined,
+  strokes: {} as Record<string, string | undefined>,
 }))
-vi.mock('recharts', () => {
+vi.mock('recharts', async () => {
+  const { useEffect } = await import('react')
   const Pass = ({ children }: { children?: ReactNode }) => <>{children}</>
   return {
     ResponsiveContainer: Pass,
+    // Strokes are the CURRENT chart's lines only: a fresh map on every chart
+    // render, and none at all once the chart is gone (the loading spinner).
     LineChart: ({ data, children }: { data: unknown; children?: ReactNode }) => {
       captured.lineChartData = data
+      captured.strokes = {}
+      useEffect(() => () => {
+        captured.strokes = {}
+      }, [])
       return <>{children}</>
     },
-    Line: () => null,
+    Line: ({ dataKey, stroke }: { dataKey: string; stroke?: string }) => {
+      captured.strokes[dataKey] = stroke
+      return null
+    },
     XAxis: () => null,
     YAxis: () => null,
     CartesianGrid: () => null,
-    Tooltip: ({ labelFormatter }: { labelFormatter?: (label: ReactNode) => ReactNode }) => {
+    Tooltip: ({ labelFormatter, contentStyle, itemStyle }: { labelFormatter?: (label: ReactNode) => ReactNode; contentStyle?: Record<string, unknown>; itemStyle?: Record<string, unknown> }) => {
       captured.tooltipLabelFormatter = labelFormatter
+      captured.tooltipStyle = contentStyle
+      captured.tooltipItemStyle = itemStyle
       return null
     },
     Legend: () => null,
@@ -129,6 +144,9 @@ beforeEach(() => {
   vi.setSystemTime(new Date(FROZEN))
   captured.lineChartData = undefined
   captured.tooltipLabelFormatter = undefined
+  captured.tooltipStyle = undefined
+  captured.tooltipItemStyle = undefined
+  captured.strokes = {}
   getVehicleParameters.mockResolvedValue(PARAMS)
   getTelemetry.mockResolvedValue(TELEMETRY)
   getTelemetryExportUrl.mockReturnValue('https://export.example/csv')
@@ -216,5 +234,126 @@ describe('LiveLinkChartsTab — controls + data boundary (SDQ-C, §5c, M4)', () 
     render(<LiveLinkChartsTab vin="V1" />)
     await waitFor(() => expect(getTelemetry).toHaveBeenCalledTimes(1))
     expect(screen.getByRole('button', { name: 'livelinkCharts.exportCsv' })).toBeDisabled()
+  })
+})
+
+describe('LiveLinkChartsTab chart theme', () => {
+  const lineStrokes = (): Record<string, string | undefined> => ({ ...captured.strokes })
+
+  it('draws lines from the chart slots and the tooltip from surface tokens', async () => {
+    render(<LiveLinkChartsTab vin="V1" />)
+    await waitFor(() => expect(getTelemetry).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(Object.keys(lineStrokes())).toHaveLength(3))
+    expect(lineStrokes()).toEqual({
+      p1: 'var(--color-chart-1)',
+      p2: 'var(--color-chart-2)',
+      p3: 'var(--color-chart-3)',
+    })
+    expect(captured.tooltipStyle).toMatchObject({
+      backgroundColor: 'var(--color-surface-2)',
+      border: '1px solid var(--color-border)',
+      color: 'var(--color-text)',
+    })
+    expect(captured.tooltipItemStyle).toEqual({ color: 'var(--color-text)' })
+  })
+
+  it('keeps the survivors on their colours when a parameter is dropped', async () => {
+    render(<LiveLinkChartsTab vin="V1" />)
+    await waitFor(() => expect(Object.keys(lineStrokes())).toHaveLength(3))
+    const before = lineStrokes()
+
+    fireEvent.click(screen.getByRole('button', { name: /First Param/ })) // drop p1
+    await waitFor(() => expect(getTelemetry).toHaveBeenCalledTimes(2))
+    captured.strokes = {}
+    fireEvent.click(screen.getByRole('button', { name: /Fourth Param/ })) // add p4
+    await waitFor(() => expect(Object.keys(lineStrokes()).sort()).toEqual(['p2', 'p3', 'p4']))
+
+    expect(lineStrokes().p2).toBe(before.p2)
+    expect(lineStrokes().p3).toBe(before.p3)
+    // p4 takes the slot p1 freed, not a colour p2 or p3 already wears
+    expect(lineStrokes().p4).toBe('var(--color-chart-1)')
+  })
+
+  it('marks a selected chip with its series colour, not a filled chip under white text', async () => {
+    render(<LiveLinkChartsTab vin="V1" />)
+    await waitFor(() => expect(getTelemetry).toHaveBeenCalledTimes(1))
+    const chip = screen.getByRole('button', { name: /Second Param/ })
+    expect(chip).toHaveAttribute('aria-pressed', 'true')
+    expect(chip.style.backgroundColor).toBe('')
+    expect(chip.className).toContain('text-text')
+    const swatch = chip.querySelector('[data-testid="series-swatch"]') as HTMLElement | null
+    expect(swatch?.getAttribute('style') ?? '').toContain('var(--color-chart-2)')
+    expect(screen.getByRole('button', { name: /Fourth Param/ }).querySelector('[data-testid="series-swatch"]')).toBeNull()
+  })
+
+  it('gives a series nobody picked the neutral grey, not slot 1', async () => {
+    // a refetch can land with a series the selection no longer holds
+    getTelemetry.mockResolvedValue({
+      ...TELEMETRY,
+      series: [
+        ...TELEMETRY.series,
+        { param_key: 'pX', display_name: 'Stray Param', unit: 'V', min_value: 1, max_value: 2, avg_value: 1.5, data: [{ timestamp: 'x', value: 1 }] },
+      ],
+    })
+    render(<LiveLinkChartsTab vin="V1" />)
+    const stray = (await screen.findByText('Stray Param')).parentElement as HTMLElement
+    expect(stray.getAttribute('style') ?? '').toContain('var(--color-chart-other)')
+    const first = screen.getAllByText('First Param').map((el) => el.parentElement as HTMLElement).find((el) => (el.getAttribute('style') ?? '').includes('border-left'))
+    expect(first?.getAttribute('style') ?? '').toContain('var(--color-chart-1)')
+  })
+
+  it('keeps selection and slots in step when one render handles two toggles', async () => {
+    render(<LiveLinkChartsTab vin="V1" />)
+    await waitFor(() => expect(Object.keys(captured.strokes)).toHaveLength(3))
+    const chip = screen.getByRole('button', { name: /First Param/ })
+    // both clicks land before a re-render, so both handlers see the same render
+    act(() => {
+      fireEvent.click(chip)
+      fireEvent.click(chip)
+    })
+    expect(screen.getByRole('button', { name: /First Param/ })).toHaveAttribute('aria-pressed', 'true')
+    // The refetched chart has exactly the picked lines, each in its chip's colour.
+    await waitFor(() => expect(Object.keys(captured.strokes).sort()).toEqual(['p1', 'p2', 'p3']))
+    for (const [key, name] of [['p1', /First Param/], ['p2', /Second Param/], ['p3', /Third Param/]] as const) {
+      const swatch = screen.getByRole('button', { name }).querySelector<HTMLElement>('[data-testid="series-swatch"]')
+      expect(captured.strokes[key]).toMatch(/^var\(--color-chart-[1-8]\)$/)
+      expect(swatch?.style.backgroundColor).toBe(captured.strokes[key])
+    }
+  })
+})
+
+describe('LiveLinkChartsTab colour reuse', () => {
+  const NINE = Array.from({ length: 9 }, (_, i) => mkParam(i + 1, `p${i + 1}`, `Param ${i + 1}`, 'V'))
+
+  it('never hands out a colour that is already on screen while others are free', async () => {
+    getVehicleParameters.mockResolvedValue({ parameters: NINE, total: 9 })
+    getTelemetry.mockImplementation(async (_vin, _start, _end, keys) => ({
+      ...TELEMETRY,
+      series: (keys ?? []).map((key) => ({
+        param_key: key, display_name: `Param ${key.slice(1)}`, unit: 'V', min_value: 1, max_value: 2, avg_value: 1.5,
+        data: [{ timestamp: 'x', value: 1 }],
+      })),
+    }))
+    render(<LiveLinkChartsTab vin="V1" />)
+    const chip = (n: number): HTMLElement => screen.getByRole('button', { name: new RegExp(`^Param ${n}\\b`) })
+    await waitFor(() => expect(chip(1)).toHaveAttribute('aria-pressed', 'true'))
+    // Pick all nine, so the ninth wraps onto slot 8, then keep only the ninth.
+    for (let n = 4; n <= 9; n++) fireEvent.click(chip(n))
+    for (let n = 1; n <= 8; n++) fireEvent.click(chip(n))
+    fireEvent.click(chip(1))
+    await waitFor(() => expect(getTelemetry).toHaveBeenLastCalledWith('V1', expect.any(String), expect.any(String), ['p9', 'p1'], undefined))
+
+    const swatch = (n: number): string => chip(n).querySelector<HTMLElement>('[data-testid="series-swatch"]')?.style.backgroundColor ?? ''
+    const card = async (n: number): Promise<string> => {
+      const label = await screen.findByText(`Param ${n}`, { selector: 'p' })
+      return (label.parentElement as HTMLElement).style.borderLeft
+    }
+    // The cards only show once the refetched chart is up, so the strokes are that render's.
+    expect(await card(9)).toContain('var(--color-chart-1)')
+    expect(await card(1)).toContain('var(--color-chart-2)')
+    expect(captured.strokes.p9).toBe('var(--color-chart-1)')
+    expect(captured.strokes.p1).toBe('var(--color-chart-2)')
+    expect(swatch(9)).toBe('var(--color-chart-1)')
+    expect(swatch(1)).toBe('var(--color-chart-2)')
   })
 })

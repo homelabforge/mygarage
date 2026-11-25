@@ -75,6 +75,7 @@ const TIRE = vi.hoisted(() => ({
 }))
 
 import TireList from '../TireList'
+import { withConfirm } from '../../__tests__/confirmHelpers'
 
 const labelOf = (id: string): string => document.querySelector(`label[for="${id}"]`)?.textContent ?? ''
 const flipToMetric = (): void =>
@@ -90,7 +91,7 @@ beforeEach(() => {
 
 describe('TireList drawers hold their units while open', () => {
   it('a reading keeps psi through a flip, and the card behind repaints', () => {
-    render(<TireList vin="1HGCM82633A004352" />)
+    render(<TireList vin="1HGCM82633A004352" />, { wrapper: withConfirm })
     fireEvent.click(screen.getByText('tireList.addReading'))
     expect(labelOf('reading-pressure')).toMatch(/\(PSI\)/)
     fireEvent.change(document.getElementById('reading-pressure')!, { target: { value: '36' } })
@@ -109,7 +110,7 @@ describe('TireList drawers hold their units while open', () => {
   })
 
   it('a dismount keeps miles through a flip and stores the typed miles', () => {
-    render(<TireList vin="1HGCM82633A004352" />)
+    render(<TireList vin="1HGCM82633A004352" />, { wrapper: withConfirm })
     fireEvent.click(screen.getAllByText('tireList.dismount')[0])
     fireEvent.change(document.getElementById('dismount-odometer')!, { target: { value: '50000' } })
 
@@ -122,7 +123,7 @@ describe('TireList drawers hold their units while open', () => {
   })
 
   it('a flip while the reading drawer is closed reaches its next open: label, seed and save', () => {
-    render(<TireList vin="1HGCM82633A004352" />)
+    render(<TireList vin="1HGCM82633A004352" />, { wrapper: withConfirm })
     flipToMetric()
 
     fireEvent.click(screen.getByText('tireList.addReading'))

@@ -244,11 +244,10 @@ test.describe('iOS safe-area insets (#305, #308)', () => {
     await expect(page.getByRole('heading', { name: TEST_VEHICLE.nickname })).toBeVisible({ timeout: 15000 })
     await page.getByRole('button', { name: 'Remove', exact: true }).click()
 
-    const overlay = page
-      .locator('div.fixed.inset-0')
-      .filter({ has: page.getByRole('heading', { name: 'Remove Vehicle' }) })
-    await expect(overlay).toBeVisible()
-    const box = overlay.locator('> div')
+    // A real Dialog now: the box is the dialog and its parent is the padded overlay.
+    const box = page.getByRole('dialog', { name: 'Remove Vehicle' })
+    await expect(box).toBeVisible()
+    const overlay = box.locator('..')
 
     // p-4, unchanged where the inset is 0.
     const base = { top: 16, right: 16, bottom: 16, left: 16 }
@@ -275,10 +274,9 @@ test.describe('iOS safe-area insets (#305, #308)', () => {
       if (name === 'document upload') await page.getByRole('tab', { name: 'Documents' }).click()
       await page.getByRole('button', { name: button, exact: true }).first().click()
 
-      const overlay = page
-        .locator('div.fixed.inset-0')
-        .filter({ has: page.getByRole('heading', { name: heading, exact: true }) })
-      await expect(overlay).toBeVisible()
+      const dialog = page.getByRole('dialog', { name: heading, exact: true })
+      await expect(dialog).toBeVisible()
+      const overlay = dialog.locator('..')
 
       const base = { top: 16, right: 16, bottom: 16, left: 16 }
       expect(await padding(overlay)).toEqual(base)

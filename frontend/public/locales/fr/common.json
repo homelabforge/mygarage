@@ -17,6 +17,10 @@
   "no": "Non",
   "ok": "OK",
   "unknown": "Inconnu",
+  "revoke": "Révoquer",
+  "regenerate": "Régénérer",
+  "restore": "Restaurer",
+  "continue": "Continuer",
   "register": {
     "subtitle": "Configurez votre compte MyGarage",
     "username": "Nom d’utilisateur",

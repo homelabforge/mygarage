@@ -129,6 +129,7 @@ vi.mock('../../hooks/useDateLocale', () => ({ useDateLocale: () => 'en-US' }))
 
 import api from '../../services/api'
 import Analytics from '../Analytics'
+import { toast } from 'sonner'
 
 const mockedApiGet = vi.mocked(api).get
 
@@ -415,5 +416,47 @@ describe('Analytics — every consumption rendering reads units.consumption', ()
     // consumption one: 3.80 L/hr stays 3.80 L/hr.
     expect(axisLabels()).toContain('L/hr')
     expect(tooltipTexts().some((text) => text.includes('3.80 L/hr'))).toBe(true)
+  })
+})
+
+describe('Analytics: period comparison problems', () => {
+  it('says missing dates in a toast, not a native alert', async () => {
+    const toastError = vi.spyOn(toast, 'error').mockImplementation(() => 0)
+    try {
+      await mountWith(METRIC_UNITS)
+
+      fireEvent.click(screen.getByText('vehicle.comparePeriods'))
+      fireEvent.click(await screen.findByText('vehicle.runComparison'))
+
+      expect(toastError).toHaveBeenCalledWith('vehicle.fillAllDates')
+    } finally {
+      toastError.mockRestore()
+    }
+  })
+
+  it('says a failed comparison in a toast, not a native alert', async () => {
+    const toastError = vi.spyOn(toast, 'error').mockImplementation(() => 0)
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      await mountWith(METRIC_UNITS)
+      const answer = mockedApiGet.getMockImplementation()!
+      mockedApiGet.mockImplementation((url: string) =>
+        url.includes('/compare?') ? Promise.reject(new Error('compare failed')) : answer(url),
+      )
+
+      fireEvent.click(screen.getByText('vehicle.comparePeriods'))
+      await waitFor(() =>
+        expect(document.querySelectorAll('input[type="date"]')).toHaveLength(4)
+      )
+      document.querySelectorAll('input[type="date"]').forEach((input, i) => {
+        fireEvent.change(input, { target: { value: `2026-0${i + 1}-01` } })
+      })
+      fireEvent.click(await screen.findByText('vehicle.runComparison'))
+
+      await waitFor(() => expect(toastError).toHaveBeenCalledWith('vehicle.comparisonFailed'))
+    } finally {
+      toastError.mockRestore()
+      consoleError.mockRestore()
+    }
   })
 })

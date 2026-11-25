@@ -87,7 +87,7 @@ export default function AddToPolicyDialog({ vin, policies, onClose, onSuccess }:
         </>
       }
     >
-      <div className="p-6 space-y-4">
+      <div className="space-y-4">
         <Field id="existing_policy" label={t('insurance.existingPolicy')} required>
           <Select
             id="existing_policy"

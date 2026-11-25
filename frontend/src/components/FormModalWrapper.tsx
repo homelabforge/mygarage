@@ -15,6 +15,8 @@ interface FormModalWrapperProps {
   footer?: ReactNode
   /** Optional controlled mount; conditionally-mounted callers omit it. */
   isOpen?: boolean
+  /** For a form that opens from inside another drawer (LocalAuth from Family). */
+  nested?: boolean
 }
 
 /**
@@ -33,6 +35,7 @@ export default function FormModalWrapper({
   icon,
   footer,
   isOpen,
+  nested = false,
 }: FormModalWrapperProps) {
   const { t } = useTranslation('forms')
   return (
@@ -44,6 +47,7 @@ export default function FormModalWrapper({
       width={width}
       footer={footer}
       closeLabel={t('common:close')}
+      nested={nested}
     >
       {children}
     </Drawer>

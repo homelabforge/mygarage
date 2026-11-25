@@ -149,6 +149,7 @@ import { makeUnitFormat } from '../../utils/unitFormat'
 import VehicleDetail from '../VehicleDetail'
 import { rememberVehicle } from '../../utils/vehicleCache'
 import { IMPERIAL_UNITS, makeUser, makeDetailStats } from '../../__tests__/factories'
+import { withConfirm } from '../../__tests__/confirmHelpers'
 
 const mockedVehicleService = vi.mocked(vehicleService)
 const mockedLivelinkService = vi.mocked(livelinkService)
@@ -195,6 +196,7 @@ function renderVehicleDetail(initialPath = '/vehicles/TEST12345678901234', clien
           </Routes>
         </MemoryRouter>
       </QueryClientProvider>,
+      { wrapper: withConfirm },
     ),
   }
 }
@@ -590,6 +592,7 @@ describe('VehicleDetail', () => {
           <Link to="/vehicles/BBBBBBBBBBBBBBBBB?tab=tires">go B</Link>
         </MemoryRouter>
       </QueryClientProvider>,
+      { wrapper: withConfirm },
     )
     expect(await screen.findByText('Boat A')).toBeInTheDocument()
 
@@ -799,6 +802,7 @@ describe('VehicleDetail', () => {
           <Link to="/vehicles/BBBBBBBBBBBBBBBBB">go B</Link>
         </MemoryRouter>
       </QueryClientProvider>,
+      { wrapper: withConfirm },
     )
     await waitFor(() => expect(screen.getByText('Test Car')).toBeInTheDocument())
     // Navigate A -> B (same route element, useParams changes -> [vin] effect re-runs).
@@ -830,6 +834,7 @@ describe('VehicleDetail', () => {
           <Link to={bPath}>go B</Link>
         </MemoryRouter>
       </QueryClientProvider>,
+      { wrapper: withConfirm },
     )
   }
 
@@ -1076,6 +1081,7 @@ describe('VehicleDetail', () => {
           </Routes>
         </MemoryRouter>
       </QueryClientProvider>,
+      { wrapper: withConfirm },
     )
     await waitFor(() =>
       expect(mockedVehicleService.getDetailStats).toHaveBeenCalledWith('TEST12345678901234'),

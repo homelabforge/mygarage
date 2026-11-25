@@ -61,6 +61,7 @@ vi.mock('../../hooks/useUnitPreference', () => {
 
 import TireList from '../TireList'
 import { FOUR_LAYOUT } from '../../__tests__/factories'
+import { withConfirm } from '../../__tests__/confirmHelpers'
 
 const VIN = '1HGCM82633A004352'
 const HOURS = { usage_axis: 'hours', tracks_distance: false, tracks_hours: true }
@@ -104,7 +105,7 @@ describe('Log Reading notes (TR L-5)', () => {
     ['an hours-tracking vehicle', HOURS],
   ])('sends the typed notes, trimmed, on %s', (_name, flags) => {
     list([tire(1, 'FL')], flags)
-    render(<TireList vin={VIN} />)
+    render(<TireList vin={VIN} />, { wrapper: withConfirm })
     openAndFill()
     fireEvent.change(dialog().getByLabelText('tireList.notes'), { target: { value: '  inner edge wearing  ' } })
     fireEvent.click(dialog().getByText('common:save'))
@@ -115,7 +116,7 @@ describe('Log Reading notes (TR L-5)', () => {
 
   it('blank notes send null', () => {
     list([tire(1, 'FL')])
-    render(<TireList vin={VIN} />)
+    render(<TireList vin={VIN} />, { wrapper: withConfirm })
     openAndFill()
     fireEvent.change(dialog().getByLabelText('tireList.notes'), { target: { value: '   ' } })
     fireEvent.click(dialog().getByText('common:save'))
@@ -125,7 +126,7 @@ describe('Log Reading notes (TR L-5)', () => {
 
   it('reopening the drawer starts with empty notes', () => {
     list([tire(1, 'FL')])
-    render(<TireList vin={VIN} />)
+    render(<TireList vin={VIN} />, { wrapper: withConfirm })
     openAndFill()
     fireEvent.change(dialog().getByLabelText('tireList.notes'), { target: { value: 'left over' } })
     fireEvent.click(dialog().getByText('common:cancel'))

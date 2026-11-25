@@ -17,7 +17,7 @@ import {
 } from 'lucide-react'
 
 import NoMovementSignalNotice from '@/components/livelink/NoMovementSignalNotice'
-import { Button, Drawer, Field, Input, Toggle } from '@/components/ui'
+import { Button, Drawer, Field, Input, Toggle, useConfirm } from '@/components/ui'
 import { livelinkService } from '@/services/livelinkService'
 import { vehicleService } from '@/services/vehicleService'
 import type {
@@ -59,6 +59,7 @@ interface Props {
 
 export default function WicanSettingsDrawer({ open, tab, onClose, onChanged }: Props): ReactElement {
   const { t } = useTranslation('forms')
+  const confirm = useConfirm()
   const idBase = useId()
 
   const [settings, setSettings] = useState<LiveLinkSettings | null>(null)
@@ -139,7 +140,7 @@ export default function WicanSettingsDrawer({ open, tab, onClose, onChanged }: P
   }
 
   const regenerateToken = async (): Promise<void> => {
-    if (!confirm(t('modal.livelink.confirmRegenerateToken'))) return
+    if (!(await confirm({ message: t('modal.livelink.confirmRegenerateToken'), confirmLabel: t('common:regenerate'), tone: 'default' }))) return
     setGeneratingToken(true)
     try {
       const response = await livelinkService.regenerateGlobalToken()

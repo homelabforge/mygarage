@@ -39,8 +39,8 @@ interface EditorState {
 }
 
 /**
- * Correct one mount period. A nested drawer, because it opens from the
- * history drawer and a modal opened from a drawer is inert in this app.
+ * Correct one mount period. A nested drawer, so it stacks on the history
+ * drawer it opens from.
  *
  * Every rendered field is seeded from the period and every rendered field
  * is sent, so clearing one is a deliberate act and an unrendered field can

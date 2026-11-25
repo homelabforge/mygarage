@@ -37,12 +37,10 @@ import { useUnitFormat } from '../hooks/useUnitFormat'
 import { formatDateForDisplay } from '../utils/dateUtils'
 import { formatHours } from '../utils/hoursFormat'
 import { num } from '../utils/wireNumber'
+import { CHART_AXIS, CHART_GRID, TOOLTIP_CONTENT_STYLE, TOOLTIP_ITEM_STYLE, chartLegendText, chartSeries } from './charts/chartTheme'
 
 type TireAnalytics = components['schemas']['TireAnalyticsSummary']
 type TireReadiness = components['schemas']['TireReadiness']
-
-/** Six line colours, reused round-robin. Four corners plus a spare fit inside. */
-const SERIES_COLORS = ['#2563eb', '#16a34a', '#d97706', '#dc2626', '#7c3aed', '#0891b2']
 
 /**
  * Fetch this vehicle's tire analytics.
@@ -325,18 +323,24 @@ export default function TireAnalyticsSection({ vin }: TireAnalyticsSectionProps)
         ) : (
           <ResponsiveContainer width="100%" height={240}>
             <LineChart data={trendRows}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="date" tickFormatter={(v: string) => formatDateForDisplay(v)} />
-              <YAxis unit={u.tread.label} />
-              <Tooltip />
-              <Legend />
+              <CartesianGrid stroke={CHART_GRID} />
+              <XAxis dataKey="date" tickFormatter={(v: string) => formatDateForDisplay(v)} stroke={CHART_AXIS} />
+              {/* wide enough for "20/32 in" */}
+              <YAxis unit={u.tread.label} stroke={CHART_AXIS} width={68} />
+              {/* The rows hold display values, so back to canonical for the same format the table uses. */}
+              <Tooltip
+                contentStyle={TOOLTIP_CONTENT_STYLE}
+                itemStyle={TOOLTIP_ITEM_STYLE}
+                formatter={(v) => u.tread.format(u.tread.toCanonical(Number(v)))}
+              />
+              <Legend formatter={chartLegendText} />
               {trending.map((tire, index) => (
                 <Line
                   key={tire.id}
                   type="monotone"
                   dataKey={seriesKey(tire)}
                   name={legend.get(tire.id)}
-                  stroke={SERIES_COLORS[index % SERIES_COLORS.length]}
+                  stroke={chartSeries(index)}
                   connectNulls
                 />
               ))}

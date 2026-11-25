@@ -42,7 +42,7 @@ export default function PolicyHistoryDialog({ policy, onClose }: PolicyHistoryDi
         </Button>
       }
     >
-      <div className="p-6">
+      <>
         {isLoading && <p className="text-text-mute">{t('insuranceList.loading')}</p>}
         {error && (
           <p className="text-danger">
@@ -113,7 +113,7 @@ export default function PolicyHistoryDialog({ policy, onClose }: PolicyHistoryDi
             )
           })}
         </ol>
-      </div>
+      </>
     </FormModalWrapper>
   )
 }

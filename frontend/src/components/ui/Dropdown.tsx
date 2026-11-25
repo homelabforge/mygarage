@@ -109,6 +109,8 @@ export default function Dropdown({
     if (!open) return
     const onKey = (event: KeyboardEvent): void => {
       if (event.key === 'Escape') {
+        // Handled, so the modal stack leaves a drawer around the menu open.
+        event.preventDefault()
         close()
         return
       }

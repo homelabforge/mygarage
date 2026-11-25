@@ -26,6 +26,7 @@ vi.mock('../BillingEntryForm', () => ({
 }))
 
 import SpotRentalList from '../SpotRentalList'
+import { answerConfirm } from '../../__tests__/confirmHelpers'
 
 const billing = {
   id: 90, spot_rental_id: 1, billing_date: '2026-03-01',
@@ -52,7 +53,6 @@ const closedRental = {
 
 beforeEach(() => {
   vi.clearAllMocks()
-  vi.spyOn(window, 'confirm').mockReturnValue(true)
   useSpotRentalsMock.mockReturnValue({ data: { spot_rentals: [activeRental] }, isLoading: false, error: null })
 })
 
@@ -85,18 +85,17 @@ describe('SpotRentalList — rendering + row actions', () => {
     expect(screen.getByTestId('spot-rental-form')).toHaveTextContent('form:1')
   })
 
-  it('clicking row Delete (confirm accepted) calls the delete mutation with the rental id (fails if delete is unwired or the confirm gate is dropped)', () => {
+  it('clicking row Delete (confirm accepted) calls the delete mutation with the rental id (fails if delete is unwired or the confirm gate is dropped)', async () => {
     render(<SpotRentalList vin="V1" />)
     fireEvent.click(screen.getByRole('button', { name: 'spotRentalList.deleteRental' }))
-    expect(window.confirm).toHaveBeenCalled()
+    await answerConfirm('confirm', 'spotRentalList.confirmDelete')
     expect(deleteMutate).toHaveBeenCalledWith(1, expect.anything())
   })
 
-  it('clicking row Delete with confirm REJECTED does NOT call the delete mutation (fails if the handler ignores a false confirm)', () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(false)
+  it('clicking row Delete with confirm REJECTED does NOT call the delete mutation (fails if the handler ignores a false confirm)', async () => {
     render(<SpotRentalList vin="V1" />)
     fireEvent.click(screen.getByRole('button', { name: 'spotRentalList.deleteRental' }))
-    expect(window.confirm).toHaveBeenCalled()
+    await answerConfirm('cancel', 'spotRentalList.confirmDelete')
     expect(deleteMutate).not.toHaveBeenCalled()
   })
 
@@ -156,22 +155,21 @@ describe('SpotRentalList — billing disclosure + edit/delete (B5/B6, ≥2-billi
     expect(screen.getByTestId('billing-form')).toHaveTextContent('billing:1:90')
   })
 
-  it('a billing-row Delete with confirm ACCEPTED calls api.delete with the EXACT billing URL (fails if the delete URL shape changes or the confirm gate is dropped)', () => {
+  it('a billing-row Delete with confirm ACCEPTED calls api.delete with the EXACT billing URL (fails if the delete URL shape changes or the confirm gate is dropped)', async () => {
     render(<SpotRentalList vin="V1" />)
     fireEvent.click(screen.getByRole('button', { name: 'spotRentalList.viewAllBillings' }))
     fireEvent.click(screen.getAllByRole('button', { name: 'spotRentalList.deleteBilling' })[0])
-    expect(window.confirm).toHaveBeenCalled()
+    await answerConfirm('confirm', 'spotRentalList.confirmDeleteBilling')
     // The REAL handleDeleteBilling (SpotRentalList.tsx:80-92):
     // api.delete(`/vehicles/${vin}/spot-rentals/${rentalId}/billings/${billingId}`).
     expect(apiDelete).toHaveBeenCalledWith('/vehicles/V1/spot-rentals/1/billings/90')
   })
 
-  it('a billing-row Delete with confirm REJECTED does NOT call api.delete (fails if the handler ignores a false confirm)', () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(false)
+  it('a billing-row Delete with confirm REJECTED does NOT call api.delete (fails if the handler ignores a false confirm)', async () => {
     render(<SpotRentalList vin="V1" />)
     fireEvent.click(screen.getByRole('button', { name: 'spotRentalList.viewAllBillings' }))
     fireEvent.click(screen.getAllByRole('button', { name: 'spotRentalList.deleteBilling' })[0])
-    expect(window.confirm).toHaveBeenCalled()
+    await answerConfirm('cancel', 'spotRentalList.confirmDeleteBilling')
     expect(apiDelete).not.toHaveBeenCalled()
   })
 })

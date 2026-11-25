@@ -109,6 +109,7 @@ import { IMPERIAL_UNITS, METRIC_UNITS, UK_IMPERIAL_UNITS } from '../../__tests__
 import vehiclesEn from '../../locales/en/vehicles.json'
 import { binarySystemFor } from '../../types/units'
 import FuelRecordList from '../FuelRecordList'
+import { answerConfirm, withConfirm } from '../../__tests__/confirmHelpers'
 
 const record: FuelRecord = {
   id: 1,
@@ -140,7 +141,6 @@ beforeEach(() => {
   unitPrefMock.units = null
   unitPrefMock.accountUnits = null
   currencyMock.code = 'USD'
-  vi.spyOn(window, 'confirm').mockReturnValue(true)
   useFuelRecordsMock.mockReturnValue({
     data: { records: [record], total: 1, average_l_per_100km: '8.5' },
     isLoading: false,
@@ -153,7 +153,7 @@ beforeEach(() => {
 
 describe('FuelRecordList — row cells scoped to the named table', () => {
   it('renders the row economy badge and the row cost INSIDE the table (fails if the economy or cost column is dropped; scoping stops a summary tile from satisfying it)', async () => {
-    render(<FuelRecordList {...DEFAULT_PROPS} />)
+    render(<FuelRecordList {...DEFAULT_PROPS} />, { wrapper: withConfirm })
     await waitFor(() => expect(apiGetMock).toHaveBeenCalled())
     // real formatFuelEconomy(7.2,'metric') → "7.2 L/100km" — 7.2 appears only in the row badge
     expect(within(table()).getByText(/7\.2/)).toBeInTheDocument()
@@ -163,7 +163,7 @@ describe('FuelRecordList — row cells scoped to the named table', () => {
   })
 
   it('uses the truthful generic price header, not a volume-only one (B8) (fails if the header reverts to a per-volume `fuelList.pricePerUnit`)', async () => {
-    render(<FuelRecordList {...DEFAULT_PROPS} />)
+    render(<FuelRecordList {...DEFAULT_PROPS} />, { wrapper: withConfirm })
     await waitFor(() => expect(apiGetMock).toHaveBeenCalled())
     expect(within(table()).getByRole('columnheader', { name: 'fuelList.unitPrice' })).toBeInTheDocument()
     expect(within(table()).queryByRole('columnheader', { name: 'fuelList.pricePerUnit' })).not.toBeInTheDocument()
@@ -172,7 +172,7 @@ describe('FuelRecordList — row cells scoped to the named table', () => {
   it('renders a per-WEIGHT row price under that SAME generic header (B8) (fails if the per-weight value is dropped or the header is basis-specific)', async () => {
     const perWeight = { ...record, id: 2, price_basis: 'per_weight', price_per_unit: '1.850' } as FuelRecord
     useFuelRecordsMock.mockReturnValue({ data: { records: [perWeight], total: 1, average_l_per_100km: '8.5' }, isLoading: false, error: null })
-    render(<FuelRecordList {...DEFAULT_PROPS} />)
+    render(<FuelRecordList {...DEFAULT_PROPS} />, { wrapper: withConfirm })
     await waitFor(() => expect(apiGetMock).toHaveBeenCalled())
     // metric priceToDisplay(per_weight) passes the value through → formatCurrency(1.85) → "$1.85"
     expect(within(table()).getByText(/1\.85/)).toBeInTheDocument()
@@ -181,19 +181,19 @@ describe('FuelRecordList — row cells scoped to the named table', () => {
 
   it('interpolates the SYSTEM volume unit into the header — L in metric, gal in imperial (fails if the impl omits {{unit}}, hardcodes one system, or reverts to a static key)', async () => {
     unitPrefMock.system = 'metric'
-    const metric = render(<FuelRecordList {...DEFAULT_PROPS} />)
+    const metric = render(<FuelRecordList {...DEFAULT_PROPS} />, { wrapper: withConfirm })
     await waitFor(() => expect(apiGetMock).toHaveBeenCalled())
     expect(within(table()).getByRole('columnheader', { name: 'fuelList.volumeUnit (L)' })).toBeInTheDocument()
     metric.unmount()
 
     unitPrefMock.system = 'imperial'
-    render(<FuelRecordList {...DEFAULT_PROPS} />)
+    render(<FuelRecordList {...DEFAULT_PROPS} />, { wrapper: withConfirm })
     await waitFor(() => expect(apiGetMock).toHaveBeenCalled())
     expect(within(table()).getByRole('columnheader', { name: 'fuelList.volumeUnit (gal)' })).toBeInTheDocument()
   })
 
   it('shows the Full-tank badge (true) and the towing badge (true) IN-table (fails if either status column is dropped)', async () => {
-    render(<FuelRecordList {...DEFAULT_PROPS} />)
+    render(<FuelRecordList {...DEFAULT_PROPS} />, { wrapper: withConfirm })
     await waitFor(() => expect(apiGetMock).toHaveBeenCalled())
     expect(within(table()).getByText('fuelList.full')).toBeInTheDocument()
     expect(within(table()).getByText('fuelList.towing')).toBeInTheDocument()
@@ -202,7 +202,7 @@ describe('FuelRecordList — row cells scoped to the named table', () => {
   it('renders the FALSE status states — partial badge + no towing badge (fails if the false branch is missing or swapped)', async () => {
     const plain = { ...record, is_full_tank: false, is_hauling: false } as FuelRecord
     useFuelRecordsMock.mockReturnValue({ data: { records: [plain], total: 1, average_l_per_100km: '8.5' }, isLoading: false, error: null })
-    render(<FuelRecordList {...DEFAULT_PROPS} />)
+    render(<FuelRecordList {...DEFAULT_PROPS} />, { wrapper: withConfirm })
     await waitFor(() => expect(apiGetMock).toHaveBeenCalled())
     expect(within(table()).getByText('fuelList.partial')).toBeInTheDocument()
     expect(within(table()).queryByText('fuelList.full')).not.toBeInTheDocument()
@@ -212,7 +212,7 @@ describe('FuelRecordList — row cells scoped to the named table', () => {
 
 describe('FuelRecordList — row actions fire the real handlers', () => {
   it('clicking row Edit calls onEditClick with THE WHOLE record (fails if edit is unwired, passes the wrong row, or passes a truncated object)', async () => {
-    render(<FuelRecordList {...DEFAULT_PROPS} />)
+    render(<FuelRecordList {...DEFAULT_PROPS} />, { wrapper: withConfirm })
     await waitFor(() => expect(apiGetMock).toHaveBeenCalled())
     fireEvent.click(within(table()).getByRole('button', { name: 'common:edit' }))
     // Contract is onEditClick(record: FuelRecord) (FuelRecordList.tsx:17); the render passes the
@@ -223,15 +223,15 @@ describe('FuelRecordList — row actions fire the real handlers', () => {
   })
 
   it('clicking row Delete (confirm accepted) calls the delete mutation with the record id (fails if delete is unwired or the confirm gate is dropped)', async () => {
-    render(<FuelRecordList {...DEFAULT_PROPS} />)
+    render(<FuelRecordList {...DEFAULT_PROPS} />, { wrapper: withConfirm })
     await waitFor(() => expect(apiGetMock).toHaveBeenCalled())
     fireEvent.click(within(table()).getByRole('button', { name: 'common:delete' }))
-    expect(window.confirm).toHaveBeenCalled()
+    await answerConfirm('confirm', 'fuelList.confirmDelete')
     expect(deleteMutate).toHaveBeenCalledWith(1, expect.anything())
   })
 
   it('exposes row edit + delete by accessible NAME (not title alone) (fails if IconButton loses aria-label)', async () => {
-    render(<FuelRecordList {...DEFAULT_PROPS} />)
+    render(<FuelRecordList {...DEFAULT_PROPS} />, { wrapper: withConfirm })
     await waitFor(() => expect(apiGetMock).toHaveBeenCalled())
     expect(within(table()).getByRole('button', { name: 'common:edit' })).toBeInTheDocument()
     expect(within(table()).getByRole('button', { name: 'common:delete' })).toBeInTheDocument()
@@ -243,7 +243,7 @@ describe('FuelRecordList — conditional propane column', () => {
     apiGetMock.mockResolvedValue({ data: { fuel_type: 'propane' } })
     const propaneRec = { ...record, propane_liters: '39.750' } as FuelRecord
     useFuelRecordsMock.mockReturnValue({ data: { records: [propaneRec], total: 1, average_l_per_100km: null }, isLoading: false, error: null })
-    render(<FuelRecordList {...DEFAULT_PROPS} />)
+    render(<FuelRecordList {...DEFAULT_PROPS} />, { wrapper: withConfirm })
     // header appears only after the async vehicle fetch resolves → findByRole waits.
     // Also carries `{ unit }` (same as the volume header, B7) — the local i18n mock
     // now retains it, so the accessible name is the interpolated form (metric default: L).
@@ -257,7 +257,7 @@ describe('FuelRecordList — conditional propane column', () => {
       { ...record, id: 3, date: '2026-01-01', octane: 89, octane_scale: null },
     ] as FuelRecord[]
     useFuelRecordsMock.mockReturnValue({ data: { records: rows, total: 3, average_l_per_100km: null }, isLoading: false, error: null })
-    render(<FuelRecordList {...DEFAULT_PROPS} />)
+    render(<FuelRecordList {...DEFAULT_PROPS} />, { wrapper: withConfirm })
     await waitFor(() => expect(apiGetMock).toHaveBeenCalled())
     expect(within(table()).getByText('95 RON')).toBeInTheDocument()
     expect(within(table()).getByText('91 AKI')).toBeInTheDocument()
@@ -265,7 +265,7 @@ describe('FuelRecordList — conditional propane column', () => {
   })
 
   it('omits the propane column for a non-propane vehicle', async () => {
-    render(<FuelRecordList {...DEFAULT_PROPS} />)
+    render(<FuelRecordList {...DEFAULT_PROPS} />, { wrapper: withConfirm })
     await waitFor(() => expect(apiGetMock).toHaveBeenCalled())
     // The real header renders interpolated (`fuelList.propaneUnit (L)` via the file-local
     // {{unit}}-retaining mock), so an exact `name: 'fuelList.propaneUnit'` never matches and
@@ -290,7 +290,7 @@ describe('FuelRecordList — hours usage tracking (Task 13)', () => {
   it('shows the Fuel Rate column and per-row fuel rate, and hides Mileage/Fuel Economy, for an hours-tracking vehicle', async () => {
     apiGetMock.mockResolvedValue({ data: { fuel_type: 'gasoline', usage_unit: 'hours', secondary_usage_enabled: false } })
     useFuelRecordsMock.mockReturnValue({ data: HOURS_DATA, isLoading: false, error: null })
-    render(<FuelRecordList {...DEFAULT_PROPS} />)
+    render(<FuelRecordList {...DEFAULT_PROPS} />, { wrapper: withConfirm })
 
     expect(await screen.findByRole('columnheader', { name: 'fuelList.fuelRate' })).toBeInTheDocument()
     // real formatFuelRate(3.2, 'metric') -> "3.20 L/hr"
@@ -302,7 +302,7 @@ describe('FuelRecordList — hours usage tracking (Task 13)', () => {
   it('shows the Avg fuel-rate and Cost/hr stat cards, and hides Avg Fuel Economy, for an hours-tracking vehicle', async () => {
     apiGetMock.mockResolvedValue({ data: { fuel_type: 'gasoline', usage_unit: 'hours', secondary_usage_enabled: false } })
     useFuelRecordsMock.mockReturnValue({ data: HOURS_DATA, isLoading: false, error: null })
-    render(<FuelRecordList {...DEFAULT_PROPS} />)
+    render(<FuelRecordList {...DEFAULT_PROPS} />, { wrapper: withConfirm })
     await waitFor(() => expect(apiGetMock).toHaveBeenCalled())
 
     // real formatFuelRate(4.5, 'metric') -> "4.50 L/hr"; formatCurrency(2.75) -> "$2.75"
@@ -313,7 +313,7 @@ describe('FuelRecordList — hours usage tracking (Task 13)', () => {
 
   it('keeps Mileage + Fuel Economy and omits Fuel Rate / hours stats for a pure-distance vehicle (table unchanged)', async () => {
     // apiGetMock default (beforeEach) returns fuel_type only — no usage_unit, defaults to distance.
-    render(<FuelRecordList {...DEFAULT_PROPS} />)
+    render(<FuelRecordList {...DEFAULT_PROPS} />, { wrapper: withConfirm })
     await waitFor(() => expect(apiGetMock).toHaveBeenCalled())
 
     expect(within(table()).getByRole('columnheader', { name: 'fuelList.mileage' })).toBeInTheDocument()
@@ -329,7 +329,7 @@ describe('FuelRecordList — hours usage tracking (Task 13)', () => {
       isLoading: false,
       error: null,
     })
-    render(<FuelRecordList {...DEFAULT_PROPS} />)
+    render(<FuelRecordList {...DEFAULT_PROPS} />, { wrapper: withConfirm })
 
     expect(await screen.findByRole('columnheader', { name: 'fuelList.mileage' })).toBeInTheDocument()
     expect(within(table()).getByRole('columnheader', { name: 'fuelList.fuelEconomy' })).toBeInTheDocument()
@@ -343,7 +343,7 @@ describe('FuelRecordList — hours usage tracking (Task 13)', () => {
     // VOLUME. This account keeps litres and chose MPG, so the badge and the
     // tile both answered in L/100km however the preference was set.
     unitPrefMock.units = { ...METRIC_UNITS, consumption: 'mpg_us' }
-    render(<FuelRecordList {...DEFAULT_PROPS} />)
+    render(<FuelRecordList {...DEFAULT_PROPS} />, { wrapper: withConfirm })
     await waitFor(() => expect(apiGetMock).toHaveBeenCalled())
 
     // 235.2145833... / 7.2 = 32.7 in the row badge; / 8.5 = 27.7 on the tile.
@@ -360,7 +360,7 @@ describe('FuelRecordList — hours usage tracking (Task 13)', () => {
     unitPrefMock.units = { ...IMPERIAL_UNITS, volume: 'gal_uk', secondary_gallon: 'uk' }
     apiGetMock.mockResolvedValue({ data: { fuel_type: 'gasoline', usage_unit: 'hours', secondary_usage_enabled: false } })
     useFuelRecordsMock.mockReturnValue({ data: HOURS_DATA, isLoading: false, error: null })
-    render(<FuelRecordList {...DEFAULT_PROPS} />)
+    render(<FuelRecordList {...DEFAULT_PROPS} />, { wrapper: withConfirm })
 
     // 4.5 / 4.54609 = 0.99 on the card; 3.2 / 4.54609 = 0.70 in the row.
     expect(await screen.findByText('0.99 gal (UK)/hr')).toBeInTheDocument()
@@ -402,7 +402,7 @@ describe('FuelRecordList — hours usage tracking (Task 13)', () => {
       isLoading: false,
       error: null,
     })
-    const hours = render(<FuelRecordList {...DEFAULT_PROPS} />)
+    const hours = render(<FuelRecordList {...DEFAULT_PROPS} />, { wrapper: withConfirm })
     await screen.findByText('4.50 L/hr') // hours state applied before asserting absence
     expect(screen.queryByText('fuelList.costPerDistance (100 km)')).not.toBeInTheDocument()
     hours.unmount()
@@ -414,7 +414,7 @@ describe('FuelRecordList — hours usage tracking (Task 13)', () => {
       isLoading: false,
       error: null,
     })
-    render(<FuelRecordList {...DEFAULT_PROPS} />)
+    render(<FuelRecordList {...DEFAULT_PROPS} />, { wrapper: withConfirm })
     expect(await screen.findByText('fuelList.costPerDistance (100 km)')).toBeInTheDocument()
   })
 })
@@ -449,7 +449,7 @@ describe('FuelRecordList — the cost-per-distance card, label and value togethe
     unitPrefMock.units = { ...METRIC_UNITS, distance: 'mi', speed: 'mph' }
     unitPrefMock.accountUnits = METRIC_UNITS
 
-    render(<FuelRecordList {...DEFAULT_PROPS} />)
+    render(<FuelRecordList {...DEFAULT_PROPS} />, { wrapper: withConfirm })
     expect(await screen.findByText('fuelList.costPerDistance (100 km)')).toBeInTheDocument()
     expect(screen.getByText('$2.00')).toBeInTheDocument()
     expect(screen.queryByText('fuelList.costPerDistance (1,000 mi)')).not.toBeInTheDocument()
@@ -462,7 +462,7 @@ describe('FuelRecordList — the cost-per-distance card, label and value togethe
     // "Cost/100 km", beside an odometer column already reading miles.
     unitPrefMock.units = { ...METRIC_UNITS, distance: 'mi', speed: 'mph' }
 
-    render(<FuelRecordList {...DEFAULT_PROPS} />)
+    render(<FuelRecordList {...DEFAULT_PROPS} />, { wrapper: withConfirm })
     expect(await screen.findByText('fuelList.costPerDistance (1,000 mi)')).toBeInTheDocument()
     expect(screen.getByText('$32.19')).toBeInTheDocument()
     // The two answers the collapsed decision would have given, named so this
@@ -478,7 +478,7 @@ describe('FuelRecordList — the cost-per-distance card, label and value togethe
     // the branch. $0.02/km x 1 x 100 = $2.00 per 100 km.
     unitPrefMock.units = { ...IMPERIAL_UNITS, distance: 'km', speed: 'kmh' }
 
-    render(<FuelRecordList {...DEFAULT_PROPS} />)
+    render(<FuelRecordList {...DEFAULT_PROPS} />, { wrapper: withConfirm })
     expect(await screen.findByText('fuelList.costPerDistance (100 km)')).toBeInTheDocument()
     expect(screen.getByText('$2.00')).toBeInTheDocument()
     expect(screen.queryByText('$32.19')).not.toBeInTheDocument()
@@ -489,13 +489,13 @@ describe('FuelRecordList — the cost-per-distance card, label and value togethe
     // The controls. Neither denominator changed in this task, and a fix that
     // moved one would be a different bug rather than a fix.
     unitPrefMock.units = METRIC_UNITS
-    const metric = render(<FuelRecordList {...DEFAULT_PROPS} />)
+    const metric = render(<FuelRecordList {...DEFAULT_PROPS} />, { wrapper: withConfirm })
     expect(await screen.findByText('fuelList.costPerDistance (100 km)')).toBeInTheDocument()
     expect(screen.getByText('$2.00')).toBeInTheDocument()
     metric.unmount()
 
     unitPrefMock.units = IMPERIAL_UNITS
-    render(<FuelRecordList {...DEFAULT_PROPS} />)
+    render(<FuelRecordList {...DEFAULT_PROPS} />, { wrapper: withConfirm })
     expect(await screen.findByText('fuelList.costPerDistance (1,000 mi)')).toBeInTheDocument()
     expect(screen.getByText('$32.19')).toBeInTheDocument()
   })
@@ -504,7 +504,7 @@ describe('FuelRecordList — the cost-per-distance card, label and value togethe
 describe('FuelRecordList — empty state CTA is wired', () => {
   it('shows the "no records" empty state and its add-first CTA fires onAddClick (fails if the CTA is unwired or the title text changes)', () => {
     useFuelRecordsMock.mockReturnValue({ data: { records: [], total: 0, average_l_per_100km: null }, isLoading: false, error: null })
-    render(<FuelRecordList {...DEFAULT_PROPS} />)
+    render(<FuelRecordList {...DEFAULT_PROPS} />, { wrapper: withConfirm })
     expect(screen.getByText('fuelList.noRecords')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'fuelList.addFirstFillUp' }))
     expect(onAddClick).toHaveBeenCalled()
@@ -525,7 +525,7 @@ describe('FuelRecordList — one gallon per page, taken from the user', () => {
     unitPrefMock.system = 'imperial'
     unitPrefMock.units = UK_IMPERIAL_UNITS
 
-    render(<FuelRecordList {...DEFAULT_PROPS} />)
+    render(<FuelRecordList {...DEFAULT_PROPS} />, { wrapper: withConfirm })
     await waitFor(() => expect(apiGetMock).toHaveBeenCalled())
 
     const t = table()
@@ -544,7 +544,7 @@ describe('FuelRecordList — one gallon per page, taken from the user', () => {
     unitPrefMock.system = 'metric'
     unitPrefMock.units = null
 
-    render(<FuelRecordList {...DEFAULT_PROPS} />)
+    render(<FuelRecordList {...DEFAULT_PROPS} />, { wrapper: withConfirm })
     await waitFor(() => expect(apiGetMock).toHaveBeenCalled())
 
     expect(within(table()).getByRole('columnheader', { name: 'fuelList.volumeUnit (L)' })).toBeInTheDocument()
@@ -565,7 +565,7 @@ describe('FuelRecordList — the average card and its towing toggle (#181)', () 
       isLoading: false,
       error: null,
     })
-    render(<FuelRecordList {...DEFAULT_PROPS} />)
+    render(<FuelRecordList {...DEFAULT_PROPS} />, { wrapper: withConfirm })
     await waitFor(() => expect(apiGetMock).toHaveBeenCalled())
     expect(toggle()).toBeInTheDocument()
     expect(screen.getByText('—')).toBeInTheDocument()
@@ -577,7 +577,7 @@ describe('FuelRecordList — the average card and its towing toggle (#181)', () 
       isLoading: false,
       error: null,
     })
-    render(<FuelRecordList {...DEFAULT_PROPS} />)
+    render(<FuelRecordList {...DEFAULT_PROPS} />, { wrapper: withConfirm })
     await waitFor(() => expect(apiGetMock).toHaveBeenCalled())
     expect(toggle()).not.toBeInTheDocument()
   })
@@ -595,7 +595,7 @@ describe('FuelRecordList — a rate keeps its decimals in yen', () => {
       isLoading: false,
       error: null,
     })
-    render(<FuelRecordList {...DEFAULT_PROPS} />)
+    render(<FuelRecordList {...DEFAULT_PROPS} />, { wrapper: withConfirm })
     await waitFor(() => expect(apiGetMock).toHaveBeenCalled())
 
     expect(within(table()).getByText('¥170.50')).toBeInTheDocument()
@@ -612,7 +612,7 @@ describe('FuelRecordList — a rate keeps its decimals in yen', () => {
       isLoading: false,
       error: null,
     })
-    render(<FuelRecordList {...DEFAULT_PROPS} />)
+    render(<FuelRecordList {...DEFAULT_PROPS} />, { wrapper: withConfirm })
 
     expect(await screen.findByText('4.50 L/hr')).toBeInTheDocument()
     expect(screen.getAllByText('¥170.50').length).toBeGreaterThan(0)
@@ -620,7 +620,7 @@ describe('FuelRecordList — a rate keeps its decimals in yen', () => {
   })
 
   it('leaves the dollar unit price where it was', async () => {
-    render(<FuelRecordList {...DEFAULT_PROPS} />)
+    render(<FuelRecordList {...DEFAULT_PROPS} />, { wrapper: withConfirm })
     await waitFor(() => expect(apiGetMock).toHaveBeenCalled())
     // 0.925 at two decimals, as before the currency-digits change.
     expect(within(table()).getByText('$0.93')).toBeInTheDocument()
@@ -661,6 +661,7 @@ describe('FuelRecordList: third-party imports ask for units and decimals (G5a-82
       <QueryClientProvider client={client}>
         <FuelRecordList {...DEFAULT_PROPS} />
       </QueryClientProvider>,
+      { wrapper: withConfirm },
     )
   }
 

@@ -1,10 +1,10 @@
 import { useTranslation } from 'react-i18next'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Save } from 'lucide-react'
 import FormModalWrapper from './FormModalWrapper'
-import { Button, Drawer, Field, Input, Select, Textarea, registerDecimal } from './ui'
+import { Button, Field, Input, Select, Textarea, registerDecimal, useConfirm } from './ui'
 import CurrencyInput from './common/CurrencyInput'
 import type { SpotRental, SpotRentalCreate, SpotRentalUpdate } from '../types/spotRental'
 import type { AddressBookEntry } from '../types/addressBook'
@@ -77,13 +77,26 @@ interface SpotRentalFormProps {
 
 export default function SpotRentalForm({ vin, rental, onClose, onSuccess }: SpotRentalFormProps) {
   const { t } = useTranslation('forms')
+  const confirm = useConfirm()
+  // Teardown isn't Skip. Skip closes the form, and by the time a slow create
+  // lands that could be a second form the user opened meanwhile.
+  const mounted = useRef(false)
+  useEffect(() => {
+    mounted.current = true
+    return () => {
+      mounted.current = false
+    }
+  }, [])
   const isEdit = !!rental
   const [error, setError] = useState<string | null>(null)
   const createMutation = useCreateSpotRental(vin)
   const updateMutation = useUpdateSpotRental(vin)
   const [selectedAddressEntry, setSelectedAddressEntry] = useState<AddressBookEntry | null>(null)
-  const [showSaveToAddressBook, setShowSaveToAddressBook] = useState(false)
-  const [pendingLocationData, setPendingLocationData] = useState<{name: string, address: string} | null>(null)
+  // From a create that landed until the form closes. The rental exists, so a
+  // second submit in that window would make a duplicate. The ref answers a
+  // fast double submit before the state re-renders.
+  const [finishing, setFinishing] = useState(false)
+  const finishingRef = useRef(false)
   const [rateType, setRateType] = useState<RateType>(() => {
     if (rental?.monthly_rate) return 'monthly'
     if (rental?.weekly_rate) return 'weekly'
@@ -144,36 +157,32 @@ export default function SpotRentalForm({ vin, rental, onClose, onSuccess }: Spot
     }
   }
 
-  const handleSaveToAddressBook = async () => {
-    if (!pendingLocationData) return
-
-    try {
-      await api.post('/address-book', {
-        business_name: pendingLocationData.name,
-        address: pendingLocationData.address,
-        category: 'RV Park'
-      })
-      toast.success(t('spotRental.locationSaved'))
-    } catch {
-      toast.error(t('spotRental.failedToSaveLocation'))
-    } finally {
-      setShowSaveToAddressBook(false)
-      setPendingLocationData(null)
-      onSuccess()
-      onClose()
+  // The create already went through, so either answer finishes the flow. No
+  // (Skip, Esc, backdrop) just doesn't save the location.
+  const offerAddressBook = async (name: string, address: string): Promise<void> => {
+    const save = await confirm({
+      message: t('spotRental.saveToAddressBook'),
+      detail: t('spotRental.saveToAddressBookPrompt', { name }),
+      confirmLabel: t('spotRental.yesSave'),
+      cancelLabel: t('spotRental.noSkip'),
+      tone: 'default',
+    })
+    if (!mounted.current) return
+    if (save) {
+      try {
+        await api.post('/address-book', { business_name: name, address, category: 'RV Park' })
+        toast.success(t('spotRental.locationSaved'))
+      } catch {
+        toast.error(t('spotRental.failedToSaveLocation'))
+      }
+      if (!mounted.current) return
     }
-  }
-
-  // The save already succeeded before the prompt shows; "Skip" is the No path.
-  // The nested Drawer routes its Esc / close button / backdrop click here.
-  const skipSaveToAddressBook = () => {
-    setShowSaveToAddressBook(false)
-    setPendingLocationData(null)
     onSuccess()
     onClose()
   }
 
   const onSubmit = async (data: SpotRentalFormData) => {
+    if (finishingRef.current) return
     setError(null)
 
     try {
@@ -202,14 +211,15 @@ export default function SpotRentalForm({ vin, rental, onClose, onSuccess }: Spot
         onClose()
       } else {
         await createMutation.mutateAsync(payload as SpotRentalCreate)
+        if (!mounted.current) return
 
         // Check if this is a new location (not from address book)
+        // Not awaited, so the footer isn't stuck on Saving under the question.
+        // `finishing` keeps it disabled instead, until the address book save settles.
         if (data.location_name && !selectedAddressEntry) {
-          setPendingLocationData({
-            name: data.location_name,
-            address: data.location_address || ''
-          })
-          setShowSaveToAddressBook(true)
+          finishingRef.current = true
+          setFinishing(true)
+          void offerAddressBook(data.location_name, data.location_address || '')
         } else {
           onSuccess()
           onClose()
@@ -241,23 +251,22 @@ export default function SpotRentalForm({ vin, rental, onClose, onSuccess }: Spot
   }
 
   return (
-    <>
     <FormModalWrapper
       title={isEdit ? t('spotRental.editTitle') : t('spotRental.createTitle')}
       onClose={onClose}
       width="md"
       footer={
         <>
-          <Button variant="secondary" onClick={onClose} disabled={isSubmitting}>
+          <Button variant="secondary" onClick={onClose} disabled={isSubmitting || finishing}>
             {t('common:cancel')}
           </Button>
-          <Button type="submit" form="spot-rental-form" variant="primary" icon={Save} loading={isSubmitting} disabled={isSubmitting}>
+          <Button type="submit" form="spot-rental-form" variant="primary" icon={Save} loading={isSubmitting} disabled={isSubmitting || finishing}>
             {isSubmitting ? t('common:saving') : isEdit ? t('common:update') : t('common:create')}
           </Button>
         </>
       }
     >
-        <form id="spot-rental-form" onSubmit={handleSubmit(onSubmit as Parameters<typeof handleSubmit>[0])} className="p-6 space-y-4">
+        <form id="spot-rental-form" onSubmit={handleSubmit(onSubmit as Parameters<typeof handleSubmit>[0])} className="space-y-4">
           {error && (
             <div className="bg-danger/10 border border-danger rounded-lg p-3">
               <p className="text-sm text-danger">{error}</p>
@@ -418,31 +427,5 @@ export default function SpotRentalForm({ vin, rental, onClose, onSuccess }: Spot
           </Field>
         </form>
     </FormModalWrapper>
-
-      {/* Save to Address Book — nested drawer above the parent (+10). Esc /
-         close / backdrop all route to skipSaveToAddressBook (the "No" path). */}
-      <Drawer
-        open={showSaveToAddressBook && !!pendingLocationData}
-        nested
-        onClose={skipSaveToAddressBook}
-        title={t('spotRental.saveToAddressBook')}
-        width="2xs"
-        closeLabel={t('common:close')}
-        footer={
-          <>
-            <Button variant="secondary" onClick={skipSaveToAddressBook}>
-              {t('spotRental.noSkip')}
-            </Button>
-            <Button variant="primary" onClick={handleSaveToAddressBook}>
-              {t('spotRental.yesSave')}
-            </Button>
-          </>
-        }
-      >
-        <p className="text-sm text-text-mute">
-          {t('spotRental.saveToAddressBookPrompt', { name: pendingLocationData?.name ?? '' })}
-        </p>
-      </Drawer>
-    </>
   )
 }

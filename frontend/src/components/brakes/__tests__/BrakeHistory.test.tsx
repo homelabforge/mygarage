@@ -49,6 +49,7 @@ vi.mock('../../../hooks/useUnitPreference', () => {
 
 import BrakeHistoryDrawer from '../BrakeHistoryDrawer'
 import { JobEditor, MeasurementEditor } from '../BrakeEditors'
+import { answerConfirm, escapeConfirm, withConfirm } from '../../../__tests__/confirmHelpers'
 
 const VIN = '1HGCM82633A004352'
 
@@ -114,7 +115,8 @@ describe('BrakeHistoryDrawer', () => {
         onClose={vi.fn()}
         onEditMeasurement={vi.fn()}
         onEditJob={vi.fn()}
-      />
+      />,
+      { wrapper: withConfirm },
     )
     const text = document.body.textContent ?? ''
     const newPads = text.indexOf('brakes.newPartsBadge')
@@ -125,8 +127,7 @@ describe('BrakeHistoryDrawer', () => {
     expect(job).toBeLessThan(oldPads)
   })
 
-  it('deletes only after a confirm', () => {
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValueOnce(false).mockReturnValueOnce(true)
+  it('deletes only after a confirm', async () => {
     render(
       <BrakeHistoryDrawer
         vin={VIN}
@@ -136,21 +137,46 @@ describe('BrakeHistoryDrawer', () => {
         onClose={vi.fn()}
         onEditMeasurement={vi.fn()}
         onEditJob={vi.fn()}
-      />
+      />,
+      { wrapper: withConfirm },
     )
     const deletes = screen.getAllByRole('button', { name: 'common:delete' })
     fireEvent.click(deletes[0])
+    await answerConfirm('cancel', 'brakes.confirmDeleteMeasurement')
     expect(deleteMeasurementMock).not.toHaveBeenCalled()
     fireEvent.click(deletes[0])
+    await answerConfirm('confirm', 'brakes.confirmDeleteMeasurement')
     expect(deleteMeasurementMock).toHaveBeenCalledWith(11, expect.anything())
-    confirm.mockRestore()
+  })
+
+  // Regression pin: Escape on the confirm must not close the drawer under it.
+  it('Escape closes the delete confirm and leaves the drawer open', async () => {
+    const onClose = vi.fn()
+    render(
+      <BrakeHistoryDrawer
+        vin={VIN}
+        overview={OVERVIEW}
+        corner={CORNER}
+        open
+        onClose={onClose}
+        onEditMeasurement={vi.fn()}
+        onEditJob={vi.fn()}
+      />,
+      { wrapper: withConfirm },
+    )
+    fireEvent.click(screen.getAllByRole('button', { name: 'common:delete' })[0])
+    await escapeConfirm('brakes.confirmDeleteMeasurement')
+    expect(onClose).not.toHaveBeenCalled()
+    expect(screen.getByRole('dialog', { name: 'brakes.historyTitle' })).toBeInTheDocument()
+    expect(deleteMeasurementMock).not.toHaveBeenCalled()
   })
 })
 
 describe('MeasurementEditor', () => {
   it('a measurement a job wrote sends its figures only, never a date or odometer', () => {
     render(
-      <MeasurementEditor vin={VIN} overview={OVERVIEW} measurement={NEW_PADS} brakeType="disc" open onClose={vi.fn()} />
+      <MeasurementEditor vin={VIN} overview={OVERVIEW} measurement={NEW_PADS} brakeType="disc" open onClose={vi.fn()} />,
+      { wrapper: withConfirm },
     )
     expect(document.getElementById('brake-measurement-edit-date')).toBeNull()
     fireEvent.change(document.getElementById('brake-measurement-edit-inner_pad_mm') as HTMLInputElement, {
@@ -165,7 +191,8 @@ describe('MeasurementEditor', () => {
 
   it('an ordinary measurement sends its date and odometer back', () => {
     render(
-      <MeasurementEditor vin={VIN} overview={OVERVIEW} measurement={OLD_PADS} brakeType="disc" open onClose={vi.fn()} />
+      <MeasurementEditor vin={VIN} overview={OVERVIEW} measurement={OLD_PADS} brakeType="disc" open onClose={vi.fn()} />,
+      { wrapper: withConfirm },
     )
     fireEvent.click(screen.getByRole('button', { name: 'common:save' }))
     expect(updateMeasurementMock.mock.calls[0][0]).toMatchObject({
@@ -186,7 +213,8 @@ describe('MeasurementEditor', () => {
         brakeType="disc"
         open
         onClose={vi.fn()}
-      />
+      />,
+      { wrapper: withConfirm },
     )
     expect((document.getElementById('brake-measurement-edit-outer_pad_mm') as HTMLInputElement).value).toBe('')
     fireEvent.click(screen.getByRole('button', { name: 'common:save' }))
@@ -196,7 +224,7 @@ describe('MeasurementEditor', () => {
 
 describe('JobEditor', () => {
   it('refuses a job that does nothing', () => {
-    render(<JobEditor vin={VIN} overview={OVERVIEW} job={JOB} open onClose={vi.fn()} />)
+    render(<JobEditor vin={VIN} overview={OVERVIEW} job={JOB} open onClose={vi.fn()} />, { wrapper: withConfirm })
     fireEvent.click(screen.getByRole('checkbox'))
     fireEvent.click(screen.getByRole('button', { name: 'brakes.surfaceNone' }))
     fireEvent.click(screen.getByRole('button', { name: 'common:save' }))
@@ -204,7 +232,7 @@ describe('JobEditor', () => {
   })
 
   it('sends the corrected job', () => {
-    render(<JobEditor vin={VIN} overview={OVERVIEW} job={JOB} open onClose={vi.fn()} />)
+    render(<JobEditor vin={VIN} overview={OVERVIEW} job={JOB} open onClose={vi.fn()} />, { wrapper: withConfirm })
     fireEvent.click(screen.getByRole('button', { name: 'brakes.surfaceReplaced' }))
     fireEvent.click(screen.getByRole('button', { name: 'common:save' }))
     expect(updateJobMock.mock.calls[0][0]).toMatchObject({

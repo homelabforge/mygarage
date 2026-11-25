@@ -1,6 +1,7 @@
 import type { ReactElement, ReactNode } from 'react'
 import { render, type RenderOptions, type RenderResult } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { ConfirmProvider } from '../components/ui/ConfirmDialog'
 
 /**
  * A fresh query client for one test. No retries: plenty of tests queue their
@@ -25,11 +26,21 @@ export function queryWrapper(
   }
 }
 
-/** `render` inside a fresh retry-free QueryClientProvider. Hands the client back too. */
+/**
+ * `render` inside a fresh retry-free QueryClientProvider. Hands the client back
+ * too. Carries a ConfirmProvider like test-utils' render, since any delete
+ * button now asks through useConfirm.
+ */
 export function renderWithQueryClient(
   ui: ReactElement,
   options: Omit<RenderOptions, 'wrapper'> & { client?: QueryClient } = {},
 ): RenderResult & { client: QueryClient } {
   const { client = createTestQueryClient(), ...rest } = options
-  return { ...render(ui, { wrapper: queryWrapper(client), ...rest }), client }
+  const Queries = queryWrapper(client)
+  const wrapper = ({ children }: { children: ReactNode }): ReactElement => (
+    <Queries>
+      <ConfirmProvider>{children}</ConfirmProvider>
+    </Queries>
+  )
+  return { ...render(ui, { wrapper, ...rest }), client }
 }

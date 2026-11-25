@@ -1,4 +1,4 @@
-import { useState, useRef, type SyntheticEvent } from 'react'
+import { useState, useRef, type ReactElement, type SyntheticEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Upload, X, FileText } from 'lucide-react'
 import { useUploadDocument } from '../hooks/queries/useDocuments'
@@ -6,7 +6,7 @@ import { actionErrorMessage } from '../utils/httpErrorHandler'
 import { applyControlledFieldErrors } from '../utils/apiFormErrors'
 import { usePublicSettings } from '../hooks/queries/usePublicSettings'
 import { documentMaxBytes, megabytes } from '../utils/uploadLimits'
-import { Button, IconButton, Mono, Field, Input, Select, Textarea } from './ui'
+import { Button, Dialog, IconButton, Mono, Field, Input, Select, Textarea } from './ui'
 
 interface DocumentUploadProps {
   vin: string
@@ -14,7 +14,7 @@ interface DocumentUploadProps {
   onClose: () => void
 }
 
-export default function DocumentUpload({ vin, onSuccess, onClose }: DocumentUploadProps) {
+export default function DocumentUpload({ vin, onSuccess, onClose }: DocumentUploadProps): ReactElement {
   const { t } = useTranslation('vehicles')
   const uploadMutation = useUploadDocument(vin)
   const publicSettings = usePublicSettings()
@@ -131,127 +131,133 @@ export default function DocumentUpload({ vin, onSuccess, onClose }: DocumentUplo
     return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i]
   }
 
+  // Closing mid-upload would still fire onSuccess when it lands, so hold off till then.
+  const close = (): void => {
+    if (!uploading) onClose()
+  }
+
   return (
-    <div className="fixed inset-0 modal-overlay flex items-center justify-center modal-safe-pad z-50">
-      <div className="bg-surface rounded-lg shadow-2xl max-w-2xl w-full border border-border">
-        <div className="bg-surface border-b border-border px-6 py-4 flex justify-between items-center rounded-t-lg">
-          <h2 className="text-xl font-semibold text-text">{t('documentUpload.title')}</h2>
-          <IconButton icon={X} label={t('common:close')} variant="ghost" onClick={onClose} />
-        </div>
+    <Dialog
+      open
+      onClose={close}
+      title={t('documentUpload.title')}
+      closeLabel={t('common:close')}
+      size="2xl"
+      footer={
+        <>
+          <Button type="button" variant="secondary" data-dialog-cancel onClick={close} disabled={uploading}>
+            {t('common:cancel')}
+          </Button>
+          {/* Lives outside the form now, so form= keeps it the submit button. */}
+          <Button type="submit" form="document-upload-form" variant="primary" icon={Upload} loading={uploading} disabled={uploading || !file || !title}>
+            {uploading ? t('documentUpload.uploading') : t('documentUpload.uploadBtn')}
+          </Button>
+        </>
+      }
+    >
+      <form id="document-upload-form" onSubmit={handleSubmit} className="space-y-4">
+        {error && (
+          <div className="bg-danger/10 border border-danger rounded-lg p-3">
+            <p className="text-sm text-danger">{error}</p>
+          </div>
+        )}
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          {error && (
-            <div className="bg-danger/10 border border-danger rounded-lg p-3">
-              <p className="text-sm text-danger">{error}</p>
-            </div>
-          )}
-
-          {!file ? (
-            <div
-              className={`border-2 border-dashed rounded-lg p-12 text-center transition-colors ${
-                dragActive
-                  ? 'border-(--accent-line) bg-(--accent-soft)'
-                  : 'border-border hover:border-(--accent-line)'
-              }`}
-              onDragEnter={handleDrag}
-              onDragLeave={handleDrag}
-              onDragOver={handleDrag}
-              onDrop={handleDrop}
-            >
-              <Upload aria-hidden="true" className="w-12 h-12 text-text-mute mx-auto mb-4" />
-              <p className="text-text mb-2">
-                {t('documentUpload.misc.dragDropPrompt')}
-              </p>
-              <p className="text-sm text-text-mute mb-4">
-                {t('documentUpload.misc.fileTypes')}
-              </p>
-              <label htmlFor="document-upload-file" className="sr-only">
-                {t('documentUpload.misc.selectFile')}
-              </label>
-              <input
-                id="document-upload-file"
-                ref={fileInputRef}
-                type="file"
-                accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png,.webp,.xls,.xlsx,.csv"
-                onChange={handleFileInput}
-                className="hidden"
-              />
-              <Button type="button" variant="secondary" onClick={() => fileInputRef.current?.click()}>
-                {t('documentUpload.misc.selectFile')}
-              </Button>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <div className="bg-surface-2 border border-border rounded-lg p-4">
-                <div className="flex items-start gap-3">
-                  <FileText aria-hidden="true" className="w-8 h-8 text-(--accent-fg) flex-shrink-0 mt-1" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-text font-medium truncate">{file.name}</p>
-                    <Mono size="sm" tone="muted">{formatFileSize(file.size)}</Mono>
-                  </div>
-                  <IconButton
-                    icon={X}
-                    label={t('common:remove')}
-                    variant="danger"
-                    onClick={() => {
-                      setFile(null)
-                      if (fileInputRef.current) fileInputRef.current.value = ''
-                    }}
-                  />
-                </div>
-              </div>
-
-              <Field id="title" label={t('documentList.titleLabel')} required error={fieldErrors.title}>
-                <Input
-                  id="title"
-                  type="text"
-                  required
-                  maxLength={200}
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder={t('documentUpload.misc.titlePlaceholder')}
-                />
-              </Field>
-
-              <Field id="document_type" label={t('documentUpload.misc.documentTypeLabel')} error={fieldErrors.document_type}>
-                <Select
-                  id="document_type"
-                  value={documentType}
-                  onChange={(e) => setDocumentType(e.target.value)}
-                  placeholder={t('documentList.selectType')}
-                  options={[
-                    { value: 'Insurance', label: t('documentUpload.misc.typeInsurance') },
-                    { value: 'Registration', label: t('documentUpload.misc.typeRegistration') },
-                    { value: 'Manual', label: t('documentUpload.misc.typeManual') },
-                    { value: 'Receipt', label: t('documentUpload.misc.typeReceipt') },
-                    { value: 'Inspection', label: t('documentUpload.misc.typeInspection') },
-                    { value: 'Other', label: t('documentUpload.misc.typeOther') },
-                  ]}
-                />
-              </Field>
-
-              <Field id="description" label={t('documentList.descriptionLabel')} error={fieldErrors.description}>
-                <Textarea
-                  id="description"
-                  rows={3}
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder={t('documentUpload.misc.descriptionPlaceholder')}
-                />
-              </Field>
-            </div>
-          )}
-
-          <div className="flex gap-3 pt-4">
-            <Button type="submit" variant="primary" icon={Upload} loading={uploading} disabled={uploading || !file || !title}>
-              {uploading ? t('documentUpload.uploading') : t('documentUpload.uploadBtn')}
-            </Button>
-            <Button type="button" variant="secondary" onClick={onClose}>
-              {t('common:cancel')}
+        {!file ? (
+          <div
+            className={`border-2 border-dashed rounded-lg p-12 text-center transition-colors ${
+              dragActive
+                ? 'border-(--accent-line) bg-(--accent-soft)'
+                : 'border-border hover:border-(--accent-line)'
+            }`}
+            onDragEnter={handleDrag}
+            onDragLeave={handleDrag}
+            onDragOver={handleDrag}
+            onDrop={handleDrop}
+          >
+            <Upload aria-hidden="true" className="w-12 h-12 text-text-mute mx-auto mb-4" />
+            <p className="text-text mb-2">
+              {t('documentUpload.misc.dragDropPrompt')}
+            </p>
+            <p className="text-sm text-text-mute mb-4">
+              {t('documentUpload.misc.fileTypes')}
+            </p>
+            <label htmlFor="document-upload-file" className="sr-only">
+              {t('documentUpload.misc.selectFile')}
+            </label>
+            <input
+              id="document-upload-file"
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png,.webp,.xls,.xlsx,.csv"
+              onChange={handleFileInput}
+              className="hidden"
+            />
+            <Button type="button" variant="secondary" onClick={() => fileInputRef.current?.click()}>
+              {t('documentUpload.misc.selectFile')}
             </Button>
           </div>
-        </form>
-      </div>
-    </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="bg-surface-2 border border-border rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <FileText aria-hidden="true" className="w-8 h-8 text-(--accent-fg) flex-shrink-0 mt-1" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-text font-medium truncate">{file.name}</p>
+                  <Mono size="sm" tone="muted">{formatFileSize(file.size)}</Mono>
+                </div>
+                <IconButton
+                  icon={X}
+                  label={t('common:remove')}
+                  variant="danger"
+                  onClick={() => {
+                    setFile(null)
+                    if (fileInputRef.current) fileInputRef.current.value = ''
+                  }}
+                />
+              </div>
+            </div>
+
+            <Field id="title" label={t('documentList.titleLabel')} required error={fieldErrors.title}>
+              <Input
+                id="title"
+                type="text"
+                required
+                maxLength={200}
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder={t('documentUpload.misc.titlePlaceholder')}
+              />
+            </Field>
+
+            <Field id="document_type" label={t('documentUpload.misc.documentTypeLabel')} error={fieldErrors.document_type}>
+              <Select
+                id="document_type"
+                value={documentType}
+                onChange={(e) => setDocumentType(e.target.value)}
+                placeholder={t('documentList.selectType')}
+                options={[
+                  { value: 'Insurance', label: t('documentUpload.misc.typeInsurance') },
+                  { value: 'Registration', label: t('documentUpload.misc.typeRegistration') },
+                  { value: 'Manual', label: t('documentUpload.misc.typeManual') },
+                  { value: 'Receipt', label: t('documentUpload.misc.typeReceipt') },
+                  { value: 'Inspection', label: t('documentUpload.misc.typeInspection') },
+                  { value: 'Other', label: t('documentUpload.misc.typeOther') },
+                ]}
+              />
+            </Field>
+
+            <Field id="description" label={t('documentList.descriptionLabel')} error={fieldErrors.description}>
+              <Textarea
+                id="description"
+                rows={3}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder={t('documentUpload.misc.descriptionPlaceholder')}
+              />
+            </Field>
+          </div>
+        )}
+      </form>
+    </Dialog>
   )
 }

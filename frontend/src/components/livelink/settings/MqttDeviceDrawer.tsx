@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Radio, RefreshCw, Trash2 } from 'lucide-react'
 
-import { Button, Drawer, Field, Input, Select } from '@/components/ui'
+import { Button, Drawer, Field, Input, Select, useConfirm } from '@/components/ui'
 import { livelinkService } from '@/services/livelinkService'
 import { vehicleService } from '@/services/vehicleService'
 import type { DeviceReadingsResponse, IntegrationTab, LiveLinkDevice } from '@/types/livelink'
@@ -36,6 +36,7 @@ const TAB_PREFIX = 'device:'
 
 export default function MqttDeviceDrawer({ open, tab, onClose, onChanged }: Props): ReactElement {
   const { t } = useTranslation('settings')
+  const confirm = useConfirm()
   const idBase = useId()
   const deviceId = tab?.id.startsWith(TAB_PREFIX) ? tab.id.slice(TAB_PREFIX.length) : null
 
@@ -125,7 +126,8 @@ export default function MqttDeviceDrawer({ open, tab, onClose, onChanged }: Prop
   }
 
   const remove = async (): Promise<void> => {
-    if (!deviceId || !confirm(t('forms:modal.livelink.confirmDeleteDevice'))) return
+    if (!deviceId) return
+    if (!(await confirm({ message: t('forms:modal.livelink.confirmDeleteDevice'), confirmLabel: t('common:delete') }))) return
     setBusy(true)
     try {
       await livelinkService.deleteDevice(deviceId)

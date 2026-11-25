@@ -12,6 +12,7 @@ const dismissMock = vi.fn().mockResolvedValue(undefined)
 const deleteMock = vi.fn().mockResolvedValue(undefined)
 const useReminderDuplicatesMock = vi.fn()
 const useReminderPacksMock = vi.fn()
+const deletePackMock = vi.fn().mockResolvedValue(undefined)
 vi.mock('../../hooks/useReminders', () => reminderHooks({
   useReminders: () => useRemindersMock(),
   useMarkReminderDone: () => ({ mutateAsync: markDoneMock }),
@@ -19,6 +20,7 @@ vi.mock('../../hooks/useReminders', () => reminderHooks({
   useDeleteReminder: () => ({ mutateAsync: deleteMock }),
   useReminderDuplicates: () => useReminderDuplicatesMock(),
   useReminderPacks: (vehicleType: string | null) => useReminderPacksMock(vehicleType),
+  useDeletePack: () => ({ mutateAsync: deletePackMock, isPending: false }),
 }))
 // The completion dialog is its own component with its own tests; here only
 // the fact that Mark done OPENS it with the exact reminder matters.
@@ -50,6 +52,7 @@ vi.mock('../ReminderForm', (importOriginal) =>
 )
 
 import ReminderList from '../ReminderList'
+import { answerConfirm } from '../../__tests__/confirmHelpers'
 
 const pending = makeReminder({ id: 8 })
 const done = makeReminder({ id: 9, title: 'Old task', status: 'done' })
@@ -95,11 +98,10 @@ describe('ReminderList — rendering + row actions (pending)', () => {
   })
 
   it('clicking Delete calls the delete mutation DIRECTLY with the id and never opens a confirm dialog (fails if delete is unwired OR a confirm gate is added — ReminderList delete is direct, LD5)', async () => {
-    const confirmSpy = vi.spyOn(window, 'confirm')
     render(<ReminderList vehicle={vehicle} />)
     fireEvent.click(screen.getByRole('button', { name: 'common:delete' }))
     await waitFor(() => expect(deleteMock.mock.calls[0]).toStrictEqual([8]))
-    expect(confirmSpy).not.toHaveBeenCalled()
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
   })
 
   it('the row Mark-done/Dismiss/Edit/Delete expose a real aria-label (IconButton), not a bare title (fails if any regresses to a title-only <button>)', () => {
@@ -203,5 +205,28 @@ describe('ReminderList: the vehicle comes from its parent (G5a-10)', () => {
     // The packs are the prop's vehicle type's from the first render.
     expect(useReminderPacksMock).toHaveBeenCalledWith('Motorcycle')
     expect(useReminderPacksMock).not.toHaveBeenCalledWith(null)
+  })
+})
+
+describe('ReminderList: deleting a saved pack asks first', () => {
+  const pickPack = async (): Promise<void> => {
+    useReminderPacksMock.mockReturnValue({
+      data: [{ id: 'mine', name: 'My pack', is_custom: true, can_edit: true }],
+    })
+    render(<ReminderList vehicle={vehicle} />)
+    fireEvent.change(screen.getByLabelText('reminderList.applyPackAria'), { target: { value: 'mine' } })
+    fireEvent.click(await screen.findByRole('button', { name: 'packList.delete' }))
+  }
+
+  it('a confirmed delete deletes that pack', async () => {
+    await pickPack()
+    await answerConfirm('confirm', /^packList\.deleteConfirm/)
+    await waitFor(() => expect(deletePackMock).toHaveBeenCalledWith('mine'))
+  })
+
+  it('a cancelled delete deletes nothing', async () => {
+    await pickPack()
+    await answerConfirm('cancel', /^packList\.deleteConfirm/)
+    expect(deletePackMock).not.toHaveBeenCalled()
   })
 })

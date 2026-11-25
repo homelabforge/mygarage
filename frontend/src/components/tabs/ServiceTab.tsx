@@ -78,6 +78,10 @@ export default function ServiceTab({ vin }: ServiceTabProps) {
           onSuccess={handleVisitSuccess}
         />
       )}
+      {/* Always mounted, so screen readers pick up the text when it swaps in. */}
+      <div role="status" aria-live="polite" className="sr-only">
+        {showVisitForm && !vehicleReady ? t('common:loading') : null}
+      </div>
     </div>
   )
 }
