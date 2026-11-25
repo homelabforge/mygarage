@@ -59,6 +59,7 @@ import { toast } from 'sonner'
 import BrakeList from '../BrakeList'
 import { formatDateForDisplay } from '../../../utils/dateUtils'
 import { brakeCorner, brakeOverview } from '../../../__tests__/factories'
+import { withConfirm } from '../../../__tests__/confirmHelpers'
 
 const VIN = '1HGCM82633A004352'
 
@@ -98,7 +99,7 @@ describe('BrakeList', () => {
       isLoading: false,
       error: null,
     })
-    render(<BrakeList vin={VIN} />)
+    render(<BrakeList vin={VIN} />, { wrapper: withConfirm })
 
     expect(screen.getByText('brakes.frontAxle')).toBeInTheDocument()
     expect(screen.getByText('brakes.rearAxle')).toBeInTheDocument()
@@ -125,7 +126,7 @@ describe('BrakeList', () => {
 
   it('logs every corner that has a figure, in canonical units, and skips blank ones', () => {
     useBrakesMock.mockReturnValue({ data: overview(), isLoading: false, error: null })
-    render(<BrakeList vin={VIN} />)
+    render(<BrakeList vin={VIN} />, { wrapper: withConfirm })
     fireEvent.click(screen.getByRole('button', { name: 'brakes.logMeasurements' }))
 
     fireEvent.change(field('brake-log-date'), { target: { value: '2026-10-01' } })
@@ -149,7 +150,7 @@ describe('BrakeList', () => {
 
   it('does not send a batch with nothing in it', () => {
     useBrakesMock.mockReturnValue({ data: overview(), isLoading: false, error: null })
-    render(<BrakeList vin={VIN} />)
+    render(<BrakeList vin={VIN} />, { wrapper: withConfirm })
     fireEvent.click(screen.getByRole('button', { name: 'brakes.logMeasurements' }))
     fireEvent.click(screen.getByRole('button', { name: 'common:save' }))
     expect(logMock).not.toHaveBeenCalled()
@@ -157,7 +158,7 @@ describe('BrakeList', () => {
 
   it('a brake job from a card covers its axle and carries the new pad thickness', () => {
     useBrakesMock.mockReturnValue({ data: overview(), isLoading: false, error: null })
-    render(<BrakeList vin={VIN} />)
+    render(<BrakeList vin={VIN} />, { wrapper: withConfirm })
     const card = screen.getAllByRole('button', { name: 'brakes.historyOpen' })[0].closest('.relative') as HTMLElement
     fireEvent.click(within(card).getByRole('button', { name: 'brakes.brakeJob' }))
 
@@ -178,7 +179,7 @@ describe('BrakeList', () => {
   it('axle setup saves the axle that changed, starting from its new type’s defaults', async () => {
     axleMock.mockResolvedValue({})
     useBrakesMock.mockReturnValue({ data: overview(), isLoading: false, error: null })
-    render(<BrakeList vin={VIN} />)
+    render(<BrakeList vin={VIN} />, { wrapper: withConfirm })
     fireEvent.click(screen.getByRole('button', { name: 'brakes.axleSetup' }))
 
     // Front axle: disc to drum.
@@ -202,7 +203,7 @@ describe('BrakeList', () => {
   it('axle setup checks every axle against the server’s bounds before saving either', async () => {
     axleMock.mockResolvedValue({})
     useBrakesMock.mockReturnValue({ data: overview(), isLoading: false, error: null })
-    render(<BrakeList vin={VIN} />)
+    render(<BrakeList vin={VIN} />, { wrapper: withConfirm })
     fireEvent.click(screen.getByRole('button', { name: 'brakes.axleSetup' }))
 
     const refused = async (key: string): Promise<void> => {
@@ -244,7 +245,7 @@ describe('BrakeList', () => {
 
   it('axle setup writes nothing when nothing changed', async () => {
     useBrakesMock.mockReturnValue({ data: overview(), isLoading: false, error: null })
-    render(<BrakeList vin={VIN} />)
+    render(<BrakeList vin={VIN} />, { wrapper: withConfirm })
     fireEvent.click(screen.getByRole('button', { name: 'brakes.axleSetup' }))
     fireEvent.click(screen.getByRole('button', { name: 'common:save' }))
     await Promise.resolve()
@@ -262,7 +263,7 @@ describe('BrakeList', () => {
       isLoading: false,
       error: null,
     })
-    render(<BrakeList vin={VIN} />)
+    render(<BrakeList vin={VIN} />, { wrapper: withConfirm })
     expect(screen.getByText('brakes.wear.needsEarlierOdometer')).toBeInTheDocument()
     expect(screen.getByText('brakes.wear.needsOdometer')).toBeInTheDocument()
   })
@@ -276,7 +277,7 @@ describe('BrakeList', () => {
       isLoading: false,
       error: null,
     })
-    render(<BrakeList vin={VIN} />)
+    render(<BrakeList vin={VIN} />, { wrapper: withConfirm })
     expect(screen.getByText('brakes.wear.needsOdometerOn')).toBeInTheDocument()
     expect(screen.queryByText('brakes.wear.needsOdometer')).not.toBeInTheDocument()
   })
@@ -289,14 +290,14 @@ describe('BrakeList', () => {
       isLoading: false,
       error: null,
     })
-    render(<BrakeList vin={VIN} />)
+    render(<BrakeList vin={VIN} />, { wrapper: withConfirm })
     expect(screen.getByText(formatDateForDisplay('2026-06-07'))).toBeInTheDocument()
   })
 
   it('opens Log measurements straight away when sent from the Tires page', () => {
     useBrakesMock.mockReturnValue({ data: overview(), isLoading: false, error: null })
     const opened = vi.fn()
-    render(<BrakeList vin={VIN} logOnOpen onLogOpened={opened} />)
+    render(<BrakeList vin={VIN} logOnOpen onLogOpened={opened} />, { wrapper: withConfirm })
     expect(screen.getByText('brakes.logTitle')).toBeInTheDocument()
     expect(opened).toHaveBeenCalledTimes(1)
   })

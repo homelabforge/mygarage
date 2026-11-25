@@ -23,6 +23,7 @@ vi.mock('../../hooks/useCurrencyPreference', () => ({ useCurrencyPreference: () 
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 
 import ServiceVisitList from '../ServiceVisitList'
+import { withConfirm } from '../../__tests__/confirmHelpers'
 
 const item = (over: Record<string, unknown>): Record<string, unknown> => ({
   description: 'Line',
@@ -105,6 +106,7 @@ function renderAt(url: string, onEditClick: (visit: ServiceVisit) => void = vi.f
         />
       </Routes>
     </MemoryRouter>,
+    { wrapper: withConfirm },
   )
 }
 

@@ -74,6 +74,7 @@ vi.mock('../../hooks/useUnitPreference', () => {
 
 import TireList from '../TireList'
 import { FOUR_LAYOUT } from '../../__tests__/factories'
+import { answerConfirm, withConfirm } from '../../__tests__/confirmHelpers'
 
 const STORED_FL_TIRE = {
   id: 1,
@@ -94,8 +95,7 @@ const STORED_FL_TIRE = {
 }
 
 describe('TireList', () => {
-  // The window.confirm spy in the delete tests would otherwise leak into every
-  // test that runs after it.
+  // Spies set inside a test would otherwise leak into every test after it.
   afterEach(() => {
     vi.restoreAllMocks()
   })
@@ -115,7 +115,7 @@ describe('TireList', () => {
     const mutate = vi.fn()
     useUpsertTireMock.mockReturnValue({ mutate, isPending: false })
 
-    render(<TireList vin="1HGCM82633A004352" />)
+    render(<TireList vin="1HGCM82633A004352" />, { wrapper: withConfirm })
     fireEvent.click(screen.getByLabelText('tireList.edit'))
     fireEvent.click(screen.getByText('common:save'))
 
@@ -143,7 +143,7 @@ describe('TireList', () => {
     const mutate = vi.fn()
     useAddTireReadingMock.mockReturnValue({ mutate, isPending: false })
 
-    render(<TireList vin="1HGCM82633A004352" />)
+    render(<TireList vin="1HGCM82633A004352" />, { wrapper: withConfirm })
     fireEvent.click(screen.getByText('tireList.addReading'))
 
     const odo = screen.getByLabelText('tireList.odometerWithUnit') as HTMLInputElement
@@ -162,7 +162,7 @@ describe('TireList', () => {
     const mutate = vi.fn()
     useAddTireReadingMock.mockReturnValue({ mutate, isPending: false })
 
-    render(<TireList vin="1HGCM82633A004352" />)
+    render(<TireList vin="1HGCM82633A004352" />, { wrapper: withConfirm })
     fireEvent.click(screen.getByText('tireList.addReading'))
     fireEvent.change(screen.getByLabelText('tireList.odometerWithUnit'), {
       target: { value: '100' },
@@ -180,7 +180,7 @@ describe('TireList', () => {
     const mutate = vi.fn()
     useUpsertTireMock.mockReturnValue({ mutate, isPending: false })
 
-    render(<TireList vin="1HGCM82633A004352" />)
+    render(<TireList vin="1HGCM82633A004352" />, { wrapper: withConfirm })
     fireEvent.click(screen.getByLabelText('tireList.edit'))
     fireEvent.change(screen.getByLabelText('tireList.pressureWithUnit'), {
       target: { value: '' },
@@ -193,7 +193,7 @@ describe('TireList', () => {
   })
 
   it('shows stored kPa as PSI in the edit form', () => {
-    render(<TireList vin="1HGCM82633A004352" />)
+    render(<TireList vin="1HGCM82633A004352" />, { wrapper: withConfirm })
     fireEvent.click(screen.getByLabelText('tireList.edit'))
 
     // 240 kPa / 6.894757... = 34.809..., and PSI renders at one decimal.
@@ -202,7 +202,7 @@ describe('TireList', () => {
   })
 
   it('opens the tire form in a drawer, titled by intent', () => {
-    render(<TireList vin="1HGCM82633A004352" />)
+    render(<TireList vin="1HGCM82633A004352" />, { wrapper: withConfirm })
     // Nothing is open until an intent is chosen.
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
 
@@ -215,7 +215,7 @@ describe('TireList', () => {
   })
 
   it('opens the reading form in its own drawer, named for the position', () => {
-    render(<TireList vin="1HGCM82633A004352" />)
+    render(<TireList vin="1HGCM82633A004352" />, { wrapper: withConfirm })
     fireEvent.click(screen.getByText('tireList.addReading'))
 
     // Only one drawer at a time, so `common:save` stays unambiguous.
@@ -224,7 +224,7 @@ describe('TireList', () => {
   })
 
   it('shows every position but only lets you pick the free ones when adding', () => {
-    render(<TireList vin="1HGCM82633A004352" />)
+    render(<TireList vin="1HGCM82633A004352" />, { wrapper: withConfirm })
     fireEvent.click(screen.getByText('tireList.add'))
 
     const group = screen.getByRole('group', { name: 'tireList.position' })
@@ -235,7 +235,7 @@ describe('TireList', () => {
   })
 
   it('names positions in full on the card and on the toggles', () => {
-    render(<TireList vin="1HGCM82633A004352" />)
+    render(<TireList vin="1HGCM82633A004352" />, { wrapper: withConfirm })
     // The card heading carries the translatable name, not the raw enum.
     expect(screen.getByText('tireList.positions.FL')).toBeInTheDocument()
 
@@ -246,12 +246,11 @@ describe('TireList', () => {
     expect(within(group).queryByText('FL')).not.toBeInTheDocument()
   })
 
-  it('keeps delete out of the card and offers it only while editing', () => {
+  it('keeps delete out of the card and offers it only while editing', async () => {
     const mutate = vi.fn()
     useDeleteTireMock.mockReturnValue({ mutate, isPending: false })
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
 
-    render(<TireList vin="1HGCM82633A004352" />)
+    render(<TireList vin="1HGCM82633A004352" />, { wrapper: withConfirm })
     // Not on the card, where it sat next to the routine controls.
     expect(screen.queryByText('common:delete')).not.toBeInTheDocument()
 
@@ -262,23 +261,24 @@ describe('TireList', () => {
 
     fireEvent.click(screen.getByLabelText('tireList.edit'))
     fireEvent.click(screen.getByText('common:delete'))
+    await answerConfirm('confirm', 'tireList.confirmDelete')
     expect(mutate.mock.calls[0][0]).toBe(1)
   })
 
-  it('does not delete when the confirm is dismissed', () => {
+  it('does not delete when the confirm is dismissed', async () => {
     const mutate = vi.fn()
     useDeleteTireMock.mockReturnValue({ mutate, isPending: false })
-    vi.spyOn(window, 'confirm').mockReturnValue(false)
 
-    render(<TireList vin="1HGCM82633A004352" />)
+    render(<TireList vin="1HGCM82633A004352" />, { wrapper: withConfirm })
     fireEvent.click(screen.getByLabelText('tireList.edit'))
     fireEvent.click(screen.getByText('common:delete'))
+    await answerConfirm('cancel', 'tireList.confirmDelete')
 
     expect(mutate).not.toHaveBeenCalled()
   })
 
   it('locks the position while editing', () => {
-    render(<TireList vin="1HGCM82633A004352" />)
+    render(<TireList vin="1HGCM82633A004352" />, { wrapper: withConfirm })
     fireEvent.click(screen.getByLabelText('tireList.edit'))
 
     const group = screen.getByRole('group', { name: 'tireList.position' })
@@ -292,7 +292,7 @@ describe('TireList', () => {
     const mutate = vi.fn()
     useUpsertTireMock.mockReturnValue({ mutate, isPending: false })
 
-    render(<TireList vin="1HGCM82633A004352" />)
+    render(<TireList vin="1HGCM82633A004352" />, { wrapper: withConfirm })
     fireEvent.click(screen.getByText('tireList.add'))
 
     const group = screen.getByRole('group', { name: 'tireList.position' })
@@ -316,7 +316,7 @@ describe('TireList', () => {
       const mutate = vi.fn()
       useUpsertTireMock.mockReturnValue({ mutate, isPending: false })
 
-      render(<TireList vin="1HGCM82633A004352" />)
+      render(<TireList vin="1HGCM82633A004352" />, { wrapper: withConfirm })
       fireEvent.click(screen.getByLabelText('tireList.edit'))
 
       // 7.50 mm / 0.79375 = 9.4488..., and in32 renders at 0 decimals.
@@ -334,7 +334,7 @@ describe('TireList', () => {
       const mutate = vi.fn()
       useUpsertTireMock.mockReturnValue({ mutate, isPending: false })
 
-      render(<TireList vin="1HGCM82633A004352" />)
+      render(<TireList vin="1HGCM82633A004352" />, { wrapper: withConfirm })
       fireEvent.click(screen.getByText('tireList.add'))
 
       // 2.0 mm / 0.79375 = 2.5196..., which renders as 3. Reading that back as
@@ -353,7 +353,7 @@ describe('TireList', () => {
       const mutate = vi.fn()
       useUpsertTireMock.mockReturnValue({ mutate, isPending: false })
 
-      render(<TireList vin="1HGCM82633A004352" />)
+      render(<TireList vin="1HGCM82633A004352" />, { wrapper: withConfirm })
       fireEvent.click(screen.getByLabelText('tireList.edit'))
 
       // Conversion is on: 7.50 mm is 9/32, 3.00 mm is 4/32, 240 kPa is 34.8 PSI.
@@ -379,7 +379,7 @@ describe('TireList', () => {
       const mutate = vi.fn()
       useAddTireReadingMock.mockReturnValue({ mutate, isPending: false })
 
-      render(<TireList vin="1HGCM82633A004352" />)
+      render(<TireList vin="1HGCM82633A004352" />, { wrapper: withConfirm })
       fireEvent.click(screen.getByText('tireList.addReading'))
 
       // The reading drawer seeds tread from the tire, in the user's unit.
@@ -401,7 +401,7 @@ describe('TireList', () => {
     })
 
     it('reads the card tread in the same unit the form accepts', () => {
-      render(<TireList vin="1HGCM82633A004352" />)
+      render(<TireList vin="1HGCM82633A004352" />, { wrapper: withConfirm })
 
       // Binding decision D2: one unit for entry and display. The card used to
       // print the raw millimetres under a hardcoded "mm".
@@ -413,7 +413,7 @@ describe('TireList', () => {
       const mutate = vi.fn()
       useUpsertTireMock.mockReturnValue({ mutate, isPending: false })
 
-      render(<TireList vin="1HGCM82633A004352" />)
+      render(<TireList vin="1HGCM82633A004352" />, { wrapper: withConfirm })
       fireEvent.click(screen.getByLabelText('tireList.edit'))
 
       // 3.00 mm / 0.79375 = 3.7795..., which renders as 4.
@@ -433,7 +433,7 @@ describe('TireList', () => {
       const mutate = vi.fn()
       useAddTireReadingMock.mockReturnValue({ mutate, isPending: false })
 
-      render(<TireList vin="1HGCM82633A004352" />)
+      render(<TireList vin="1HGCM82633A004352" />, { wrapper: withConfirm })
       fireEvent.click(screen.getByText('tireList.addReading'))
       const tread = screen.getByLabelText('tireList.treadWithUnit')
 
@@ -462,7 +462,7 @@ describe('TireList', () => {
       const mutate = vi.fn()
       useAddTireReadingMock.mockReturnValue({ mutate, isPending: false })
 
-      render(<TireList vin="1HGCM82633A004352" />)
+      render(<TireList vin="1HGCM82633A004352" />, { wrapper: withConfirm })
       fireEvent.click(screen.getByText('tireList.addReading'))
       fireEvent.change(screen.getByLabelText('tireList.treadWithUnit'), { target: { value: '' } })
       const pressure = screen.getByLabelText('tireList.pressureWithUnit')
@@ -494,7 +494,7 @@ describe('TireList', () => {
     })
 
     it('takes the tread and pressure as typed text, with no native step to trip', () => {
-      render(<TireList vin="1HGCM82633A004352" />)
+      render(<TireList vin="1HGCM82633A004352" />, { wrapper: withConfirm })
       fireEvent.click(screen.getByLabelText('tireList.edit'))
 
       // G1b-21: a native number box refuses a decimal off its step and reads a comma as blank.
@@ -521,7 +521,7 @@ describe('TireList', () => {
         const mutate = vi.fn()
         useAddTireReadingMock.mockReturnValue({ mutate, isPending: false })
 
-        render(<TireList vin="1HGCM82633A004352" />)
+        render(<TireList vin="1HGCM82633A004352" />, { wrapper: withConfirm })
         fireEvent.click(screen.getByText('tireList.addReading'))
         const tread = screen.getByLabelText('tireList.treadWithUnit') as HTMLInputElement
         expect(tread.value).toBe('11')
@@ -542,7 +542,7 @@ describe('TireList', () => {
         const mutate = vi.fn()
         useUpsertTireMock.mockReturnValue({ mutate, isPending: false })
 
-        render(<TireList vin="1HGCM82633A004352" />)
+        render(<TireList vin="1HGCM82633A004352" />, { wrapper: withConfirm })
         fireEvent.click(screen.getByLabelText('tireList.edit'))
         const tread = screen.getByLabelText('tireList.treadWithUnit') as HTMLInputElement
         const minTread = screen.getByLabelText('tireList.minTreadWithUnit') as HTMLInputElement
@@ -567,7 +567,7 @@ describe('TireList', () => {
       const mutate = vi.fn()
       useUpsertTireMock.mockReturnValue({ mutate, isPending: false })
 
-      render(<TireList vin="1HGCM82633A004352" />)
+      render(<TireList vin="1HGCM82633A004352" />, { wrapper: withConfirm })
       fireEvent.click(screen.getByLabelText('tireList.edit'))
       fireEvent.click(screen.getByText('common:save'))
 
@@ -602,7 +602,7 @@ describe('TireList', () => {
         error: null,
       })
 
-      render(<TireList vin="1HGCM82633A004352" />)
+      render(<TireList vin="1HGCM82633A004352" />, { wrapper: withConfirm })
       fireEvent.click(screen.getByRole('button', { name: 'tireList.historyOpen' }))
 
       const history = screen.getByRole('dialog')
@@ -615,7 +615,7 @@ describe('TireList', () => {
     })
 
     it('shows the empty state for a tire with no readings', () => {
-      render(<TireList vin="1HGCM82633A004352" />)
+      render(<TireList vin="1HGCM82633A004352" />, { wrapper: withConfirm })
       fireEvent.click(screen.getByRole('button', { name: 'tireList.historyOpen' }))
 
       expect(screen.getByText('tireList.historyEmpty')).toBeInTheDocument()
@@ -648,7 +648,7 @@ describe('TireList', () => {
       // leftover `z-10` on Edit would paint the pencil over ClickableCard's
       // focus chip, which lives in the same top-right corner. This pins the
       // classes; how they paint is the browser's half.
-      render(<TireList vin="1HGCM82633A004352" />)
+      render(<TireList vin="1HGCM82633A004352" />, { wrapper: withConfirm })
       const card = mountedCard()
       const chip = within(card).getByRole('button', { name: 'tireList.historyOpen' })
         .parentElement as HTMLElement
@@ -670,7 +670,7 @@ describe('TireList', () => {
       // RED before G5: the overlay was a SIBLING of the text, so a click on
       // the DOT code bubbled through ancestors that had no handler. The jsdom
       // half: the handler is on the card now.
-      render(<TireList vin="1HGCM82633A004352" />)
+      render(<TireList vin="1HGCM82633A004352" />, { wrapper: withConfirm })
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
 
       fireEvent.click(screen.getByText('2324'))
@@ -691,7 +691,7 @@ describe('TireList', () => {
       ]
 
       for (const [control, drawer] of controls) {
-        const { unmount } = render(<TireList vin="1HGCM82633A004352" />)
+        const { unmount } = render(<TireList vin="1HGCM82633A004352" />, { wrapper: withConfirm })
         // Without this the rest passes on a card with no history route at all.
         expect(
           within(mountedCard()).getByRole('button', { name: 'tireList.historyOpen' }),
@@ -717,7 +717,7 @@ describe('TireList', () => {
         isLoading: false,
         error: null,
       })
-      render(<TireList vin="1HGCM82633A004352" />)
+      render(<TireList vin="1HGCM82633A004352" />, { wrapper: withConfirm })
 
       fireEvent.click(within(mountedCard()).getByRole('button', { name: 'tireList.fix' }))
 
@@ -730,7 +730,7 @@ describe('TireList', () => {
       // Mutant that kills it: skip isSelectingText in ClickableCard's handler.
       // The second half is RED before G5 and keeps the first from passing on
       // a card that never opens anything.
-      render(<TireList vin="1HGCM82633A004352" />)
+      render(<TireList vin="1HGCM82633A004352" />, { wrapper: withConfirm })
       const selection = vi.spyOn(window, 'getSelection').mockReturnValue({
         isCollapsed: false,
         toString: () => '2324',
@@ -747,7 +747,7 @@ describe('TireList', () => {
     it('the card is reachable by keyboard', () => {
       // Guard: the old overlay was a named button too. Mutant that kills it:
       // hand ClickableCard an empty label, and there's no button by this name.
-      render(<TireList vin="1HGCM82633A004352" />)
+      render(<TireList vin="1HGCM82633A004352" />, { wrapper: withConfirm })
       const button = within(mountedCard()).getByRole('button', { name: 'tireList.historyOpen' })
 
       button.focus()
@@ -764,13 +764,13 @@ describe('TireList', () => {
       isLoading: false,
       error: null,
     })
-    render(<TireList vin="1HGCM82633A004352" />)
+    render(<TireList vin="1HGCM82633A004352" />, { wrapper: withConfirm })
     fireEvent.click(screen.getByText('tireList.fix'))
     expect(screen.getByRole('dialog')).toBeInTheDocument()
   })
 
   it('has no Fix control when nothing blocks', () => {
-    render(<TireList vin="1HGCM82633A004352" />)
+    render(<TireList vin="1HGCM82633A004352" />, { wrapper: withConfirm })
     expect(screen.queryByText('tireList.fix')).toBeNull()
   })
 
@@ -791,7 +791,7 @@ describe('TireList', () => {
       isLoading: false,
       error: null,
     })
-    render(<TireList vin="1HGCM82633A004352" />)
+    render(<TireList vin="1HGCM82633A004352" />, { wrapper: withConfirm })
     expect(screen.getByText('tireList.fix')).toBeInTheDocument()
   })
 
@@ -813,7 +813,7 @@ describe('TireList', () => {
       isLoading: false,
       error: null,
     })
-    render(<TireList vin="1HGCM82633A004352" />)
+    render(<TireList vin="1HGCM82633A004352" />, { wrapper: withConfirm })
     expect(screen.getByText('tireList.fix')).toBeInTheDocument()
   })
 
@@ -821,33 +821,33 @@ describe('TireList', () => {
 
   it('the mounted card names its current mount', () => {
     useTiresMock.mockReturnValue({ data: { tires: [{ ...STORED_FL_TIRE, mount_periods: [OPEN_PERIOD] }], total: 1, ...FOUR_LAYOUT }, isLoading: false, error: null })
-    render(<TireList vin="1HGCM82633A004352" />)
+    render(<TireList vin="1HGCM82633A004352" />, { wrapper: withConfirm })
     expect(screen.getByText('tireList.mountedOn')).toBeInTheDocument()
     expect(screen.getByText('tireList.mountedLine')).toBeInTheDocument()
   })
 
   it('says which half of the mount is unknown', () => {
     useTiresMock.mockReturnValue({ data: { tires: [{ ...STORED_FL_TIRE, mount_periods: [{ ...OPEN_PERIOD, mounted_on: null }] }], total: 1, ...FOUR_LAYOUT }, isLoading: false, error: null })
-    render(<TireList vin="1HGCM82633A004352" />)
+    render(<TireList vin="1HGCM82633A004352" />, { wrapper: withConfirm })
     expect(screen.getByText('tireList.mountedOdometerOnly')).toBeInTheDocument()
   })
 
   it('says which half of the mount is unknown, the other way round', () => {
     useTiresMock.mockReturnValue({ data: { tires: [{ ...STORED_FL_TIRE, mount_periods: [{ ...OPEN_PERIOD, mounted_odometer_km: null }] }], total: 1, ...FOUR_LAYOUT }, isLoading: false, error: null })
-    render(<TireList vin="1HGCM82633A004352" />)
+    render(<TireList vin="1HGCM82633A004352" />, { wrapper: withConfirm })
     expect(screen.getByText('tireList.mountedDateOnly')).toBeInTheDocument()
   })
 
   it('says both halves of the mount are unknown', () => {
     useTiresMock.mockReturnValue({ data: { tires: [{ ...STORED_FL_TIRE, mount_periods: [{ ...OPEN_PERIOD, mounted_on: null, mounted_odometer_km: null }] }], total: 1, ...FOUR_LAYOUT }, isLoading: false, error: null })
-    render(<TireList vin="1HGCM82633A004352" />)
+    render(<TireList vin="1HGCM82633A004352" />, { wrapper: withConfirm })
     expect(screen.getByText('tireList.mountedUnknown')).toBeInTheDocument()
   })
 
   it('the stored card says since when, and where', () => {
     const stored = { ...STORED_FL_TIRE, position: null, storage_location: 'Garage shelf B', mount_periods: [{ ...OPEN_PERIOD, dismounted_on: '2026-09-01', dismounted_odometer_km: '160000.00' }] }
     useTiresMock.mockReturnValue({ data: { tires: [stored], total: 1, ...FOUR_LAYOUT }, isLoading: false, error: null })
-    render(<TireList vin="1HGCM82633A004352" />)
+    render(<TireList vin="1HGCM82633A004352" />, { wrapper: withConfirm })
     expect(screen.getByText(/tireList\.inStorageSince/)).toBeInTheDocument()
     expect(screen.getByText(/Garage shelf B/)).toBeInTheDocument()
   })
@@ -883,7 +883,7 @@ describe('TireList – mount and dismount', () => {
     })
     useUpsertTireMock.mockReturnValue({ mutate: vi.fn(), isPending: false })
 
-    render(<TireList vin="1HGCM82633A004352" />)
+    render(<TireList vin="1HGCM82633A004352" />, { wrapper: withConfirm })
 
     // A tire off the vehicle still has to be identifiable. Before the label
     // helper this rendered `positionLabels[null]`, i.e. nothing at all.
@@ -903,7 +903,7 @@ describe('TireList – mount and dismount', () => {
     const mutate = vi.fn()
     useUpsertTireMock.mockReturnValue({ mutate, isPending: false })
 
-    render(<TireList vin="1HGCM82633A004352" />)
+    render(<TireList vin="1HGCM82633A004352" />, { wrapper: withConfirm })
 
     // Addressed by id: both drawers are in the DOM at once, so an accessible
     // name shared between them matches two fields.
@@ -930,7 +930,7 @@ describe('TireList – mount and dismount', () => {
     })
     useUpsertTireMock.mockReturnValue({ mutate: vi.fn(), isPending: false })
 
-    render(<TireList vin="1HGCM82633A004352" />)
+    render(<TireList vin="1HGCM82633A004352" />, { wrapper: withConfirm })
 
     expect(screen.getByText('tireList.distance.nothingBounded')).toBeTruthy()
   })

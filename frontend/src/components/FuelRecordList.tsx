@@ -22,7 +22,7 @@ import { getUsageTracking } from '../utils/usageTracking'
 import { useFuelRecords, useDeleteFuelRecord, useImportFuelCSV } from '../hooks/queries/useFuelRecords'
 import { getActionErrorMessage } from '../utils/httpErrorHandler'
 import { importToastDuration, listMessages } from '../utils/importSummary'
-import { Button, IconButton, Card, Mono, DataTable, Badge, SearchField, EmptyState, Checkbox, Select } from './ui'
+import { Button, IconButton, Card, Mono, DataTable, Badge, SearchField, EmptyState, Checkbox, Select, useConfirm } from './ui'
 import type { DataTableColumn } from './ui'
 import FuelImportOptionsDrawer, { type FuelImportOptions } from './FuelImportOptionsDrawer'
 
@@ -36,6 +36,7 @@ interface FuelRecordListProps {
 
 export default function FuelRecordList({ vin, onAddClick, onEditClick }: FuelRecordListProps) {
   const { t } = useTranslation('vehicles')
+  const confirm = useConfirm()
   const [searchQuery, setSearchQuery] = useState('')
   const [exporting, setExporting] = useState(false)
   const [includeHauling, setIncludeHauling] = useState(false)
@@ -246,8 +247,8 @@ export default function FuelRecordList({ vin, onAddClick, onEditClick }: FuelRec
     clearFileInput()
   }
 
-  const handleDelete = (recordId: number) => {
-    if (!confirm(t('fuelList.confirmDelete'))) {
+  const handleDelete = async (recordId: number): Promise<void> => {
+    if (!(await confirm({ message: t('fuelList.confirmDelete'), confirmLabel: t('common:delete') }))) {
       return
     }
 
@@ -330,7 +331,7 @@ export default function FuelRecordList({ vin, onAddClick, onEditClick }: FuelRec
             variant="danger"
             size="sm"
             disabled={deleteMutation.isPending && deleteMutation.variables === r.id}
-            onClick={() => handleDelete(r.id)}
+            onClick={() => void handleDelete(r.id)}
           />
         </div>
       ) },

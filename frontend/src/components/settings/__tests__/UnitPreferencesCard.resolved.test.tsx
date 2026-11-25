@@ -134,6 +134,7 @@ vi.mock('@/contexts/AuthContext', () => ({
 import i18n from '@/i18n'
 import api from '@/services/api'
 import UnitPreferencesCard from '../UnitPreferencesCard'
+import { withConfirm } from '../../../__tests__/confirmHelpers'
 
 h.resolve = (key, opts) =>
   key === DESCRIPTION_KEY || key === SHOW_BOTH_KEY
@@ -149,6 +150,7 @@ function renderCard(): void {
     <QueryClientProvider client={queryClient}>
       <UnitPreferencesCard />
     </QueryClientProvider>,
+    { wrapper: withConfirm },
   )
 }
 

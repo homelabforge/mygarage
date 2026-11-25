@@ -15,7 +15,7 @@ import { useDateLocale } from '../hooks/useDateLocale'
 import { formatAPITimestamp } from '../utils/parseAPITimestamp'
 import { useRecallRecords, useDeleteRecallRecord, useCheckRecalls, useToggleRecallResolved } from '../hooks/queries/useRecallRecords'
 import { useQueryClient } from '@tanstack/react-query'
-import { Button, IconButton, EmptyState, Mono, Chip, Select } from './ui'
+import { Button, IconButton, EmptyState, Mono, Chip, Select, useConfirm } from './ui'
 import { serviceItemSearch } from '../constants/serviceVisit'
 
 /** Each recall source has its own translated label (#211). */
@@ -34,6 +34,7 @@ interface RecallListProps {
 
 export default function RecallList({ vin, onAddClick, onEditClick, onRefresh }: RecallListProps) {
   const { t } = useTranslation('vehicles')
+  const confirm = useConfirm()
   const dateLocale = useDateLocale()
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'resolved'>('all')
   const [vehicle, setVehicle] = useState<Vehicle | null>(null)
@@ -113,8 +114,8 @@ export default function RecallList({ vin, onAddClick, onEditClick, onRefresh }: 
     })
   }
 
-  const handleDelete = (recallId: number) => {
-    if (!confirm(t('recallList.confirmDelete'))) {
+  const handleDelete = async (recallId: number): Promise<void> => {
+    if (!(await confirm({ message: t('recallList.confirmDelete'), confirmLabel: t('common:delete') }))) {
       return
     }
 
@@ -292,7 +293,7 @@ export default function RecallList({ vin, onAddClick, onEditClick, onRefresh }: 
                       variant="danger"
                       size="sm"
                       disabled={deleteMutation.isPending && deleteMutation.variables === recall.id}
-                      onClick={() => handleDelete(recall.id)}
+                      onClick={() => void handleDelete(recall.id)}
                     />
                   </div>
                 </div>

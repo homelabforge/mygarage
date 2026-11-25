@@ -95,11 +95,10 @@ describe('ReminderList — rendering + row actions (pending)', () => {
   })
 
   it('clicking Delete calls the delete mutation DIRECTLY with the id and never opens a confirm dialog (fails if delete is unwired OR a confirm gate is added — ReminderList delete is direct, LD5)', async () => {
-    const confirmSpy = vi.spyOn(window, 'confirm')
     render(<ReminderList vehicle={vehicle} />)
     fireEvent.click(screen.getByRole('button', { name: 'common:delete' }))
     await waitFor(() => expect(deleteMock.mock.calls[0]).toStrictEqual([8]))
-    expect(confirmSpy).not.toHaveBeenCalled()
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
   })
 
   it('the row Mark-done/Dismiss/Edit/Delete expose a real aria-label (IconButton), not a bare title (fails if any regresses to a title-only <button>)', () => {

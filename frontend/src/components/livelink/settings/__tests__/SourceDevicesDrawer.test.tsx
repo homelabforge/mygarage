@@ -13,6 +13,7 @@ vi.mock('@/services/vehicleService', () => ({
 }))
 
 import SourceDevicesDrawer from '../SourceDevicesDrawer'
+import { withConfirm } from '../../../../__tests__/confirmHelpers'
 
 const device = (id: string, kind: string) => ({
   device_id: id,
@@ -41,7 +42,7 @@ describe('SourceDevicesDrawer', () => {
   it("lists only its own kind's devices, under the tab's name", async () => {
     // A newly registered module with no bespoke drawer still gets one.
     const tab = { id: 'obdlink', label: 'obdlink', kind: 'obdlink' } as unknown as IntegrationTab
-    render(<SourceDevicesDrawer open tab={tab} onClose={vi.fn()} onChanged={vi.fn()} />)
+    render(<SourceDevicesDrawer open tab={tab} onClose={vi.fn()} onChanged={vi.fn()} />, { wrapper: withConfirm })
 
     expect(await screen.findByText('obd1', { selector: 'button' })).toBeInTheDocument()
     expect(screen.queryByText('wican1')).not.toBeInTheDocument()

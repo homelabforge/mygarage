@@ -11,7 +11,7 @@ import {
   AlertTriangle,
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { Button, IconButton, Card, Badge, Mono, EmptyState, Textarea } from './ui'
+import { Button, IconButton, Card, Badge, Mono, EmptyState, Textarea, useConfirm } from './ui'
 import type { Photo } from '../types/photo'
 import vehicleService from '../services/vehicleService'
 import { useOnlineStatus } from '../hooks/useOnlineStatus'
@@ -34,6 +34,7 @@ const PHOTO_CACHE_KEY = (vin: string) => `photos-cache-${vin}`
 
 function PhotoGallery({ vin, onAddClick }: PhotoGalleryProps) {
   const { t } = useTranslation('vehicles')
+  const confirm = useConfirm()
   const [photos, setPhotos] = useState<Photo[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -76,8 +77,9 @@ function PhotoGallery({ vin, onAddClick }: PhotoGalleryProps) {
     fetchPhotos()
   }, [fetchPhotos])
 
-  const handleDelete = async (photo: Photo) => {
-    if (!photo.filename || !confirm(t('photoGallery.misc.confirmDelete'))) {
+  const handleDelete = async (photo: Photo): Promise<void> => {
+    if (!photo.filename) return
+    if (!(await confirm({ message: t('photoGallery.misc.confirmDelete'), confirmLabel: t('common:delete') }))) {
       return
     }
     if (!isOnline) {
@@ -242,7 +244,7 @@ function PhotoGallery({ vin, onAddClick }: PhotoGalleryProps) {
                       icon={Trash2}
                       label={t('photoGallery.deletePhoto')}
                       variant="danger"
-                      onClick={() => handleDelete(photo)}
+                      onClick={() => void handleDelete(photo)}
                       disabled={deletingId === (photo.id ?? photo.filename) || !isOnline}
                     />
                   </div>

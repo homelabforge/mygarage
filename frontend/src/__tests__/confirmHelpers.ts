@@ -24,3 +24,14 @@ export async function answerConfirm(choice: 'confirm' | 'cancel', name?: RegExp 
   fireEvent.click(choice === 'cancel' ? cancel[0] : confirm[0])
   await waitFor(() => expect(dialog).not.toBeInTheDocument())
 }
+
+/**
+ * Presses Escape on the open confirm, then waits for it to close. For confirms
+ * opened from a drawer: Escape should close the confirm and nothing under it.
+ */
+export async function escapeConfirm(name?: RegExp | string): Promise<void> {
+  const dialog = await screen.findByRole('alertdialog')
+  if (name !== undefined) expect(dialog).toHaveAccessibleName(name)
+  fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' })
+  await waitFor(() => expect(dialog).not.toBeInTheDocument())
+}

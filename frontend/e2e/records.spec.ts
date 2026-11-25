@@ -13,6 +13,13 @@ async function goToFuelTab(page: import('@playwright/test').Page): Promise<void>
   await expect(page.getByText('Fuel History')).toBeVisible({ timeout: 10000 })
 }
 
+/** Deletes ask through the app's own confirm now, not the browser's. */
+async function confirmDelete(page: import('@playwright/test').Page): Promise<void> {
+  const confirm = page.getByRole('alertdialog')
+  await confirm.getByRole('button', { name: 'Delete' }).click()
+  await expect(confirm).toBeHidden({ timeout: 5000 })
+}
+
 test.describe('Fuel Record Workflow', () => {
   test('add fuel record and verify it appears in the list', async ({ page }) => {
     await goToFuelTab(page)
@@ -46,9 +53,9 @@ test.describe('Fuel Record Workflow', () => {
     await expect(page.getByText(/\(1 record/)).toBeVisible({ timeout: 10000 })
 
     // Now delete the record to clean up
-    page.on('dialog', (dialog) => dialog.accept())
     const deleteButton = page.locator('button[title="Delete"]').first()
     await deleteButton.click()
+    await confirmDelete(page)
 
     // Verify the record is removed — back to empty state
     await expect(page.getByText('No fuel records yet')).toBeVisible({ timeout: 10000 })
@@ -75,11 +82,11 @@ test.describe('Fuel Record Workflow', () => {
     await expect(page.getByText(/\(\d+ record/)).toBeVisible({ timeout: 10000 })
 
     // Clean up: delete all records
-    page.on('dialog', (dialog) => dialog.accept())
     const deleteButtons = page.locator('button[title="Delete"]')
     const count = await deleteButtons.count()
     for (let i = 0; i < count; i++) {
       await deleteButtons.first().click()
+      await confirmDelete(page)
       await page.waitForTimeout(500)
     }
   })
@@ -143,9 +150,9 @@ test.describe('Fuel Record Workflow', () => {
     await page.getByRole('button', { name: /cancel/i }).click()
     await expect(page.getByText('Edit Fuel Record')).not.toBeVisible({ timeout: 5000 })
 
-    page.on('dialog', (dialog) => dialog.accept())
     const deleteButton = page.locator('button[title="Delete"]').first()
     await deleteButton.click()
+    await confirmDelete(page)
     await expect(page.getByText('No fuel records yet')).toBeVisible({ timeout: 10000 })
   })
 })

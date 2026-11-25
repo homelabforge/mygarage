@@ -9,7 +9,7 @@ import { useUnitFormat } from '../hooks/useUnitFormat'
 import { useOdometerRecords, useDeleteOdometerRecord, useImportOdometerCSV } from '../hooks/queries/useOdometerRecords'
 import { getActionErrorMessage } from '../utils/httpErrorHandler'
 import { importToastDuration, listMessages } from '../utils/importSummary'
-import { Button, IconButton, Card, Mono, Badge, DataTable, EmptyState } from './ui'
+import { Button, IconButton, Card, Mono, Badge, DataTable, EmptyState, useConfirm } from './ui'
 import type { DataTableColumn } from './ui'
 
 interface OdometerRecordListProps {
@@ -21,6 +21,7 @@ interface OdometerRecordListProps {
 
 export default function OdometerRecordList({ vin, onAddClick, onEditClick }: OdometerRecordListProps) {
   const { t } = useTranslation('vehicles')
+  const confirm = useConfirm()
   const [exporting, setExporting] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const u = useUnitFormat()
@@ -129,8 +130,8 @@ export default function OdometerRecordList({ vin, onAddClick, onEditClick }: Odo
     })
   }
 
-  const handleDelete = (recordId: number) => {
-    if (!confirm(t('odometerList.confirmDelete'))) {
+  const handleDelete = async (recordId: number): Promise<void> => {
+    if (!(await confirm({ message: t('odometerList.confirmDelete'), confirmLabel: t('common:delete') }))) {
       return
     }
 
@@ -176,7 +177,7 @@ export default function OdometerRecordList({ vin, onAddClick, onEditClick }: Odo
             variant="danger"
             size="sm"
             disabled={deleteMutation.isPending && deleteMutation.variables === r.id}
-            onClick={() => handleDelete(r.id)}
+            onClick={() => void handleDelete(r.id)}
           />
         </div>
       ),

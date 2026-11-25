@@ -42,6 +42,7 @@ vi.mock('../../../hooks/useUnitPreference', () => ({
 }))
 
 import TireHistoryDrawer, { needsFix, needsOdometer } from '../TireHistoryDrawer'
+import { answerConfirm, escapeConfirm, withConfirm } from '../../../__tests__/confirmHelpers'
 
 const VIN = '1HGCM82633A004352'
 const labelFor = (p: string | null | undefined) => (p == null ? 'stored' : `pos-${p}`)
@@ -98,7 +99,7 @@ afterEach(() => {
 
 describe('TireHistoryDrawer', () => {
   it('lists periods oldest first with the badges each one earns', () => {
-    render(<TireHistoryDrawer tire={tire() as never} open onClose={vi.fn()} onEditPeriod={vi.fn()} onEditReading={vi.fn()} onAddPeriod={vi.fn()} labelFor={labelFor} vin={VIN} />)
+    render(<TireHistoryDrawer tire={tire() as never} open onClose={vi.fn()} onEditPeriod={vi.fn()} onEditReading={vi.fn()} onAddPeriod={vi.fn()} labelFor={labelFor} vin={VIN} />, { wrapper: withConfirm })
     expect(drawer().getByText('tireList.firstInstalledUnknown')).toBeInTheDocument()
     const rows = drawer().getAllByTestId(/^period-/)
     expect(rows.map((r) => r.getAttribute('data-testid'))).toEqual(['period-1', 'period-2'])
@@ -115,7 +116,7 @@ describe('TireHistoryDrawer', () => {
 
   it('a fully bounded blocking period is a fault, not a gap', () => {
     const faulted = { ...OPEN, id: 3, dismounted_on: '2026-02-01', dismounted_odometer_km: '2500.00' }
-    render(<TireHistoryDrawer tire={tire({ mount_periods: [faulted], blocking_period_ids: [3] }) as never} open onClose={vi.fn()} onEditPeriod={vi.fn()} onEditReading={vi.fn()} onAddPeriod={vi.fn()} labelFor={labelFor} vin={VIN} />)
+    render(<TireHistoryDrawer tire={tire({ mount_periods: [faulted], blocking_period_ids: [3] }) as never} open onClose={vi.fn()} onEditPeriod={vi.fn()} onEditReading={vi.fn()} onAddPeriod={vi.fn()} labelFor={labelFor} vin={VIN} />, { wrapper: withConfirm })
     expect(drawer().getByText('tireList.periodCheck')).toBeInTheDocument()
     expect(needsOdometer(faulted as never)).toBe(false)
     expect(needsOdometer(ASSUMED as never)).toBe(true)
@@ -144,20 +145,20 @@ describe('TireHistoryDrawer', () => {
   })
 
   it('names the first installation when it is known', () => {
-    render(<TireHistoryDrawer tire={tire({ installed_date: '2024-11-02', mount_periods: [{ ...OPEN, mounted_on: '2024-11-02' }] }) as never} open onClose={vi.fn()} onEditPeriod={vi.fn()} onEditReading={vi.fn()} onAddPeriod={vi.fn()} labelFor={labelFor} vin={VIN} />)
+    render(<TireHistoryDrawer tire={tire({ installed_date: '2024-11-02', mount_periods: [{ ...OPEN, mounted_on: '2024-11-02' }] }) as never} open onClose={vi.fn()} onEditPeriod={vi.fn()} onEditReading={vi.fn()} onAddPeriod={vi.fn()} labelFor={labelFor} vin={VIN} />, { wrapper: withConfirm })
     expect(drawer().getByText('tireList.firstInstalled')).toBeInTheDocument()
   })
 
   it('Edit hands the row\'s period to the caller', () => {
     const onEditPeriod = vi.fn()
-    render(<TireHistoryDrawer tire={tire() as never} open onClose={vi.fn()} onEditPeriod={onEditPeriod} onEditReading={vi.fn()} onAddPeriod={vi.fn()} labelFor={labelFor} vin={VIN} />)
+    render(<TireHistoryDrawer tire={tire() as never} open onClose={vi.fn()} onEditPeriod={onEditPeriod} onEditReading={vi.fn()} onAddPeriod={vi.fn()} labelFor={labelFor} vin={VIN} />, { wrapper: withConfirm })
     fireEvent.click(within(drawer().getByTestId('period-2')).getByText('tireList.periodEdit'))
     expect(onEditPeriod).toHaveBeenCalledWith(expect.objectContaining({ id: 2 }))
   })
 
   it('Add past period calls the caller', () => {
     const onAddPeriod = vi.fn()
-    render(<TireHistoryDrawer tire={tire() as never} open onClose={vi.fn()} onEditPeriod={vi.fn()} onEditReading={vi.fn()} onAddPeriod={onAddPeriod} labelFor={labelFor} vin={VIN} />)
+    render(<TireHistoryDrawer tire={tire() as never} open onClose={vi.fn()} onEditPeriod={vi.fn()} onEditReading={vi.fn()} onAddPeriod={onAddPeriod} labelFor={labelFor} vin={VIN} />, { wrapper: withConfirm })
     fireEvent.click(drawer().getByText('tireList.addPastPeriod'))
     expect(onAddPeriod).toHaveBeenCalledTimes(1)
   })
@@ -168,25 +169,34 @@ describe('TireHistoryDrawer', () => {
       { id: 31, tire_id: 9, recorded_at: '2026-03-01', odometer_km: '150000.00', tread_depth_mm: '7.00', pressure_kpa: null, notes: null },
       { id: 30, tire_id: 9, recorded_at: '2026-01-10', odometer_km: '10500.00', tread_depth_mm: '8.00', pressure_kpa: null, notes: null },
     ]
-    const renderWithReadings = () =>
-      render(<TireHistoryDrawer tire={tire({ readings: READINGS }) as never} open onClose={vi.fn()} onEditPeriod={vi.fn()} onEditReading={vi.fn()} onAddPeriod={vi.fn()} labelFor={labelFor} vin={VIN} />)
+    const renderWithReadings = (onClose = vi.fn()) =>
+      render(<TireHistoryDrawer tire={tire({ readings: READINGS }) as never} open onClose={onClose} onEditPeriod={vi.fn()} onEditReading={vi.fn()} onAddPeriod={vi.fn()} labelFor={labelFor} vin={VIN} />, { wrapper: withConfirm })
     const deleteIn = (readingId: number) =>
       within(drawer().getByTestId(`reading-${readingId}`)).getByRole('button', { name: 'tireList.readingDeleteLabel' })
 
-    it('sends the row\'s tire and reading ids once the confirm is accepted', () => {
-      const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    it('sends the row\'s tire and reading ids once the confirm is accepted', async () => {
       renderWithReadings()
       fireEvent.click(deleteIn(30))
-      expect(confirmSpy).toHaveBeenCalledWith('tireList.readingConfirmDelete')
+      await answerConfirm('confirm', 'tireList.readingConfirmDelete')
       expect(mutate).toHaveBeenCalledTimes(1)
       expect(mutate.mock.calls[0][0]).toEqual({ tireId: 9, readingId: 30 })
     })
 
-    it('sends nothing when the confirm is declined', () => {
-      const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    it('sends nothing when the confirm is declined', async () => {
       renderWithReadings()
       fireEvent.click(deleteIn(31))
-      expect(confirmSpy).toHaveBeenCalledTimes(1)
+      await answerConfirm('cancel', 'tireList.readingConfirmDelete')
+      expect(mutate).not.toHaveBeenCalled()
+    })
+
+    // Regression pin: Escape on the confirm must not close the drawer under it.
+    it('Escape closes the delete confirm and leaves the drawer open', async () => {
+      const onClose = vi.fn()
+      renderWithReadings(onClose)
+      fireEvent.click(deleteIn(31))
+      await escapeConfirm('tireList.readingConfirmDelete')
+      expect(onClose).not.toHaveBeenCalled()
+      expect(drawer().getByTestId('reading-31')).toBeInTheDocument()
       expect(mutate).not.toHaveBeenCalled()
     })
 
@@ -206,10 +216,10 @@ describe('TireHistoryDrawer', () => {
       expect(edit).toBeDisabled()
     })
 
-    it('reports the outcome through the reading keys', () => {
-      vi.spyOn(window, 'confirm').mockReturnValue(true)
+    it('reports the outcome through the reading keys', async () => {
       renderWithReadings()
       fireEvent.click(deleteIn(31))
+      await answerConfirm('confirm', 'tireList.readingConfirmDelete')
       const callbacks = mutate.mock.calls[0][1]
       callbacks.onSuccess()
       expect(toastSuccess).toHaveBeenCalledWith('tireList.readingDeleted')
@@ -227,7 +237,7 @@ describe('TireHistoryDrawer', () => {
       { id: 31, tire_id: 9, recorded_at: '2026-03-01', odometer_km: null, tread_depth_mm: '7.00', pressure_kpa: null, notes: null },
       { id: 30, tire_id: 9, recorded_at: '2026-01-10', odometer_km: null, tread_depth_mm: '8.00', pressure_kpa: null, notes: null },
     ]
-    render(<TireHistoryDrawer tire={tire({ readings }) as never} open onClose={vi.fn()} onEditPeriod={vi.fn()} onEditReading={onEditReading} onAddPeriod={vi.fn()} labelFor={labelFor} vin={VIN} />)
+    render(<TireHistoryDrawer tire={tire({ readings }) as never} open onClose={vi.fn()} onEditPeriod={vi.fn()} onEditReading={onEditReading} onAddPeriod={vi.fn()} labelFor={labelFor} vin={VIN} />, { wrapper: withConfirm })
     const edit = within(drawer().getByTestId('reading-30')).getByRole('button', { name: 'tireList.readingEditLabel' })
     expect(edit).toHaveTextContent('common:edit')
     expect(onEditReading).not.toHaveBeenCalled()
@@ -249,7 +259,8 @@ describe('TireHistoryDrawer', () => {
         onAddPeriod={vi.fn()}
         labelFor={labelFor}
         vin={VIN}
-      />
+      />,
+      { wrapper: withConfirm },
     )
     const first = within(drawer().getByTestId('period-1'))
     const second = within(drawer().getByTestId('period-2'))
@@ -273,7 +284,8 @@ describe('TireHistoryDrawer', () => {
         onAddPeriod={vi.fn()}
         labelFor={labelFor}
         vin={VIN}
-      />
+      />,
+      { wrapper: withConfirm },
     )
     const faultOnly = within(drawer().getByTestId('period-1'))
     expect(faultOnly.getByText('tireList.periodCheck')).toBeInTheDocument()
@@ -290,7 +302,8 @@ describe('TireHistoryDrawer', () => {
         onAddPeriod={vi.fn()}
         labelFor={labelFor}
         vin={VIN}
-      />
+      />,
+      { wrapper: withConfirm },
     )
     const blocking = within(drawer().getByTestId('period-1'))
     expect(blocking.getByText('tireList.periodNeedsOdometer')).toBeInTheDocument()
@@ -312,7 +325,8 @@ describe('TireHistoryDrawer', () => {
         onAddPeriod={vi.fn()}
         labelFor={labelFor}
         vin={VIN}
-      />
+      />,
+      { wrapper: withConfirm },
     )
     expect(drawer().getByTestId('period-2-fault')).toHaveTextContent(/^first reason$/)
     expect(drawer().getByTestId('period-1-fault')).toHaveTextContent(/^first reason$/)
@@ -334,7 +348,7 @@ describe('TireHistoryDrawer', () => {
   it('still shows the mount history section, with Add past period, when there is nothing recorded yet', () => {
     // A tire never mounted in MyGarage is the feature's main user: no periods
     // and no readings must not hide the one control that can add either.
-    render(<TireHistoryDrawer tire={tire({ mount_periods: [], readings: [], blocking_period_ids: [] }) as never} open onClose={vi.fn()} onEditPeriod={vi.fn()} onEditReading={vi.fn()} onAddPeriod={vi.fn()} labelFor={labelFor} vin={VIN} />)
+    render(<TireHistoryDrawer tire={tire({ mount_periods: [], readings: [], blocking_period_ids: [] }) as never} open onClose={vi.fn()} onEditPeriod={vi.fn()} onEditReading={vi.fn()} onAddPeriod={vi.fn()} labelFor={labelFor} vin={VIN} />, { wrapper: withConfirm })
     expect(drawer().getByText('tireList.addPastPeriod')).toBeInTheDocument()
     expect(drawer().getByText('tireList.historyNoPeriods')).toBeInTheDocument()
     expect(drawer().getByText('tireList.historyEmpty')).toBeInTheDocument()
@@ -342,7 +356,7 @@ describe('TireHistoryDrawer', () => {
 
   it('Add past period is reachable even with no history at all', () => {
     const onAddPeriod = vi.fn()
-    render(<TireHistoryDrawer tire={tire({ mount_periods: [], readings: [], blocking_period_ids: [] }) as never} open onClose={vi.fn()} onEditPeriod={vi.fn()} onEditReading={vi.fn()} onAddPeriod={onAddPeriod} labelFor={labelFor} vin={VIN} />)
+    render(<TireHistoryDrawer tire={tire({ mount_periods: [], readings: [], blocking_period_ids: [] }) as never} open onClose={vi.fn()} onEditPeriod={vi.fn()} onEditReading={vi.fn()} onAddPeriod={onAddPeriod} labelFor={labelFor} vin={VIN} />, { wrapper: withConfirm })
     fireEvent.click(drawer().getByText('tireList.addPastPeriod'))
     expect(onAddPeriod).toHaveBeenCalledTimes(1)
   })

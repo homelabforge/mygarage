@@ -63,6 +63,7 @@ vi.mock('../../hooks/useUnitPreference', () => {
 
 import TireList from '../TireList'
 import { FOUR_LAYOUT } from '../../__tests__/factories'
+import { withConfirm } from '../../__tests__/confirmHelpers'
 
 const VIN = '1HGCM82633A004352'
 const HOURS = { usage_axis: 'hours', tracks_distance: false, tracks_hours: true }
@@ -101,7 +102,7 @@ describe('TireList on the hour meter (#217)', () => {
 
   it('Add Tire on an hours-only vehicle asks for the hour meter and sends it', () => {
     list([], HOURS)
-    render(<TireList vin={VIN} />)
+    render(<TireList vin={VIN} />, { wrapper: withConfirm })
     fireEvent.click(screen.getByText('tireList.add'))
     expect(screen.queryByLabelText('tireList.odometerWithUnit')).toBeNull()
     fireEvent.change(field('tire-mount-hours'), { target: { value: '120.5' } })
@@ -113,7 +114,7 @@ describe('TireList on the hour meter (#217)', () => {
 
   it('sends a typed 0', () => {
     list([], HOURS)
-    render(<TireList vin={VIN} />)
+    render(<TireList vin={VIN} />, { wrapper: withConfirm })
     fireEvent.click(screen.getByText('tireList.add'))
     fireEvent.change(field('tire-mount-hours'), { target: { value: '0' } })
     fireEvent.click(dialog().getByText('common:save'))
@@ -122,7 +123,7 @@ describe('TireList on the hour meter (#217)', () => {
 
   it('Log reading on an hours-only vehicle takes the hour meter, not the odometer', () => {
     list([tire(1, 'FL')], HOURS)
-    render(<TireList vin={VIN} />)
+    render(<TireList vin={VIN} />, { wrapper: withConfirm })
     fireEvent.click(screen.getByText('tireList.addReading'))
     expect(field('reading-odo')).toBeNull()
     fireEvent.change(field('reading-hours'), { target: { value: '150' } })
@@ -134,7 +135,7 @@ describe('TireList on the hour meter (#217)', () => {
 
   it('a dual vehicle sends both readings', () => {
     list([], DUAL)
-    render(<TireList vin={VIN} />)
+    render(<TireList vin={VIN} />, { wrapper: withConfirm })
     fireEvent.click(screen.getByText('tireList.add'))
     fireEvent.change(field('tire-mount-odometer'), { target: { value: '1000' } })
     fireEvent.change(field('tire-mount-hours'), { target: { value: '50' } })
@@ -146,7 +147,7 @@ describe('TireList on the hour meter (#217)', () => {
 
   it('a distance-only vehicle sends no hours key at all', () => {
     list([])
-    render(<TireList vin={VIN} />)
+    render(<TireList vin={VIN} />, { wrapper: withConfirm })
     fireEvent.click(screen.getByText('tireList.add'))
     expect(field('tire-mount-hours')).toBeNull()
     fireEvent.click(dialog().getByText('common:save'))
@@ -178,7 +179,7 @@ describe('A cleared date blocks Save (G4-52)', () => {
   }
 
   it('in Add Tire', () => {
-    render(<TireList vin={VIN} />)
+    render(<TireList vin={VIN} />, { wrapper: withConfirm })
     fireEvent.click(screen.getByText('tireList.add'))
     fireEvent.change(field('tire-mount-date'), { target: { value: '' } })
     fireEvent.click(dialog().getByText('common:save'))
@@ -186,7 +187,7 @@ describe('A cleared date blocks Save (G4-52)', () => {
   })
 
   it('in Mount', () => {
-    render(<TireList vin={VIN} />)
+    render(<TireList vin={VIN} />, { wrapper: withConfirm })
     fireEvent.click(screen.getByText('tireList.mount'))
     fireEvent.change(field('mount-date'), { target: { value: '' } })
     fireEvent.click(dialog().getByText('tireList.mount'))
@@ -194,7 +195,7 @@ describe('A cleared date blocks Save (G4-52)', () => {
   })
 
   it('in Dismount', () => {
-    render(<TireList vin={VIN} />)
+    render(<TireList vin={VIN} />, { wrapper: withConfirm })
     fireEvent.click(screen.getAllByText('tireList.dismount')[0])
     fireEvent.change(field('dismount-date'), { target: { value: '' } })
     fireEvent.click(dialog().getByText('tireList.dismount'))
@@ -202,7 +203,7 @@ describe('A cleared date blocks Save (G4-52)', () => {
   })
 
   it('in Retire', () => {
-    render(<TireList vin={VIN} />)
+    render(<TireList vin={VIN} />, { wrapper: withConfirm })
     fireEvent.click(screen.getAllByText('tireList.retire')[0])
     fireEvent.change(field('retire-date'), { target: { value: '' } })
     fireEvent.click(dialog().getByText('tireList.retire'))
@@ -210,7 +211,7 @@ describe('A cleared date blocks Save (G4-52)', () => {
   })
 
   it('in Rotate', () => {
-    render(<TireList vin={VIN} />)
+    render(<TireList vin={VIN} />, { wrapper: withConfirm })
     fireEvent.click(screen.getByText('tireList.rotate'))
     fireEvent.change(field('rotate-date'), { target: { value: '' } })
     fireEvent.click(dialog().getByText('tireList.rotate'))
@@ -218,7 +219,7 @@ describe('A cleared date blocks Save (G4-52)', () => {
   })
 
   it('in Set fit', () => {
-    render(<TireList vin={VIN} />)
+    render(<TireList vin={VIN} />, { wrapper: withConfirm })
     fireEvent.click(screen.getByText('tireList.sets'))
     fireEvent.click(dialog().getByText('tireList.setFit'))
     fireEvent.change(field('set-fit-7-date'), { target: { value: '' } })
@@ -228,7 +229,7 @@ describe('A cleared date blocks Save (G4-52)', () => {
   })
 
   it('in Log reading', () => {
-    render(<TireList vin={VIN} />)
+    render(<TireList vin={VIN} />, { wrapper: withConfirm })
     fireEvent.click(screen.getAllByText('tireList.addReading')[0])
     fireEvent.change(field('reading-date'), { target: { value: '' } })
     fireEvent.click(dialog().getByText('common:save'))
@@ -286,7 +287,7 @@ describe('Every tire move sends the hour meter on an hours-only vehicle (#217)',
       save: saveSet,
     },
   ])('$name sends $hoursKey and no odometer', ({ hoursKey, odometerKey, id, open, save }) => {
-    render(<TireList vin={VIN} />)
+    render(<TireList vin={VIN} />, { wrapper: withConfirm })
     open()
     fireEvent.change(field(id), { target: { value: '212.3' } })
     save()
@@ -319,7 +320,7 @@ describe('The card on the hour meter (#217)', () => {
 
   it('shows hours on the tire and the projection in hours', () => {
     list([hoursTire()], HOURS)
-    render(<TireList vin={VIN} />)
+    render(<TireList vin={VIN} />, { wrapper: withConfirm })
     expect(screen.getByText('tireList.hoursOnTire')).toBeInTheDocument()
     expect(screen.queryByText('tireList.distanceOnTire')).toBeNull()
     expect(screen.getByText('60.0 hr')).toBeInTheDocument()
@@ -328,20 +329,20 @@ describe('The card on the hour meter (#217)', () => {
 
   it('asks for the hour meter when the readings lack it', () => {
     list([hoursTire({ wear_status: 'no_reading_odometers', projected_usage_remaining: null })], HOURS)
-    render(<TireList vin={VIN} />)
+    render(<TireList vin={VIN} />, { wrapper: withConfirm })
     expect(screen.getByText('tireList.wear.needsReadingHours')).toBeInTheDocument()
     expect(screen.queryByText('tireList.wear.needsReadingOdometer')).toBeNull()
   })
 
   it('asks for the hour meter on the mount when nothing is bounded', () => {
     list([hoursTire({ distance_status: 'nothing_bounded', usage_on_tire: null })], HOURS)
-    render(<TireList vin={VIN} />)
+    render(<TireList vin={VIN} />, { wrapper: withConfirm })
     expect(screen.getByText('tireList.distance.nothingBoundedHours')).toBeInTheDocument()
   })
 
   it('says hours, not odometer, when the mount date is known and its hours are not', () => {
     list([hoursTire()], HOURS)
-    render(<TireList vin={VIN} />)
+    render(<TireList vin={VIN} />, { wrapper: withConfirm })
     expect(screen.getByText('tireList.mountedDateOnlyHours')).toBeInTheDocument()
     expect(screen.queryByText('tireList.mountedDateOnly')).toBeNull()
   })
@@ -349,14 +350,14 @@ describe('The card on the hour meter (#217)', () => {
   it('bounds the mount line by the period hours', () => {
     const t1 = hoursTire()
     list([{ ...t1, mount_periods: [{ ...t1.mount_periods[0], mounted_hours: '120.0' }] }], HOURS)
-    render(<TireList vin={VIN} />)
+    render(<TireList vin={VIN} />, { wrapper: withConfirm })
     expect(screen.getByText('tireList.mountedLine')).toBeInTheDocument()
     expect(screen.queryByText('tireList.mountedDateOnlyHours')).toBeNull()
   })
 
   it('reads the known hours on a partial history', () => {
     list([hoursTire({ distance_status: 'incomplete', usage_on_tire: null, known_usage: '40.0', known_usage_since: '2026-02-01' })], HOURS)
-    render(<TireList vin={VIN} />)
+    render(<TireList vin={VIN} />, { wrapper: withConfirm })
     expect(screen.getByText('tireList.distance.since')).toBeInTheDocument()
     expect(screen.queryByText('tireList.distance.nothingBoundedHours')).toBeNull()
   })
@@ -376,7 +377,7 @@ describe('Editing a reading follows the axes the vehicle takes (#225)', () => {
     useTireSetsMock.mockReturnValue({ data: { sets: [], total: 0 }, isLoading: false, error: null })
   })
   const openEditor = (): void => {
-    render(<TireList vin={VIN} />)
+    render(<TireList vin={VIN} />, { wrapper: withConfirm })
     fireEvent.click(screen.getByRole('button', { name: 'tireList.historyOpen' }))
     fireEvent.click(screen.getByRole('button', { name: 'tireList.readingEditLabel' }))
   }

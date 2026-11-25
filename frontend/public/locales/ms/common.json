@@ -17,6 +17,10 @@
   "no": "Tidak",
   "ok": "OK",
   "unknown": "Tidak diketahui",
+  "revoke": "Tarik balik",
+  "regenerate": "Jana semula",
+  "restore": "Pulihkan",
+  "continue": "Teruskan",
   "register": {
     "subtitle": "Sediakan akaun MyGarage anda",
     "username": "Nama pengguna",

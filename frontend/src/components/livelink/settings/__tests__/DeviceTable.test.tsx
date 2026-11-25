@@ -25,6 +25,8 @@ vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn(), warning: v
 
 import { toast } from 'sonner'
 import DeviceTable from '../DeviceTable'
+import { Drawer } from '../../../ui'
+import { answerConfirm, escapeConfirm, withConfirm } from '../../../../__tests__/confirmHelpers'
 
 /** What axios rejects with, as far as the error helpers read it. */
 const httpError = (status: number, detail: string): Error =>
@@ -61,30 +63,50 @@ afterEach(() => {
 
 describe('DeviceTable', () => {
   it('deletes after confirmation, then tells the drawer', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
     const onChanged = vi.fn()
-    render(<DeviceTable devices={[make('d1')]} vehicles={[]} onChanged={onChanged} />)
+    render(<DeviceTable devices={[make('d1')]} vehicles={[]} onChanged={onChanged} />, { wrapper: withConfirm })
 
     fireEvent.click(screen.getByTitle('modal.livelink.deleteDevice'))
+    await answerConfirm('confirm', 'modal.livelink.confirmDeleteDevice')
 
     await waitFor(() => expect(deleteDevice).toHaveBeenCalledWith('d1'))
     await waitFor(() => expect(onChanged).toHaveBeenCalled())
   })
 
   it('does nothing when the confirmation is declined', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(false)
     const onChanged = vi.fn()
-    render(<DeviceTable devices={[make('d1')]} vehicles={[]} onChanged={onChanged} />)
+    render(<DeviceTable devices={[make('d1')]} vehicles={[]} onChanged={onChanged} />, { wrapper: withConfirm })
 
     fireEvent.click(screen.getByTitle('modal.livelink.deleteDevice'))
+    await answerConfirm('cancel', 'modal.livelink.confirmDeleteDevice')
 
     expect(deleteDevice).not.toHaveBeenCalled()
     expect(onChanged).not.toHaveBeenCalled()
   })
 
+  // Regression pin: the table lives in three drawers, and Escape on its
+  // confirm must close the confirm only.
+  it('Escape closes the delete confirm and leaves the host drawer open', async () => {
+    const onClose = vi.fn()
+    render(
+      <Drawer open onClose={onClose} title="Host drawer">
+        <DeviceTable devices={[make('d1')]} vehicles={[]} onChanged={vi.fn()} />
+      </Drawer>,
+      { wrapper: withConfirm },
+    )
+
+    fireEvent.click(screen.getByTitle('modal.livelink.deleteDevice'))
+    await escapeConfirm('modal.livelink.confirmDeleteDevice')
+
+    expect(onClose).not.toHaveBeenCalled()
+    expect(screen.getByRole('dialog', { name: 'Host drawer' })).toBeInTheDocument()
+    expect(deleteDevice).not.toHaveBeenCalled()
+  })
+
   it('asks for the source catalogue once, not once per row', async () => {
     render(
       <DeviceTable devices={[make('d1'), make('d2'), make('d3')]} vehicles={[]} onChanged={vi.fn()} />,
+      { wrapper: withConfirm },
     )
 
     // The rows gain their capability-gated controls once it arrives.
@@ -96,7 +118,7 @@ describe('DeviceTable', () => {
     // The server refuses a unit change once readings depend on it.
     updateDevice.mockRejectedValue(httpError(409, 'Odometer history depends on this unit'))
     const onChanged = vi.fn()
-    render(<DeviceTable devices={[make('d1')]} vehicles={[]} onChanged={onChanged} />)
+    render(<DeviceTable devices={[make('d1')]} vehicles={[]} onChanged={onChanged} />, { wrapper: withConfirm })
     fireEvent.click(await screen.findByTitle('modal.livelink.deviceSettings'))
     const unit = screen.getByDisplayValue('modal.livelink.odometerUnitAuto')
 
@@ -111,7 +133,7 @@ describe('DeviceTable', () => {
     // A 403, not a conflict: getErrorMessage would swap it for a generic line.
     updateDevice.mockRejectedValue(httpError(403, 'Only an admin can manage an unlinked device'))
     const vehicle = { vin: '1HGBH41JXMN109186', nickname: 'Durango', year: 2023, make: 'KZ', model: 'RV' }
-    render(<DeviceTable devices={[make('d1')]} vehicles={[vehicle as never]} onChanged={vi.fn()} />)
+    render(<DeviceTable devices={[make('d1')]} vehicles={[vehicle as never]} onChanged={vi.fn()} />, { wrapper: withConfirm })
 
     fireEvent.change(screen.getByRole('combobox', { name: 'modal.livelink.actionFor' }), { target: { value: vehicle.vin } })
 
@@ -122,7 +144,7 @@ describe('DeviceTable', () => {
 
   it("shows the server's reason when SD settings are refused", async () => {
     setSdConfig.mockRejectedValue(httpError(422, 'A torque device has no SD card'))
-    render(<DeviceTable devices={[make('d1')]} vehicles={[]} onChanged={vi.fn()} />)
+    render(<DeviceTable devices={[make('d1')]} vehicles={[]} onChanged={vi.fn()} />, { wrapper: withConfirm })
     fireEvent.click(await screen.findByTitle('modal.livelink.deviceSettings'))
     fireEvent.change(screen.getByPlaceholderText('192.168.1.x'), { target: { value: '10.0.0.5' } })
 
@@ -133,7 +155,7 @@ describe('DeviceTable', () => {
 
   it("shows the server's reason when an SD pull is refused", async () => {
     triggerSdBackfill.mockRejectedValue(httpError(422, 'A torque device has no SD card to pull'))
-    render(<DeviceTable devices={[make('d1')]} vehicles={[]} onChanged={vi.fn()} />)
+    render(<DeviceTable devices={[make('d1')]} vehicles={[]} onChanged={vi.fn()} />, { wrapper: withConfirm })
     fireEvent.click(await screen.findByTitle('modal.livelink.deviceSettings'))
 
     fireEvent.click(screen.getByRole('button', { name: 'modal.livelink.pullSdLogsNow' }))
@@ -144,7 +166,7 @@ describe('DeviceTable', () => {
   // Regression guard (carry 6): a 409 shows its detail too, not a generic line.
   it('says LiveLink is switched off when an SD pull is refused for that', async () => {
     triggerSdBackfill.mockRejectedValue(httpError(409, 'LiveLink is switched off'))
-    render(<DeviceTable devices={[make('d1')]} vehicles={[]} onChanged={vi.fn()} />)
+    render(<DeviceTable devices={[make('d1')]} vehicles={[]} onChanged={vi.fn()} />, { wrapper: withConfirm })
     fireEvent.click(await screen.findByTitle('modal.livelink.deviceSettings'))
 
     fireEvent.click(screen.getByRole('button', { name: 'modal.livelink.pullSdLogsNow' }))
@@ -156,7 +178,7 @@ describe('DeviceTable', () => {
   // all-zero summary, and the toast already shows a 404's detail.
   it('names the missing device when an SD pull finds none', async () => {
     triggerSdBackfill.mockRejectedValue(httpError(404, 'Device d1 not found'))
-    render(<DeviceTable devices={[make('d1')]} vehicles={[]} onChanged={vi.fn()} />)
+    render(<DeviceTable devices={[make('d1')]} vehicles={[]} onChanged={vi.fn()} />, { wrapper: withConfirm })
     fireEvent.click(await screen.findByTitle('modal.livelink.deviceSettings'))
 
     fireEvent.click(screen.getByRole('button', { name: 'modal.livelink.pullSdLogsNow' }))

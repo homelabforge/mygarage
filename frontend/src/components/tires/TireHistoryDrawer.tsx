@@ -17,7 +17,7 @@ import { formatDateForDisplay } from '../../utils/dateUtils'
 import { formatHours } from '../../utils/hoursFormat'
 import { getActionErrorMessage } from '../../utils/httpErrorHandler'
 import { num } from '../../utils/wireNumber'
-import { Badge, Button, Drawer, EmptyState, ListRow } from '../ui'
+import { Badge, Button, Drawer, EmptyState, ListRow, useConfirm } from '../ui'
 
 interface TireHistoryDrawerProps {
   vin: string
@@ -88,6 +88,7 @@ export default function TireHistoryDrawer({
   tracksHours = false,
 }: TireHistoryDrawerProps) {
   const { t } = useTranslation('vehicles')
+  const confirm = useConfirm()
   const u = useUnitFormat()
   const removeReading = useDeleteTireReading(vin)
 
@@ -132,11 +133,10 @@ export default function TireHistoryDrawer({
       : periods.some((p) => p.mounted_hours != null && p.mounted_odometer_km == null)
 
   /* For a reading that shouldn't be there at all; a wrong value is fixed with
-     Edit, which keeps the reading. A native confirm, since a modal opened from a
-     drawer is inert in this app. */
-  const deleteReading = (reading: TireReading): void => {
+     Edit, which keeps the reading. The confirm portals above this drawer. */
+  const deleteReading = async (reading: TireReading): Promise<void> => {
     if (!tire) return
-    if (!confirm(t('tireList.readingConfirmDelete', { date: formatDateForDisplay(reading.recorded_at) }))) {
+    if (!(await confirm({ message: t('tireList.readingConfirmDelete', { date: formatDateForDisplay(reading.recorded_at) }), confirmLabel: t('common:delete') }))) {
       return
     }
     removeReading.mutate(
@@ -290,7 +290,7 @@ export default function TireHistoryDrawer({
                           date: formatDateForDisplay(reading.recorded_at),
                         })}
                         disabled={removeReading.isPending}
-                        onClick={() => deleteReading(reading)}
+                        onClick={() => void deleteReading(reading)}
                       >
                         {t('common:delete')}
                       </Button>

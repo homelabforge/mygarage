@@ -11,7 +11,7 @@ import type { FinancingRecord } from '../types/financing'
 import { FINANCING_CATEGORIES } from '../schemas/financing'
 import FinancingRecordForm from './FinancingRecordForm'
 import { useFinancingRecords, useDeleteFinancingRecord } from '../hooks/queries/useFinancingRecords'
-import { Button, IconButton, Card, Mono, EmptyState, DataTable } from './ui'
+import { Button, IconButton, Card, Mono, EmptyState, DataTable, useConfirm } from './ui'
 import type { DataTableColumn } from './ui'
 
 interface FinancingRecordListProps {
@@ -28,6 +28,7 @@ export default function FinancingRecordList({ vin }: FinancingRecordListProps) {
   const { data, isLoading, error } = useFinancingRecords(vin)
   const deleteMutation = useDeleteFinancingRecord(vin)
   const { t } = useTranslation('vehicles')
+  const confirm = useConfirm()
   const [showForm, setShowForm] = useState(false)
   const [editingRecord, setEditingRecord] = useState<FinancingRecord | undefined>()
 
@@ -43,8 +44,8 @@ export default function FinancingRecordList({ vin }: FinancingRecordListProps) {
     setShowForm(true)
   }
 
-  const handleDelete = (id: number) => {
-    if (!confirm(t('financingList.confirmDelete'))) {
+  const handleDelete = async (id: number): Promise<void> => {
+    if (!(await confirm({ message: t('financingList.confirmDelete'), confirmLabel: t('common:delete') }))) {
       return
     }
 
@@ -95,7 +96,7 @@ export default function FinancingRecordList({ vin }: FinancingRecordListProps) {
             variant="danger"
             size="sm"
             disabled={deleteMutation.isPending && deleteMutation.variables === r.id}
-            onClick={() => handleDelete(r.id)}
+            onClick={() => void handleDelete(r.id)}
           />
         </div>
       ),

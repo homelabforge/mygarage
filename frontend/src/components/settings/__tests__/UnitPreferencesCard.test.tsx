@@ -101,6 +101,7 @@ import UnitPreferencesCard from '../UnitPreferencesCard'
 import { useUnitPreference } from '@/hooks/useUnitPreference'
 import { withUnitSession } from '@/contexts/UnitSession'
 import { resolvedUnitSummary } from '@/utils/unitFormat'
+import { withConfirm } from '../../../__tests__/confirmHelpers'
 
 const mockedApi = vi.mocked(api)
 
@@ -131,6 +132,7 @@ function renderCard(): QueryClient {
     <QueryClientProvider client={queryClient}>
       <UnitPreferencesCard />
     </QueryClientProvider>,
+    { wrapper: withConfirm },
   )
   return queryClient
 }
@@ -448,6 +450,7 @@ describe('UnitPreferencesCard, in Quick Settings', () => {
       <QueryClientProvider client={queryClient}>
         <UnitPreferencesCard />
       </QueryClientProvider>,
+      { wrapper: withConfirm },
     )
 
     expect(screen.getByRole('button', { name: label('units.customToggle') })).toHaveAttribute(
@@ -654,6 +657,7 @@ describe('UnitPreferencesCard is never pinned (R4)', () => {
         <UnitPreferencesCard />
         <OpenForm />
       </QueryClientProvider>,
+      { wrapper: withConfirm },
     )
     const summary = (units: UnitSet): string =>
       i18n.t('settings:units.resolvedDescription', { units: resolvedUnitSummary(units) })

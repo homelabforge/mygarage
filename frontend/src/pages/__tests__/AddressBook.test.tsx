@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, fireEvent, waitFor, screen, within } from '../../__tests__/test-utils' // selects by id (i18n mock renders keys)
 import AddressBook, { AddressBookForm, displayCategory } from '../AddressBook'
 import { registeredFieldNames, validationError, whereA422Lands, dropQueuedOnces } from '../../__tests__/serverErrors'
+import { answerConfirm } from '../../__tests__/confirmHelpers'
 
 // vi.mock is hoisted above module-level consts, so spies must be created with vi.hoisted.
 const { get, post, put, del } = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn(), put: vi.fn(), del: vi.fn() }))
@@ -335,11 +336,11 @@ describe('AddressBookForm: a gas station filed under another chip stops being on
 describe('AddressBookForm — delete + notes placeholder', () => {
   it('deletes via the footer Delete button (edit mode) after confirm', async () => {
     const onSuccess = vi.fn()
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
     render(<AddressBookForm entry={{ id: 7, business_name: 'Old Shop' } as never} onClose={() => {}} onSuccess={onSuccess} />)
     const btn = buttonWithText('common:delete')
     expect(btn).toBeTruthy()
     fireEvent.click(btn as HTMLButtonElement)
+    await answerConfirm('confirm', 'addressBook.confirmDelete')
     await waitFor(() => expect(del).toHaveBeenCalledWith('/address-book/7'))
     expect(onSuccess).toHaveBeenCalled()
   })

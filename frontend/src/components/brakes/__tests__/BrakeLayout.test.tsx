@@ -37,6 +37,7 @@ import BrakeList from '../BrakeList'
 import BrakeJobDrawer from '../BrakeJobDrawer'
 import { brakeCorner, brakeOverview, type BrakeCorner, type BrakeOverview } from '../../../__tests__/factories'
 import { toast } from 'sonner'
+import { withConfirm } from '../../../__tests__/confirmHelpers'
 
 const VIN = '1HGCM82633A004352'
 
@@ -85,7 +86,7 @@ beforeEach(() => {
 describe('brake screens on a two-wheel layout', () => {
   it('shows one Front card and logs Front and Rear only', () => {
     useBrakesMock.mockReturnValue({ data: twoWheels(), isLoading: false, error: null })
-    render(<BrakeList vin={VIN} />)
+    render(<BrakeList vin={VIN} />, { wrapper: withConfirm })
 
     const front = section('brakes.frontAxle')
     expect(within(front).getAllByRole('button', { name: 'brakes.historyOpen' })).toHaveLength(1)
@@ -106,7 +107,7 @@ describe('brake screens on a two-wheel layout', () => {
 
   it('the Front axle button sends F, never FL and FR', () => {
     useBrakesMock.mockReturnValue({ data: twoWheels(), isLoading: false, error: null })
-    render(<BrakeList vin={VIN} />)
+    render(<BrakeList vin={VIN} />, { wrapper: withConfirm })
     // The header's Brake job comes first, ahead of the cards'.
     fireEvent.click(screen.getAllByRole('button', { name: 'brakes.brakeJob' })[0])
 
@@ -118,7 +119,7 @@ describe('brake screens on a two-wheel layout', () => {
 
   it('All corners ticks the layout’s corners', () => {
     useBrakesMock.mockReturnValue({ data: twoWheels(), isLoading: false, error: null })
-    render(<BrakeList vin={VIN} />)
+    render(<BrakeList vin={VIN} />, { wrapper: withConfirm })
     fireEvent.click(screen.getAllByRole('button', { name: 'brakes.brakeJob' })[0])
 
     const chips = within(dialog())
@@ -138,7 +139,7 @@ describe('brake screens on a two-wheel layout', () => {
 describe('an off-layout corner with history', () => {
   it('shows flagged and the log drawer leaves it out', () => {
     useBrakesMock.mockReturnValue({ data: twoWheels([STALE_FL]), isLoading: false, error: null })
-    render(<BrakeList vin={VIN} />)
+    render(<BrakeList vin={VIN} />, { wrapper: withConfirm })
 
     expect(within(cardOf('tireList.positions.FL')).getByText('tireList.offLayout')).toBeInTheDocument()
     expect(within(cardOf('tireList.positions.F')).queryByText('tireList.offLayout')).toBeNull()
@@ -151,7 +152,7 @@ describe('an off-layout corner with history', () => {
 
   it('the job drawer leaves it out too', () => {
     useBrakesMock.mockReturnValue({ data: twoWheels([STALE_FL]), isLoading: false, error: null })
-    render(<BrakeList vin={VIN} />)
+    render(<BrakeList vin={VIN} />, { wrapper: withConfirm })
 
     fireEvent.click(screen.getAllByRole('button', { name: 'brakes.brakeJob' })[0])
     expect(within(dialog()).queryByRole('button', { name: 'tireList.positions.FL' })).toBeNull()
@@ -162,7 +163,7 @@ describe('an off-layout corner with history', () => {
 
   it('a brake job from the FL card pre-ticks F only', () => {
     useBrakesMock.mockReturnValue({ data: twoWheels([STALE_FL]), isLoading: false, error: null })
-    render(<BrakeList vin={VIN} />)
+    render(<BrakeList vin={VIN} />, { wrapper: withConfirm })
 
     fireEvent.click(within(cardOf('tireList.positions.FL')).getByRole('button', { name: 'brakes.brakeJob' }))
     save()

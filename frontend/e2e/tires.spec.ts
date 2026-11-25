@@ -428,15 +428,11 @@ test.describe('Tires', () => {
     // keyboard focus, so Playwright can't click it (#179).
     await card.getByText('E2E Typo', { exact: true }).click()
     const history = page.getByRole('dialog')
-    const confirmed = new Promise<string>((resolve) => {
-      page.once('dialog', async (dialog) => {
-        const message = dialog.message()
-        await dialog.accept()
-        resolve(message)
-      })
-    })
     await history.getByRole('button', { name: /^Delete the reading of / }).click()
-    expect(await confirmed).toMatch(/^Delete the reading of /)
+    const confirm = page.getByRole('alertdialog')
+    await expect(confirm).toHaveAccessibleName(/^Delete the reading of /)
+    await confirm.getByRole('button', { name: 'Delete' }).click()
+    await expect(confirm).toBeHidden({ timeout: 5000 })
     await expect(history.getByText('No readings logged yet')).toBeVisible({ timeout: 10000 })
     await history.getByRole('button', { name: 'Close' }).first().click()
     await expect(history).toBeHidden({ timeout: 10000 })
@@ -722,15 +718,11 @@ test.describe('Tires', () => {
       history.getByText('contradicts the reading dated 2026-02-01 at 12,427.4 mi')
     ).toBeVisible({ timeout: 10000 })
 
-    const confirmed = new Promise<string>((resolve) => {
-      page.once('dialog', async (dialog) => {
-        const message = dialog.message()
-        await dialog.accept()
-        resolve(message)
-      })
-    })
     await history.getByRole('button', { name: /^Delete the reading of / }).click()
-    expect(await confirmed).toMatch(/^Delete the reading of /)
+    const confirm = page.getByRole('alertdialog')
+    await expect(confirm).toHaveAccessibleName(/^Delete the reading of /)
+    await confirm.getByRole('button', { name: 'Delete' }).click()
+    await expect(confirm).toBeHidden({ timeout: 5000 })
 
     await expect(history.getByText('No readings logged yet')).toBeVisible({ timeout: 10000 })
     await expect(history.getByText('Check this period')).toHaveCount(0)

@@ -13,11 +13,13 @@ import userEvent from '@testing-library/user-event'
 import { IMPERIAL_UNITS } from '@/__tests__/factories'
 import { UNIT_OPTION_LABELS, type UnitPreference } from '@/types/units'
 import UnitSetEditor from '../UnitSetEditor'
+import { answerConfirm, withConfirm } from '../../../__tests__/confirmHelpers'
 
 function renderEditor(preference: UnitPreference, compact = true) {
   const onSelect = vi.fn()
   const view = render(
     <UnitSetEditor compact={compact} preference={preference} units={IMPERIAL_UNITS} onSelect={onSelect} />,
+    { wrapper: withConfirm },
   )
   const rerender = (next: UnitPreference): void =>
     view.rerender(
@@ -116,12 +118,34 @@ describe('UnitSetEditor, page layout', () => {
 })
 
 describe('UnitSetEditor, page', () => {
-  it('keeps the preset confirm overlay inside the safe area (#305)', async () => {
+  it('keeps the preset confirm inside the safe area (#305)', async () => {
     renderEditor('custom', false)
 
     await userEvent.click(screen.getByRole('button', { name: 'units.metric' }))
 
-    const overlay = screen.getByText('units.presetConfirmMessage').closest('.fixed')
-    expect(overlay).toHaveClass('modal-safe-inset')
+    // The page asks through the app's confirm, and that dialog owns the safe area now.
+    const dialog = await screen.findByRole('alertdialog', { name: 'units.presetConfirmTitle' })
+    expect(dialog.closest('.modal-safe-pad')).not.toBeNull()
+  })
+
+  it('asks through the app confirm, with the consequence under the question', async () => {
+    const { onSelect } = renderEditor('custom', false)
+
+    await userEvent.click(screen.getByRole('button', { name: 'units.metric' }))
+
+    const dialog = await screen.findByRole('alertdialog', { name: 'units.presetConfirmTitle' })
+    expect(dialog).toHaveAccessibleDescription('units.presetConfirmMessage')
+    expect(onSelect).not.toHaveBeenCalled()
+    await answerConfirm('confirm', 'units.presetConfirmTitle')
+    expect(onSelect).toHaveBeenCalledWith({ unit_preference: 'metric', units: null })
+  })
+
+  it('a cancelled preset confirm writes nothing', async () => {
+    const { onSelect } = renderEditor('custom', false)
+
+    await userEvent.click(screen.getByRole('button', { name: 'units.metric' }))
+    await answerConfirm('cancel', 'units.presetConfirmTitle')
+
+    expect(onSelect).not.toHaveBeenCalled()
   })
 })

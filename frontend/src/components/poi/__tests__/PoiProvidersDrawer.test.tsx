@@ -25,6 +25,7 @@ vi.mock('@/components/modals/EditProviderModal', () => ({
 }))
 
 import PoiProvidersDrawer from '../PoiProvidersDrawer'
+import { answerConfirm, escapeConfirm, withConfirm } from '../../../__tests__/confirmHelpers'
 
 const PROVIDERS = [
   {
@@ -56,7 +57,7 @@ const PROVIDERS = [
   },
 ]
 
-const renderDrawer = (open = true) => render(<PoiProvidersDrawer open={open} onClose={vi.fn()} />)
+const renderDrawer = (open = true) => render(<PoiProvidersDrawer open={open} onClose={vi.fn()} />, { wrapper: withConfirm })
 
 const rowOf = (name: string): HTMLElement => screen.getByText(name).closest('tr') as HTMLElement
 
@@ -111,11 +112,11 @@ describe('PoiProvidersDrawer', () => {
   })
 
   it('removes a provider after confirming, then reloads the list', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
     renderDrawer()
     await screen.findByText('TomTom Places API')
 
     fireEvent.click(screen.getAllByRole('button', { name: 'integrationsTab.remove' })[0])
+    await answerConfirm('confirm', 'integrationsTab.confirmRemoveProvider')
 
     await waitFor(() => expect(api.delete).toHaveBeenCalledWith('/settings/poi-providers/tomtom'))
     await waitFor(() => expect(api.get).toHaveBeenCalledTimes(2))
@@ -123,10 +124,10 @@ describe('PoiProvidersDrawer', () => {
   })
 
   it('opens again without the last visit\'s note', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
-    const { rerender } = render(<PoiProvidersDrawer open onClose={vi.fn()} />)
+    const { rerender } = render(<PoiProvidersDrawer open onClose={vi.fn()} />, { wrapper: withConfirm })
     await screen.findByText('TomTom Places API')
     fireEvent.click(screen.getAllByRole('button', { name: 'integrationsTab.remove' })[0])
+    await answerConfirm('confirm', 'integrationsTab.confirmRemoveProvider')
     expect(await screen.findByText('integrations.providerRemoved')).toBeInTheDocument()
 
     rerender(<PoiProvidersDrawer open={false} onClose={vi.fn()} />)
@@ -136,12 +137,26 @@ describe('PoiProvidersDrawer', () => {
   })
 
   it('keeps a provider when the removal is not confirmed', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(false)
     renderDrawer()
     await screen.findByText('TomTom Places API')
 
     fireEvent.click(screen.getAllByRole('button', { name: 'integrationsTab.remove' })[0])
+    await answerConfirm('cancel', 'integrationsTab.confirmRemoveProvider')
 
+    expect(api.delete).not.toHaveBeenCalled()
+  })
+
+  // Regression pin: Escape on the remove confirm must not close the drawer.
+  it('Escape closes the remove confirm and leaves the drawer open', async () => {
+    const onClose = vi.fn()
+    render(<PoiProvidersDrawer open onClose={onClose} />, { wrapper: withConfirm })
+    await screen.findByText('TomTom Places API')
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'integrationsTab.remove' })[0])
+    await escapeConfirm('integrationsTab.confirmRemoveProvider')
+
+    expect(onClose).not.toHaveBeenCalled()
+    expect(screen.getByRole('dialog', { name: 'integrations.searchProviders' })).toBeInTheDocument()
     expect(api.delete).not.toHaveBeenCalled()
   })
 

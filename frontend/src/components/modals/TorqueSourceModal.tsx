@@ -18,7 +18,7 @@ import { useTranslation } from 'react-i18next'
 import { useState, useEffect, useCallback, useId } from 'react'
 import { toast } from 'sonner'
 import { Radio, Plus, Copy, Eye, EyeOff, Trash2, Loader2, AlertTriangle } from 'lucide-react'
-import { Drawer } from '@/components/ui'
+import { Drawer, useConfirm } from '@/components/ui'
 import { livelinkService } from '@/services/livelinkService'
 import type { TorqueSourceResponse, TorqueSourceCreateResponse } from '@/types/livelink'
 import { useTimeFormat } from '@/hooks/useTimeFormat'
@@ -32,6 +32,7 @@ interface TorqueSourceModalProps {
 
 export default function TorqueSourceModal({ vin, isOpen, onClose }: TorqueSourceModalProps) {
   const { t } = useTranslation('forms')
+  const confirm = useConfirm()
   const { timeFormat } = useTimeFormat()
   const idBase = useId()
   const [loading, setLoading] = useState(true)
@@ -105,7 +106,7 @@ export default function TorqueSourceModal({ vin, isOpen, onClose }: TorqueSource
   }
 
   const handleRevoke = async (deviceId: string): Promise<void> => {
-    if (!confirm(t('modal.torque.revokeConfirm'))) {
+    if (!(await confirm({ message: t('modal.torque.revokeConfirm'), confirmLabel: t('common:revoke') }))) {
       return
     }
 
@@ -271,7 +272,7 @@ export default function TorqueSourceModal({ vin, isOpen, onClose }: TorqueSource
                         </p>
                       </div>
                       <button
-                        onClick={() => handleRevoke(source.device_id)}
+                        onClick={() => void handleRevoke(source.device_id)}
                         disabled={revokingDeviceId === source.device_id}
                         className="p-2 text-danger hover:bg-danger/20 rounded transition-colors disabled:opacity-50"
                         title={t('modal.torque.revoke')}

@@ -14,7 +14,7 @@ import { UnitFormatter } from '../utils/units'
 import { useDEFRecords, useDEFAnalytics, useDeleteDEFRecord } from '../hooks/queries/useDEFRecords'
 import { useQueryClient } from '@tanstack/react-query'
 import { getActionErrorMessage } from '../utils/httpErrorHandler'
-import { Button, IconButton, Card, Mono, Chip, DataTable, EmptyState } from './ui'
+import { Button, IconButton, Card, Mono, Chip, DataTable, EmptyState, useConfirm } from './ui'
 import type { DataTableColumn } from './ui'
 
 interface DEFRecordListProps {
@@ -29,6 +29,7 @@ export default function DEFRecordList({ vin, readOnly = false }: DEFRecordListPr
   const [showForm, setShowForm] = useState(false)
   const [editingRecord, setEditingRecord] = useState<DEFRecord | undefined>()
   const { t } = useTranslation('vehicles')
+  const confirm = useConfirm()
   const { showBoth, units } = useUnitPreference()
   // Rates with a distance underneath stay in the ACCOUNT's units (#172 D3),
   // like fuel economy: the vehicle's odometer unit covers its distances and
@@ -56,8 +57,8 @@ export default function DEFRecordList({ vin, readOnly = false }: DEFRecordListPr
     setShowForm(true)
   }
 
-  const handleDelete = (id: number) => {
-    if (!confirm(t('defList.confirmDelete'))) {
+  const handleDelete = async (id: number): Promise<void> => {
+    if (!(await confirm({ message: t('defList.confirmDelete'), confirmLabel: t('common:delete') }))) {
       return
     }
 
@@ -143,7 +144,7 @@ export default function DEFRecordList({ vin, readOnly = false }: DEFRecordListPr
             variant="danger"
             size="sm"
             disabled={deleteMutation.isPending && deleteMutation.variables === r.id}
-            onClick={() => handleDelete(r.id)}
+            onClick={() => void handleDelete(r.id)}
           />
         </div>
       ) },

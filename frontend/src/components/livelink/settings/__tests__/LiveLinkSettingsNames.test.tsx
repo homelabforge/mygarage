@@ -41,6 +41,7 @@ import SensorBlock from '../SensorBlock'
 import TopicMapEditor from '../TopicMapEditor'
 import TorqueSettingsDrawer from '../TorqueSettingsDrawer'
 import WicanSettingsDrawer from '../WicanSettingsDrawer'
+import { answerConfirm, withConfirm } from '../../../../__tests__/confirmHelpers'
 
 const WICAN_CAPS = { kind: 'wican', capabilities: ['commands', 'odometer', 'sd_backfill', 'telemetry'], syncs_odometer: true }
 const TORQUE_CAPS = { kind: 'torque', capabilities: ['odometer', 'telemetry'], syncs_odometer: false }
@@ -101,6 +102,7 @@ describe('DeviceRow names', () => {
         mqttConnected
         onChanged={vi.fn()}
       />,
+      { wrapper: withConfirm },
     )
   }
 
@@ -155,7 +157,7 @@ describe('DeviceRow names', () => {
       kind: 'torque',
       odometer_param_key: null,
     } as unknown as LiveLinkDevice
-    render(<DeviceTable devices={[phone]} vehicles={[]} onChanged={vi.fn()} />)
+    render(<DeviceTable devices={[phone]} vehicles={[]} onChanged={vi.fn()} />, { wrapper: withConfirm })
     fireEvent.click(await screen.findByRole('button', { name: 'Device settings: Pixel' }))
 
     const param = screen.getByRole('combobox', { name: 'Odometer parameter' })
@@ -175,7 +177,7 @@ describe('DeviceTable token dialog', () => {
   }
 
   const generate = async (): Promise<HTMLElement> => {
-    render(<DeviceTable devices={[wican('d1', 'Garage dongle')]} vehicles={[]} onChanged={vi.fn()} />)
+    render(<DeviceTable devices={[wican('d1', 'Garage dongle')]} vehicles={[]} onChanged={vi.fn()} />, { wrapper: withConfirm })
     fireEvent.click(await screen.findByRole('button', { name: 'Generate device token: Garage dongle' }))
     return openedToken()
   }
@@ -216,6 +218,7 @@ describe('DeviceTable token dialog', () => {
       <Drawer open onClose={closeSettings} title="WiCAN settings">
         <DeviceTable devices={[wican('d1', 'Garage dongle')]} vehicles={[]} onChanged={vi.fn()} />
       </Drawer>,
+      { wrapper: withConfirm },
     )
     fireEvent.click(await screen.findByRole('button', { name: 'Generate device token: Garage dongle' }))
     const token = await openedToken()
@@ -234,7 +237,7 @@ describe('TopicMapEditor names', () => {
       { id: 2, device_id: 'rvgw', topic: 'rv/tank2/level', param_key: 'TANK2_LEVEL', unit: '%' },
     ])
     svc.deleteTopicMap.mockResolvedValue(undefined)
-    render(<TopicMapEditor deviceId="rvgw" onMappingsChanged={vi.fn()} />)
+    render(<TopicMapEditor deviceId="rvgw" onMappingsChanged={vi.fn()} />, { wrapper: withConfirm })
 
     expect(
       await screen.findByRole('button', { name: 'Remove mapping: rv/tank1/level to TANK1_LEVEL' }),
@@ -248,7 +251,7 @@ describe('SensorBlock names', () => {
   it('says whose mappings the toggle shows, and whether they are shown', async () => {
     svc.listTopicMaps.mockResolvedValue([])
     const sensor = { ...wican('mopeka-t1', 'Front tank'), kind: 'generic_mqtt' } as unknown as LiveLinkDevice
-    render(<SensorBlock device={sensor} vehicles={[]} onChanged={vi.fn()} />)
+    render(<SensorBlock device={sensor} vehicles={[]} onChanged={vi.fn()} />, { wrapper: withConfirm })
 
     const toggle = screen.getByRole('button', { name: 'Advanced: topic mappings for Front tank' })
     expect(toggle).toHaveAttribute('aria-expanded', 'false')
@@ -267,7 +270,7 @@ describe('TorqueSettingsDrawer names', () => {
       token: 'tok',
     })
     const tab = { id: 'torque', label: 'Torque', kind: 'torque' } as unknown as IntegrationTab
-    render(<TorqueSettingsDrawer open tab={tab} onClose={vi.fn()} onChanged={vi.fn()} />)
+    render(<TorqueSettingsDrawer open tab={tab} onClose={vi.fn()} onChanged={vi.fn()} />, { wrapper: withConfirm })
     await screen.findAllByRole('option', { name: 'Mirage' })
     fireEvent.change(screen.getByRole('combobox', { name: 'Vehicle' }), { target: { value: VEHICLE.vin } })
     fireEvent.click(screen.getByRole('button', { name: 'Create' }))
@@ -281,7 +284,6 @@ describe('TorqueSettingsDrawer names', () => {
 
 describe('WicanSettingsDrawer names', () => {
   it('says what each copy button copies, and names show/hide', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
     svc.getSettings.mockResolvedValue({
       enabled: true,
       has_global_token: true,
@@ -295,13 +297,14 @@ describe('WicanSettingsDrawer names', () => {
     svc.getMQTTStatus.mockResolvedValue({ running: true, connection_status: 'connected' })
     svc.regenerateGlobalToken.mockResolvedValue({ token: 'tok-123' })
     const tab = { id: 'wican', label: 'WiCAN', kind: 'wican' } as unknown as IntegrationTab
-    render(<WicanSettingsDrawer open tab={tab} onClose={vi.fn()} onChanged={vi.fn()} />)
+    render(<WicanSettingsDrawer open tab={tab} onClose={vi.fn()} onChanged={vi.fn()} />, { wrapper: withConfirm })
 
     stubClipboard()
     fireEvent.click(await screen.findByRole('button', { name: 'Copy Ingestion URL' }))
     // The toast said "URL copied" for a button named "Copy Ingestion URL".
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Ingestion URL copied to clipboard'))
     fireEvent.click(screen.getByRole('button', { name: 'Regenerate' }))
+    await answerConfirm('confirm', /^Regenerating the global token will immediately invalidate/)
     fireEvent.click(await screen.findByRole('button', { name: 'Copy Global API Token' }))
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Global API Token copied to clipboard'))
     // A fresh global token arrives shown.

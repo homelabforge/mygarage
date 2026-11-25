@@ -5,6 +5,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useParams, Link } from 'react-router-dom'
+import { toast } from 'sonner'
 import api from '../services/api'
 import { getActionErrorMessage } from '../utils/httpErrorHandler'
 import { useAccountUnitPreference, useUnitPreference } from '../hooks/useUnitPreference'
@@ -246,7 +247,7 @@ export default function Analytics() {
 
   const handleCompare = async () => {
     if (!vin || !period1Start || !period1End || !period2Start || !period2End) {
-      alert(t('vehicle.fillAllDates'))
+      toast.error(t('vehicle.fillAllDates'))
       return
     }
 
@@ -262,7 +263,7 @@ export default function Analytics() {
       setComparisonData(response.data)
     } catch (error) {
       console.error('Failed to fetch comparison data:', error)
-      alert(t('vehicle.comparisonFailed'))
+      toast.error(t('vehicle.comparisonFailed'))
     } finally {
       setComparisonLoading(false)
     }

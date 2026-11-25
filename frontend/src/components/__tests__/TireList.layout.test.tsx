@@ -68,6 +68,7 @@ vi.mock('../../hooks/useUnitPreference', () => {
 })
 
 import TireList from '../TireList'
+import { withConfirm } from '../../__tests__/confirmHelpers'
 
 const VIN = '1HGCM82633A004352'
 
@@ -125,14 +126,14 @@ describe('TireList follows the wheel layout', () => {
 
   it('a two-wheeler adds at Front or Rear only, and has no Rotate button', () => {
     setList(TWO, [])
-    render(<TireList vin={VIN} />)
+    render(<TireList vin={VIN} />, { wrapper: withConfirm })
     expect(screen.queryByRole('button', { name: 'Rotate' })).not.toBeInTheDocument()
     expect(addFormChips()).toEqual(['Front', 'Rear', 'In storage'])
   })
 
   it('a two-wheeler with both corners taken adds into storage', () => {
     setList(TWO, [tireAt(1, 'F'), tireAt(2, 'R')])
-    render(<TireList vin={VIN} />)
+    render(<TireList vin={VIN} />, { wrapper: withConfirm })
     fireEvent.click(screen.getByRole('button', { name: 'Add Tire' }))
     expect(within(screen.getByRole('group', { name: 'Position' })).getByRole('button', { name: 'In storage' })).toHaveAttribute(
       'aria-pressed',
@@ -144,7 +145,7 @@ describe('TireList follows the wheel layout', () => {
     const createAndMount = vi.fn()
     useCreateAndMountTireMock.mockReturnValue({ mutate: createAndMount, isPending: false })
     setList(TWO, [tireAt(1, 'F')])
-    render(<TireList vin={VIN} />)
+    render(<TireList vin={VIN} />, { wrapper: withConfirm })
     fireEvent.click(screen.getByRole('button', { name: 'Add Tire' }))
     expect(within(screen.getByRole('group', { name: 'Position' })).getByRole('button', { name: 'Rear' })).toHaveAttribute(
       'aria-pressed',
@@ -157,7 +158,7 @@ describe('TireList follows the wheel layout', () => {
   it('a tire left at FL on a two-wheeler is flagged and sorts after Front and Rear', () => {
     // Server order puts it first, so only the sort can move it.
     setList(TWO, [tireAt(1, 'FL', 'Old car tire'), tireAt(2, 'R', 'Rear tire'), tireAt(3, 'F', 'Front tire')])
-    render(<TireList vin={VIN} />)
+    render(<TireList vin={VIN} />, { wrapper: withConfirm })
     const opens = screen.getAllByRole('button', { name: /^View reading history for / })
     expect(opens.map((open) => open.textContent)).toEqual([
       'View reading history for Front',
@@ -172,7 +173,7 @@ describe('TireList follows the wheel layout', () => {
 
   it('editing a tire left at FL on a two-wheeler still shows where it sits, flagged', () => {
     setList(TWO, [tireAt(1, 'FL')])
-    render(<TireList vin={VIN} />)
+    render(<TireList vin={VIN} />, { wrapper: withConfirm })
     fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
     const group = within(screen.getByRole('group', { name: 'Position' }))
     // Locked chips are spans, so "pressed" is the selected style, same as the
@@ -185,7 +186,7 @@ describe('TireList follows the wheel layout', () => {
 
   it('editing an on-layout tire adds no extra corner', () => {
     setList(TWO, [tireAt(1, 'F')])
-    render(<TireList vin={VIN} />)
+    render(<TireList vin={VIN} />, { wrapper: withConfirm })
     fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
     const group = screen.getByRole('group', { name: 'Position' })
     expect(Array.from(group.children).map((chip) => chip.textContent)).toEqual(['Front', 'Rear', 'In storage'])
@@ -196,7 +197,7 @@ describe('TireList follows the wheel layout', () => {
     useMountTireMock.mockReturnValue({ mutate: mount, isPending: false })
     // FL is taken by an off-layout tire, which must not make Front look taken.
     setList(TWO, [tireAt(1, 'FL'), tireAt(2, null)])
-    render(<TireList vin={VIN} />)
+    render(<TireList vin={VIN} />, { wrapper: withConfirm })
     fireEvent.click(screen.getByRole('button', { name: 'Mount' }))
     const chips = drawer()
       .getAllByRole('button')
@@ -209,13 +210,13 @@ describe('TireList follows the wheel layout', () => {
 
   it('a car keeps its Rotate button', () => {
     setList(FOUR_LAYOUT, [tireAt(1, 'FL'), tireAt(2, 'FR'), tireAt(3, 'RL'), tireAt(4, 'RR')])
-    render(<TireList vin={VIN} />)
+    render(<TireList vin={VIN} />, { wrapper: withConfirm })
     expect(screen.getByRole('button', { name: 'Rotate' })).toBeEnabled()
   })
 
   it('a dually adds at six named corners plus the spare', () => {
     setList(DUALLY, [])
-    render(<TireList vin={VIN} />)
+    render(<TireList vin={VIN} />, { wrapper: withConfirm })
     expect(screen.queryByRole('button', { name: 'Rotate' })).not.toBeInTheDocument()
     expect(addFormChips()).toEqual([
       'Front Left',
@@ -231,7 +232,7 @@ describe('TireList follows the wheel layout', () => {
 
   it('says which wheel layout the list follows, by name', () => {
     setList(TWO, [])
-    render(<TireList vin={VIN} />)
+    render(<TireList vin={VIN} />, { wrapper: withConfirm })
     expect(
       screen.getByText('Wheel layout: Two wheels (front and rear). Change it under Vehicle Details.'),
     ).toBeInTheDocument()

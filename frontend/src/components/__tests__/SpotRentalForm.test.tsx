@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { screen, waitFor, fireEvent } from '@testing-library/react'
+import { act, screen, waitFor, fireEvent, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { render } from '../../__tests__/test-utils'
 import { registeredFieldNames, submitAndSettle, validationError, whereA422Lands, dropQueuedOnces } from '../../__tests__/serverErrors'
@@ -30,6 +30,7 @@ vi.mock('../../services/api', () => ({
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 
 import SpotRentalForm from '../SpotRentalForm'
+import { escapeConfirm } from '../../__tests__/confirmHelpers'
 
 beforeEach(() => vi.clearAllMocks())
 
@@ -123,17 +124,18 @@ describe('SpotRentalForm — nested Save-to-Address-Book confirm (LD8 wiring net
     await user.type(screen.getByLabelText('spotRental.locationName'), 'Lakeside RV')
     await user.click(screen.getByRole('button', { name: 'common:create' }))
     await waitFor(() => expect(createMutateAsync).toHaveBeenCalledTimes(1))
-    expect(await screen.findByText('spotRental.saveToAddressBookPrompt')).toBeInTheDocument()
+    const prompt = await screen.findByRole('alertdialog', { name: 'spotRental.saveToAddressBook' })
+    expect(within(prompt).getByText('spotRental.saveToAddressBookPrompt')).toBeInTheDocument()
   }
 
-  it('after creating a NEW location the nested prompt appears and the form is NOT yet closed; clicking No/Skip routes to skipSaveToAddressBook → onSuccess + onClose (fails if the nested-confirm open/skip wiring is disturbed)', async () => {
+  it('after creating a NEW location the nested prompt appears and the form is NOT yet closed; clicking No/Skip takes the Skip path → onSuccess + onClose (fails if the nested-confirm open/skip wiring is disturbed)', async () => {
     const user = userEvent.setup()
     const onClose = vi.fn(); const onSuccess = vi.fn()
     render(<SpotRentalForm vin="V1" onClose={onClose} onSuccess={onSuccess} />)
     await reachPrompt(user)
-    // The nested <Drawer open> mounts its prompt body; onClose has NOT fired (the save-succeeded path is waiting).
+    // The prompt is up; onClose has NOT fired (the save-succeeded path is waiting).
     expect(onClose).not.toHaveBeenCalled()
-    // The footer "No/Skip" <Button> routes to skipSaveToAddressBook → onSuccess + onClose; no address-book POST.
+    // "No/Skip" is the prompt's Cancel: onSuccess + onClose, and no address-book POST.
     await user.click(screen.getByRole('button', { name: 'spotRental.noSkip' }))
     await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
     expect(onSuccess).toHaveBeenCalledTimes(1)
@@ -159,19 +161,98 @@ describe('SpotRentalForm — nested Save-to-Address-Book confirm (LD8 wiring net
     expect(onSuccess).toHaveBeenCalledTimes(1)
   })
 
-  it('B4(b) — the nested Drawer close mechanism (Escape) routes onClose={skipSaveToAddressBook} → onSuccess + onClose, and does NOT POST (fails if the nested Drawer onClose wiring is disturbed)', async () => {
+  it('B4(b): Escape on the prompt is the Skip path, onSuccess + onClose and no POST (fails if Escape stops meaning No)', async () => {
     const user = userEvent.setup()
     const onClose = vi.fn(); const onSuccess = vi.fn()
     render(<SpotRentalForm vin="V1" onClose={onClose} onSuccess={onSuccess} />)
     await reachPrompt(user)
-    // Escape on the NESTED dialog (scoped by its accessible name so it never resolves the outer form Drawer). The
-    // modal stack sends Escape to the top layer only, and a nested drawer outranks the form Drawer, so ONLY its
-    // onClose (skipSaveToAddressBook) runs. That proves the Drawer close mechanism itself, not just the footer button.
-    const nestedDialog = screen.getByRole('dialog', { name: 'spotRental.saveToAddressBook' })
-    fireEvent.keyDown(nestedDialog, { key: 'Escape' })
+    // The modal stack sends Escape to the top layer only, so it closes the prompt and not the form under it.
+    await escapeConfirm('spotRental.saveToAddressBook')
     await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
     expect(onSuccess).toHaveBeenCalledTimes(1)
     expect(apiPost).not.toHaveBeenCalled()
+  })
+
+  // Teardown isn't Skip. Skip closes the form, and by then that could be a second
+  // form the user opened meanwhile.
+  it('unmounting the form with the prompt open closes it, posts nothing and calls neither callback', async () => {
+    const user = userEvent.setup()
+    const onClose = vi.fn(); const onSuccess = vi.fn()
+    const { unmount } = render(<SpotRentalForm vin="V1" onClose={onClose} onSuccess={onSuccess} />)
+    await reachPrompt(user)
+
+    unmount()
+
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(apiPost).not.toHaveBeenCalled()
+    expect(onSuccess).not.toHaveBeenCalled()
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('a create that lands after the form unmounted opens no prompt, posts nothing and calls neither callback', async () => {
+    const user = userEvent.setup()
+    const onClose = vi.fn(); const onSuccess = vi.fn()
+    let land: (value: unknown) => void = () => {}
+    createMutateAsync.mockImplementationOnce(() => new Promise((resolve) => (land = resolve)))
+    const { unmount } = render(<SpotRentalForm vin="V1" onClose={onClose} onSuccess={onSuccess} />)
+    fireEvent.change(screen.getByLabelText('spotRental.checkInDate *'), { target: { value: '2026-03-01' } })
+    await user.type(screen.getByLabelText('spotRental.locationName'), 'Lakeside RV')
+    await user.click(screen.getByRole('button', { name: 'common:create' }))
+    await waitFor(() => expect(createMutateAsync).toHaveBeenCalledTimes(1))
+
+    unmount()
+    await act(async () => {
+      land({})
+      await Promise.resolve()
+    })
+
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    expect(apiPost).not.toHaveBeenCalled()
+    expect(onSuccess).not.toHaveBeenCalled()
+    expect(onClose).not.toHaveBeenCalled()
+  })
+  // Same hazard without a location to offer: no prompt, but the callbacks still mustn't fire.
+  it('a create with no location that lands after unmount calls neither callback', async () => {
+    const user = userEvent.setup()
+    const onClose = vi.fn(); const onSuccess = vi.fn()
+    let land: (value: unknown) => void = () => {}
+    createMutateAsync.mockImplementationOnce(() => new Promise((resolve) => (land = resolve)))
+    const { unmount } = render(<SpotRentalForm vin="V1" onClose={onClose} onSuccess={onSuccess} />)
+    fireEvent.change(screen.getByLabelText('spotRental.checkInDate *'), { target: { value: '2026-03-01' } })
+    await user.click(screen.getByRole('button', { name: 'common:create' }))
+    await waitFor(() => expect(createMutateAsync).toHaveBeenCalledTimes(1))
+
+    unmount()
+    await act(async () => {
+      land({})
+      await Promise.resolve()
+    })
+
+    expect(onSuccess).not.toHaveBeenCalled()
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('Save, then the form unmounts before the POST lands: neither callback fires', async () => {
+    const user = userEvent.setup()
+    const onClose = vi.fn(); const onSuccess = vi.fn()
+    let land: (value: unknown) => void = () => {}
+    apiPost.mockImplementationOnce(() => new Promise((resolve) => (land = resolve)))
+    const { unmount } = render(<SpotRentalForm vin="V1" onClose={onClose} onSuccess={onSuccess} />)
+    await reachPrompt(user)
+    await user.click(screen.getByRole('button', { name: 'spotRental.yesSave' }))
+    await waitFor(() => expect(apiPost).toHaveBeenCalledTimes(1))
+
+    unmount()
+    await act(async () => {
+      land({ data: {} })
+      await Promise.resolve()
+    })
+
+    expect(onSuccess).not.toHaveBeenCalled()
+    expect(onClose).not.toHaveBeenCalled()
   })
 })
 

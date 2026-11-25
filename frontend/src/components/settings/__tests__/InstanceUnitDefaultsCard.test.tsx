@@ -76,6 +76,7 @@ import api from '@/services/api'
 import { AuthProvider, useAuth } from '@/contexts/AuthContext'
 import { useUnitPreference } from '@/hooks/useUnitPreference'
 import InstanceUnitDefaultsCard from '../InstanceUnitDefaultsCard'
+import { withConfirm } from '../../../__tests__/confirmHelpers'
 
 const mockedApi = vi.mocked(api)
 
@@ -157,6 +158,7 @@ function renderCard(): QueryClient {
         <UnitsProbe />
       </AuthProvider>
     </QueryClientProvider>,
+    { wrapper: withConfirm },
   )
   return queryClient
 }

@@ -49,6 +49,7 @@ import {
   ListRow,
   NumberInput,
   Toggle,
+  useConfirm,
 } from './ui'
 import ClickableCard from './ClickableCard'
 import AddPastPeriodDrawer from './tires/AddPastPeriodDrawer'
@@ -219,6 +220,7 @@ interface TireListProps {
 
 export default function TireList({ vin, onLogBrakes }: TireListProps) {
   const { t } = useTranslation('vehicles')
+  const confirm = useConfirm()
   /* Retired tires are history, not inventory: hidden by default, and the list
      query only asks the server for them when the toggle is on. Declared here
      rather than beside the rest of the drawer/dialog state below, since the
@@ -887,8 +889,8 @@ export default function TireList({ vin, onLogBrakes }: TireListProps) {
     )
   }
 
-  const handleDeleteSet = (setId: number) => {
-    if (!confirm(t('tireList.setConfirmDelete'))) return
+  const handleDeleteSet = async (setId: number): Promise<void> => {
+    if (!(await confirm({ message: t('tireList.setConfirmDelete'), confirmLabel: t('common:delete') }))) return
     deleteSet.mutate(setId, {
       onSuccess: () => toast.success(t('tireList.setDeleted')),
       onError: (err: unknown) =>
@@ -978,9 +980,9 @@ export default function TireList({ vin, onLogBrakes }: TireListProps) {
    * The mutation had no success or error callbacks at all when this lived on
    * the card, which meant a failed delete was completely silent and the row
    * simply stayed put with no explanation. */
-  const handleDelete = () => {
+  const handleDelete = async (): Promise<void> => {
     if (editingTireId === null) return
-    if (!confirm(t('tireList.confirmDelete'))) return
+    if (!(await confirm({ message: t('tireList.confirmDelete'), confirmLabel: t('common:delete') }))) return
     remove.mutate(editingTireId, {
       onSuccess: () => {
         toast.success(t('tireList.deleted'))
@@ -1809,7 +1811,7 @@ export default function TireList({ vin, onLogBrakes }: TireListProps) {
                               variant="danger"
                               size="sm"
                               disabled={deleteSet.isPending}
-                              onClick={() => handleDeleteSet(tireSet.id)}
+                              onClick={() => void handleDeleteSet(tireSet.id)}
                             />
                           </div>
                           <div className="flex flex-wrap gap-2">
@@ -1933,7 +1935,7 @@ export default function TireList({ vin, onLogBrakes }: TireListProps) {
                     variant="danger"
                     icon={Trash2}
                     className="mr-auto"
-                    onClick={handleDelete}
+                    onClick={() => void handleDelete()}
                     disabled={remove.isPending}
                   >
                     {t('common:delete')}

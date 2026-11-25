@@ -46,7 +46,7 @@ import type { Vehicle } from '../types/vehicle'
 import { useUnitFormat } from '../hooks/useUnitFormat'
 import { getUsageTracking } from '../utils/usageTracking'
 import { packDisplayName } from '../utils/reminderPacks'
-import { Button, IconButton, Card, Chip, Mono, EmptyState, ProgressMeter, Select, type ProgressMeterTone } from './ui'
+import { Button, IconButton, Card, Chip, Mono, EmptyState, ProgressMeter, Select, useConfirm, type ProgressMeterTone } from './ui'
 
 interface ReminderListProps {
   /** The parent already holds it (G5a-10). */
@@ -105,6 +105,7 @@ export default function ReminderList({ vehicle }: ReminderListProps) {
   const vin = vehicle.vin
   const { t } = useTranslation('vehicles')
   const { t: tForms } = useTranslation('forms')
+  const confirm = useConfirm()
   const dateLocale = useDateLocale()
   const u = useUnitFormat()
   const [activeStatus, setActiveStatus] = useState<ReminderStatus>('pending')
@@ -174,8 +175,8 @@ export default function ReminderList({ vehicle }: ReminderListProps) {
    *  hang off the selection rather than off a separate management screen. */
   const editablePack = packs.find((p) => p.id === selectedPack && p.is_custom && p.can_edit)
 
-  const handleDeletePack = async (packId: string, name: string) => {
-    if (!window.confirm(t('packList.deleteConfirm', { name }))) return
+  const handleDeletePack = async (packId: string, name: string): Promise<void> => {
+    if (!(await confirm({ message: t('packList.deleteConfirm', { name }), confirmLabel: t('common:delete') }))) return
     try {
       await deletePackMutation.mutateAsync(packId)
       setSelectedPack('')

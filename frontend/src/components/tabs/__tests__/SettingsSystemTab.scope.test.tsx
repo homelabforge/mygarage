@@ -61,6 +61,7 @@ vi.mock('@/components/modals/FamilyManagementModal', () => ({ default: () => nul
 
 import api from '@/services/api'
 import SettingsSystemTab from '../SettingsSystemTab'
+import { withConfirm } from '../../../__tests__/confirmHelpers'
 
 const mockedApi = vi.mocked(api)
 
@@ -80,6 +81,7 @@ function renderTab(): void {
         <ActiveSystemTab />
       </SettingsProvider>
     </QueryClientProvider>,
+    { wrapper: withConfirm },
   )
 }
 

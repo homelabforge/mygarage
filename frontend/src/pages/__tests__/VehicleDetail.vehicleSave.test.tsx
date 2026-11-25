@@ -157,6 +157,7 @@ import type { Vehicle, VehicleType } from '../../types/vehicle'
 import type { QuickEntryVehicle } from '../../hooks/queries/useQuickEntryVehicles'
 import { readCachedVehicle } from '../../utils/vehicleCache'
 import VehicleDetail from '../VehicleDetail'
+import { withConfirm } from '../../__tests__/confirmHelpers'
 
 const VIN = 'TEST12345678901234'
 const vehicle: Vehicle = {
@@ -197,7 +198,7 @@ function renderPage(client: QueryClient, path = `/vehicles/${VIN}`) {
           <Route path="/vehicles/:vin" element={<VehicleDetail />} />
         </Routes>
       </MemoryRouter>
-    </QueryClientProvider>,
+    </QueryClientProvider>, { wrapper: withConfirm },
   )
 }
 

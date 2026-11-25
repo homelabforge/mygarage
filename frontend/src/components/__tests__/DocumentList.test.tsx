@@ -18,6 +18,7 @@ const apiGet = api.get as unknown as ReturnType<typeof vi.fn>
 const apiPut = api.put as unknown as ReturnType<typeof vi.fn>
 
 import DocumentList from '../DocumentList'
+import { answerConfirm } from '../../__tests__/confirmHelpers'
 
 const doc = {
   id: 5, title: 'Insurance Policy', document_type: 'Insurance', description: 'Full coverage',
@@ -29,7 +30,6 @@ const PROPS = { vin: 'V1', onAddClick }
 
 beforeEach(() => {
   vi.clearAllMocks()
-  vi.spyOn(window, 'confirm').mockReturnValue(true)
   Object.defineProperty(window.URL, 'createObjectURL', { value: vi.fn(() => 'blob:x'), writable: true, configurable: true })
   Object.defineProperty(window.URL, 'revokeObjectURL', { value: vi.fn(), writable: true, configurable: true })
   // jsdom cannot navigate to the blob: URL a download anchor points at, and
@@ -56,18 +56,17 @@ describe('DocumentList — rendering + row actions', () => {
     )
   })
 
-  it('clicking Delete (confirm accepted) calls the delete mutation with the document id (fails if delete is unwired or the confirm gate is dropped)', () => {
+  it('clicking Delete (confirm accepted) calls the delete mutation with the document id (fails if delete is unwired or the confirm gate is dropped)', async () => {
     render(<DocumentList {...PROPS} />)
     fireEvent.click(screen.getByRole('button', { name: 'common:delete' }))
-    expect(window.confirm).toHaveBeenCalled()
+    await answerConfirm('confirm', 'documentList.confirmDelete')
     expect(deleteMutate).toHaveBeenCalledWith(5, expect.anything())
   })
 
-  it('clicking Delete with confirm REJECTED does NOT call the mutation (fails if the confirm gate is bypassed)', () => {
-    ;(window.confirm as unknown as ReturnType<typeof vi.fn>).mockReturnValue(false)
+  it('clicking Delete with confirm REJECTED does NOT call the mutation (fails if the confirm gate is bypassed)', async () => {
     render(<DocumentList {...PROPS} />)
     fireEvent.click(screen.getByRole('button', { name: 'common:delete' }))
-    expect(window.confirm).toHaveBeenCalled()
+    await answerConfirm('cancel', 'documentList.confirmDelete')
     expect(deleteMutate).not.toHaveBeenCalled()
   })
 

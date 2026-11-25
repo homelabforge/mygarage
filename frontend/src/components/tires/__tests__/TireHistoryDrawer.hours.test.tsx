@@ -60,6 +60,7 @@ vi.mock('react-i18next', () => ({
 }))
 
 import TireHistoryDrawer, { needsReading } from '../TireHistoryDrawer'
+import { withConfirm } from '../../../__tests__/confirmHelpers'
 
 const VIN = '1HGCM82633A004352'
 const labelFor = (p: string | null | undefined) => (p == null ? 'stored' : `pos-${p}`)
@@ -88,7 +89,8 @@ const hoursTire = (overrides: Record<string, unknown> = {}) => ({
 })
 const show = (tire: unknown, flags = { tracksDistance: false, tracksHours: true }) =>
   render(
-    <TireHistoryDrawer vin={VIN} tire={tire as never} open onClose={vi.fn()} onEditPeriod={vi.fn()} onEditReading={vi.fn()} onAddPeriod={vi.fn()} labelFor={labelFor} {...flags} />
+    <TireHistoryDrawer vin={VIN} tire={tire as never} open onClose={vi.fn()} onEditPeriod={vi.fn()} onEditReading={vi.fn()} onAddPeriod={vi.fn()} labelFor={labelFor} {...flags} />,
+    { wrapper: withConfirm },
   )
 
 describe('TireHistoryDrawer on the hour meter (#217)', () => {
@@ -150,7 +152,8 @@ describe('TireHistoryDrawer on the hour meter (#217)', () => {
   it('Edit hands an hours reading to the caller', () => {
     const onEditReading = vi.fn()
     render(
-      <TireHistoryDrawer vin={VIN} tire={hoursTire() as never} open onClose={vi.fn()} onEditPeriod={vi.fn()} onEditReading={onEditReading} onAddPeriod={vi.fn()} labelFor={labelFor} tracksDistance={false} tracksHours />
+      <TireHistoryDrawer vin={VIN} tire={hoursTire() as never} open onClose={vi.fn()} onEditPeriod={vi.fn()} onEditReading={onEditReading} onAddPeriod={vi.fn()} labelFor={labelFor} tracksDistance={false} tracksHours />,
+      { wrapper: withConfirm },
     )
     expect(onEditReading).not.toHaveBeenCalled()
     fireEvent.click(within(screen.getByTestId('reading-31')).getByRole('button', { name: /^tireList\.readingEditLabel/ }))

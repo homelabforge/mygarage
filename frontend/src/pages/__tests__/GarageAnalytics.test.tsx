@@ -64,6 +64,7 @@ vi.mock('react-i18next', () => {
 })
 
 import api from '../../services/api'
+import { toast } from 'sonner'
 import GarageAnalytics from '../GarageAnalytics'
 import { setActiveDateFormat } from '../../constants/i18n'
 
@@ -397,6 +398,24 @@ describe('GarageAnalytics PDF export', () => {
       )
     } finally {
       setActiveDateFormat('mdy')
+    }
+  })
+
+  it('says a failed export in a toast, not a native alert', async () => {
+    const toastError = vi.spyOn(toast, 'error').mockImplementation(() => 0)
+    mockedGet.mockImplementation((url: string) =>
+      url === '/analytics/garage/export' ? Promise.reject(new Error('boom')) : Promise.resolve({ data: GARAGE }),
+    )
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      render(<GarageAnalytics />)
+
+      fireEvent.click(await screen.findByRole('button', { name: 'export-pdf' }))
+
+      await waitFor(() => expect(toastError).toHaveBeenCalledWith('garage.exportPdfFailed'))
+    } finally {
+      toastError.mockRestore()
+      consoleError.mockRestore()
     }
   })
 })

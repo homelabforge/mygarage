@@ -77,6 +77,7 @@ vi.mock('../../hooks/useUnitPreference', () => {
 
 import TireList from '../TireList'
 import { FOUR_LAYOUT } from '../../__tests__/factories'
+import { withConfirm } from '../../__tests__/confirmHelpers'
 
 describe('TireList: renaming a tire set', () => {
   beforeEach(() => {
@@ -89,7 +90,7 @@ describe('TireList: renaming a tire set', () => {
   it('a blank name shows an inline error instead of doing nothing', () => {
     const mutate = vi.fn()
     useUpsertTireMock.mockReturnValue({ mutate, isPending: false })
-    render(<TireList vin="1HGCM82633A004352" />)
+    render(<TireList vin="1HGCM82633A004352" />, { wrapper: withConfirm })
     fireEvent.click(screen.getByRole('button', { name: 'tireList.sets' }))
     fireEvent.click(screen.getByRole('button', { name: 'tireList.setRename' }))
     fireEvent.change(document.getElementById('set-rename-9') as HTMLInputElement, { target: { value: '  ' } })

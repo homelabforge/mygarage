@@ -5,7 +5,7 @@ import { toast } from 'sonner'
 import type { TollTag } from '../types/toll'
 import { useTollTags, useDeleteTollTag } from '../hooks/queries/useTollRecords'
 import { getActionErrorMessage } from '../utils/httpErrorHandler'
-import { Button, IconButton, Mono, Chip, EmptyState } from './ui'
+import { Button, IconButton, Mono, Chip, EmptyState, useConfirm } from './ui'
 
 /**
  * Toll tag status -> translation key.
@@ -30,13 +30,14 @@ interface TollTagListProps {
 
 export default function TollTagList({ vin, onAddClick, onEditClick }: TollTagListProps) {
   const { t } = useTranslation('vehicles')
+  const confirm = useConfirm()
   const { data, isLoading, error } = useTollTags(vin)
   const deleteMutation = useDeleteTollTag(vin)
 
   const tollTags = useMemo(() => data?.toll_tags ?? [], [data?.toll_tags])
 
-  const handleDelete = (tagId: number) => {
-    if (!confirm(t('tollTagList.confirmDelete'))) {
+  const handleDelete = async (tagId: number): Promise<void> => {
+    if (!(await confirm({ message: t('tollTagList.confirmDelete'), confirmLabel: t('common:delete') }))) {
       return
     }
 
@@ -112,7 +113,7 @@ export default function TollTagList({ vin, onAddClick, onEditClick }: TollTagLis
                     variant="danger"
                     size="sm"
                     disabled={deleteMutation.isPending && deleteMutation.variables === tag.id}
-                    onClick={() => handleDelete(tag.id)}
+                    onClick={() => void handleDelete(tag.id)}
                   />
                 </div>
               </div>

@@ -73,6 +73,7 @@ vi.mock('../../modals/EditProviderModal', () => ({ default: () => null }))
 
 import api from '@/services/api'
 import SettingsIntegrationsTab from '../SettingsIntegrationsTab'
+import { withConfirm } from '../../../__tests__/confirmHelpers'
 
 function ActiveIntegrationsTab() {
   const { setCurrentTabId } = useSettings()
@@ -96,7 +97,7 @@ describe('Adding a source with no devices at all', () => {
         <SettingsProvider>
           <ActiveIntegrationsTab />
         </SettingsProvider>
-      </QueryClientProvider>,
+      </QueryClientProvider>, { wrapper: withConfirm },
     )
 
     // The card has loaded its strip: no device tab exists.

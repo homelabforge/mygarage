@@ -32,7 +32,7 @@ import { withBase } from '../utils/basePath'
 import { useUnitFormat } from '../hooks/useUnitFormat'
 import { getUsageTracking } from '../utils/usageTracking'
 import { useServiceVisits, useServiceVisit, useDeleteServiceVisit } from '../hooks/queries/useServiceVisits'
-import { Button, IconButton, Chip, Mono, SearchField, EmptyState } from './ui'
+import { Button, IconButton, Chip, Mono, SearchField, EmptyState, useConfirm } from './ui'
 import ServiceLineItemDetail from './ServiceLineItemDetail'
 import LineItemLinkChips from './LineItemLinkChips'
 import ClickableCard, { cameFromNestedControl } from './ClickableCard'
@@ -64,6 +64,7 @@ export default function ServiceVisitList({
   refreshTrigger: _refreshTrigger,
 }: ServiceVisitListProps) {
   const { t } = useTranslation('vehicles')
+  const confirm = useConfirm()
   const [searchQuery, setSearchQuery] = useState('')
   const [expandedVisits, setExpandedVisits] = useState<Set<number>>(new Set())
   const rowIdPrefix = useId()
@@ -176,8 +177,8 @@ export default function ServiceVisitList({
     })
   }, [visits, searchQuery])
 
-  const handleDelete = (visitId: number) => {
-    if (!confirm(t('serviceList.confirmDelete'))) {
+  const handleDelete = async (visitId: number): Promise<void> => {
+    if (!(await confirm({ message: t('serviceList.confirmDelete'), confirmLabel: t('common:delete') }))) {
       return
     }
 
@@ -469,7 +470,7 @@ export default function ServiceVisitList({
                       variant="danger"
                       size="sm"
                       disabled={deleteMutation.isPending && deleteMutation.variables === visit.id}
-                      onClick={() => handleDelete(visit.id)}
+                      onClick={() => void handleDelete(visit.id)}
                     />
                   </div>
                 </div>

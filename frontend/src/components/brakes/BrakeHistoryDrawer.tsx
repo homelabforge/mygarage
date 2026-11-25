@@ -10,7 +10,7 @@ import { formatDateForDisplay } from '../../utils/dateUtils'
 import { formatHours } from '../../utils/hoursFormat'
 import { getActionErrorMessage } from '../../utils/httpErrorHandler'
 import { num } from '../../utils/wireNumber'
-import { Badge, Button, Drawer, EmptyState } from '../ui'
+import { Badge, Button, Drawer, EmptyState, useConfirm } from '../ui'
 import { formatMm, useBrakeText } from './useBrakeText'
 
 interface BrakeHistoryDrawerProps {
@@ -29,8 +29,7 @@ type Row =
 
 /**
  * One corner's brake jobs and measurements, newest first. Edit opens a nested
- * drawer; delete asks with a native confirm, since a modal opened from a
- * drawer is inert in this app.
+ * drawer; delete asks through the app confirm, which sits above this drawer.
  */
 export default function BrakeHistoryDrawer({
   vin,
@@ -42,6 +41,7 @@ export default function BrakeHistoryDrawer({
   onEditJob,
 }: BrakeHistoryDrawerProps): ReactElement {
   const { t } = useTranslation('vehicles')
+  const confirm = useConfirm()
   const u = useUnitFormat()
   const text = useBrakeText()
   const removeMeasurement = useDeleteBrakeMeasurement(vin)
@@ -91,16 +91,16 @@ export default function BrakeHistoryDrawer({
     return parts.join(' · ')
   }
 
-  const deleteMeasurement = (m: BrakeMeasurement): void => {
-    if (!confirm(t('brakes.confirmDeleteMeasurement', { date: formatDateForDisplay(m.recorded_at) }))) return
+  const deleteMeasurement = async (m: BrakeMeasurement): Promise<void> => {
+    if (!(await confirm({ message: t('brakes.confirmDeleteMeasurement', { date: formatDateForDisplay(m.recorded_at) }), confirmLabel: t('common:delete') }))) return
     removeMeasurement.mutate(m.id, {
       onSuccess: () => toast.success(t('brakes.measurementDeleted')),
       onError: (err: unknown) => toast.error(getActionErrorMessage(err, t('brakes.deleteAction'))),
     })
   }
 
-  const deleteJob = (job: BrakeJob): void => {
-    if (!confirm(t('brakes.confirmDeleteJob', { date: formatDateForDisplay(job.performed_on) }))) return
+  const deleteJob = async (job: BrakeJob): Promise<void> => {
+    if (!(await confirm({ message: t('brakes.confirmDeleteJob', { date: formatDateForDisplay(job.performed_on) }), confirmLabel: t('common:delete') }))) return
     removeJob.mutate(job.id, {
       onSuccess: () => toast.success(t('brakes.jobDeleted')),
       onError: (err: unknown) => toast.error(getActionErrorMessage(err, t('brakes.deleteAction'))),
@@ -132,7 +132,7 @@ export default function BrakeHistoryDrawer({
                     <Button size="sm" variant="ghost" onClick={() => onEditJob(row.job)}>
                       {t('brakes.edit')}
                     </Button>
-                    <Button size="sm" variant="ghost" onClick={() => deleteJob(row.job)}>
+                    <Button size="sm" variant="ghost" onClick={() => void deleteJob(row.job)}>
                       {t('common:delete')}
                     </Button>
                   </div>
@@ -155,7 +155,7 @@ export default function BrakeHistoryDrawer({
                     <Button size="sm" variant="ghost" onClick={() => onEditMeasurement(row.measurement)}>
                       {t('brakes.edit')}
                     </Button>
-                    <Button size="sm" variant="ghost" onClick={() => deleteMeasurement(row.measurement)}>
+                    <Button size="sm" variant="ghost" onClick={() => void deleteMeasurement(row.measurement)}>
                       {t('common:delete')}
                     </Button>
                   </div>

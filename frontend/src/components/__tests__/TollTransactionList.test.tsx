@@ -24,6 +24,7 @@ vi.mock('../../services/api', () => ({ default: { get: vi.fn() } }))
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 
 import TollTransactionList from '../TollTransactionList'
+import { answerConfirm } from '../../__tests__/confirmHelpers'
 
 const txn = { id: 1, date: '2026-02-10', amount: 3.75, location: 'Beltway Plaza', toll_tag_id: null, notes: 'trip' } as unknown as TollTransaction
 const summary = {
@@ -39,7 +40,6 @@ const monthlyTable = () => screen.getByRole('table', { name: 'tollList.monthlyBr
 
 beforeEach(() => {
   vi.clearAllMocks()
-  vi.spyOn(window, 'confirm').mockReturnValue(true)
   useTollTransactionsMock.mockReturnValue({ data: { transactions: [txn] }, isLoading: false, error: null })
   useTollTagsMock.mockReturnValue({ data: { toll_tags: [] }, isLoading: false })
   useTollTransactionSummaryMock.mockReturnValue({ data: summary })
@@ -72,18 +72,17 @@ describe('TollTransactionList — summary tiles + transaction cards', () => {
     expect(onEditClick).toHaveBeenCalledWith(txn)
   })
 
-  it('clicking a transaction-card Delete (confirm accepted) calls the delete mutation with the id (fails if delete is unwired or the confirm gate is dropped)', () => {
+  it('clicking a transaction-card Delete (confirm accepted) calls the delete mutation with the id (fails if delete is unwired or the confirm gate is dropped)', async () => {
     render(<TollTransactionList {...PROPS} />)
     fireEvent.click(screen.getByRole('button', { name: 'common:delete' }))
-    expect(window.confirm).toHaveBeenCalled()
+    await answerConfirm('confirm', 'tollList.confirmDelete')
     expect(deleteMutate).toHaveBeenCalledWith(1, expect.anything())
   })
 
-  it('clicking a transaction-card Delete with confirm REJECTED does NOT call the delete mutation (B4 — fails if the handler ignores a false confirm and deletes anyway)', () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(false)
+  it('clicking a transaction-card Delete with confirm REJECTED does NOT call the delete mutation (B4: fails if the handler ignores a false confirm and deletes anyway)', async () => {
     render(<TollTransactionList {...PROPS} />)
     fireEvent.click(screen.getByRole('button', { name: 'common:delete' }))
-    expect(window.confirm).toHaveBeenCalled()
+    await answerConfirm('cancel', 'tollList.confirmDelete')
     expect(deleteMutate).not.toHaveBeenCalled()
   })
 

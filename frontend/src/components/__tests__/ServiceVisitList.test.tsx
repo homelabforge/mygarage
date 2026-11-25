@@ -35,6 +35,7 @@ vi.mock('../../hooks/useCurrencyPreference', () => ({ useCurrencyPreference: () 
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 
 import ServiceVisitList from '../ServiceVisitList'
+import { answerConfirm } from '../../__tests__/confirmHelpers'
 
 // NOTE: formatCurrency is imported from utils/formatUtils (NOT the currency hook),
 // so the REAL formatter runs — formatCurrency(40) → "$40.00".
@@ -63,7 +64,6 @@ const PROPS = { vin: 'V1', onAddClick, onEditClick }
 
 beforeEach(() => {
   vi.clearAllMocks()
-  vi.spyOn(window, 'confirm').mockReturnValue(true)
   useServiceVisitsMock.mockReturnValue({ data: { visits: [visit] }, isLoading: false, error: null })
 })
 
@@ -84,10 +84,10 @@ describe('ServiceVisitList — row actions fire the real handlers', () => {
     expect(onEditClick).toHaveBeenCalledWith(visit)
   })
 
-  it('clicking row Delete (confirm accepted) calls the delete mutation with the visit id (fails if delete is unwired or the confirm gate is dropped)', () => {
+  it('clicking row Delete (confirm accepted) calls the delete mutation with the visit id (fails if delete is unwired or the confirm gate is dropped)', async () => {
     render(<ServiceVisitList {...PROPS} />)
     fireEvent.click(screen.getByRole('button', { name: 'common:delete' }))
-    expect(window.confirm).toHaveBeenCalled()
+    await answerConfirm('confirm', 'serviceList.confirmDelete')
     expect(deleteMutate).toHaveBeenCalledWith(1, expect.anything())
   })
 
@@ -187,7 +187,7 @@ describe('ServiceVisitList: the visit row keeps its text selectable (#179)', () 
     expect(screen.getByRole('button', { name: `Tire rotation ${formatDateForDisplay('2026-06-15')}` })).toBeInTheDocument()
   })
 
-  it("Edit and Delete do their own thing and don't toggle the row", () => {
+  it("Edit and Delete do their own thing and don't toggle the row", async () => {
     // Guard: they were siblings of the disclosure button before, so they
     // never toggled. Now they sit inside the clickable row and the row's
     // cameFromNestedControl check is what keeps them out. Mutant that kills
@@ -201,6 +201,7 @@ describe('ServiceVisitList: the visit row keeps its text selectable (#179)', () 
     expect(disclosure).toHaveAttribute('aria-expanded', 'false')
 
     fireEvent.click(screen.getByRole('button', { name: 'common:delete' }))
+    await answerConfirm('confirm', 'serviceList.confirmDelete')
     expect(deleteMutate).toHaveBeenCalledTimes(1)
     expect(disclosure).toHaveAttribute('aria-expanded', 'false')
   })

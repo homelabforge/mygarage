@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { formatAPITimestamp } from '../utils/parseAPITimestamp'
 import { useDateLocale } from '../hooks/useDateLocale'
 import { FileText, Plus, Trash2, Download, Edit3, Save, X } from 'lucide-react'
-import { Button, IconButton, Card, Chip, Mono, EmptyState, Field, Input, Select, Textarea } from './ui'
+import { Button, IconButton, Card, Chip, Mono, EmptyState, Field, Input, Select, Textarea, useConfirm } from './ui'
 import { toast } from 'sonner'
 import api from '../services/api'
 import { getActionErrorMessage } from '../utils/httpErrorHandler'
@@ -18,6 +18,7 @@ interface DocumentListProps {
 
 export default function DocumentList({ vin, onAddClick }: DocumentListProps) {
   const { t } = useTranslation('vehicles')
+  const confirm = useConfirm()
   const dateLocale = useDateLocale()
   const [editingId, setEditingId] = useState<number | null>(null)
   const [editData, setEditData] = useState<{
@@ -32,8 +33,8 @@ export default function DocumentList({ vin, onAddClick }: DocumentListProps) {
 
   const documents = data?.documents ?? []
 
-  const handleDelete = (documentId: number) => {
-    if (!confirm(t('documentList.confirmDelete'))) {
+  const handleDelete = async (documentId: number): Promise<void> => {
+    if (!(await confirm({ message: t('documentList.confirmDelete'), confirmLabel: t('common:delete') }))) {
       return
     }
 
@@ -242,7 +243,7 @@ export default function DocumentList({ vin, onAddClick }: DocumentListProps) {
                       variant="danger"
                       size="sm"
                       disabled={deleteMutation.isPending && deleteMutation.variables === doc.id}
-                      onClick={() => handleDelete(doc.id)}
+                      onClick={() => void handleDelete(doc.id)}
                     />
                   </div>
                 </div>

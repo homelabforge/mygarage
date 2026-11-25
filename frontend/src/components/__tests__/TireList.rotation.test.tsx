@@ -97,6 +97,7 @@ vi.mock('../../hooks/useUnitPreference', () => {
 import TireList from '../TireList'
 import { FOUR_LAYOUT } from '../../__tests__/factories'
 import { formatDateForInput } from '../../utils/dateUtils'
+import { withConfirm } from '../../__tests__/confirmHelpers'
 
 const VIN = '1HGCM82633A004352'
 const CORNERS = ['FL', 'FR', 'RL', 'RR'] as const
@@ -187,7 +188,7 @@ describe('TireList rotation', () => {
     const mutate = vi.fn()
     useRotateTiresMock.mockReturnValue({ mutate, isPending: false })
 
-    render(<TireList vin={VIN} />)
+    render(<TireList vin={VIN} />, { wrapper: withConfirm })
     fireEvent.click(screen.getByText('tireList.rotate'))
     fireEvent.click(drawer().getByText(patternKey))
     fireEvent.click(drawer().getByText('tireList.rotate'))
@@ -214,7 +215,7 @@ describe('TireList rotation', () => {
     useRotateTiresMock.mockReturnValue({ mutate, isPending: false })
     const onLogBrakes = vi.fn()
 
-    render(<TireList vin={VIN} onLogBrakes={onLogBrakes} />)
+    render(<TireList vin={VIN} onLogBrakes={onLogBrakes} />, { wrapper: withConfirm })
     expect(screen.queryByText('tireList.brakesPrompt')).toBeNull()
     fireEvent.click(screen.getByText('tireList.rotate'))
     fireEvent.click(drawer().getByText('tireList.rotate'))
@@ -229,7 +230,7 @@ describe('TireList rotation', () => {
     const mutate = vi.fn((_payload: unknown, opts: { onSuccess?: () => void }) => opts.onSuccess?.())
     useRotateTiresMock.mockReturnValue({ mutate, isPending: false })
 
-    render(<TireList vin={VIN} />)
+    render(<TireList vin={VIN} />, { wrapper: withConfirm })
     fireEvent.click(screen.getByText('tireList.rotate'))
     fireEvent.click(drawer().getByText('tireList.rotate'))
     expect(screen.queryByText('tireList.brakesPrompt')).toBeNull()
@@ -239,7 +240,7 @@ describe('TireList rotation', () => {
     const mutate = vi.fn()
     useRotateTiresMock.mockReturnValue({ mutate, isPending: false })
 
-    render(<TireList vin={VIN} />)
+    render(<TireList vin={VIN} />, { wrapper: withConfirm })
     fireEvent.click(screen.getByText('tireList.rotate'))
     fireEvent.click(drawer().getByText('tireList.rotatePatterns.frontToBack'))
     fireEvent.change(drawer().getByLabelText('tireList.odometerWithUnit'), {
@@ -267,7 +268,7 @@ describe('TireList rotation', () => {
     // tire or 409 for a corner held outside the rotation, and neither is
     // something a user can act on from a list that already shows the gap.
     setTires(FOUR_MOUNTED.slice(0, 3))
-    render(<TireList vin={VIN} />)
+    render(<TireList vin={VIN} />, { wrapper: withConfirm })
 
     expect(screen.getByText('tireList.rotate').closest('button')).toBeDisabled()
   })
@@ -298,7 +299,7 @@ describe('TireList retire', () => {
     useRetireTireMock.mockReturnValue({ mutate: retire, isPending: false })
     useDeleteTireMock.mockReturnValue({ mutate: remove, isPending: false })
 
-    render(<TireList vin={VIN} />)
+    render(<TireList vin={VIN} />, { wrapper: withConfirm })
     fireEvent.click(screen.getAllByText('tireList.retire')[0])
     fireEvent.change(drawer().getByLabelText('tireList.odometerWithUnit'), {
       target: { value: '61000' },
@@ -319,7 +320,7 @@ describe('TireList retire', () => {
     const retire = vi.fn()
     useRetireTireMock.mockReturnValue({ mutate: retire, isPending: false })
 
-    render(<TireList vin={VIN} />)
+    render(<TireList vin={VIN} />, { wrapper: withConfirm })
     fireEvent.click(screen.getByText('tireList.retire'))
     fireEvent.click(drawer().getByText('tireList.retire'))
 
@@ -351,7 +352,7 @@ describe('TireList create into storage', () => {
     // disabled outright -- so this was the single moment a winter set most
     // obviously needed entering and nothing could be entered at all.
     setTires(EVERY_SLOT_TAKEN)
-    render(<TireList vin={VIN} />)
+    render(<TireList vin={VIN} />, { wrapper: withConfirm })
     expect(screen.getByText('tireList.add').closest('button')).not.toBeDisabled()
   })
 
@@ -361,7 +362,7 @@ describe('TireList create into storage', () => {
     useCreateTireMock.mockReturnValue({ mutate: create, isPending: false })
     useCreateAndMountTireMock.mockReturnValue({ mutate: createAndMount, isPending: false })
 
-    render(<TireList vin={VIN} />)
+    render(<TireList vin={VIN} />, { wrapper: withConfirm })
     fireEvent.click(screen.getByText('tireList.add'))
     fireEvent.click(drawer().getByText('tireList.inStorage'))
     fireEvent.change(drawer().getByLabelText('tireList.brand'), {
@@ -389,7 +390,7 @@ describe('TireList create into storage', () => {
     // No chip clicked: the default alone has to be storage, because the old
     // fallback selected an OCCUPIED corner that the form then could not submit.
     setTires(EVERY_SLOT_TAKEN)
-    render(<TireList vin={VIN} />)
+    render(<TireList vin={VIN} />, { wrapper: withConfirm })
     fireEvent.click(screen.getByText('tireList.add'))
     fireEvent.click(drawer().getByText('common:save'))
 
@@ -406,7 +407,7 @@ describe('TireList create into storage', () => {
     useCreateTireMock.mockReturnValue({ mutate: create, isPending: false })
     useCreateAndMountTireMock.mockReturnValue({ mutate: createAndMount, isPending: false })
 
-    render(<TireList vin={VIN} />)
+    render(<TireList vin={VIN} />, { wrapper: withConfirm })
     fireEvent.click(screen.getByText('tireList.add'))
     fireEvent.click(drawer().getByText('common:save'))
 
@@ -446,7 +447,7 @@ describe('TireList sets', () => {
     const mutate = vi.fn()
     useCreateTireSetMock.mockReturnValue({ mutate, isPending: false })
 
-    render(<TireList vin={VIN} />)
+    render(<TireList vin={VIN} />, { wrapper: withConfirm })
     fireEvent.click(screen.getByText('tireList.sets'))
     fireEvent.change(drawer().getByLabelText('tireList.setName'), {
       target: { value: '  Winter studded  ' },
@@ -463,7 +464,7 @@ describe('TireList sets', () => {
     useMountTireSetMock.mockReturnValue({ mutate, isPending: false })
     setSets([WINTER])
 
-    render(<TireList vin={VIN} />)
+    render(<TireList vin={VIN} />, { wrapper: withConfirm })
     fireEvent.click(screen.getByText('tireList.sets'))
     fireEvent.click(drawer().getByText('tireList.setFit'))
     fireEvent.change(drawer().getByLabelText('tireList.odometerWithUnit'), {
@@ -483,7 +484,7 @@ describe('TireList sets', () => {
 
   it('does not offer to fit an empty set', () => {
     setSets([EMPTY_SET])
-    render(<TireList vin={VIN} />)
+    render(<TireList vin={VIN} />, { wrapper: withConfirm })
     fireEvent.click(screen.getByText('tireList.sets'))
 
     // The server answers 409 for this, and the message tells the user to go
@@ -496,7 +497,7 @@ describe('TireList sets', () => {
     useUpdateTireMock.mockReturnValue({ mutate, isPending: false })
     setSets([WINTER])
 
-    render(<TireList vin={VIN} />)
+    render(<TireList vin={VIN} />, { wrapper: withConfirm })
     fireEvent.click(screen.getAllByLabelText('tireList.edit')[0])
     fireEvent.click(drawer().getByText('Winter studded'))
     fireEvent.click(drawer().getByText('common:save'))
@@ -508,7 +509,7 @@ describe('TireList sets', () => {
     // `POST /tires` declares extra="forbid", so a `set_id` on a create is a
     // 422. A control that cannot be used yet reads as broken.
     setSets([WINTER])
-    render(<TireList vin={VIN} />)
+    render(<TireList vin={VIN} />, { wrapper: withConfirm })
     fireEvent.click(screen.getByText('tireList.add'))
 
     expect(drawer().queryByText('tireList.setLabel')).toBeNull()
@@ -521,7 +522,7 @@ describe('TireList sets', () => {
       { ...tireAt(2, 'FR'), position: null, set_id: null, brand: 'Loose' },
     ])
 
-    render(<TireList vin={VIN} />)
+    render(<TireList vin={VIN} />, { wrapper: withConfirm })
 
     // Both headings, because two groups exist. One flat list is what makes a
     // second seasonal set unreadable.
@@ -534,7 +535,7 @@ describe('TireList sets', () => {
     setSets([WINTER])
     setTires([{ ...tireAt(1, 'FL'), position: null, set_id: 7, brand: 'Nokian' }])
 
-    render(<TireList vin={VIN} />)
+    render(<TireList vin={VIN} />, { wrapper: withConfirm })
 
     expect(screen.queryByText('Winter studded')).toBeNull()
   })
@@ -565,7 +566,7 @@ describe('TireList dates and storage location', () => {
     const createAndMount = vi.fn()
     useCreateAndMountTireMock.mockReturnValue({ mutate: createAndMount, isPending: false })
     setTires(FOUR_MOUNTED.slice(0, 3))
-    render(<TireList vin={VIN} />)
+    render(<TireList vin={VIN} />, { wrapper: withConfirm })
     fireEvent.click(screen.getByText('tireList.add'))
     fireEvent.change(drawer().getByLabelText('tireList.mountedOn'), { target: { value: '2026-04-10' } })
     fireEvent.change(document.getElementById('tire-mount-odometer') as HTMLInputElement, { target: { value: '152159' } })
@@ -576,7 +577,7 @@ describe('TireList dates and storage location', () => {
   it('the storage branch sends a storage location and hides the mount fields', () => {
     const create = vi.fn()
     useCreateTireMock.mockReturnValue({ mutate: create, isPending: false })
-    render(<TireList vin={VIN} />)
+    render(<TireList vin={VIN} />, { wrapper: withConfirm })
     fireEvent.click(screen.getByText('tireList.add'))
     fireEvent.click(drawer().getByText('tireList.inStorage'))
     expect(document.getElementById('tire-mount-odometer')).toBeNull()
@@ -591,7 +592,7 @@ describe('TireList dates and storage location', () => {
     const createAndMount = vi.fn()
     useCreateAndMountTireMock.mockReturnValue({ mutate: createAndMount, isPending: false })
     setTires(FOUR_MOUNTED.slice(0, 3))
-    render(<TireList vin={VIN} />)
+    render(<TireList vin={VIN} />, { wrapper: withConfirm })
     fireEvent.click(screen.getByText('tireList.add'))
     fireEvent.click(drawer().getByText('tireList.inStorage'))
     fireEvent.change(drawer().getByLabelText('tireList.storageLocation'), { target: { value: 'Garage shelf B' } })
@@ -605,7 +606,7 @@ describe('TireList dates and storage location', () => {
   it('edit still sends the storage location it renders', () => {
     const update = vi.fn()
     useUpdateTireMock.mockReturnValue({ mutate: update, isPending: false })
-    render(<TireList vin={VIN} />)
+    render(<TireList vin={VIN} />, { wrapper: withConfirm })
     fireEvent.click(screen.getAllByLabelText('tireList.edit')[0])
     fireEvent.change(drawer().getByLabelText('tireList.storageLocation'), { target: { value: ' Loft ' } })
     fireEvent.click(drawer().getByText('common:save'))
@@ -641,26 +642,26 @@ describe('TireList dates and storage location', () => {
 
     it('mount', () => {
       setTires(STORED)
-      render(<TireList vin={VIN} />)
+      render(<TireList vin={VIN} />, { wrapper: withConfirm })
       dirtyCancelReopen((brand) => fireEvent.click(cardOf(brand).getByText('tireList.mount')), 'tireList.mountedOn')
     })
 
     it('dismount, keeping the storage location seeded from the tire', () => {
       setTires([MOUNTED[0], { ...MOUNTED[1], storage_location: 'Shed' }])
-      render(<TireList vin={VIN} />)
+      render(<TireList vin={VIN} />, { wrapper: withConfirm })
       dirtyCancelReopen((brand) => fireEvent.click(cardOf(brand).getByText('tireList.dismount')), 'tireList.eventDate')
       expect(drawer().getByLabelText('tireList.storageLocation')).toHaveValue('Shed')
     })
 
     it('retire', () => {
       setTires(MOUNTED)
-      render(<TireList vin={VIN} />)
+      render(<TireList vin={VIN} />, { wrapper: withConfirm })
       dirtyCancelReopen((brand) => fireEvent.click(cardOf(brand).getByText('tireList.retire')), 'tireList.eventDate')
     })
 
     it('rotate', () => {
       setTires(FOUR_MOUNTED)
-      render(<TireList vin={VIN} />)
+      render(<TireList vin={VIN} />, { wrapper: withConfirm })
       dirtyCancelReopen(() => fireEvent.click(screen.getAllByText('tireList.rotate')[0]), 'tireList.eventDate')
     })
   })
@@ -669,7 +670,7 @@ describe('TireList dates and storage location', () => {
     const mutate = vi.fn()
     useMountTireMock.mockReturnValue({ mutate, isPending: false })
     setTires([{ ...tireAt(9, 'FL'), position: null }])
-    render(<TireList vin={VIN} />)
+    render(<TireList vin={VIN} />, { wrapper: withConfirm })
     fireEvent.click(screen.getByText('tireList.mount'))
     fireEvent.click(drawer().getByText('tireList.positions.FR'))
     fireEvent.click(within(screen.getByRole('dialog')).getByText('tireList.mount'))
@@ -679,7 +680,7 @@ describe('TireList dates and storage location', () => {
   it('dismount sends its date and the storage location', () => {
     const mutate = vi.fn()
     useDismountTireMock.mockReturnValue({ mutate, isPending: false })
-    render(<TireList vin={VIN} />)
+    render(<TireList vin={VIN} />, { wrapper: withConfirm })
     fireEvent.click(screen.getAllByText('tireList.dismount')[0])
     fireEvent.change(drawer().getByLabelText('tireList.storageLocation'), { target: { value: 'Shed' } })
     fireEvent.click(drawer().getByText('tireList.dismount'))
@@ -691,7 +692,7 @@ describe('TireList dates and storage location', () => {
     const mutate = vi.fn()
     useDismountTireMock.mockReturnValue({ mutate, isPending: false })
     setTires([{ ...tireAt(1, 'FL'), storage_location: 'Shed' }])
-    render(<TireList vin={VIN} />)
+    render(<TireList vin={VIN} />, { wrapper: withConfirm })
     fireEvent.click(screen.getByText('tireList.dismount'))
     expect(drawer().getByLabelText('tireList.storageLocation')).toHaveValue('Shed')
     fireEvent.change(drawer().getByLabelText('tireList.storageLocation'), { target: { value: '' } })
@@ -711,7 +712,7 @@ describe('TireList dates and storage location', () => {
     useRotateTiresMock.mockReturnValue({ mutate: rotate, isPending: false })
     useMountTireSetMock.mockReturnValue({ mutate: fit, isPending: false })
     setSets([{ id: 7, vin: VIN, name: 'Winter', notes: null, created_at: '2026-01-01T00:00:00', tire_ids: [1], mounted_count: 0 }])
-    render(<TireList vin={VIN} />)
+    render(<TireList vin={VIN} />, { wrapper: withConfirm })
 
     fireEvent.click(screen.getAllByText('tireList.retire')[0])
     fireEvent.click(drawer().getByText('tireList.retire'))
@@ -751,7 +752,7 @@ describe('TireList retired tires', () => {
   it('hides retired tires until asked, then shows them with Restore only', () => {
     const restore = vi.fn()
     useRestoreTireMock.mockReturnValue({ mutate: restore, isPending: false })
-    render(<TireList vin={VIN} />)
+    render(<TireList vin={VIN} />, { wrapper: withConfirm })
     expect(screen.queryByText('tireList.retiredHeading')).toBeNull()
     expect(screen.queryByText('tireList.restore')).toBeNull()
 

@@ -13,7 +13,7 @@ import { priceToDisplay } from '../utils/decimalSafe'
 import { usePropaneRecords, useDeletePropaneRecord } from '../hooks/queries/usePropaneRecords'
 import { useQueryClient } from '@tanstack/react-query'
 import { getActionErrorMessage } from '../utils/httpErrorHandler'
-import { Button, IconButton, Card, Mono, DataTable, EmptyState } from './ui'
+import { Button, IconButton, Card, Mono, DataTable, EmptyState, useConfirm } from './ui'
 import type { DataTableColumn } from './ui'
 
 interface PropaneRecordListProps {
@@ -24,6 +24,7 @@ export default function PropaneRecordList({ vin }: PropaneRecordListProps) {
   const [showForm, setShowForm] = useState(false)
   const [editingRecord, setEditingRecord] = useState<FuelRecord | undefined>()
   const { t } = useTranslation('vehicles')
+  const confirm = useConfirm()
   const { units } = useUnitPreference()
   const { currencyCode, locale } = useCurrencyPreference()
 
@@ -43,8 +44,8 @@ export default function PropaneRecordList({ vin }: PropaneRecordListProps) {
     setShowForm(true)
   }
 
-  const handleDelete = (id: number) => {
-    if (!confirm(t('propaneList.confirmDelete'))) {
+  const handleDelete = async (id: number): Promise<void> => {
+    if (!(await confirm({ message: t('propaneList.confirmDelete'), confirmLabel: t('common:delete') }))) {
       return
     }
 
@@ -102,7 +103,7 @@ export default function PropaneRecordList({ vin }: PropaneRecordListProps) {
             variant="danger"
             size="sm"
             disabled={deleteMutation.isPending && deleteMutation.variables === r.id}
-            onClick={() => handleDelete(r.id)}
+            onClick={() => void handleDelete(r.id)}
           />
         </div>
       ) },

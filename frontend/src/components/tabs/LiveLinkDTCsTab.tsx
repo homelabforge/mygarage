@@ -20,7 +20,7 @@ import { livelinkService, type DTCListFilter } from '@/services/livelinkService'
 import type { VehicleDTC, VehicleDTCListResponse } from '@/types/livelink'
 import { isManufacturerCode } from '@/utils/dtc'
 import { formatAPITimestamp } from '@/utils/parseAPITimestamp'
-import { Card, Chip, IconButton, Button, Input, Mono, EmptyState } from '../ui'
+import { Card, Chip, IconButton, Button, Input, Mono, EmptyState, useConfirm } from '../ui'
 import { getActiveDateLocale } from '@/constants/i18n'
 
 interface LiveLinkDTCsTabProps {
@@ -40,6 +40,7 @@ function categoryLabel(t: TFunction, category: string): string {
 
 export default function LiveLinkDTCsTab({ vin }: LiveLinkDTCsTabProps) {
   const { t } = useTranslation('vehicles')
+  const confirm = useConfirm()
   const [dtcs, setDtcs] = useState<VehicleDTCListResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<DTCListFilter>('active')
@@ -64,8 +65,8 @@ export default function LiveLinkDTCsTab({ vin }: LiveLinkDTCsTabProps) {
     fetchDTCs()
   }, [fetchDTCs])
 
-  const handleClearDTC = async (dtcId: number, code: string) => {
-    if (!confirm(t('livelink.dtcs.confirmClear', { code }))) {
+  const handleClearDTC = async (dtcId: number, code: string): Promise<void> => {
+    if (!(await confirm({ message: t('livelink.dtcs.confirmClear', { code }), confirmLabel: t('common:clear'), tone: 'default' }))) {
       return
     }
 
@@ -256,7 +257,7 @@ export default function LiveLinkDTCsTab({ vin }: LiveLinkDTCsTabProps) {
                     <IconButton
                       icon={CheckCircle}
                       label={t('livelink.dtcs.markAsCleared')}
-                      onClick={() => handleClearDTC(dtc.id, dtc.code)}
+                      onClick={() => void handleClearDTC(dtc.id, dtc.code)}
                     />
                   )}
                 </div>

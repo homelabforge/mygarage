@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import api from '../services/api'
 import { getActionErrorMessage } from '../utils/httpErrorHandler'
 import { Car, Wrench, Fuel, Shield, FileText, HelpCircle, Droplets, Landmark } from 'lucide-react'
@@ -138,7 +139,7 @@ export default function GarageAnalytics() {
       window.URL.revokeObjectURL(url)
     } catch (err) {
       console.error('PDF export failed:', err)
-      alert(t('garage.exportPdfFailed'))
+      toast.error(t('garage.exportPdfFailed'))
     }
   }
 

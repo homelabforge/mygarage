@@ -12,7 +12,7 @@ import { toast } from 'sonner'
 import type { InsurancePolicy } from '../../types/insurance'
 import { useDeleteInsurancePolicy } from '../../hooks/queries/useInsuranceRecords'
 import { getActionErrorMessage } from '../../utils/httpErrorHandler'
-import { Button, EmptyState } from '../ui'
+import { Button, EmptyState, useConfirm } from '../ui'
 import PolicyCard from './PolicyCard'
 import PolicyForm, { type PolicyFormMode } from './PolicyForm'
 import RenewPolicyDialog from './RenewPolicyDialog'
@@ -34,12 +34,13 @@ type Dialog =
 
 export default function PolicyBoard({ policies, isLoading, error, focusVin, toolbar }: PolicyBoardProps) {
   const { t } = useTranslation('vehicles')
+  const confirm = useConfirm()
   const deleteMutation = useDeleteInsurancePolicy()
   const [dialog, setDialog] = useState<Dialog | null>(null)
   const close = (): void => setDialog(null)
 
-  const handleDelete = (policy: InsurancePolicy): void => {
-    if (!confirm(t('insuranceList.confirmDelete'))) return
+  const handleDelete = async (policy: InsurancePolicy): Promise<void> => {
+    if (!(await confirm({ message: t('insuranceList.confirmDelete'), confirmLabel: t('common:delete') }))) return
     deleteMutation.mutate(policy.id, {
       onError: (err) => {
         toast.error(getActionErrorMessage(err, t('insuranceList.deleteAction')))
@@ -101,7 +102,7 @@ export default function PolicyBoard({ policies, isLoading, error, focusVin, tool
               onRenew={(target) => setDialog({ kind: 'renew', policy: target })}
               onReplace={(target) => setDialog({ kind: 'form', mode: 'replace', policy: target })}
               onHistory={(target) => setDialog({ kind: 'history', policy: target })}
-              onDelete={handleDelete}
+              onDelete={(policy) => void handleDelete(policy)}
               deleting={deleteMutation.isPending && deleteMutation.variables === policy.id}
             />
           ))}

@@ -26,6 +26,7 @@ vi.mock('../../hooks/useCurrencyPreference', () => ({ useCurrencyPreference: () 
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 
 import WarrantyList from '../WarrantyList'
+import { answerConfirm } from '../../__tests__/confirmHelpers'
 
 // end_date lexicographically < today ⇒ expired; > today ⇒ active (isExpired uses
 // formatDateForInput() = today's local YYYY-MM-DD — real, unmocked, deterministic).
@@ -42,7 +43,6 @@ const PROPS = { vin: 'V1', onAddClick, onEditClick }
 
 beforeEach(() => {
   vi.clearAllMocks()
-  vi.spyOn(window, 'confirm').mockReturnValue(true)
   useWarrantyRecordsMock.mockReturnValue({ data: [activeWarranty], isLoading: false, error: null })
 })
 
@@ -65,10 +65,10 @@ describe('WarrantyList — rendering + row actions', () => {
     expect(onEditClick).toHaveBeenCalledWith(activeWarranty)
   })
 
-  it('clicking row Delete (confirm accepted) calls the delete mutation with the warranty id (fails if delete is unwired or the confirm gate is dropped)', () => {
+  it('clicking row Delete (confirm accepted) calls the delete mutation with the warranty id (fails if delete is unwired or the confirm gate is dropped)', async () => {
     render(<WarrantyList {...PROPS} />)
     fireEvent.click(screen.getByRole('button', { name: 'common:delete' }))
-    expect(window.confirm).toHaveBeenCalled()
+    await answerConfirm('confirm', 'warrantyList.confirmDelete')
     expect(deleteMutate).toHaveBeenCalledWith(1, expect.anything())
   })
 

@@ -14,13 +14,14 @@ const mutationStub = () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: 
 // Stable across renders so a test can read back what the form posted.
 const addPurchaseMock = vi.fn()
 const addAdjustmentMock = vi.fn()
+const deleteAdjustmentMock = vi.fn()
 
 vi.mock('../../hooks/queries/useSupplies', () => ({
   useSupplyHistory: () => useSupplyHistoryMock(),
   useAddPurchase: () => ({ ...mutationStub(), mutateAsync: addPurchaseMock }),
   useDeletePurchase: () => mutationStub(),
   useAddAdjustment: () => ({ ...mutationStub(), mutateAsync: addAdjustmentMock }),
-  useDeleteAdjustment: () => mutationStub(),
+  useDeleteAdjustment: () => ({ ...mutationStub(), mutate: deleteAdjustmentMock }),
   useUploadReceipt: () => mutationStub(),
   useDeleteReceipt: () => mutationStub(),
 }))
@@ -44,6 +45,7 @@ vi.mock('../../contexts/AuthContext', () => ({
 }))
 
 import SupplyHistoryModal from '../SupplyHistoryModal'
+import { answerConfirm, escapeConfirm } from '../../__tests__/confirmHelpers'
 
 const mockSupply: Supply = {
   id: 1,
@@ -306,6 +308,28 @@ describe('SupplyHistoryModal', () => {
 
     fireEvent.click(screen.getByLabelText('common:close'))
     expect(onClose).toHaveBeenCalled()
+  })
+
+  it('deletes a standalone adjustment once the confirm is accepted', async () => {
+    render(<SupplyHistoryModal supply={mockSupply} onClose={vi.fn()} />)
+
+    fireEvent.click(screen.getByLabelText('supplies.history.deleteAdjustment'))
+    await answerConfirm('confirm', 'supplies.history.confirmDeleteAdjustment')
+
+    expect(deleteAdjustmentMock).toHaveBeenCalledWith(21, expect.anything())
+  })
+
+  // Regression pin: Escape on the confirm must not close the history drawer.
+  it('Escape closes the delete confirm and leaves the history open', async () => {
+    const onClose = vi.fn()
+    render(<SupplyHistoryModal supply={mockSupply} onClose={onClose} />)
+
+    fireEvent.click(screen.getByLabelText('supplies.history.deleteAdjustment'))
+    await escapeConfirm('supplies.history.confirmDeleteAdjustment')
+
+    expect(onClose).not.toHaveBeenCalled()
+    expect(screen.getByRole('dialog', { name: 'supplies.history.title' })).toBeInTheDocument()
+    expect(deleteAdjustmentMock).not.toHaveBeenCalled()
   })
 
   // Task 8: the adjustment/purchase quantity fields keep RHF's native

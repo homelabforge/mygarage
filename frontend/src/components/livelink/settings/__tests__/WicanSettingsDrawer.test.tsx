@@ -33,6 +33,7 @@ vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn(), warning: v
 
 import { toast } from 'sonner'
 import WicanSettingsDrawer from '../WicanSettingsDrawer'
+import { answerConfirm, escapeConfirm, withConfirm } from '../../../../__tests__/confirmHelpers'
 
 const TAB = { id: 'wican', label: 'WiCAN', kind: 'wican' } as unknown as IntegrationTab
 
@@ -63,8 +64,9 @@ const FW = (skipped: string | null) => [
 
 const renderDrawer = () => {
   const onChanged = vi.fn()
-  render(<WicanSettingsDrawer open tab={TAB} onClose={vi.fn()} onChanged={onChanged} />)
-  return { onChanged }
+  const onClose = vi.fn()
+  render(<WicanSettingsDrawer open tab={TAB} onClose={onClose} onChanged={onChanged} />, { wrapper: withConfirm })
+  return { onChanged, onClose }
 }
 
 beforeEach(() => {
@@ -148,13 +150,25 @@ describe('WicanSettingsDrawer', () => {
   })
 
   it('reveals a regenerated token once', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
     svc.regenerateGlobalToken.mockResolvedValue({ token: 'tok-123' })
     renderDrawer()
 
     fireEvent.click(await screen.findByRole('button', { name: 'modal.livelink.regenerate' }))
+    await answerConfirm('confirm', 'modal.livelink.confirmRegenerateToken')
 
     expect(await screen.findByDisplayValue('tok-123')).toBeInTheDocument()
+  })
+
+  // Regression pin: Escape on the regenerate confirm must not close the drawer.
+  it('Escape closes the regenerate confirm and leaves the drawer open', async () => {
+    const { onClose } = renderDrawer()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'modal.livelink.regenerate' }))
+    await escapeConfirm('modal.livelink.confirmRegenerateToken')
+
+    expect(onClose).not.toHaveBeenCalled()
+    expect(screen.getByRole('dialog', { name: 'settings:integrations.sourceSettings' })).toBeInTheDocument()
+    expect(svc.regenerateGlobalToken).not.toHaveBeenCalled()
   })
 
   it('reads device firmware only after the check has finished', async () => {
