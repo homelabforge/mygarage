@@ -210,6 +210,16 @@ export default function Gallery() {
           <CardHeader title="2019 Mitsubishi Mirage" />
           <p className="text-sm text-text-mute">Hover me — border picks up the accent.</p>
         </Card>
+        <Card className="w-80">
+          <CardHeader
+            title="Fuel prices"
+            description="Leading icon with a muted line under the title, the Integrations look."
+            icon={Fuel}
+            iconPosition="leading"
+            actions={<IconButton icon={Pencil} label="Edit" size="sm" />}
+          />
+          <p className="text-sm text-text-mute">Leading layout.</p>
+        </Card>
       </Section>
 
       <Section title="Tile" note="Extracted from StatBadge. Value is always Mono.">

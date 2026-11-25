@@ -8,7 +8,7 @@ import api from '@/services/api'
 import { vinService } from '@/services/vinService'
 import { isSettingOn } from '@/utils/settingSwitch'
 import WidgetKeysPanel from '../settings/WidgetKeysPanel'
-import { Card, IconButton, Select, Toggle, Drawer } from '../ui'
+import { Card, CardHeader, IconButton, Select, Toggle, Drawer } from '../ui'
 import type { IconType } from '../ui/types'
 import type { components } from '@/types/api.generated'
 import AddSourceDrawer from '@/components/livelink/AddSourceDrawer'
@@ -83,26 +83,17 @@ const AI_FEATURES_DOC_URL = 'https://github.com/homelabforge/mygarage/blob/main/
  * One integration section.
  *
  * Replaces seven copies of `bg-garage-surface rounded-lg border
- * border-garage-border p-6` wrapping a hand-rolled `<h2>` — pre-reskin markup
+ * border-garage-border p-6` wrapping a hand-rolled `<h2>`, pre-reskin markup
  * that the rest of the app stopped using at v3.0.0, which is why this tab drifted
  * out of step with every card beside it.
  *
- * The title row is written out here rather than delegated to `CardHeader`, which
- * would otherwise be the obvious reuse: `CardHeader` renders its icon on the
- * RIGHT, beside the actions, and has no slot for a subtitle. This tab needs the
- * icon leading the title with the description stacked under it, which is what
- * `settings/WidgetKeysPanel.tsx` does at the top of this same page -- so taking
- * `CardHeader` put two different header shapes on one screen. The `h3`
- * typography is copied from it so the two stay identical. Seven hand-rolled
- * headers becoming one is still the point; promoting a `description` +
- * leading-icon variant into `CardHeader` is the follow-up, and is a change to a
- * primitive with ~40 call sites rather than to this tab.
+ * The title row is `CardHeader`'s leading layout now (icon first, description under).
  *
  * `breakInside` matters: the middle group is a CSS-columns masonry, and a card
  * allowed to split across a column boundary loses its header.
  */
 function IntegrationCard({
-  icon: Icon,
+  icon,
   title,
   description,
   actions,
@@ -111,22 +102,13 @@ function IntegrationCard({
   icon: IconType
   title: string
   description: string
-  /** Rendered in the title row, left of the icon — the About sidecar trigger. */
+  /** Right end of the title row: the About sidecar trigger. */
   actions?: ReactNode
   children: ReactNode
-}) {
+}): React.ReactElement {
   return (
     <Card breakInside>
-      <header className="mb-4 flex items-start justify-between gap-4">
-        <div className="flex items-start gap-3">
-          <Icon aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 text-(--accent-fg)" />
-          <div>
-            <h3 className="text-[15px] font-bold tracking-[-.02em] text-text">{title}</h3>
-            <p className="mt-0.5 text-sm text-text-mute">{description}</p>
-          </div>
-        </div>
-        {actions}
-      </header>
+      <CardHeader title={title} description={description} icon={icon} iconPosition="leading" actions={actions} />
       {children}
     </Card>
   )
