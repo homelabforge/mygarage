@@ -580,7 +580,7 @@ function CalendarInner({ householdTimeZone }: { householdTimeZone: string | null
                 }`}
               >
                 {bulkMode ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
-                <span className="hidden sm:inline">{t('calendar.bulkMode')}</span>
+                <span className="sr-only sm:not-sr-only">{t('calendar.bulkMode')}</span>
               </button>
 
               <button
@@ -588,7 +588,7 @@ function CalendarInner({ householdTimeZone }: { householdTimeZone: string | null
                 className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm bg-garage-bg text-garage-text-muted border border-garage-border hover:border-primary transition-colors"
               >
                 <Download className="w-4 h-4" />
-                <span className="hidden sm:inline">{t('calendar.exportICal')}</span>
+                <span className="sr-only sm:not-sr-only">{t('calendar.exportICal')}</span>
               </button>
             </div>
           </div>
