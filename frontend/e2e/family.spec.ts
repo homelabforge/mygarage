@@ -47,15 +47,18 @@ test.beforeAll(async () => {
 
 test.afterAll(async () => {
   try {
-    if (throwawayId !== null) {
-      const gone = await api.delete(`${API_BASE}/auth/users/${throwawayId}`, { headers })
-      // 404 means the delete test already got it.
-      expect([204, 200, 404]).toContain(gone.status())
-    }
-    if (priorMultiUser === undefined) {
-      await api.delete(`${API_BASE}/settings/multi_user_enabled`, { headers })
-    } else {
-      await api.post(`${API_BASE}/settings/batch`, { headers, data: { settings: { multi_user_enabled: priorMultiUser } } })
+    try {
+      if (throwawayId !== null) {
+        const gone = await api.delete(`${API_BASE}/auth/users/${throwawayId}`, { headers })
+        // 404 means the delete test already got it.
+        expect([204, 200, 404]).toContain(gone.status())
+      }
+    } finally {
+      // Its own finally, so a failed user cleanup still puts the setting back.
+      const restored = priorMultiUser === undefined
+        ? await api.delete(`${API_BASE}/settings/multi_user_enabled`, { headers })
+        : await api.post(`${API_BASE}/settings/batch`, { headers, data: { settings: { multi_user_enabled: priorMultiUser } } })
+      expect(restored.ok(), await restored.text()).toBeTruthy()
     }
   } finally {
     await api?.dispose()

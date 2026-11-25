@@ -75,16 +75,29 @@ describe('DeleteUserModal drawer', () => {
     expect(screen.getByText('someone@example.com', { exact: false })).toBeInTheDocument()
   })
 
-  it('every way out clears the typed token', () => {
+  // The header X is a way out the old overlay never had, and Cancel has to clear it too.
+  it.each(['common:close', 'deleteUserModal.cancel'])('%s clears the typed token', (closeName) => {
     const onClose = vi.fn()
     const { rerender } = render(<DeleteUserModal isOpen user={user} onClose={onClose} onConfirm={() => {}} />)
     fireEvent.change(screen.getByPlaceholderText('DELETE'), { target: { value: 'DELETE' } })
 
-    // The header X is one more way out the old overlay never had.
-    fireEvent.click(screen.getByRole('button', { name: 'common:close' }))
+    fireEvent.click(screen.getByRole('button', { name: closeName }))
     expect(onClose).toHaveBeenCalledTimes(1)
     rerender(<DeleteUserModal isOpen user={user} onClose={onClose} onConfirm={() => {}} />)
 
+    expect(screen.getByPlaceholderText('DELETE')).toHaveValue('')
+    expect(screen.getByRole('button', { name: 'modal.deleteUser' })).toBeDisabled()
+  })
+
+  // Family keeps this mounted, so switching users while it's open must not carry the token over.
+  it('a new user clears the typed token without a close', () => {
+    const other = { id: 2, username: 'other', email: 'other@example.com' } as User
+    const { rerender } = render(<DeleteUserModal isOpen user={user} onClose={() => {}} onConfirm={() => {}} />)
+    fireEvent.change(screen.getByPlaceholderText('DELETE'), { target: { value: 'DELETE' } })
+
+    rerender(<DeleteUserModal isOpen user={other} onClose={() => {}} onConfirm={() => {}} />)
+
+    expect(screen.getByText('other@example.com', { exact: false })).toBeInTheDocument()
     expect(screen.getByPlaceholderText('DELETE')).toHaveValue('')
     expect(screen.getByRole('button', { name: 'modal.deleteUser' })).toBeDisabled()
   })

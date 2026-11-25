@@ -214,4 +214,21 @@ describe('AddEditUserModal drawer', () => {
     expect(screen.getByRole('dialog', { name: 'modal.editUser' })).toBeInTheDocument()
     expect(screen.getByDisplayValue('dana@example.com')).toBeInTheDocument()
   })
+
+  // The latch holds whoever was open, not the last real user, so an Add after
+  // an Edit still slides out as Add.
+  it('an Add opened after an Edit keeps the Add title while it slides out', () => {
+    const props = { onClose: vi.fn(), onSave: vi.fn(), currentUserId: 1, activeAdminCount: 1 }
+    const { rerender } = render(<AddEditUserModal isOpen user={account()} {...props} />)
+    rerender(<AddEditUserModal isOpen={false} user={null} {...props} />)
+    fireEvent.transitionEnd(screen.getByTestId('drawer'))
+    expect(screen.queryByTestId('drawer')).not.toBeInTheDocument()
+
+    rerender(<AddEditUserModal isOpen user={null} {...props} />)
+    expect(screen.getByRole('dialog', { name: 'modal.addUser' })).toBeInTheDocument()
+    rerender(<AddEditUserModal isOpen={false} user={null} {...props} />)
+
+    expect(screen.getByRole('dialog', { name: 'modal.addUser' })).toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: 'modal.editUser' })).not.toBeInTheDocument()
+  })
 })
