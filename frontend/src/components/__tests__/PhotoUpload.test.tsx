@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen } from '../../__tests__/test-utils'
 import userEvent from '@testing-library/user-event'
 import api from '../../services/api'
@@ -125,5 +125,28 @@ describe('PhotoUpload — centered upload modal: guard + upload', () => {
     expect(
       await screen.findByText('Failed to photoUpload.uploadAction. Please check your input.')
     ).toBeInTheDocument()
+  })
+})
+
+describe('PhotoUpload as a dialog', () => {
+  let root: HTMLElement
+  beforeEach(() => {
+    root = document.body.appendChild(document.createElement('div'))
+    root.id = 'root'
+  })
+  afterEach(() => root.remove())
+
+  it('is a named dialog outside #root', () => {
+    render(<PhotoUpload vin="V1" onSuccess={vi.fn()} onClose={vi.fn()} />, { container: root })
+    const dialog = screen.getByRole('dialog', { name: 'photoUpload.title' })
+    expect(root.contains(dialog)).toBe(false)
+  })
+
+  it('Upload sits in the footer, outside the form, and still belongs to it', () => {
+    // The tests above submit by clicking it, so a lost form= stops them uploading.
+    render(<PhotoUpload vin="V1" onSuccess={vi.fn()} onClose={vi.fn()} />, { container: root })
+    const upload = screen.getByRole('button', { name: 'photoUpload.uploadBtn' }) as HTMLButtonElement
+    expect(upload.closest('form')).toBeNull()
+    expect(upload.form?.id).toBe('photo-upload-form')
   })
 })

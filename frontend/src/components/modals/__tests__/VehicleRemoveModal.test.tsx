@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { render } from '../../../__tests__/test-utils'
 import { expectSafeOverlay } from '../../../__tests__/safeOverlay'
@@ -91,6 +91,30 @@ describe('VehicleRemoveModal: the archive sale price', () => {
 describe('VehicleRemoveModal layout', () => {
   it('centres inside the iPhone safe area (#305)', () => {
     render(<VehicleRemoveModal isOpen onClose={vi.fn()} vehicle={vehicle} onConfirm={vi.fn()} />)
-    expectSafeOverlay(screen.getByRole('heading', { name: 'modal.removeVehicle' }))
+    expectSafeOverlay(screen.getByRole('dialog', { name: 'modal.removeVehicle' }))
+  })
+})
+
+describe('VehicleRemoveModal as a dialog', () => {
+  let root: HTMLElement
+  beforeEach(() => {
+    root = document.body.appendChild(document.createElement('div'))
+    root.id = 'root'
+  })
+  afterEach(() => root.remove())
+
+  it('is a named dialog outside #root', () => {
+    render(<VehicleRemoveModal isOpen onClose={vi.fn()} vehicle={vehicle} onConfirm={vi.fn()} />, { container: root })
+    const dialog = screen.getByRole('dialog', { name: 'modal.removeVehicle' })
+    expect(root.contains(dialog)).toBe(false)
+  })
+
+  it('renames the dialog for each step', () => {
+    render(<VehicleRemoveModal isOpen onClose={vi.fn()} vehicle={vehicle} onConfirm={vi.fn()} />, { container: root })
+    fireEvent.click(screen.getByRole('button', { name: /modal\.deletePermanently/ }))
+    expect(screen.getByRole('dialog', { name: 'modal.deletePermanently' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'common:back' }))
+    fireEvent.click(screen.getByRole('button', { name: /modal\.archiveRecommended/ }))
+    expect(screen.getByRole('dialog', { name: 'modal.archiveVehicle' })).toBeInTheDocument()
   })
 })

@@ -4,7 +4,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '../../../__tests__/test-utils'
-import { expectSafeOverlay } from '../../../__tests__/safeOverlay'
+import { expectLegacySafeOverlay } from '../../../__tests__/safeOverlay'
 
 const { get } = vi.hoisted(() => ({ get: vi.fn() }))
 vi.mock('@/services/api', () => ({ default: { get, put: vi.fn(), post: vi.fn(), delete: vi.fn() } }))
@@ -62,6 +62,6 @@ describe('FamilyManagementModal layout', () => {
   it('centres inside the iPhone safe area (#305)', async () => {
     get.mockResolvedValue({ data: {} })
     render(<FamilyManagementModal isOpen onClose={vi.fn()} />)
-    expectSafeOverlay(await screen.findByRole('heading', { name: 'modal.familyManagement' }))
+    expectLegacySafeOverlay(await screen.findByRole('heading', { name: 'modal.familyManagement' }))
   })
 })

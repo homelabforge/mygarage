@@ -12,7 +12,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { ReactNode } from 'react'
 import { render, screen, fireEvent, waitFor } from '../../../__tests__/test-utils'
 import { makeUser, type User } from '@/__tests__/factories'
-import { expectSafeOverlay } from '@/__tests__/safeOverlay'
+import { expectLegacySafeOverlay } from '@/__tests__/safeOverlay'
 
 const { put, post, t, i18n } = vi.hoisted(() => ({
   put: vi.fn(),
@@ -198,6 +198,6 @@ describe('AddEditUserModal last active admin', () => {
 describe('AddEditUserModal layout', () => {
   it('centres inside the iPhone safe area (#305)', () => {
     renderEdit(account())
-    expectSafeOverlay(screen.getByRole('heading', { name: 'modal.editUser' }))
+    expectLegacySafeOverlay(screen.getByRole('heading', { name: 'modal.editUser' }))
   })
 })

@@ -235,4 +235,14 @@ describe('ReportsPanel generating overlay', () => {
     // No padding of its own before, so the insets alone.
     expect(overlay).toHaveClass('modal-safe-inset')
   })
+
+  it('reads its box out as a polite status, not the whole scrim', async () => {
+    apiGet.mockReturnValue(new Promise(() => {}))
+    render(<ReportsPanel vin="V1" />)
+    fireEvent.click(screen.getByRole('button', { name: SERVICE_PDF }))
+    const status = await screen.findByRole('status')
+    expect(status).toHaveAttribute('aria-live', 'polite')
+    expect(status).toHaveTextContent(analyticsEn.reports.generating)
+    expect(status).not.toHaveClass('fixed')
+  })
 })

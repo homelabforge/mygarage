@@ -16,7 +16,7 @@ import { fireEvent, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient } from '@tanstack/react-query'
 import { render } from '../../__tests__/test-utils'
-import { expectSafeOverlay } from '../../__tests__/safeOverlay'
+import { expectLegacySafeOverlay } from '../../__tests__/safeOverlay'
 import { setHouseholdTimeZone } from '../../constants/i18n'
 
 const capturedCalendarConfig = vi.hoisted(() => ({ current: null as Record<string, unknown> | null }))
@@ -282,6 +282,6 @@ describe('Calendar notes modal layout', () => {
     render(<CalendarPage />)
     await screen.findByText('Oil change')
     fireEvent.click(screen.getByRole('button', { name: 'calendar.misc.viewNotes' }))
-    expectSafeOverlay(screen.getByRole('heading', { name: 'calendar.eventNotes' }), '80vh')
+    expectLegacySafeOverlay(screen.getByRole('heading', { name: 'calendar.eventNotes' }), '80vh')
   })
 })

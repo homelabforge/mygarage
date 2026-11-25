@@ -7,15 +7,27 @@
  */
 import { expect } from 'vitest'
 
-/** Pass any element inside the modal; checks its overlay and the box under it. */
-export function expectSafeOverlay(inside: Element, cap: '80vh' | '90vh' = '90vh'): void {
-  const overlay = inside.closest('.fixed.inset-0')
-  expect(overlay, 'no fixed inset-0 overlay above this element').not.toBeNull()
+function expectPaddedOverlay(overlay: Element | null, box: Element | null, cap: '80vh' | '90vh'): void {
   expect(overlay).toHaveClass('modal-safe-pad')
   // A leftover p-4 would fight the utility's padding.
   expect(overlay!.className).not.toMatch(/(^|\s)p-4(\s|$)/)
-  const box = overlay!.firstElementChild
   // The desktop cap it always had, but never past the padded box.
   expect(box).toHaveClass(`max-h-[min(${cap},100%)]`)
   expect(box!.className).not.toMatch(/(^|\s)max-h-(full|\[\d+vh\])(\s|$)/)
+}
+
+/** Pass the dialog itself (getByRole('dialog')); its parent is the overlay. */
+export function expectSafeOverlay(dialog: Element, cap: '80vh' | '90vh' = '90vh'): void {
+  expect(dialog, 'pass the role=dialog panel, not something inside it').toHaveAttribute('role', 'dialog')
+  expectPaddedOverlay(dialog.parentElement, dialog, cap)
+}
+
+/**
+ * Same checks for the overlays that aren't dialogs yet (Family, AddEditUser,
+ * Calendar notes). They turn into drawers later in this batch, and this goes with them.
+ */
+export function expectLegacySafeOverlay(inside: Element, cap: '80vh' | '90vh' = '90vh'): void {
+  const overlay = inside.closest('.fixed.inset-0')
+  expect(overlay, 'no fixed inset-0 overlay above this element').not.toBeNull()
+  expectPaddedOverlay(overlay, overlay!.firstElementChild, cap)
 }

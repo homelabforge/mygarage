@@ -175,6 +175,33 @@ test.describe('Modal stack', () => {
     expect(deletes).toEqual([])
   })
 
+  // The PDF import used to be a bare overlay over the policy drawer. Now it's a
+  // Dialog, so it has to land above the drawer and take real clicks.
+  test('the policy PDF import over the insurance drawer is live, and Esc closes only it', async ({ page }) => {
+    await page.goto('/insurance')
+    await page.getByRole('button', { name: /^Add (Your First )?Insurance Policy$/ }).first().click()
+    const drawer = page.getByRole('dialog', { name: 'Add Insurance Policy' })
+    await expect(drawer).toBeVisible({ timeout: 15000 })
+
+    await drawer.getByRole('button', { name: 'Import from PDF' }).click()
+    const pdf = page.getByRole('dialog', { name: 'Import Insurance Policy from PDF' })
+    await expect(pdf).toBeVisible()
+
+    const choose = pdf.getByRole('button', { name: 'Choose File' })
+    const live = await choose.evaluate((el) => ({
+      outsideRoot: !document.getElementById('root')!.contains(el),
+      notInert: el.closest('[inert]') === null,
+    }))
+    expect(live).toEqual({ outsideRoot: true, notInert: true })
+    expect(await hitsItself(choose), 'a click on Choose File lands on something else').toBe(true)
+    await expect(drawer).toHaveAttribute('inert', '')
+
+    await page.keyboard.press('Escape')
+    await expect(pdf).toBeHidden()
+    await expect(drawer).toBeVisible()
+    await expect(drawer).not.toHaveAttribute('inert')
+  })
+
   // Linux Chromium has no BarcodeDetector, so Scan opens the typed-code dialog.
   // React events bubble through its portal, so a leaked submit would save the
   // supply and close the drawer.

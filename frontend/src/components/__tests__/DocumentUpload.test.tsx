@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen } from '../../__tests__/test-utils'
 import userEvent from '@testing-library/user-event'
 
@@ -149,5 +149,28 @@ describe('DocumentUpload: the size cap (B5-7)', () => {
     await user.upload(fileInput(), new File([new Uint8Array(1024 * 1024 + 1)], 'big.pdf', { type: 'application/pdf' }))
 
     expect(screen.queryByText('documentUpload.misc.fileTooLargeLimit')).not.toBeInTheDocument()
+  })
+})
+
+describe('DocumentUpload as a dialog', () => {
+  let root: HTMLElement
+  beforeEach(() => {
+    root = document.body.appendChild(document.createElement('div'))
+    root.id = 'root'
+  })
+  afterEach(() => root.remove())
+
+  it('is a named dialog outside #root', () => {
+    render(<DocumentUpload vin="V1" onSuccess={vi.fn()} onClose={vi.fn()} />, { container: root })
+    const dialog = screen.getByRole('dialog', { name: 'documentUpload.title' })
+    expect(root.contains(dialog)).toBe(false)
+  })
+
+  it('Upload sits in the footer, outside the form, and still belongs to it', () => {
+    // The tests above submit by clicking it, so a lost form= stops them uploading.
+    render(<DocumentUpload vin="V1" onSuccess={vi.fn()} onClose={vi.fn()} />, { container: root })
+    const upload = screen.getByRole('button', { name: 'documentUpload.uploadBtn' }) as HTMLButtonElement
+    expect(upload.closest('form')).toBeNull()
+    expect(upload.form?.id).toBe('document-upload-form')
   })
 })

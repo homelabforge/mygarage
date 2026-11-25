@@ -26,4 +26,14 @@ describe('ServiceTab loading overlay', () => {
     // No padding of its own before, so the insets alone.
     expect(overlay).toHaveClass('modal-safe-inset')
   })
+
+  it('reads its box out as a polite status, not the whole scrim', () => {
+    render(<ServiceTab vin="V1" />)
+    fireEvent.click(screen.getByRole('button', { name: 'add visit' }))
+
+    const status = screen.getByRole('status')
+    expect(status).toHaveAttribute('aria-live', 'polite')
+    expect(status).toHaveTextContent('common:loading')
+    expect(status).not.toHaveClass('fixed')
+  })
 })
