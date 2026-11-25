@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Maintainers can approve reviewed drafts in bulk with `bun run i18n:stamp --accept-drafts <lang>`, and bulk-accepting a translation PR only records the strings that PR changed.
 - Translators can list strings whose English changed since they were translated: `bun run i18n:stamp --list stale <lang>`.
 - `bun run i18n:stamp --draft-stale <lang>` marks a stale translation that still fits as a draft against today's English.
+- Confirmations use the app's own dialog instead of the browser's pop-up.
+- Family and user management open as side panels.
 
 ### Fixed
 - The top navigation folds into the menu button when its links don't fit, instead of scrolling the page sideways.
@@ -27,6 +29,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Supplies counted in units take whole numbers: 2.5 oil filters is refused in the API, the history modal and the visit form. Fractions already saved stay as they are.
 - Engine hours on service visits use the language's number format (1.234,5 hr in German).
 - LiveLink's Active DTC list sorts by last seen, like Cleared and All.
+- Chart tooltips, axes and colours follow the light theme.
+- Calendar colours follow the theme.
+- Drawer forms line up with their header.
+- Dashboard stat captions no longer split words.
+- The dashboard no longer scrolls sideways on phones narrower than 372px.
 
 ## [3.11.3] - 2026-11-23
 
