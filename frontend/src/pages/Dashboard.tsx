@@ -22,6 +22,10 @@ import { publicSettingsQuery } from '../hooks/queries/usePublicSettings'
 import { useDashboardSortOrder } from '../hooks/useDashboardSort'
 import { DASHBOARD_SORT_OPTIONS, type DashboardSort } from '../constants/dashboardSort'
 
+// One class for all three card grids. min() lets a card shrink below 340 on a
+// phone narrower than 372, or the page scrolls sideways.
+const CARD_GRID = 'grid grid-cols-[repeat(auto-fill,minmax(min(340px,100%),1fr))] gap-[22px]'
+
 function sortVehicles(vehicles: VehicleStatistics[], sortBy: DashboardSort): VehicleStatistics[] {
   return [...vehicles].sort((a, b) => {
     switch (sortBy) {
@@ -246,9 +250,7 @@ export default function Dashboard() {
                 {t('dashboard.myVehiclesSection', { count: ownedVehicles.length })}
               </h2>
               {ownedVehicles.length > 0 ? (
-                // min() lets a card shrink below 340 on a phone narrower than 372,
-                // or the page scrolls sideways. Same on the two grids below.
-                <div className="grid grid-cols-[repeat(auto-fill,minmax(min(340px,100%),1fr))] gap-[22px]">
+                <div className={CARD_GRID}>
                   {ownedVehicles.map((vehicleStats) => (
                     // Each card reads its own vehicle's odometer unit (#172).
                     <VehicleUnitScope key={vehicleStats.vin} distanceUnit={vehicleStats.distance_unit}>
@@ -282,7 +284,7 @@ export default function Dashboard() {
                 <h2 className="mb-4 text-lg font-semibold tracking-[-0.01em] text-text">
                   {t('dashboard.sharedWithMeSection', { count: sharedVehicles.length })}
                 </h2>
-                <div className="grid grid-cols-[repeat(auto-fill,minmax(min(340px,100%),1fr))] gap-[22px]">
+                <div className={CARD_GRID}>
                   {sharedVehicles.map((vehicleStats) => (
                     <VehicleUnitScope key={vehicleStats.vin} distanceUnit={vehicleStats.distance_unit}>
                       <VehicleStatisticsCard stats={vehicleStats} />
@@ -322,7 +324,7 @@ export default function Dashboard() {
                     />
                   </Card>
                 ) : (
-                  <div className="grid grid-cols-[repeat(auto-fill,minmax(min(340px,100%),1fr))] gap-[22px]">
+                  <div className={CARD_GRID}>
                     {referenceVehicles.map((vehicle) => (
                       <ExternalVehicleCard
                         key={`ref-${vehicle.id}`}

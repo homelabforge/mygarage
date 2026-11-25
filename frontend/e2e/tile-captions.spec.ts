@@ -63,8 +63,9 @@ interface CaptionScan {
 /**
  * Every stat-tile caption on the page, checked word by word.
  *
- * A word whose Range comes back as two rects got broken across lines. Tiles are
- * found by caption text, not the test id, so this runs on any build.
+ * A word whose Range comes back as two rects got broken across lines, and a
+ * word past the tile's padding spilled out. Tiles are found by caption text,
+ * not the test id, so this runs on any build.
  */
 async function scanCaptions(page: Page, labels: string[]): Promise<CaptionScan> {
   return page.evaluate(async (wanted) => {
@@ -78,17 +79,21 @@ async function scanCaptions(page: Page, labels: string[]): Promise<CaptionScan> 
       const text = node.textContent ?? ''
       if (!wanted.includes(text.trim())) continue
       count += 1
+      // The caption div always fills the tile, so measure the words themselves
+      // against the tile's content box. A nowrap or truncated caption spills here.
+      const t = tile.getBoundingClientRect()
+      const style = getComputedStyle(tile)
+      const inner = { left: t.left + parseFloat(style.paddingLeft), right: t.right - parseFloat(style.paddingRight) }
       for (const match of text.matchAll(/\S+/g)) {
         const range = document.createRange()
         range.setStart(node, match.index)
         range.setEnd(node, match.index + match[0].length)
         const rects = range.getClientRects().length
         if (rects !== 1) problems.push(`"${match[0]}" in "${text.trim()}" spans ${rects} rects`)
-      }
-      const c = caption.getBoundingClientRect()
-      const t = tile.getBoundingClientRect()
-      if (c.left < t.left - 0.5 || c.right > t.right + 0.5) {
-        problems.push(`"${text.trim()}" spills out of its tile (${c.left.toFixed(1)}..${c.right.toFixed(1)} vs ${t.left.toFixed(1)}..${t.right.toFixed(1)})`)
+        const w = range.getBoundingClientRect()
+        if (w.left < inner.left - 0.5 || w.right > inner.right + 0.5) {
+          problems.push(`"${match[0]}" in "${text.trim()}" spills out of its tile (${w.left.toFixed(1)}..${w.right.toFixed(1)} vs ${inner.left.toFixed(1)}..${inner.right.toFixed(1)})`)
+        }
       }
     }
     return { count, problems }
@@ -165,7 +170,6 @@ test.describe('Dashboard stat tiles', () => {
           .poll(async () => (await scanCaptions(page, labels)).count, { timeout: 15000 })
           .toBeGreaterThan(0)
         const scan = await scanCaptions(page, labels)
-        if (scan.count === 0) failures.push(`${width}px: no tile captions found`)
         for (const problem of scan.problems) failures.push(`${width}px: ${problem}`)
       }
       expect(failures, failures.join('\n')).toEqual([])
