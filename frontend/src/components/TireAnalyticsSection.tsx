@@ -325,8 +325,14 @@ export default function TireAnalyticsSection({ vin }: TireAnalyticsSectionProps)
             <LineChart data={trendRows}>
               <CartesianGrid stroke={CHART_GRID} />
               <XAxis dataKey="date" tickFormatter={(v: string) => formatDateForDisplay(v)} stroke={CHART_AXIS} />
-              <YAxis unit={u.tread.label} stroke={CHART_AXIS} />
-              <Tooltip contentStyle={TOOLTIP_CONTENT_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} />
+              {/* wide enough for "20/32 in" */}
+              <YAxis unit={u.tread.label} stroke={CHART_AXIS} width={68} />
+              {/* The rows hold display values, so back to canonical for the same format the table uses. */}
+              <Tooltip
+                contentStyle={TOOLTIP_CONTENT_STYLE}
+                itemStyle={TOOLTIP_ITEM_STYLE}
+                formatter={(v) => u.tread.format(u.tread.toCanonical(Number(v)))}
+              />
               <Legend formatter={chartLegendText} />
               {trending.map((tire, index) => (
                 <Line

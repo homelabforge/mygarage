@@ -25,7 +25,7 @@ import { parseAPITimestampMs } from '@/utils/parseAPITimestamp'
 import { useTimeFormat } from '@/hooks/useTimeFormat'
 import { formatTime, formatDateTime } from '@/utils/parseAPITimestamp'
 import { getActiveLocale, getActiveDateLocale } from '@/constants/i18n'
-import { CHART_AXIS, CHART_GRID, TOOLTIP_CONTENT_STYLE, TOOLTIP_ITEM_STYLE, chartLegendText, chartSeries } from '../charts/chartTheme'
+import { CHART_AXIS, CHART_GRID, CHART_OTHER, TOOLTIP_CONTENT_STYLE, TOOLTIP_ITEM_STYLE, chartLegendText, chartSeries } from '../charts/chartTheme'
 
 interface LiveLinkChartsTabProps {
   vin: string
@@ -52,9 +52,11 @@ export default function LiveLinkChartsTab({ vin }: LiveLinkChartsTabProps) {
   const { t } = useTranslation('vehicles')
   const [loading, setLoading] = useState(true)
   const [parameters, setParameters] = useState<LiveLinkParameter[]>([])
-  const [selectedParams, setSelectedParams] = useState<string[]>([])
-  // param_key -> chart slot, held while the parameter stays picked
-  const [slots, setSlots] = useState<Record<string, number>>({})
+  // The picked params and their chart slots move together in one state, so
+  // a toggle can never update one from a stale copy of the other.
+  const [picked, setPicked] = useState<{ keys: string[]; slots: Record<string, number> }>({ keys: [], slots: {} })
+  const selectedParams = picked.keys
+  const slots = picked.slots
   const [timeRange, setTimeRange] = useState<TimeRange>('24h')
   const [telemetry, setTelemetry] = useState<TelemetryQueryResponse | null>(null)
   // Unit conversion can be added here if needed
@@ -82,8 +84,7 @@ export default function LiveLinkChartsTab({ vin }: LiveLinkChartsTabProps) {
         // Default select first 3 parameters
         if (chartableParams.length > 0) {
           const initial = chartableParams.slice(0, 3).map((p) => p.param_key)
-          setSelectedParams(initial)
-          setSlots(initial.reduce<Record<string, number>>(withSlot, {}))
+          setPicked({ keys: initial, slots: initial.reduce<Record<string, number>>(withSlot, {}) })
         }
       } catch (err) {
         console.error('Failed to fetch parameters:', err)
@@ -178,19 +179,17 @@ export default function LiveLinkChartsTab({ vin }: LiveLinkChartsTabProps) {
   }, [telemetry])
 
   const toggleParam = (paramKey: string) => {
-    const dropping = selectedParams.includes(paramKey)
-    setSelectedParams((prev) =>
-      prev.includes(paramKey) ? prev.filter((p) => p !== paramKey) : [...prev, paramKey]
-    )
-    setSlots((prev) => {
-      if (!dropping) return withSlot(prev, paramKey)
-      const next = { ...prev }
-      delete next[paramKey]
-      return next
+    setPicked((prev) => {
+      if (!prev.keys.includes(paramKey)) return { keys: [...prev.keys, paramKey], slots: withSlot(prev.slots, paramKey) }
+      const slotsLeft = { ...prev.slots }
+      delete slotsLeft[paramKey]
+      return { keys: prev.keys.filter((p) => p !== paramKey), slots: slotsLeft }
     })
   }
 
-  const seriesColor = (paramKey: string): string => chartSeries(slots[paramKey] ?? 0)
+  // A series with no slot (a stale refetch) goes grey rather than borrowing slot 1.
+  const seriesColor = (paramKey: string): string =>
+    slots[paramKey] === undefined ? CHART_OTHER : chartSeries(slots[paramKey])
 
   const handleExport = () => {
     if (!telemetry) return

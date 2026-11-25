@@ -675,3 +675,31 @@ describe('TireAnalyticsSection chart theme', () => {
     expect(chart.lines.map((l) => l.stroke)).toEqual(['var(--color-chart-1)', 'var(--color-chart-2)'])
   })
 })
+
+describe('TireAnalyticsSection tread chart readout (fix round 1)', () => {
+  afterEach(() => vi.restoreAllMocks())
+  beforeEach(() => respond())
+
+  const plotOne = async (): Promise<void> => {
+    chart.chrome = {}
+    respond({ tires: [tire({ id: 1, brand: 'Front', readings: [reading(1, '8.00'), reading(2, '7.00')] })] })
+    await show()
+  }
+
+  it('formats tooltip values like the table, not as a raw float', async () => {
+    await plotOne()
+    const formatter = chart.chrome.tooltip?.formatter as ((v: unknown, name: unknown) => unknown) | undefined
+    expect(formatter).toBeTypeOf('function')
+    // the row holds the display value: 8 mm is 10.0787... /32 in
+    const shown = formatter!(chart.data[0]['tire-1'], 'tire-1')
+    const text = Array.isArray(shown) ? shown[0] : shown
+    expect(text).toBe('10/32 in')
+  })
+
+  it('gives the tread axis room for its labels', async () => {
+    await plotOne()
+    const width = chart.chrome.yAxis?.width
+    expect(typeof width).toBe('number')
+    expect(width as number).toBeGreaterThanOrEqual(60)
+  })
+})

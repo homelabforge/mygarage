@@ -27,7 +27,7 @@ import { useCurrencyPreference } from '../hooks/useCurrencyPreference'
 import { useTimeFormat } from '../hooks/useTimeFormat'
 import { formatDateTime } from '../utils/parseAPITimestamp'
 import { getActiveDateOrder } from '../constants/i18n'
-import { CHART_AVG_LONG, CHART_AVG_SHORT, CHART_AXIS, CHART_OTHER, ChartTooltipBox, categoryColor, chartLegendText, hasCategorySlot } from '../components/charts/chartTheme'
+import { CHART_AVG_LONG, CHART_AVG_SHORT, CHART_AXIS, CHART_GAP_SURFACE, CHART_OTHER, ChartTooltipBox, categoryColor, chartLegendText, hasCategorySlot } from '../components/charts/chartTheme'
 
 // Running-cost total for one month: service, fuel and DEF. Financing has its
 // own bar/legend entry but is excluded here, same as it's excluded from
@@ -642,10 +642,10 @@ export default function GarageAnalytics() {
                 }}
               />
               <Legend formatter={chartLegendText} wrapperStyle={{ paddingTop: '10px', fontSize: '12px' }} />
-              <Bar dataKey="Service" name={t('garage.cards.maintenance')} fill={categoryColor('Service')} stackId="a" maxBarSize={40} />
-              <Bar dataKey="Fuel" name={t('garage.cards.fuel')} fill={categoryColor('Fuel')} stackId="a" maxBarSize={40} />
-              <Bar dataKey="DEF" name={t('garage.cards.def')} fill={categoryColor('DEF')} stackId="a" maxBarSize={40} />
-              <Bar dataKey="Financing" name={t('garage.cards.financing')} fill={categoryColor('Financing')} stackId="a" maxBarSize={40} />
+              <Bar dataKey="Service" name={t('garage.cards.maintenance')} fill={categoryColor('Service')} stackId="a" stroke={CHART_GAP_SURFACE} strokeWidth={2} maxBarSize={40} />
+              <Bar dataKey="Fuel" name={t('garage.cards.fuel')} fill={categoryColor('Fuel')} stackId="a" stroke={CHART_GAP_SURFACE} strokeWidth={2} maxBarSize={40} />
+              <Bar dataKey="DEF" name={t('garage.cards.def')} fill={categoryColor('DEF')} stackId="a" stroke={CHART_GAP_SURFACE} strokeWidth={2} maxBarSize={40} />
+              <Bar dataKey="Financing" name={t('garage.cards.financing')} fill={categoryColor('Financing')} stackId="a" stroke={CHART_GAP_SURFACE} strokeWidth={2} maxBarSize={40} />
 
               {/* Rolling average trend lines over the running-cost months; each
                   mounts once there are enough of those months to average. */}

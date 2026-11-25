@@ -12,6 +12,7 @@ const captured = vi.hoisted(() => ({
   lineCharts: [] as unknown[],
   // Off by default: when on, every Tooltip renders its content with a fake hover.
   tooltipPayload: null as unknown[] | null,
+  lines: {} as Record<string, { stroke?: string; strokeDasharray?: string }>,
 }))
 vi.mock('recharts', () => {
   const Pass = ({ children }: { children?: ReactNode }) => <>{children}</>
@@ -27,8 +28,13 @@ vi.mock('recharts', () => {
     },
     PieChart: Pass,
     RadarChart: Pass,
-    Line: () => null,
-    Bar: ({ name, fill }: { name?: string; fill?: string }) => <span data-testid="bar-series" data-fill={fill}>{name}</span>,
+    Line: ({ dataKey, stroke, strokeDasharray }: { dataKey: string; stroke?: string; strokeDasharray?: string }) => {
+      captured.lines[dataKey] = { stroke, strokeDasharray }
+      return null
+    },
+    Bar: ({ name, fill, stroke, strokeWidth }: { name?: string; fill?: string; stroke?: string; strokeWidth?: number }) => (
+      <span data-testid="bar-series" data-fill={fill} data-stroke={stroke} data-stroke-width={strokeWidth}>{name}</span>
+    ),
     Pie: () => null,
     Cell: () => null,
     Radar: () => null,
@@ -232,6 +238,7 @@ beforeEach(() => {
   captured.barCharts = []
   captured.lineCharts = []
   captured.tooltipPayload = null
+  captured.lines = {}
 })
 
 afterEach(() => {
@@ -488,5 +495,59 @@ describe('Analytics: chart tooltips and series use the theme tokens', () => {
       'vehicle.categoryFinancing': 'var(--color-chart-6)',
       'vehicle.categorySpotRental': 'var(--color-chart-4)',
     })
+  })
+})
+
+describe('Analytics: stacked segments get a 2px gap in their panel colour', () => {
+  it('strokes the monthly stack with the card surface and the spot-rental stack with the page bg', async () => {
+    mockedApiGet.mockImplementation((url: string) => {
+      if (url.endsWith('/vendors') || url.endsWith('/seasonal') || url.includes('/tires')) return Promise.reject(new Error('n/a'))
+      return Promise.resolve({
+        data: {
+          ...WITH_FINANCING,
+          vehicle_type: 'RV',
+          spot_rental_analysis: {
+            total_cost: '500.00',
+            billing_count: 1,
+            monthly_average: '500.00',
+            monthly_trend: [{ year: 2026, month: 1, month_name: 'January', total_cost: 500, monthly_rate: 400, electric: 60, water: 20, waste: 20 }],
+          },
+        },
+      })
+    })
+    renderAnalytics()
+    await screen.findByText('vehicle.monthlySpotRentalCosts')
+    const bars = Object.fromEntries(
+      screen.getAllByTestId('bar-series').map((el) => [el.textContent, [el.getAttribute('data-stroke'), el.getAttribute('data-stroke-width')]])
+    )
+    for (const k of ['vehicle.categoryService', 'vehicle.categoryFuel', 'vehicle.categoryFinancing', 'vehicle.categorySpotRental']) {
+      expect(bars[k], k).toEqual(['var(--color-surface)', '2'])
+    }
+    for (const k of ['vehicle.monthlyRate', 'vehicle.electric', 'vehicle.water', 'vehicle.waste']) {
+      expect(bars[k], k).toEqual(['var(--color-bg)', '2'])
+    }
+  })
+})
+
+describe('Analytics: the cost trend key matches its lines', () => {
+  it('draws each key swatch with the same colour and dash as its line', async () => {
+    respondWith(WITH_LEASE_ONLY_MONTHS)
+    renderAnalytics()
+    await screen.findByText('vehicle.costTrendsTitle')
+    const keys: Array<[string, string]> = [
+      ['vehicle.legendLineActual', 'actualCost'],
+      ['vehicle.legendLine3m', 'rollingAvg3m'],
+      ['vehicle.legendLine6m', 'rollingAvg6m'],
+    ]
+    const dashes = new Set<string>()
+    for (const [label, dataKey] of keys) {
+      const line = screen.getByText(label).parentElement!.querySelector('svg line')
+      expect(line, label).not.toBeNull()
+      expect(line!.getAttribute('stroke'), label).toBe(captured.lines[dataKey].stroke)
+      expect(line!.getAttribute('stroke-dasharray') ?? undefined, label).toBe(captured.lines[dataKey].strokeDasharray)
+      dashes.add(line!.getAttribute('stroke-dasharray') ?? 'solid')
+    }
+    // the three keys are tellable apart
+    expect(dashes.size).toBe(3)
   })
 })

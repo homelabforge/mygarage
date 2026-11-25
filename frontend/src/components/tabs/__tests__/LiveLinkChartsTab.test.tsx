@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor, cleanup } from '../../../__tests__/test-utils'
-import { fireEvent } from '@testing-library/react'
+import { act, fireEvent } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import type { LiveLinkParameter, LiveLinkParameterListResponse, TelemetryQueryResponse } from '../../../types/livelink'
 
@@ -138,6 +138,7 @@ beforeEach(() => {
   captured.lineChartData = undefined
   captured.tooltipLabelFormatter = undefined
   captured.tooltipStyle = undefined
+  captured.tooltipItemStyle = undefined
   captured.strokes = {}
   getVehicleParameters.mockResolvedValue(PARAMS)
   getTelemetry.mockResolvedValue(TELEMETRY)
@@ -276,5 +277,35 @@ describe('LiveLinkChartsTab chart theme', () => {
     const swatch = chip.querySelector('[data-testid="series-swatch"]') as HTMLElement | null
     expect(swatch?.getAttribute('style') ?? '').toContain('var(--color-chart-2)')
     expect(screen.getByRole('button', { name: /Fourth Param/ }).querySelector('[data-testid="series-swatch"]')).toBeNull()
+  })
+
+  it('gives a series nobody picked the neutral grey, not slot 1', async () => {
+    // a refetch can land with a series the selection no longer holds
+    getTelemetry.mockResolvedValue({
+      ...TELEMETRY,
+      series: [
+        ...TELEMETRY.series,
+        { param_key: 'pX', display_name: 'Stray Param', unit: 'V', min_value: 1, max_value: 2, avg_value: 1.5, data: [{ timestamp: 'x', value: 1 }] },
+      ],
+    })
+    render(<LiveLinkChartsTab vin="V1" />)
+    const stray = (await screen.findByText('Stray Param')).parentElement as HTMLElement
+    expect(stray.getAttribute('style') ?? '').toContain('var(--color-chart-other)')
+    const first = screen.getAllByText('First Param').map((el) => el.parentElement as HTMLElement).find((el) => (el.getAttribute('style') ?? '').includes('border-left'))
+    expect(first?.getAttribute('style') ?? '').toContain('var(--color-chart-1)')
+  })
+
+  it('keeps selection and slots in step when one render handles two toggles', async () => {
+    render(<LiveLinkChartsTab vin="V1" />)
+    await waitFor(() => expect(Object.keys(captured.strokes)).toHaveLength(3))
+    const chip = screen.getByRole('button', { name: /First Param/ })
+    // both clicks land before a re-render, so both handlers see the same render
+    act(() => {
+      fireEvent.click(chip)
+      fireEvent.click(chip)
+    })
+    // the state change re-renders inside act, so strokes now hold the new render
+    expect(screen.getByRole('button', { name: /First Param/ })).toHaveAttribute('aria-pressed', 'true')
+    expect(captured.strokes.p1).toMatch(/^var\(--color-chart-[1-8]\)$/)
   })
 })

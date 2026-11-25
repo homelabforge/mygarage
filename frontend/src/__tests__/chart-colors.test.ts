@@ -18,13 +18,18 @@ const CHART_FILES = [
 const CHART_DIR = 'components/charts'
 
 const HEX = /#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{3,4})\b/
-const COLOUR_PROPS = new Set(['stroke', 'fill'])
-const BACKGROUND_PROPS = new Set(['backgroundColor'])
+// Props whose whole value is a colour. Shorthands like `border` carry a
+// width too, so they only trip the hex rule.
+const COLOUR_PROPS = new Set([
+  'stroke', 'fill', 'color', 'background', 'backgroundColor',
+  'borderColor', 'borderTopColor', 'borderRightColor', 'borderBottomColor', 'borderLeftColor',
+  'outlineColor', 'stopColor', 'floodColor', 'lightingColor', 'fillColor',
+])
 
-/** A literal paint value that's fine anywhere: no paint, or a token. */
+/** A literal paint value that's fine anywhere: no paint, inherited, or a token. */
 function isSafePaint(value: string): boolean {
   const v = value.trim()
-  return v === 'none' || v === 'transparent' || v.startsWith('var(')
+  return ['none', 'transparent', 'inherit', 'currentColor', 'currentcolor'].includes(v) || v.startsWith('var(')
 }
 
 function propName(name: ts.PropertyName | ts.JsxAttributeName, sf: ts.SourceFile): string {
@@ -32,13 +37,27 @@ function propName(name: ts.PropertyName | ts.JsxAttributeName, sf: ts.SourceFile
   return name.getText(sf)
 }
 
-/** What a literal sits in: a JSX attribute or an object property name, or ''. */
+/**
+ * What a literal ends up in: a JSX attribute or an object property name, or ''.
+ * Walks up through the wrappers a value can hide in on the way there:
+ * fill={'blue'}, fill={on ? 'red' : x}, fill={c || 'blue'}, fill={('green')}.
+ */
 function owner(node: ts.Node, sf: ts.SourceFile): string {
-  const parent = node.parent
+  let child: ts.Node = node
+  let parent = node.parent
+  while (
+    ts.isJsxExpression(parent) ||
+    ts.isParenthesizedExpression(parent) ||
+    (ts.isConditionalExpression(parent) && parent.condition !== child) ||
+    (ts.isBinaryExpression(parent) &&
+      [ts.SyntaxKind.BarBarToken, ts.SyntaxKind.QuestionQuestionToken, ts.SyntaxKind.AmpersandAmpersandToken].includes(parent.operatorToken.kind) &&
+      !(parent.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken && parent.left === child))
+  ) {
+    child = parent
+    parent = parent.parent
+  }
   if (ts.isJsxAttribute(parent)) return propName(parent.name, sf)
-  // fill={'blue'} wraps the literal in a JsxExpression first
-  if (ts.isJsxExpression(parent) && ts.isJsxAttribute(parent.parent)) return propName(parent.parent.name, sf)
-  if (ts.isPropertyAssignment(parent) && parent.initializer === node) return propName(parent.name, sf)
+  if (ts.isPropertyAssignment(parent) && parent.initializer === child) return propName(parent.name, sf)
   return ''
 }
 
@@ -67,7 +86,11 @@ function scanChartColours(fileName: string, text: string): ChartColourHit[] {
       if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) {
         const name = owner(node, sf)
         if (COLOUR_PROPS.has(name) && !isSafePaint(value)) reasons.push(`${name} literal`)
-        if (BACKGROUND_PROPS.has(name) && !isSafePaint(value)) reasons.push('backgroundColor literal')
+      }
+      // A built string on a colour prop is fine only as a token: `var(--color-chart-${n})`.
+      if (ts.isTemplateHead(node)) {
+        const name = owner(node.parent, sf)
+        if (COLOUR_PROPS.has(name) && !value.trim().startsWith('var(')) reasons.push(`${name} template`)
       }
       if (reasons.length > 0) {
         const line = sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1
@@ -114,6 +137,29 @@ describe('chart colours come from theme tokens', () => {
       "const d = <Dot fill={{ fill: 'green' }.fill} />",
     ].join('\n')
     expect(scanChartColours('snippet.tsx', snippet).map((h) => h.line)).toEqual([1, 2, 3, 4])
+  })
+
+  // One line per form the first version walked straight past.
+  it.each([
+    ['a ternary branch', "const a = <Line stroke={on ? 'red' : 'var(--color-chart-1)'} />"],
+    ['a fallback', "const a = <Bar fill={c || 'blue'} />"],
+    ['parentheses', "const a = <Bar fill={('green')} />"],
+    ['color', "const a = { color: 'tomato' }"],
+    ['borderColor', "const a = { borderColor: 'navy' }"],
+    ['background', "const a = { background: 'white' }"],
+    ['a template on stroke', 'const a = <Line stroke={`rgb(${r}, 0, 0)`} />'],
+    ['a template on fill', 'const a = { fill: `hsl(${h} 50% 50%)` }'],
+  ])('catches a literal colour through %s', (_form, snippet) => {
+    expect(scanChartColours('snippet.tsx', snippet)).toHaveLength(1)
+  })
+
+  it('still passes token templates and inherited colour', () => {
+    const snippet = [
+      'const a = <Line stroke={`var(--color-chart-${n})`} />',
+      "const b = { color: 'inherit', borderColor: 'currentColor' }",
+      "const c = <Bar fill={on ? 'var(--color-chart-1)' : 'none'} />",
+    ].join('\n')
+    expect(scanChartColours('snippet.tsx', snippet)).toEqual([])
   })
 
   it('leaves comments, tokens and no-paint alone', () => {

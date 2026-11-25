@@ -73,7 +73,7 @@ import { keyForFilename, vinForDisplay } from '../utils/vehicleIdentifier'
 import AdvancedStatistics from '../components/AdvancedStatistics'
 import AnalyticsHelpModal from '../components/AnalyticsHelpModal'
 import TireAnalyticsSection from '../components/TireAnalyticsSection'
-import { CHART_AVG_LONG, CHART_AVG_SHORT, CHART_AXIS, CHART_GRID, ChartTooltipBox, categoryColor, chartLegendText, chartSeries, pieLabelText } from '../components/charts/chartTheme'
+import { CHART_AVG_LONG, CHART_AVG_SHORT, CHART_AXIS, CHART_GAP_BG, CHART_GAP_SURFACE, CHART_GRID, ChartTooltipBox, categoryColor, chartLegendText, chartSeries, pieLabelText } from '../components/charts/chartTheme'
 import ExportMenu from '../components/ExportMenu'
 import { Badge } from '../components/ui'
 import { formatCurrencyZero as formatCurrency, RATE_DIGITS } from '../utils/formatUtils'
@@ -956,16 +956,17 @@ export default function Analytics() {
           <div className="mt-4 p-4 bg-garage-bg rounded-lg">
             <h3 className="text-sm font-semibold text-garage-text mb-2">{t('vehicle.chartLegend')}</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm text-garage-text-muted">
+              {/* Little SVG line keys, so the dash lengths match the lines (CSS dashes can't). */}
               <div className="flex items-center gap-2">
-                <div className="w-4 h-0.5" style={{ backgroundColor: chartSeries(0) }}></div>
+                <svg width="24" height="4" aria-hidden="true" className="shrink-0"><line x1="0" y1="2" x2="24" y2="2" stroke={chartSeries(0)} strokeWidth={3} /></svg>
                 <span>{t('vehicle.legendLineActual')}</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-4 border-t-2 border-dashed" style={{ borderColor: CHART_AVG_SHORT }}></div>
+                <svg width="24" height="4" aria-hidden="true" className="shrink-0"><line x1="0" y1="2" x2="24" y2="2" stroke={CHART_AVG_SHORT} strokeWidth={2} strokeDasharray="5 5" /></svg>
                 <span>{t('vehicle.legendLine3m')}</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-4 border-t-2 border-dashed" style={{ borderColor: CHART_AVG_LONG }}></div>
+                <svg width="24" height="4" aria-hidden="true" className="shrink-0"><line x1="0" y1="2" x2="24" y2="2" stroke={CHART_AVG_LONG} strokeWidth={2} strokeDasharray="3 3" /></svg>
                 <span>{t('vehicle.legendLine6m')}</span>
               </div>
             </div>
@@ -1192,11 +1193,11 @@ export default function Analytics() {
                   formatter={chartLegendText}
                   wrapperStyle={{ paddingTop: '10px', fontSize: '12px' }}
                 />
-                <Bar dataKey="Service" fill={categoryColor('Service')} stackId="a" name={t('vehicle.categoryService')} />
-                <Bar dataKey="Fuel" fill={categoryColor('Fuel')} stackId="a" name={t('vehicle.categoryFuel')} />
-                {defAnalysis && <Bar dataKey="DEF" fill={categoryColor('DEF')} stackId="a" name={t('vehicle.categoryDef')} />}
-                {hasFinancing && <Bar dataKey="Financing" fill={categoryColor('Financing')} stackId="a" name={t('vehicle.categoryFinancing')} />}
-                {hasPropane && <Bar dataKey="Spot Rental" fill={categoryColor('Spot Rental')} stackId="a" name={t('vehicle.categorySpotRental')} />}
+                <Bar dataKey="Service" fill={categoryColor('Service')} stackId="a" stroke={CHART_GAP_SURFACE} strokeWidth={2} name={t('vehicle.categoryService')} />
+                <Bar dataKey="Fuel" fill={categoryColor('Fuel')} stackId="a" stroke={CHART_GAP_SURFACE} strokeWidth={2} name={t('vehicle.categoryFuel')} />
+                {defAnalysis && <Bar dataKey="DEF" fill={categoryColor('DEF')} stackId="a" stroke={CHART_GAP_SURFACE} strokeWidth={2} name={t('vehicle.categoryDef')} />}
+                {hasFinancing && <Bar dataKey="Financing" fill={categoryColor('Financing')} stackId="a" stroke={CHART_GAP_SURFACE} strokeWidth={2} name={t('vehicle.categoryFinancing')} />}
+                {hasPropane && <Bar dataKey="Spot Rental" fill={categoryColor('Spot Rental')} stackId="a" stroke={CHART_GAP_SURFACE} strokeWidth={2} name={t('vehicle.categorySpotRental')} />}
               </RechartsBarChart>
             </ResponsiveContainer>
           </div>
@@ -1658,10 +1659,10 @@ export default function Analytics() {
                     }}
                   />
                   <Legend formatter={chartLegendText} />
-                  <Bar dataKey="monthly_rate" stackId="a" fill={chartSeries(0)} name={t('vehicle.monthlyRate')} />
-                  <Bar dataKey="electric" stackId="a" fill={chartSeries(1)} name={t('vehicle.electric')} />
-                  <Bar dataKey="water" stackId="a" fill={chartSeries(2)} name={t('vehicle.water')} />
-                  <Bar dataKey="waste" stackId="a" fill={chartSeries(3)} name={t('vehicle.waste')} />
+                  <Bar dataKey="monthly_rate" stackId="a" fill={chartSeries(0)} stroke={CHART_GAP_BG} strokeWidth={2} name={t('vehicle.monthlyRate')} />
+                  <Bar dataKey="electric" stackId="a" fill={chartSeries(1)} stroke={CHART_GAP_BG} strokeWidth={2} name={t('vehicle.electric')} />
+                  <Bar dataKey="water" stackId="a" fill={chartSeries(2)} stroke={CHART_GAP_BG} strokeWidth={2} name={t('vehicle.water')} />
+                  <Bar dataKey="waste" stackId="a" fill={chartSeries(3)} stroke={CHART_GAP_BG} strokeWidth={2} name={t('vehicle.waste')} />
                 </RechartsBarChart>
               </ResponsiveContainer>
             </div>
@@ -1796,7 +1797,7 @@ export default function Analytics() {
                     services: vendor.service_count,
                   }))}
                 layout="vertical"
-                margin={{ top: 5, right: 30, left: 10, bottom: 5 }}
+                margin={{ top: 5, right: 30, left: 10, bottom: 20 }}
               >
                 <CartesianGrid stroke={CHART_GRID} />
                 <XAxis

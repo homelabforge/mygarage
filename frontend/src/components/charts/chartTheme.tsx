@@ -10,6 +10,11 @@ export const CHART_AXIS = 'var(--color-text-mute)'
 /** The neutral grey for anything folded into Other. Not a hue on purpose. */
 export const CHART_OTHER = 'var(--color-chart-other)'
 
+// Stacked segments get a 2px gap drawn in whatever the panel behind them is,
+// so pick the one that matches the card the chart sits on.
+export const CHART_GAP_SURFACE = 'var(--color-surface)'
+export const CHART_GAP_BG = 'var(--color-bg)'
+
 // Rolling averages are a reference over the total, not a series of their own,
 // so they stay neutral and dashed instead of borrowing a category's hue.
 export const CHART_AVG_SHORT = 'var(--color-text-dim)'

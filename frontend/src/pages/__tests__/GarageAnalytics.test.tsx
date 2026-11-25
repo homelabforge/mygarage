@@ -35,7 +35,9 @@ vi.mock('recharts', async () => {
       captured.barCharts.push(data)
       return <ChartKind.Provider value="trend">{children}</ChartKind.Provider>
     },
-    Bar: ({ dataKey, fill }: { dataKey?: string; fill?: string }) => <span data-testid="trend-bar" data-key={dataKey} data-fill={fill} />,
+    Bar: ({ dataKey, fill, stroke, strokeWidth }: { dataKey?: string; fill?: string; stroke?: string; strokeWidth?: number }) => (
+      <span data-testid="trend-bar" data-key={dataKey} data-fill={fill} data-stroke={stroke} data-stroke-width={strokeWidth} />
+    ),
     Line: ({ dataKey, stroke }: { dataKey?: string; stroke?: string }) => <span data-testid="trend-line" data-stroke={stroke}>{dataKey}</span>,
     XAxis: () => null,
     YAxis: () => null,
@@ -550,6 +552,10 @@ describe('GarageAnalytics: category colours and the Other fold', () => {
     const bars = Object.fromEntries(
       screen.getAllByTestId('trend-bar').map((b) => [b.getAttribute('data-key'), b.getAttribute('data-fill')])
     )
+    // 2px gap between stacked segments, in the card's surface colour
+    for (const b of screen.getAllByTestId('trend-bar')) {
+      expect([b.getAttribute('data-stroke'), b.getAttribute('data-stroke-width')], b.getAttribute('data-key') ?? '').toEqual(['var(--color-surface)', '2'])
+    }
     expect(bars).toEqual({
       Service: 'var(--color-chart-1)',
       Fuel: 'var(--color-chart-2)',
