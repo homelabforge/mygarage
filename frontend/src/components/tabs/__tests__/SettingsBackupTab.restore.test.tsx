@@ -154,3 +154,19 @@ describe('SettingsBackupTab full restore', () => {
     await waitFor(() => expect(screen.queryByRole('status')).not.toBeInTheDocument())
   })
 })
+
+describe('SettingsBackupTab: Cancel on the confirm does nothing', () => {
+  it('a cancelled restore restores nothing', async () => {
+    render(<SettingsBackupTab />, { wrapper: withConfirm })
+    fireEvent.click(await screen.findByTitle('backup.restoreOverwrite'))
+    await answerConfirm('cancel', 'backupTab.confirmRestoreFull')
+    expect(mockedApi.post).not.toHaveBeenCalled()
+  })
+
+  it('a cancelled delete deletes nothing', async () => {
+    render(<SettingsBackupTab />, { wrapper: withConfirm })
+    fireEvent.click((await screen.findAllByTitle('common:delete'))[0])
+    await answerConfirm('cancel', /^backupTab\.confirmDelete/)
+    expect(mockedApi.delete).not.toHaveBeenCalled()
+  })
+})

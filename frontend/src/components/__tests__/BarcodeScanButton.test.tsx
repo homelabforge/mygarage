@@ -7,7 +7,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import BarcodeScanButton from '../BarcodeScanButton'
 
-const field = (): HTMLElement => screen.getByRole('textbox', { name: 'supplies.barcodeManualPrompt' })
+const field = (): HTMLElement => screen.getByRole('textbox', { name: 'supplies.barcode' })
 
 async function openManual(): Promise<void> {
   await userEvent.click(screen.getByRole('button', { name: 'supplies.scanBarcode' }))

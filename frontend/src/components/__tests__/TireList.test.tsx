@@ -74,7 +74,7 @@ vi.mock('../../hooks/useUnitPreference', () => {
 
 import TireList from '../TireList'
 import { FOUR_LAYOUT } from '../../__tests__/factories'
-import { answerConfirm, withConfirm } from '../../__tests__/confirmHelpers'
+import { answerConfirm, escapeConfirm, withConfirm } from '../../__tests__/confirmHelpers'
 
 const STORED_FL_TIRE = {
   id: 1,
@@ -274,6 +274,20 @@ describe('TireList', () => {
     fireEvent.click(screen.getByText('common:delete'))
     await answerConfirm('cancel', 'tireList.confirmDelete')
 
+    expect(mutate).not.toHaveBeenCalled()
+  })
+
+  // Regression pin: Escape on the confirm must not close the edit drawer under it.
+  it('Escape closes the delete confirm and leaves the edit drawer open', async () => {
+    const mutate = vi.fn()
+    useDeleteTireMock.mockReturnValue({ mutate, isPending: false })
+
+    render(<TireList vin="1HGCM82633A004352" />, { wrapper: withConfirm })
+    fireEvent.click(screen.getByLabelText('tireList.edit'))
+    fireEvent.click(screen.getByText('common:delete'))
+    await escapeConfirm('tireList.confirmDelete')
+
+    expect(screen.getByRole('dialog', { name: /^tireList\.editTitle/ })).toBeInTheDocument()
     expect(mutate).not.toHaveBeenCalled()
   })
 

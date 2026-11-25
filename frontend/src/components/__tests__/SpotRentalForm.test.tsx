@@ -173,15 +173,45 @@ describe('SpotRentalForm — nested Save-to-Address-Book confirm (LD8 wiring net
     expect(apiPost).not.toHaveBeenCalled()
   })
 
+  // The create already landed, so the form must stay busy until the address
+  // book save settles, or a second click makes a second rental.
+  it('stays busy while Save posts the location: Create is disabled and a second submit creates nothing', async () => {
+    const user = userEvent.setup()
+    const onClose = vi.fn(); const onSuccess = vi.fn()
+    let land: (value: unknown) => void = () => {}
+    apiPost.mockImplementationOnce(() => new Promise((resolve) => (land = resolve)))
+    render(<SpotRentalForm vin="V1" onClose={onClose} onSuccess={onSuccess} />)
+    await reachPrompt(user)
+    await user.click(screen.getByRole('button', { name: 'spotRental.yesSave' }))
+    await waitFor(() => expect(apiPost).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
+
+    expect(screen.getByRole('button', { name: 'common:create' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'common:cancel' })).toBeDisabled()
+    fireEvent.submit(document.getElementById('spot-rental-form')!)
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(createMutateAsync).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      land({ data: {} })
+      await Promise.resolve()
+    })
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
+    expect(onSuccess).toHaveBeenCalledTimes(1)
+  })
+
   // Teardown isn't Skip. Skip closes the form, and by then that could be a second
   // form the user opened meanwhile.
   it('unmounting the form with the prompt open closes it, posts nothing and calls neither callback', async () => {
     const user = userEvent.setup()
     const onClose = vi.fn(); const onSuccess = vi.fn()
-    const { unmount } = render(<SpotRentalForm vin="V1" onClose={onClose} onSuccess={onSuccess} />)
+    const { rerender } = render(<SpotRentalForm vin="V1" onClose={onClose} onSuccess={onSuccess} />)
     await reachPrompt(user)
 
-    unmount()
+    // Only the form goes. The ConfirmProvider stays mounted, so a dialog left open would still show.
+    rerender(<div />)
 
     await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
     await act(async () => {
@@ -197,13 +227,13 @@ describe('SpotRentalForm — nested Save-to-Address-Book confirm (LD8 wiring net
     const onClose = vi.fn(); const onSuccess = vi.fn()
     let land: (value: unknown) => void = () => {}
     createMutateAsync.mockImplementationOnce(() => new Promise((resolve) => (land = resolve)))
-    const { unmount } = render(<SpotRentalForm vin="V1" onClose={onClose} onSuccess={onSuccess} />)
+    const { rerender } = render(<SpotRentalForm vin="V1" onClose={onClose} onSuccess={onSuccess} />)
     fireEvent.change(screen.getByLabelText('spotRental.checkInDate *'), { target: { value: '2026-03-01' } })
     await user.type(screen.getByLabelText('spotRental.locationName'), 'Lakeside RV')
     await user.click(screen.getByRole('button', { name: 'common:create' }))
     await waitFor(() => expect(createMutateAsync).toHaveBeenCalledTimes(1))
 
-    unmount()
+    rerender(<div />)
     await act(async () => {
       land({})
       await Promise.resolve()
@@ -220,12 +250,12 @@ describe('SpotRentalForm — nested Save-to-Address-Book confirm (LD8 wiring net
     const onClose = vi.fn(); const onSuccess = vi.fn()
     let land: (value: unknown) => void = () => {}
     createMutateAsync.mockImplementationOnce(() => new Promise((resolve) => (land = resolve)))
-    const { unmount } = render(<SpotRentalForm vin="V1" onClose={onClose} onSuccess={onSuccess} />)
+    const { rerender } = render(<SpotRentalForm vin="V1" onClose={onClose} onSuccess={onSuccess} />)
     fireEvent.change(screen.getByLabelText('spotRental.checkInDate *'), { target: { value: '2026-03-01' } })
     await user.click(screen.getByRole('button', { name: 'common:create' }))
     await waitFor(() => expect(createMutateAsync).toHaveBeenCalledTimes(1))
 
-    unmount()
+    rerender(<div />)
     await act(async () => {
       land({})
       await Promise.resolve()
@@ -240,12 +270,12 @@ describe('SpotRentalForm — nested Save-to-Address-Book confirm (LD8 wiring net
     const onClose = vi.fn(); const onSuccess = vi.fn()
     let land: (value: unknown) => void = () => {}
     apiPost.mockImplementationOnce(() => new Promise((resolve) => (land = resolve)))
-    const { unmount } = render(<SpotRentalForm vin="V1" onClose={onClose} onSuccess={onSuccess} />)
+    const { rerender } = render(<SpotRentalForm vin="V1" onClose={onClose} onSuccess={onSuccess} />)
     await reachPrompt(user)
     await user.click(screen.getByRole('button', { name: 'spotRental.yesSave' }))
     await waitFor(() => expect(apiPost).toHaveBeenCalledTimes(1))
 
-    unmount()
+    rerender(<div />)
     await act(async () => {
       land({ data: {} })
       await Promise.resolve()

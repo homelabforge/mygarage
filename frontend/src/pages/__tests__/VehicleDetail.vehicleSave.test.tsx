@@ -198,7 +198,8 @@ function renderPage(client: QueryClient, path = `/vehicles/${VIN}`) {
           <Route path="/vehicles/:vin" element={<VehicleDetail />} />
         </Routes>
       </MemoryRouter>
-    </QueryClientProvider>, { wrapper: withConfirm },
+    </QueryClientProvider>,
+    { wrapper: withConfirm },
   )
 }
 

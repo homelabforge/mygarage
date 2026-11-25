@@ -92,6 +92,11 @@ export default function SpotRentalForm({ vin, rental, onClose, onSuccess }: Spot
   const createMutation = useCreateSpotRental(vin)
   const updateMutation = useUpdateSpotRental(vin)
   const [selectedAddressEntry, setSelectedAddressEntry] = useState<AddressBookEntry | null>(null)
+  // From a create that landed until the form closes. The rental exists, so a
+  // second submit in that window would make a duplicate. The ref answers a
+  // fast double submit before the state re-renders.
+  const [finishing, setFinishing] = useState(false)
+  const finishingRef = useRef(false)
   const [rateType, setRateType] = useState<RateType>(() => {
     if (rental?.monthly_rate) return 'monthly'
     if (rental?.weekly_rate) return 'weekly'
@@ -177,6 +182,7 @@ export default function SpotRentalForm({ vin, rental, onClose, onSuccess }: Spot
   }
 
   const onSubmit = async (data: SpotRentalFormData) => {
+    if (finishingRef.current) return
     setError(null)
 
     try {
@@ -208,8 +214,11 @@ export default function SpotRentalForm({ vin, rental, onClose, onSuccess }: Spot
         if (!mounted.current) return
 
         // Check if this is a new location (not from address book)
-        // Not awaited, so the submit finishes and the footer isn't stuck on Saving under the question.
+        // Not awaited, so the footer isn't stuck on Saving under the question.
+        // `finishing` keeps it disabled instead, until the address book save settles.
         if (data.location_name && !selectedAddressEntry) {
+          finishingRef.current = true
+          setFinishing(true)
           void offerAddressBook(data.location_name, data.location_address || '')
         } else {
           onSuccess()
@@ -248,10 +257,10 @@ export default function SpotRentalForm({ vin, rental, onClose, onSuccess }: Spot
       width="md"
       footer={
         <>
-          <Button variant="secondary" onClick={onClose} disabled={isSubmitting}>
+          <Button variant="secondary" onClick={onClose} disabled={isSubmitting || finishing}>
             {t('common:cancel')}
           </Button>
-          <Button type="submit" form="spot-rental-form" variant="primary" icon={Save} loading={isSubmitting} disabled={isSubmitting}>
+          <Button type="submit" form="spot-rental-form" variant="primary" icon={Save} loading={isSubmitting} disabled={isSubmitting || finishing}>
             {isSubmitting ? t('common:saving') : isEdit ? t('common:update') : t('common:create')}
           </Button>
         </>

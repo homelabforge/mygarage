@@ -433,4 +433,30 @@ describe('Analytics: period comparison problems', () => {
       toastError.mockRestore()
     }
   })
+
+  it('says a failed comparison in a toast, not a native alert', async () => {
+    const toastError = vi.spyOn(toast, 'error').mockImplementation(() => 0)
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      await mountWith(METRIC_UNITS)
+      const answer = mockedApiGet.getMockImplementation()!
+      mockedApiGet.mockImplementation((url: string) =>
+        url.includes('/compare?') ? Promise.reject(new Error('compare failed')) : answer(url),
+      )
+
+      fireEvent.click(screen.getByText('vehicle.comparePeriods'))
+      await waitFor(() =>
+        expect(document.querySelectorAll('input[type="date"]')).toHaveLength(4)
+      )
+      document.querySelectorAll('input[type="date"]').forEach((input, i) => {
+        fireEvent.change(input, { target: { value: `2026-0${i + 1}-01` } })
+      })
+      fireEvent.click(await screen.findByText('vehicle.runComparison'))
+
+      await waitFor(() => expect(toastError).toHaveBeenCalledWith('vehicle.comparisonFailed'))
+    } finally {
+      toastError.mockRestore()
+      consoleError.mockRestore()
+    }
+  })
 })

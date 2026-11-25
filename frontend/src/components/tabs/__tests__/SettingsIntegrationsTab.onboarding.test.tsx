@@ -97,7 +97,8 @@ describe('Adding a source with no devices at all', () => {
         <SettingsProvider>
           <ActiveIntegrationsTab />
         </SettingsProvider>
-      </QueryClientProvider>, { wrapper: withConfirm },
+      </QueryClientProvider>,
+      { wrapper: withConfirm },
     )
 
     // The card has loaded its strip: no device tab exists.

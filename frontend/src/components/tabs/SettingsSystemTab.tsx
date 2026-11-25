@@ -323,7 +323,7 @@ export default function SettingsSystemTab() {
           : authEverEnabled === false
             ? t('auth.confirmOidcFirstUser', { provider })
             : t('auth.confirmOidc', { provider })
-    if (!(await confirm({ message: message, confirmLabel: t('common:continue'), tone: 'default' }))) return
+    if (!(await confirm({ message, confirmLabel: t('common:continue'), tone: 'default' }))) return
 
     // Whether this switch is the one turning SSO on, so a failed mode write can undo it.
     // Set before the PUT, since a lost reply can still have committed. The re-read decides.

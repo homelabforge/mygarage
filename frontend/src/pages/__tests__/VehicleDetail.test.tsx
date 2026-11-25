@@ -591,7 +591,8 @@ describe('VehicleDetail', () => {
           </Routes>
           <Link to="/vehicles/BBBBBBBBBBBBBBBBB?tab=tires">go B</Link>
         </MemoryRouter>
-      </QueryClientProvider>, { wrapper: withConfirm },
+      </QueryClientProvider>,
+      { wrapper: withConfirm },
     )
     expect(await screen.findByText('Boat A')).toBeInTheDocument()
 
@@ -800,7 +801,8 @@ describe('VehicleDetail', () => {
           </Routes>
           <Link to="/vehicles/BBBBBBBBBBBBBBBBB">go B</Link>
         </MemoryRouter>
-      </QueryClientProvider>, { wrapper: withConfirm },
+      </QueryClientProvider>,
+      { wrapper: withConfirm },
     )
     await waitFor(() => expect(screen.getByText('Test Car')).toBeInTheDocument())
     // Navigate A -> B (same route element, useParams changes -> [vin] effect re-runs).
@@ -831,7 +833,8 @@ describe('VehicleDetail', () => {
           </Routes>
           <Link to={bPath}>go B</Link>
         </MemoryRouter>
-      </QueryClientProvider>, { wrapper: withConfirm },
+      </QueryClientProvider>,
+      { wrapper: withConfirm },
     )
   }
 
@@ -1077,7 +1080,8 @@ describe('VehicleDetail', () => {
             <Route path="/vehicles/:vin" element={<VehicleDetail />} />
           </Routes>
         </MemoryRouter>
-      </QueryClientProvider>, { wrapper: withConfirm },
+      </QueryClientProvider>,
+      { wrapper: withConfirm },
     )
     await waitFor(() =>
       expect(mockedVehicleService.getDetailStats).toHaveBeenCalledWith('TEST12345678901234'),

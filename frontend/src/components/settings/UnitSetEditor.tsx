@@ -111,7 +111,7 @@ export default function UnitSetEditor({
   onSelect,
 }: UnitSetEditorProps): React.ReactElement {
   const { t } = useTranslation('settings')
-  const ask = useConfirm()
+  const confirm = useConfirm()
   // Compact only: the page asks through the confirm dialog instead.
   const [pendingPreset, setPendingPreset] = useState<PresetChoice | null>(null)
   // Compact only. Closed on every mount, even for a Custom account: the drawer
@@ -158,7 +158,7 @@ export default function UnitSetEditor({
   }
 
   const askPreset = async (preset: PresetChoice): Promise<void> => {
-    const ok = await ask({
+    const ok = await confirm({
       message: t('units.presetConfirmTitle', { preset: t(preset.labelKey) }),
       detail: consequence(preset),
       confirmLabel: t('units.presetConfirmAction'),

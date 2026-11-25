@@ -136,7 +136,8 @@ export default function BarcodeScanButton({ onScan, label }: BarcodeScanButtonPr
           <Input
             value={typed}
             onChange={(e) => setTyped(e.target.value)}
-            aria-label={t('supplies.barcodeManualPrompt')}
+            // The title already reads the prompt; the field just says what it holds.
+            aria-label={t('supplies.barcode')}
             autoComplete="off"
           />
         </form>

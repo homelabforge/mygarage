@@ -145,7 +145,8 @@ function renderVehicleDetail(initialPath = '/vehicles/TEST12345678901234') {
           <Route path="/" element={<div>Dashboard</div>} />
         </Routes>
       </MemoryRouter>
-    </QueryClientProvider>, { wrapper: withConfirm }
+    </QueryClientProvider>,
+    { wrapper: withConfirm }
   )
 }
 

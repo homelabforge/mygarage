@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import type { DEFRecord } from '../../types/def'
 
 // Mock the DEF query hooks so this stays a unit test — no QueryClient/api wiring.
@@ -82,7 +82,7 @@ vi.mock('../../hooks/useCurrencyPreference', () => ({
 
 import { METRIC_UNITS, UK_IMPERIAL_UNITS } from '../../__tests__/factories'
 import DEFRecordList from '../DEFRecordList'
-import { withConfirm } from '../../__tests__/confirmHelpers'
+import { answerConfirm, withConfirm } from '../../__tests__/confirmHelpers'
 
 const mockRecord: DEFRecord = {
   id: 1,
@@ -269,5 +269,30 @@ describe('DEFRecordList — one gallon per page, taken from the user', () => {
     expect(screen.getByText('defList.avgCostPerVolume (L)')).toBeInTheDocument()
     expect(screen.getByText('$1.19')).toBeInTheDocument()
     expect(screen.getByText('defList.volumeTotal (20.8 L)')).toBeInTheDocument()
+  })
+})
+
+describe('DEFRecordList: delete asks first', () => {
+  it('a confirmed delete deletes that record', async () => {
+    const mutate = vi.fn()
+    useDeleteDEFRecordMock.mockReturnValue({ mutate, isPending: false, variables: undefined })
+    render(<DEFRecordList vin="TEST12345678901234" />, { wrapper: withConfirm })
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'common:delete' })[0])
+    await answerConfirm('confirm', 'defList.confirmDelete')
+
+    expect(mutate).toHaveBeenCalledTimes(1)
+    expect(mutate.mock.calls[0][0]).toBe(1)
+  })
+
+  it('a cancelled delete deletes nothing', async () => {
+    const mutate = vi.fn()
+    useDeleteDEFRecordMock.mockReturnValue({ mutate, isPending: false, variables: undefined })
+    render(<DEFRecordList vin="TEST12345678901234" />, { wrapper: withConfirm })
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'common:delete' })[0])
+    await answerConfirm('cancel', 'defList.confirmDelete')
+
+    expect(mutate).not.toHaveBeenCalled()
   })
 })

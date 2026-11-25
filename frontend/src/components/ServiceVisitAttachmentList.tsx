@@ -42,7 +42,7 @@ export default function ServiceVisitAttachmentList({
     fetchAttachments().finally(() => setLoading(false))
   }, [fetchAttachments, refreshTrigger])
 
-  const handleDelete = async (attachmentId: number) => {
+  const handleDelete = async (attachmentId: number): Promise<void> => {
     if (!(await confirm({ message: t('serviceVisitAttachments.confirmDelete'), confirmLabel: t('common:delete') }))) {
       return
     }

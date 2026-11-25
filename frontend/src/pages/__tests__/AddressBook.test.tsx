@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, fireEvent, waitFor, screen, within } from '../../__tests__/test-utils' // selects by id (i18n mock renders keys)
 import AddressBook, { AddressBookForm, displayCategory } from '../AddressBook'
 import { registeredFieldNames, validationError, whereA422Lands, dropQueuedOnces } from '../../__tests__/serverErrors'
-import { answerConfirm } from '../../__tests__/confirmHelpers'
+import { answerConfirm, escapeConfirm } from '../../__tests__/confirmHelpers'
 
 // vi.mock is hoisted above module-level consts, so spies must be created with vi.hoisted.
 const { get, post, put, del } = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn(), put: vi.fn(), del: vi.fn() }))
@@ -343,6 +343,18 @@ describe('AddressBookForm — delete + notes placeholder', () => {
     await answerConfirm('confirm', 'addressBook.confirmDelete')
     await waitFor(() => expect(del).toHaveBeenCalledWith('/address-book/7'))
     expect(onSuccess).toHaveBeenCalled()
+  })
+
+  // Regression pin: the form is a drawer, so Escape on the confirm must leave it open.
+  it('Escape closes the delete confirm and leaves the form drawer open', async () => {
+    const onClose = vi.fn()
+    render(<AddressBookForm entry={{ id: 7, business_name: 'Old Shop' } as never} onClose={onClose} onSuccess={() => {}} />)
+    fireEvent.click(buttonWithText('common:delete') as HTMLButtonElement)
+    await escapeConfirm('addressBook.confirmDelete')
+
+    expect(onClose).not.toHaveBeenCalled()
+    expect(screen.getByRole('dialog', { name: 'addressBook.editContact' })).toBeInTheDocument()
+    expect(del).not.toHaveBeenCalled()
   })
 
   it('renders a real notes placeholder (guards the [object Object] regression)', () => {
