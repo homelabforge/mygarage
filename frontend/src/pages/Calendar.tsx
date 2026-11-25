@@ -76,6 +76,13 @@ const EVENT_CHIP: Record<EventType, string> = {
   warranty: 'bg-(--color-cal-warranty-container) text-(--color-cal-warranty-on)',
   service: 'bg-(--color-cal-service-container) text-(--color-cal-service-on)',
 }
+// A selected type filter is its event chip with a coloured edge, so filters match the grid.
+const EVENT_FILTER_ON: Record<EventType, string> = {
+  maintenance: `${EVENT_CHIP.maintenance} border border-(--color-cal-maintenance)`,
+  insurance: `${EVENT_CHIP.insurance} border border-(--color-cal-insurance)`,
+  warranty: `${EVENT_CHIP.warranty} border border-(--color-cal-warranty)`,
+  service: `${EVENT_CHIP.service} border border-(--color-cal-service)`,
+}
 // Anything the backend adds later reads as maintenance, like the old chip did.
 const eventChip = (type: string): string => EVENT_CHIP[type as EventType] ?? EVENT_CHIP.maintenance
 
@@ -532,17 +539,17 @@ function CalendarInner({ householdTimeZone }: { householdTimeZone: string | null
           }`}>
             <div className="flex items-center gap-2 mb-2">
               <AlertCircle className={`w-5 h-5 ${summary.overdue > 0 ? 'text-danger' : 'text-garage-text-muted'}`} />
-              <span className={`text-sm ${summary.overdue > 0 ? 'text-danger' : 'text-garage-text-muted'}`}>{t('calendar.overdue')}</span>
+              <span className={`text-sm ${summary.overdue > 0 ? 'text-garage-text' : 'text-garage-text-muted'}`}>{t('calendar.overdue')}</span>
             </div>
-            <p className={`text-2xl font-bold ${summary.overdue > 0 ? 'text-danger' : 'text-garage-text'}`}>{summary.overdue}</p>
+            <p className="text-2xl font-bold text-garage-text">{summary.overdue}</p>
           </div>
 
           <div className="bg-garage-surface border border-warning rounded-lg p-4">
             <div className="flex items-center gap-2 mb-2">
               <Clock className="w-5 h-5 text-warning" />
-              <span className="text-sm text-warning">{t('calendar.next7Days')}</span>
+              <span className="text-sm text-garage-text">{t('calendar.next7Days')}</span>
             </div>
-            <p className="text-2xl font-bold text-warning">{summary.upcoming_7_days}</p>
+            <p className="text-2xl font-bold text-garage-text">{summary.upcoming_7_days}</p>
           </div>
 
           <div className="bg-garage-surface border border-primary rounded-lg p-4">
@@ -568,7 +575,7 @@ function CalendarInner({ householdTimeZone }: { householdTimeZone: string | null
                 onClick={() => setBulkMode(!bulkMode)}
                 className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
                   bulkMode
-                    ? 'bg-primary text-(--accent-on-solid)'
+                    ? 'bg-(--accent-solid) text-(--accent-on-solid)'
                     : 'bg-garage-bg text-garage-text-muted border border-garage-border hover:border-primary'
                 }`}
               >
@@ -624,7 +631,7 @@ function CalendarInner({ householdTimeZone }: { householdTimeZone: string | null
                   <button
                     onClick={handleBulkComplete}
                     disabled={selectedEvents.length === 0 || bulkCompleting}
-                    className="px-3 py-1 rounded-lg text-sm bg-success text-white hover:bg-success-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    className="px-3 py-1 rounded-lg text-sm bg-success text-on-status hover:bg-success-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
                     {bulkCompleting ? t('calendar.completing') : t('calendar.completeSelected')}
                   </button>
@@ -650,7 +657,7 @@ function CalendarInner({ householdTimeZone }: { householdTimeZone: string | null
                     onClick={() => toggleVehicle(vehicle.vin)}
                     className={`px-3 py-1 rounded-lg text-sm transition-colors ${
                       selectedVehicles.length === 0 || selectedVehicles.includes(vehicle.vin)
-                        ? 'bg-primary text-(--accent-on-solid)'
+                        ? 'bg-(--accent-solid) text-(--accent-on-solid)'
                         : 'bg-garage-bg text-garage-text-muted border border-garage-border'
                     }`}
                   >
@@ -671,7 +678,7 @@ function CalendarInner({ householdTimeZone }: { householdTimeZone: string | null
                   onClick={() => toggleEventType('maintenance')}
                   className={`px-3 py-1 rounded-lg text-sm transition-colors ${
                     selectedTypes.includes('maintenance')
-                      ? 'bg-blue-600 text-white'
+                      ? EVENT_FILTER_ON.maintenance
                       : 'bg-garage-bg text-garage-text-muted border border-garage-border'
                   }`}
                 >
@@ -681,7 +688,7 @@ function CalendarInner({ householdTimeZone }: { householdTimeZone: string | null
                   onClick={() => toggleEventType('insurance')}
                   className={`px-3 py-1 rounded-lg text-sm transition-colors ${
                     selectedTypes.includes('insurance')
-                      ? 'bg-red-600 text-white'
+                      ? EVENT_FILTER_ON.insurance
                       : 'bg-garage-bg text-garage-text-muted border border-garage-border'
                   }`}
                 >
@@ -691,7 +698,7 @@ function CalendarInner({ householdTimeZone }: { householdTimeZone: string | null
                   onClick={() => toggleEventType('warranty')}
                   className={`px-3 py-1 rounded-lg text-sm transition-colors ${
                     selectedTypes.includes('warranty')
-                      ? 'bg-amber-600 text-white'
+                      ? EVENT_FILTER_ON.warranty
                       : 'bg-garage-bg text-garage-text-muted border border-garage-border'
                   }`}
                 >
@@ -701,7 +708,7 @@ function CalendarInner({ householdTimeZone }: { householdTimeZone: string | null
                   onClick={() => setShowHistory(!showHistory)}
                   className={`px-3 py-1 rounded-lg text-sm transition-colors ${
                     showHistory
-                      ? 'bg-gray-600 text-white'
+                      ? EVENT_FILTER_ON.service
                       : 'bg-garage-bg text-garage-text-muted border border-garage-border'
                   }`}
                 >
@@ -792,14 +799,14 @@ function CalendarInner({ householdTimeZone }: { householdTimeZone: string | null
                           {event.is_recurring && <RotateCw className="w-3 h-3 text-(--accent-fg)" />}
                           {/* Phase 3: Estimated badge */}
                           {event.is_estimated && (
-                            <span className="flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-amber-500/20 text-amber-500">
+                            <span className="flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-warning text-on-status">
                               <Gauge className="w-3 h-3" />
                               {t('calendar.misc.estBadge')}
                             </span>
                           )}
                           {/* Phase 3: Mileage badge */}
                           {event.due_mileage_km && (
-                            <span className="flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-blue-500/20 text-blue-500">
+                            <span className="flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-(--accent-soft) text-(--accent-fg)">
                               <Gauge className="w-3 h-3" />
                               {formatFor(event.vehicle_distance_unit).distance.formatPrimary(parseFloat(event.due_mileage_km))}
                             </span>
@@ -818,11 +825,11 @@ function CalendarInner({ householdTimeZone }: { householdTimeZone: string | null
                           <div className="flex flex-wrap gap-1.5 mt-1.5">
                             {event.status && (
                               <span className={`text-xs px-1.5 py-0.5 rounded ${
-                                event.status === 'overdue' ? 'bg-danger/20 text-danger' :
-                                event.status === 'due_soon' ? 'bg-warning/20 text-warning' :
-                                event.status === 'snoozed' ? 'bg-garage-bg text-garage-text-muted' :
-                                event.status === 'never_performed' ? 'bg-purple-500/20 text-purple-400' :
-                                'bg-success/20 text-success'
+                                event.status === 'overdue' ? 'bg-danger text-on-status' :
+                                event.status === 'due_soon' ? 'bg-warning text-on-status' :
+                                event.status === 'snoozed' ? 'bg-badge-bg text-badge-tx' :
+                                event.status === 'never_performed' ? 'bg-(--accent-soft) text-(--accent-fg)' :
+                                'bg-success text-on-status'
                               }`}>
                                 {event.status === 'due_soon' ? t('calendar.misc.statusDueSoon') :
                                  event.status === 'snoozed' ? t('calendar.misc.statusSnoozed') :
@@ -843,9 +850,9 @@ function CalendarInner({ householdTimeZone }: { householdTimeZone: string | null
                               const displayValue = distance.toDisplay(km) ?? 0
                               return (
                                 <span className={`text-xs px-1.5 py-0.5 rounded ${
-                                  displayValue <= 0 ? 'bg-danger/20 text-danger' :
-                                  displayValue <= warnThresholdInDisplay ? 'bg-warning/20 text-warning' :
-                                  'bg-garage-bg text-garage-text-muted'
+                                  displayValue <= 0 ? 'bg-danger text-on-status' :
+                                  displayValue <= warnThresholdInDisplay ? 'bg-warning text-on-status' :
+                                  'bg-badge-bg text-badge-tx'
                                 }`}>
                                   {displayValue <= 0
                                     ? t('calendar.misc.distanceOver', { distance: distance.formatPrimary(Math.abs(km)) })
@@ -919,7 +926,7 @@ function CalendarInner({ householdTimeZone }: { householdTimeZone: string | null
             </div>
             {/* Phase 3: New legend items */}
             <div className="flex items-center gap-2">
-              <span className="flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-amber-500/20 text-amber-500">
+              <span className="flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-warning text-on-status">
                 <Gauge className="w-3 h-3" />
                 {t('calendar.misc.estBadge')}
               </span>
@@ -955,7 +962,7 @@ function CalendarInner({ householdTimeZone }: { householdTimeZone: string | null
                     <RotateCw className="w-3 h-3 text-(--accent-fg)" />
                   )}
                   {selectedEventForNotes.is_estimated && (
-                    <span className="flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-amber-500/20 text-amber-500">
+                    <span className="flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-warning text-on-status">
                       <Gauge className="w-3 h-3" />
                       {t('calendar.misc.estBadge')}
                     </span>

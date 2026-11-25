@@ -1061,7 +1061,8 @@ describe('Schedule-X colour bridge', () => {
   const SX_SKIPPED: Record<string, string> = {
     '--sx-color-secondary': 'never read by the theme css or core.js',
     '--sx-color-on-secondary': 'never read by the theme css or core.js',
-    '--sx-color-secondary-container': 'never read by the theme css or core.js',
+    // time-picker.css reads it, but Calendar.tsx only imports index.css.
+    '--sx-color-secondary-container': 'never read by the imported index.css or core.js',
     '--sx-color-on-secondary-container': 'never read by the theme css or core.js',
     '--sx-color-tertiary': 'never read by the theme css or core.js',
     '--sx-color-on-tertiary': 'never read by the theme css or core.js',
@@ -1091,9 +1092,11 @@ describe('Schedule-X colour bridge', () => {
   })
 
   it('only skips colours nothing reads', () => {
-    const read = Object.keys(SX_SKIPPED).filter(
-      (name) => themeCss.includes(`var(${name})`) || coreJs.includes(`var(${name})`),
-    )
+    // The fallback form too: var(--x, ...) reads it just the same.
+    const reads = (name: string): RegExp => new RegExp(String.raw`var\(\s*${name}\s*[,)]`)
+    expect('color: var( --sx-color-shadow , #000)').toMatch(reads('--sx-color-shadow'))
+    expect('color: var(--sx-color-shadow-2)').not.toMatch(reads('--sx-color-shadow'))
+    const read = Object.keys(SX_SKIPPED).filter((name) => reads(name).test(themeCss) || reads(name).test(coreJs))
     expect(read).toEqual([])
   })
 

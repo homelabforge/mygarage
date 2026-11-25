@@ -196,7 +196,6 @@ test('every event colour pair reads at 4.5:1 or better in both themes', async ({
   await page.goto('/calendar')
   await expect(page.locator('.sx__calendar')).toBeVisible({ timeout: 15000 })
   const start = await currentTheme(page)
-  const ratios: string[] = []
   for (const theme of [start, start === 'dark' ? 'light' : 'dark', start] as Theme[]) {
     if ((await currentTheme(page)) !== theme) await flipTheme(page, theme)
     for (const type of CAL_TYPES) {
@@ -205,11 +204,9 @@ test('every event colour pair reads at 4.5:1 or better in both themes', async ({
         await computed(page, `var(--color-cal-${type}-on)`),
         await computed(page, `var(--color-cal-${type}-container)`),
       )
-      ratios.push(`${theme} ${type} ${ratio.toFixed(2)}`)
-      expect(ratio, `${theme} ${type}`).toBeGreaterThanOrEqual(4.5)
+      expect(ratio, `${theme} ${type} on/container is ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(4.5)
     }
   }
-  console.log(`cal on/container contrast: ${ratios.join(' | ')}`)
 })
 
 /** One screen pixel's RGB, out of a 1x1 screenshot (filter byte, then r, g, b). */
@@ -250,11 +247,11 @@ test('the notes drawer dims the calendar, sticky week header included', async ({
   // A DOM click, so Playwright doesn't scroll the button into view and move the points.
   await page.getByRole('button', { name: 'View notes' }).first().evaluate((el: HTMLElement) => el.click())
   await expect(page.getByTestId('drawer')).toContainText(NOTES)
-  await page.waitForTimeout(400)
+  // Wait out the backdrop's fade, so the pixels are the settled ones.
+  await expect.poll(() => page.getByTestId('drawer-backdrop').evaluate((el) => getComputedStyle(el).opacity)).toBe('1')
   expect((await header.boundingBox())!.y).toBe(hb.y)
   const dimmed = await pixel(page, ...gridPoint)
   const headerNow = await pixel(page, ...headerPoint)
-  console.log(`week header pixel: plain ${plain} grid dimmed ${dimmed} header now ${headerNow}`)
-  expect(gap(dimmed, plain), 'the backdrop dims the grid').toBeGreaterThan(4)
-  expect(gap(headerNow, dimmed), 'the week header sits under the backdrop too').toBeLessThanOrEqual(2)
+  expect(gap(dimmed, plain), `the backdrop dims the grid (${plain} to ${dimmed})`).toBeGreaterThan(4)
+  expect(gap(headerNow, dimmed), `the week header sits under the backdrop too (${headerNow} vs grid ${dimmed})`).toBeLessThanOrEqual(2)
 })

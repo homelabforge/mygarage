@@ -446,11 +446,9 @@
   height: 100%;
 }
 
-/* Schedule-X's own Material palette, pointed at ours so the chrome follows the
- * theme. Its .is-dark block sits on an inner element, hence the second
- * selector. design-tokens.test.ts holds every --sx colour to this block or a
- * skip list. Primary is the solid accent because on-primary is the solid's ink.
- * neutral and border get redeclared: theirs are var()s resolved up on :root. */
+/* Schedule-X's palette pointed at ours, so the calendar follows the theme.
+ * Its .is-dark sits on an inner element, hence the second selector.
+ * design-tokens.test.ts checks every --sx colour is here or skipped. */
 .sx-calendar-wrapper,
 .sx-calendar-wrapper .is-dark {
   --sx-color-primary: var(--accent-solid);
