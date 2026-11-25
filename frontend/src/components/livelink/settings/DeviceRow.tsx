@@ -47,10 +47,12 @@ import type { DeviceStatusWord } from '../integrationStatus'
  * wire features by kind (see `wicanWire`).
  */
 
+// Status words take the status tokens, never a chart slot: these mean
+// good/bad, not "which series".
 const STATUS_COLOR: Readonly<Record<DeviceStatusWord, string>> = {
-  online: 'text-green-500',
-  offline: 'text-red-500',
-  unknown: 'text-gray-500',
+  online: 'text-success',
+  offline: 'text-danger',
+  unknown: 'text-text-mute',
 }
 
 interface Props {

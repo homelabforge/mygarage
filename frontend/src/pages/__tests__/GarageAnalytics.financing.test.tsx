@@ -177,7 +177,10 @@ describe('GarageAnalytics — financing in the monthly trend', () => {
 })
 
 describe('GarageAnalytics — financing in the category legend', () => {
-  it('gives every category, including the tenth, its own colour', async () => {
+  // Was "every category gets its own colour". With 8 chart slots the three
+  // without one (Inspection, Collision, Detailing) share the Other grey now,
+  // and Financing, the tenth, still gets a hue of its own.
+  it('gives Financing, the tenth, its own colour; only the slotless three share Other', async () => {
     const CATEGORIES = [
       'Maintenance', 'Upgrades', 'Inspection', 'Collision', 'Detailing',
       'Fuel', 'DEF', 'Insurance', 'Taxes', 'Financing',
@@ -195,9 +198,13 @@ describe('GarageAnalytics — financing in the category legend', () => {
       const swatch = screen.getByText(label).querySelector('span')!
       return swatch.style.backgroundColor
     }
-    const colors = CATEGORIES.map(swatchColor)
-    // Each category needs its own colour.
-    expect(new Set(colors).size).toBe(CATEGORIES.length)
+    const colors = Object.fromEntries(CATEGORIES.map((c) => [c, swatchColor(c)]))
+    const folded = ['Inspection', 'Collision', 'Detailing']
+    const own = CATEGORIES.filter((c) => !folded.includes(c))
+    expect(new Set(own.map((c) => colors[c])).size).toBe(own.length)
+    expect(new Set(folded.map((c) => colors[c])).size).toBe(1)
+    expect(own.map((c) => colors[c])).not.toContain(colors.Inspection)
+    expect(colors.Financing).not.toBe(colors.Maintenance)
   })
 })
 

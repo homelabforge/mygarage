@@ -25,6 +25,7 @@ import { parseAPITimestampMs } from '@/utils/parseAPITimestamp'
 import { useTimeFormat } from '@/hooks/useTimeFormat'
 import { formatTime, formatDateTime } from '@/utils/parseAPITimestamp'
 import { getActiveLocale, getActiveDateLocale } from '@/constants/i18n'
+import { CHART_AXIS, CHART_GRID, TOOLTIP_CONTENT_STYLE, TOOLTIP_ITEM_STYLE, chartLegendText, chartSeries } from '../charts/chartTheme'
 
 interface LiveLinkChartsTabProps {
   vin: string
@@ -34,26 +35,26 @@ type TimeRange = '1h' | '6h' | '24h' | '7d' | '30d'
 
 const TIME_RANGES: TimeRange[] = ['1h', '6h', '24h', '7d', '30d']
 
-// Chart-series colours (data-encoding, NOT UI semantics). Kept as a literal palette (G4(d) carve-out):
-// no chart-palette token exists in the P0 token layer, and the design forbids deriving series colours
-// from the status/accent tokens (§4.9). The recharts structural chrome (grid/axis/tooltip) DOES move to
-// tokens below; only these per-series data colours stay literal.
-const CHART_COLORS = [
-  '#3b82f6', // blue
-  '#10b981', // green
-  '#f59e0b', // amber
-  '#ef4444', // red
-  '#8b5cf6', // purple
-  '#ec4899', // pink
-  '#06b6d4', // cyan
-  '#84cc16', // lime
-]
+/**
+ * Give a newly picked parameter the lowest chart slot nobody is wearing, so
+ * dropping one never repaints the others. Past 8 picks it wraps; at that point
+ * the chart wants fewer lines anyway.
+ */
+function withSlot(slots: Readonly<Record<string, number>>, paramKey: string): Record<string, number> {
+  if (slots[paramKey] !== undefined) return { ...slots }
+  const taken = new Set(Object.values(slots))
+  let slot = 0
+  while (taken.has(slot) && slot < 8) slot++
+  return { ...slots, [paramKey]: slot < 8 ? slot : Object.keys(slots).length }
+}
 
 export default function LiveLinkChartsTab({ vin }: LiveLinkChartsTabProps) {
   const { t } = useTranslation('vehicles')
   const [loading, setLoading] = useState(true)
   const [parameters, setParameters] = useState<LiveLinkParameter[]>([])
   const [selectedParams, setSelectedParams] = useState<string[]>([])
+  // param_key -> chart slot, held while the parameter stays picked
+  const [slots, setSlots] = useState<Record<string, number>>({})
   const [timeRange, setTimeRange] = useState<TimeRange>('24h')
   const [telemetry, setTelemetry] = useState<TelemetryQueryResponse | null>(null)
   // Unit conversion can be added here if needed
@@ -80,7 +81,9 @@ export default function LiveLinkChartsTab({ vin }: LiveLinkChartsTabProps) {
         setParameters(chartableParams)
         // Default select first 3 parameters
         if (chartableParams.length > 0) {
-          setSelectedParams(chartableParams.slice(0, 3).map((p) => p.param_key))
+          const initial = chartableParams.slice(0, 3).map((p) => p.param_key)
+          setSelectedParams(initial)
+          setSlots(initial.reduce<Record<string, number>>(withSlot, {}))
         }
       } catch (err) {
         console.error('Failed to fetch parameters:', err)
@@ -175,10 +178,19 @@ export default function LiveLinkChartsTab({ vin }: LiveLinkChartsTabProps) {
   }, [telemetry])
 
   const toggleParam = (paramKey: string) => {
+    const dropping = selectedParams.includes(paramKey)
     setSelectedParams((prev) =>
       prev.includes(paramKey) ? prev.filter((p) => p !== paramKey) : [...prev, paramKey]
     )
+    setSlots((prev) => {
+      if (!dropping) return withSlot(prev, paramKey)
+      const next = { ...prev }
+      delete next[paramKey]
+      return next
+    })
   }
+
+  const seriesColor = (paramKey: string): string => chartSeries(slots[paramKey] ?? 0)
 
   const handleExport = () => {
     if (!telemetry) return
@@ -240,19 +252,27 @@ export default function LiveLinkChartsTab({ vin }: LiveLinkChartsTabProps) {
         <div className="flex flex-wrap gap-2">
           {parameters.map((param) => {
             const isSelected = selectedParams.includes(param.param_key)
-            const color = CHART_COLORS[selectedParams.indexOf(param.param_key) % CHART_COLORS.length]
-
+            // A picked chip shows its line colour as a dot and border. White
+            // text on a filled series colour fails contrast on half the palette.
             return (
               <button
                 key={param.param_key}
                 type="button"
                 aria-pressed={isSelected}
                 onClick={() => toggleParam(param.param_key)}
-                className={`ui-focus-ring ui-motion rounded-chip px-3 py-1.5 text-sm font-medium ${
-                  isSelected ? 'text-(--accent-on-solid)' : 'bg-surface-2 text-text-mute hover:text-text border border-border'
+                className={`ui-focus-ring ui-motion inline-flex items-center rounded-chip border px-3 py-1.5 text-sm font-medium bg-surface-2 ${
+                  isSelected ? 'text-text' : 'text-text-mute hover:text-text border-border'
                 }`}
-                style={isSelected ? { backgroundColor: color } : {}}
+                style={isSelected ? { borderColor: seriesColor(param.param_key) } : {}}
               >
+                {isSelected && (
+                  <span
+                    data-testid="series-swatch"
+                    aria-hidden="true"
+                    className="mr-1.5 h-2 w-2 shrink-0 rounded-full"
+                    style={{ backgroundColor: seriesColor(param.param_key) }}
+                  />
+                )}
                 {param.display_name || param.param_key}
                 {param.unit && <span className="ml-1 opacity-75">({param.unit})</span>}
               </button>
@@ -271,16 +291,12 @@ export default function LiveLinkChartsTab({ vin }: LiveLinkChartsTabProps) {
           <div className="h-[250px] md:h-[400px]">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-hair)" />
-                <XAxis dataKey="timestamp" tickFormatter={formatXAxis} stroke="var(--color-text-mute)" fontSize={12} />
-                <YAxis stroke="var(--color-text-mute)" fontSize={12} />
+                <CartesianGrid stroke={CHART_GRID} />
+                <XAxis dataKey="timestamp" tickFormatter={formatXAxis} stroke={CHART_AXIS} fontSize={12} />
+                <YAxis stroke={CHART_AXIS} fontSize={12} />
                 <Tooltip
-                  contentStyle={{
-                    backgroundColor: 'var(--color-surface-2)',
-                    border: '1px solid var(--color-border)',
-                    borderRadius: '8px',
-                    color: 'var(--color-text)',
-                  }}
+                  contentStyle={TOOLTIP_CONTENT_STYLE}
+                  itemStyle={TOOLTIP_ITEM_STYLE}
                   labelFormatter={(label) =>
                     typeof label === 'number' || typeof label === 'string'
                       ? formatDateTime(label, timeFormat, { seconds: true })
@@ -292,13 +308,11 @@ export default function LiveLinkChartsTab({ vin }: LiveLinkChartsTabProps) {
                     return [`${displayValue} ${param?.unit || ''}`, param?.display_name || name || '']
                   }}
                 />
-                <Legend />
-                {selectedParams.map((paramKey, index) => {
+                <Legend formatter={chartLegendText} />
+                {selectedParams.map((paramKey) => {
                   const param = parameters.find((p) => p.param_key === paramKey)
-                  const color = CHART_COLORS[index % CHART_COLORS.length]
-
                   return (
-                    <Line key={paramKey} type="monotone" dataKey={paramKey} name={param?.display_name || paramKey} stroke={color} dot={false} strokeWidth={2} />
+                    <Line key={paramKey} type="monotone" dataKey={paramKey} name={param?.display_name || paramKey} stroke={seriesColor(paramKey)} dot={false} strokeWidth={2} />
                   )
                 })}
               </LineChart>
@@ -309,11 +323,11 @@ export default function LiveLinkChartsTab({ vin }: LiveLinkChartsTabProps) {
           {telemetry && (
             <div className="mt-4 pt-4 border-t border-border">
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                {telemetry.series.map((series, index) => (
+                {telemetry.series.map((series) => (
                   <div
                     key={series.param_key}
                     className="bg-surface-2 rounded-control p-3"
-                    style={{ borderLeft: `3px solid ${CHART_COLORS[index % CHART_COLORS.length]}` }}
+                    style={{ borderLeft: `3px solid ${seriesColor(series.param_key)}` }}
                   >
                     <p className="text-text-mute text-xs mb-1">{series.display_name || series.param_key}</p>
                     <div className="flex justify-between text-text">

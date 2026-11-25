@@ -221,14 +221,14 @@ describe('DeviceRow status line', () => {
       showFirmware: false,
     })
     expect(statusLine()).toHaveTextContent('forms:modal.livelink.deviceStatus.online')
-    expect(statusLine()).toHaveClass('text-green-500')
+    expect(statusLine()).toHaveClass('text-success')
     expect(screen.queryByText('unknown')).not.toBeInTheDocument()
   })
 
   it('reads a disabled device as offline, whatever status it froze at', () => {
     renderRow(undefined, { device: { ...device, device_status: 'online', online: false } })
     expect(statusLine()).toHaveTextContent('forms:modal.livelink.deviceStatus.offline')
-    expect(statusLine()).toHaveClass('text-red-500')
+    expect(statusLine()).toHaveClass('text-danger')
   })
 
   it('says a device that has never reported has no status yet, not that it is offline', () => {
@@ -236,7 +236,7 @@ describe('DeviceRow status line', () => {
       device: { ...device, device_status: 'unknown', online: false, last_seen: null },
     })
     expect(statusLine()).toHaveTextContent('forms:modal.livelink.deviceStatus.unknown')
-    expect(statusLine()).toHaveClass('text-gray-500')
+    expect(statusLine()).toHaveClass('text-text-mute')
   })
 
   it('translates the ECU line', () => {

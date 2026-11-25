@@ -73,6 +73,7 @@ import { keyForFilename, vinForDisplay } from '../utils/vehicleIdentifier'
 import AdvancedStatistics from '../components/AdvancedStatistics'
 import AnalyticsHelpModal from '../components/AnalyticsHelpModal'
 import TireAnalyticsSection from '../components/TireAnalyticsSection'
+import { CHART_AVG_LONG, CHART_AVG_SHORT, CHART_AXIS, CHART_GRID, ChartTooltipBox, categoryColor, chartLegendText, chartSeries, pieLabelText } from '../components/charts/chartTheme'
 import ExportMenu from '../components/ExportMenu'
 import { Badge } from '../components/ui'
 import { formatCurrencyZero as formatCurrency, RATE_DIGITS } from '../utils/formatUtils'
@@ -875,19 +876,19 @@ export default function Analytics() {
                 })}
                 margin={{ top: 5, right: 20, left: 10, bottom: 5 }}
               >
-                <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                <CartesianGrid stroke={CHART_GRID} />
                 <XAxis
                   dataKey="month"
-                  stroke="#9E9E9E"
+                  stroke={CHART_AXIS}
                   style={{ fontSize: '12px' }}
                   angle={-45}
                   textAnchor="end"
                   height={80}
                 />
                 <YAxis
-                  stroke="#9E9E9E"
+                  stroke={CHART_AXIS}
                   style={{ fontSize: '12px' }}
-                  label={{ value: t('vehicle.costAxis', { currency: currencySymbol }), angle: -90, position: 'insideLeft', fill: '#9E9E9E' }}
+                  label={{ value: t('vehicle.costAxis', { currency: currencySymbol }), angle: -90, position: 'insideLeft', fill: CHART_AXIS }}
                 />
                 <Tooltip
                   cursor={false}
@@ -896,8 +897,7 @@ export default function Analytics() {
                     const { active, payload, label } = tooltipProps
                     if (active && payload && payload.length) {
                       return (
-                        <div style={{ backgroundColor: '#1a1f28', border: '1px solid #3a4050', borderRadius: '8px', padding: '12px', color: '#e4e6eb' }}>
-                          <p style={{ fontWeight: '600', marginBottom: '8px' }}>{label}</p>
+                        <ChartTooltipBox title={label}>
                           {payload.map((entry, index) => {
                             const entryName = entry.name?.toString() ?? entry.dataKey?.toString() ?? t('vehicle.value')
                             const rawValue = Array.isArray(entry.value) ? entry.value[0] : entry.value
@@ -905,35 +905,36 @@ export default function Analytics() {
                             if (numericValue === 0 || numericValue === null) return null
                             return (
                               <div key={(entry.dataKey ?? index).toString()} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: index > 0 ? '4px' : '0' }}>
-                                <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: entry.color || '#3B82F6' }} />
+                                <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: entry.color || chartSeries(0) }} />
                                 <p style={{ fontSize: '14px', margin: 0 }}>
                                   {entryName}: {formatCurrency(numericValue, { currencyCode, locale })}
                                 </p>
                               </div>
                             )
                           })}
-                        </div>
+                        </ChartTooltipBox>
                       )
                     }
                     return null
                   }}
                 />
                 <Legend
+                  formatter={chartLegendText}
                   wrapperStyle={{ paddingTop: '10px', fontSize: '12px' }}
                 />
                 <Line
                   type="monotone"
                   dataKey="actualCost"
-                  stroke="#3B82F6"
+                  stroke={chartSeries(0)}
                   strokeWidth={3}
-                  dot={{ fill: '#3B82F6', r: 5 }}
+                  dot={{ fill: chartSeries(0), r: 5 }}
                   activeDot={{ r: 7 }}
                   name={t('vehicle.legendActualCost')}
                 />
                 <Line
                   type="monotone"
                   dataKey="rollingAvg3m"
-                  stroke="#10B981"
+                  stroke={CHART_AVG_SHORT}
                   strokeWidth={2}
                   strokeDasharray="5 5"
                   dot={false}
@@ -942,7 +943,7 @@ export default function Analytics() {
                 <Line
                   type="monotone"
                   dataKey="rollingAvg6m"
-                  stroke="#F59E0B"
+                  stroke={CHART_AVG_LONG}
                   strokeWidth={2}
                   strokeDasharray="3 3"
                   dot={false}
@@ -956,16 +957,16 @@ export default function Analytics() {
             <h3 className="text-sm font-semibold text-garage-text mb-2">{t('vehicle.chartLegend')}</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm text-garage-text-muted">
               <div className="flex items-center gap-2">
-                <div className="w-4 h-0.5 bg-primary"></div>
-                <span>{t('vehicle.legendDescActual')}</span>
+                <div className="w-4 h-0.5" style={{ backgroundColor: chartSeries(0) }}></div>
+                <span>{t('vehicle.legendLineActual')}</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-4 h-0.5 bg-success border-dashed"></div>
-                <span>{t('vehicle.legendDesc3m')}</span>
+                <div className="w-4 border-t-2 border-dashed" style={{ borderColor: CHART_AVG_SHORT }}></div>
+                <span>{t('vehicle.legendLine3m')}</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-4 h-0.5 bg-warning border-dashed"></div>
-                <span>{t('vehicle.legendDesc6m')}</span>
+                <div className="w-4 border-t-2 border-dashed" style={{ borderColor: CHART_AVG_LONG }}></div>
+                <span>{t('vehicle.legendLine6m')}</span>
               </div>
             </div>
           </div>
@@ -1068,19 +1069,19 @@ export default function Analytics() {
                   label={(props: PieLabelRenderProps) => {
                     const { name, percent } = props
                     if (typeof percent !== 'number') {
-                      return name?.toString() ?? ''
+                      return pieLabelText(props, name?.toString() ?? '')
                     }
                     const labelName = name?.toString() ?? t('vehicle.other')
-                    return `${labelName} ${(percent * 100).toFixed(0)}%`
+                    return pieLabelText(props, `${labelName} ${(percent * 100).toFixed(0)}%`)
                   }}
                   outerRadius={100}
-                  fill="#8884d8"
                   dataKey="value"
                 >
-                  {cost_analysis.service_type_breakdown.slice(0, 6).map((_item, index) => {
-                    const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899']
-                    return <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  })}
+                  {/* The one rank-coloured chart: service types are free text with no
+                      fixed list to pin a slot to, so the top 6 just take slots in order. */}
+                  {cost_analysis.service_type_breakdown.slice(0, 6).map((_item, index) => (
+                    <Cell key={`cell-${index}`} fill={chartSeries(index)} />
+                  ))}
                 </Pie>
                 <Tooltip
                   cursor={false}
@@ -1094,10 +1095,9 @@ export default function Analytics() {
                       const numericValue = typeof rawValue === 'number' ? rawValue : Number(rawValue ?? 0)
 
                       return (
-                        <div style={{ backgroundColor: '#1a1f28', border: '1px solid #3a4050', borderRadius: '8px', padding: '12px', color: '#e4e6eb' }}>
-                          <p style={{ fontWeight: '600', marginBottom: '4px' }}>{dataName}</p>
-                          <p style={{ fontSize: '14px', color: '#9ca3af' }}>{formatCurrency(numericValue, { currencyCode, locale })}</p>
-                        </div>
+                        <ChartTooltipBox title={dataName}>
+                          <p className="text-sm text-text-mute">{formatCurrency(numericValue, { currencyCode, locale })}</p>
+                        </ChartTooltipBox>
                       )
                     }
                     return null
@@ -1147,19 +1147,19 @@ export default function Analytics() {
                 }))}
                 margin={{ top: 5, right: 20, left: 10, bottom: 5 }}
               >
-                <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                <CartesianGrid stroke={CHART_GRID} />
                 <XAxis
                   dataKey="month"
-                  stroke="#9E9E9E"
+                  stroke={CHART_AXIS}
                   style={{ fontSize: '12px' }}
                   angle={-45}
                   textAnchor="end"
                   height={80}
                 />
                 <YAxis
-                  stroke="#9E9E9E"
+                  stroke={CHART_AXIS}
                   style={{ fontSize: '12px' }}
-                  label={{ value: t('vehicle.costAxis', { currency: currencySymbol }), angle: -90, position: 'insideLeft', fill: '#9E9E9E' }}
+                  label={{ value: t('vehicle.costAxis', { currency: currencySymbol }), angle: -90, position: 'insideLeft', fill: CHART_AXIS }}
                 />
                 <Tooltip
                   cursor={false}
@@ -1168,35 +1168,35 @@ export default function Analytics() {
                     const { active, payload, label } = tooltipProps
                     if (active && payload && payload.length) {
                       return (
-                        <div style={{ backgroundColor: '#1a1f28', border: '1px solid #3a4050', borderRadius: '8px', padding: '12px', color: '#e4e6eb' }}>
-                          <p style={{ fontWeight: '600', marginBottom: '8px' }}>{label}</p>
+                        <ChartTooltipBox title={label}>
                           {payload.map((entry, index) => {
                             const entryName = entry.name?.toString() ?? entry.dataKey?.toString() ?? t('vehicle.value')
                             const rawValue = Array.isArray(entry.value) ? entry.value[0] : entry.value
                             const numericValue = typeof rawValue === 'number' ? rawValue : Number(rawValue ?? 0)
                             return (
                               <div key={(entry.dataKey ?? index).toString()} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: index > 0 ? '4px' : '0' }}>
-                                <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: entry.color || '#3B82F6' }} />
+                                <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: entry.color || chartSeries(0) }} />
                                 <p style={{ fontSize: '14px', margin: 0 }}>
                                   {entryName}: {formatCurrency(numericValue, { currencyCode, locale })}
                                 </p>
                               </div>
                             )
                           })}
-                        </div>
+                        </ChartTooltipBox>
                       )
                     }
                     return null
                   }}
                 />
                 <Legend
+                  formatter={chartLegendText}
                   wrapperStyle={{ paddingTop: '10px', fontSize: '12px' }}
                 />
-                <Bar dataKey="Service" fill="#3B82F6" stackId="a" name={t('vehicle.categoryService')} />
-                <Bar dataKey="Fuel" fill="#10B981" stackId="a" name={t('vehicle.categoryFuel')} />
-                {defAnalysis && <Bar dataKey="DEF" fill="#14B8A6" stackId="a" name={t('vehicle.categoryDef')} />}
-                {hasFinancing && <Bar dataKey="Financing" fill="#84CC16" stackId="a" name={t('vehicle.categoryFinancing')} />}
-                {hasPropane && <Bar dataKey="Spot Rental" fill="#F59E0B" stackId="a" name={t('vehicle.categorySpotRental')} />}
+                <Bar dataKey="Service" fill={categoryColor('Service')} stackId="a" name={t('vehicle.categoryService')} />
+                <Bar dataKey="Fuel" fill={categoryColor('Fuel')} stackId="a" name={t('vehicle.categoryFuel')} />
+                {defAnalysis && <Bar dataKey="DEF" fill={categoryColor('DEF')} stackId="a" name={t('vehicle.categoryDef')} />}
+                {hasFinancing && <Bar dataKey="Financing" fill={categoryColor('Financing')} stackId="a" name={t('vehicle.categoryFinancing')} />}
+                {hasPropane && <Bar dataKey="Spot Rental" fill={categoryColor('Spot Rental')} stackId="a" name={t('vehicle.categorySpotRental')} />}
               </RechartsBarChart>
             </ResponsiveContainer>
           </div>
@@ -1271,16 +1271,16 @@ export default function Analytics() {
                 })}
                 margin={{ top: 5, right: 20, left: 10, bottom: 5 }}
               >
-                <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                <CartesianGrid stroke={CHART_GRID} />
                 <XAxis
                   dataKey="date"
-                  stroke="#9E9E9E"
+                  stroke={CHART_AXIS}
                   style={{ fontSize: '12px' }}
                 />
                 <YAxis
-                  stroke="#9E9E9E"
+                  stroke={CHART_AXIS}
                   style={{ fontSize: '12px' }}
-                  label={{ value: u.consumption.label, angle: -90, position: 'insideLeft', fill: '#9E9E9E' }}
+                  label={{ value: u.consumption.label, angle: -90, position: 'insideLeft', fill: CHART_AXIS }}
                 />
                 <Tooltip
                   cursor={false}
@@ -1288,31 +1288,31 @@ export default function Analytics() {
                   content={({ active, payload, label }) => {
                     if (active && payload && payload.length) {
                       return (
-                        <div style={{ backgroundColor: '#1a1f28', border: '1px solid #3a4050', borderRadius: '8px', padding: '12px', color: '#e4e6eb' }}>
-                          <p style={{ fontWeight: '600', marginBottom: '8px' }}>{label}</p>
-                          <p style={{ fontSize: '14px', color: '#9ca3af' }}>
+                        <ChartTooltipBox title={label}>
+                          <p className="text-sm text-text-mute">
                             {u.consumption.format(payload[0].payload.lPer100km as number)}
                           </p>
                           {payload[0].payload.odometer_km != null && (
-                            <p style={{ fontSize: '12px', color: '#9ca3af', marginTop: '4px' }}>
+                            <p className="mt-1 text-xs text-text-mute">
                               {u.distance.formatPrimary(payload[0].payload.odometer_km as number)}
                             </p>
                           )}
-                        </div>
+                        </ChartTooltipBox>
                       );
                     }
                     return null;
                   }}
                 />
                 <Legend
-                  wrapperStyle={{ paddingTop: '10px', fontSize: '12px', color: '#9E9E9E' }}
+                  formatter={chartLegendText}
+                  wrapperStyle={{ paddingTop: '10px', fontSize: '12px', color: CHART_AXIS }}
                 />
                 <Line
                   type="monotone"
                   dataKey="displayFuelEconomy"
-                  stroke="#3B82F6"
+                  stroke={chartSeries(0)}
                   strokeWidth={2}
-                  dot={{ fill: '#3B82F6', r: 4 }}
+                  dot={{ fill: chartSeries(0), r: 4 }}
                   activeDot={{ r: 6 }}
                   name={t('vehicle.fuelEconomyUnitLabel', { unit: u.consumption.label })}
                   connectNulls
@@ -1384,24 +1384,24 @@ export default function Analytics() {
                 })}
                 margin={{ top: 5, right: 20, left: 10, bottom: 5 }}
               >
-                <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                <CartesianGrid stroke={CHART_GRID} />
                 <XAxis
                   dataKey="date"
-                  stroke="#9E9E9E"
+                  stroke={CHART_AXIS}
                   style={{ fontSize: '12px' }}
                 />
                 <YAxis
                   yAxisId="rate"
-                  stroke="#9E9E9E"
+                  stroke={CHART_AXIS}
                   style={{ fontSize: '12px' }}
-                  label={{ value: fuelRateLabel(units), angle: -90, position: 'insideLeft', fill: '#9E9E9E' }}
+                  label={{ value: fuelRateLabel(units), angle: -90, position: 'insideLeft', fill: CHART_AXIS }}
                 />
                 <YAxis
                   yAxisId="cost"
                   orientation="right"
-                  stroke="#9E9E9E"
+                  stroke={CHART_AXIS}
                   style={{ fontSize: '12px' }}
-                  label={{ value: t('vehicle.costPerHourAxis', { currency: currencySymbol }), angle: 90, position: 'insideRight', fill: '#9E9E9E' }}
+                  label={{ value: t('vehicle.costPerHourAxis', { currency: currencySymbol }), angle: 90, position: 'insideRight', fill: CHART_AXIS }}
                 />
                 <Tooltip
                   cursor={false}
@@ -1410,32 +1410,32 @@ export default function Analytics() {
                     if (active && payload && payload.length) {
                       const point = payload[0].payload as { lPerHr: number | null; costPerHr: number | null }
                       return (
-                        <div style={{ backgroundColor: '#1a1f28', border: '1px solid #3a4050', borderRadius: '8px', padding: '12px', color: '#e4e6eb' }}>
-                          <p style={{ fontWeight: '600', marginBottom: '8px' }}>{label}</p>
-                          <p style={{ fontSize: '14px', color: '#9ca3af' }}>
+                        <ChartTooltipBox title={label}>
+                          <p className="text-sm text-text-mute">
                             {formatFuelRate(units, point.lPerHr, showBoth)}
                           </p>
                           {point.costPerHr != null && (
-                            <p style={{ fontSize: '14px', color: '#9ca3af', marginTop: '4px' }}>
+                            <p className="mt-1 text-sm text-text-mute">
                               {t('vehicle.costPerHourValue', { value: formatCurrency(point.costPerHr, { currencyCode, locale, fractionDigits: RATE_DIGITS }) })}
                             </p>
                           )}
-                        </div>
+                        </ChartTooltipBox>
                       )
                     }
                     return null
                   }}
                 />
                 <Legend
-                  wrapperStyle={{ paddingTop: '10px', fontSize: '12px', color: '#9E9E9E' }}
+                  formatter={chartLegendText}
+                  wrapperStyle={{ paddingTop: '10px', fontSize: '12px', color: CHART_AXIS }}
                 />
                 <Line
                   yAxisId="rate"
                   type="monotone"
                   dataKey="displayFuelRate"
-                  stroke="#3B82F6"
+                  stroke={chartSeries(0)}
                   strokeWidth={2}
-                  dot={{ fill: '#3B82F6', r: 4 }}
+                  dot={{ fill: chartSeries(0), r: 4 }}
                   activeDot={{ r: 6 }}
                   name={t('vehicle.fuelRateUnitLabel', { unit: fuelRateLabel(units) })}
                   connectNulls
@@ -1444,9 +1444,9 @@ export default function Analytics() {
                   yAxisId="cost"
                   type="monotone"
                   dataKey="costPerHr"
-                  stroke="#F59E0B"
+                  stroke={chartSeries(1)}
                   strokeWidth={2}
-                  dot={{ fill: '#F59E0B', r: 4 }}
+                  dot={{ fill: chartSeries(1), r: 4 }}
                   activeDot={{ r: 6 }}
                   name={t('vehicle.costPerHourLabel')}
                   connectNulls
@@ -1483,16 +1483,16 @@ export default function Analytics() {
                 }))}
                 margin={{ top: 5, right: 20, left: 10, bottom: 5 }}
               >
-                <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                <CartesianGrid stroke={CHART_GRID} />
                 <XAxis
                   dataKey="date"
-                  stroke="#9E9E9E"
+                  stroke={CHART_AXIS}
                   style={{ fontSize: '12px' }}
                 />
                 <YAxis
-                  stroke="#9E9E9E"
+                  stroke={CHART_AXIS}
                   style={{ fontSize: '12px' }}
-                  label={{ value: t('vehicle.engineHoursAxis'), angle: -90, position: 'insideLeft', fill: '#9E9E9E' }}
+                  label={{ value: t('vehicle.engineHoursAxis'), angle: -90, position: 'insideLeft', fill: CHART_AXIS }}
                 />
                 <Tooltip
                   cursor={false}
@@ -1501,26 +1501,26 @@ export default function Analytics() {
                     if (active && payload && payload.length) {
                       const value = payload[0].value as number
                       return (
-                        <div style={{ backgroundColor: '#1a1f28', border: '1px solid #3a4050', borderRadius: '8px', padding: '12px', color: '#e4e6eb' }}>
-                          <p style={{ fontWeight: '600', marginBottom: '8px' }}>{label}</p>
-                          <p style={{ fontSize: '14px', color: '#9ca3af' }}>
+                        <ChartTooltipBox title={label}>
+                          <p className="text-sm text-text-mute">
                             {t('vehicle.engineHoursReading', { value: value.toFixed(1) })}
                           </p>
-                        </div>
+                        </ChartTooltipBox>
                       )
                     }
                     return null
                   }}
                 />
                 <Legend
-                  wrapperStyle={{ paddingTop: '10px', fontSize: '12px', color: '#9E9E9E' }}
+                  formatter={chartLegendText}
+                  wrapperStyle={{ paddingTop: '10px', fontSize: '12px', color: CHART_AXIS }}
                 />
                 <Line
                   type="monotone"
                   dataKey="engineHours"
-                  stroke="#8B5CF6"
+                  stroke={chartSeries(0)}
                   strokeWidth={2}
-                  dot={{ fill: '#8B5CF6', r: 4 }}
+                  dot={{ fill: chartSeries(0), r: 4 }}
                   activeDot={{ r: 6 }}
                   name={t('vehicle.engineHoursAxis')}
                 />
@@ -1566,30 +1566,29 @@ export default function Analytics() {
               <h3 className="text-sm font-medium text-garage-text-muted mb-4">{t('vehicle.monthlyPropaneCosts')}</h3>
               <ResponsiveContainer width="100%" height={300}>
                 <RechartsBarChart data={propane.monthly_trend}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                  <XAxis dataKey="month_name" stroke="#9CA3AF" />
-                  <YAxis stroke="#9CA3AF" />
+                  <CartesianGrid stroke={CHART_GRID} />
+                  <XAxis dataKey="month_name" stroke={CHART_AXIS} />
+                  <YAxis stroke={CHART_AXIS} />
                   <Tooltip
                     cursor={false}
                     wrapperStyle={{ outline: 'none' }}
                     content={({ active, payload, label }) => {
                       if (active && payload && payload.length) {
                         return (
-                          <div style={{ backgroundColor: '#1a1f28', border: '1px solid #3a4050', borderRadius: '8px', padding: '12px', color: '#e4e6eb' }}>
-                            <p style={{ fontWeight: '600', marginBottom: '8px' }}>{label}</p>
+                          <ChartTooltipBox title={label}>
                             {payload.map((entry, index) => (
-                              <p key={index} style={{ fontSize: '14px', color: '#9ca3af' }}>
+                              <p key={index} className="text-sm text-text-mute">
                                 {entry.name}: {formatCurrency(entry.value as number, { currencyCode, locale })}
                               </p>
                             ))}
-                          </div>
+                          </ChartTooltipBox>
                         )
                       }
                       return null
                     }}
                   />
-                  <Legend />
-                  <Bar dataKey="total_cost" fill="#3B82F6" name={t('vehicle.totalCost')} />
+                  <Legend formatter={chartLegendText} />
+                  <Bar dataKey="total_cost" fill={chartSeries(0)} name={t('vehicle.totalCost')} />
                 </RechartsBarChart>
               </ResponsiveContainer>
             </div>
@@ -1630,9 +1629,9 @@ export default function Analytics() {
               <h3 className="text-sm font-medium text-garage-text-muted mb-4">{t('vehicle.monthlySpotRentalCosts')}</h3>
               <ResponsiveContainer width="100%" height={300}>
                 <RechartsBarChart data={spotRental.monthly_trend}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                  <XAxis dataKey="month_name" stroke="#9CA3AF" />
-                  <YAxis stroke="#9CA3AF" />
+                  <CartesianGrid stroke={CHART_GRID} />
+                  <XAxis dataKey="month_name" stroke={CHART_AXIS} />
+                  <YAxis stroke={CHART_AXIS} />
                   <Tooltip
                     cursor={false}
                     wrapperStyle={{ outline: 'none' }}
@@ -1646,24 +1645,23 @@ export default function Analytics() {
                           waste: t('vehicle.waste'),
                         }
                         return (
-                          <div style={{ backgroundColor: '#1a1f28', border: '1px solid #3a4050', borderRadius: '8px', padding: '12px', color: '#e4e6eb' }}>
-                            <p style={{ fontWeight: '600', marginBottom: '8px' }}>{label}</p>
+                          <ChartTooltipBox title={label}>
                             {payload.map((entry, index) => (
-                              <p key={index} style={{ fontSize: '14px', color: '#9ca3af' }}>
+                              <p key={index} className="text-sm text-text-mute">
                                 {labels[entry.dataKey as string] || entry.name}: {formatCurrency(entry.value as number, { currencyCode, locale })}
                               </p>
                             ))}
-                          </div>
+                          </ChartTooltipBox>
                         )
                       }
                       return null
                     }}
                   />
-                  <Legend />
-                  <Bar dataKey="monthly_rate" stackId="a" fill="#3B82F6" name={t('vehicle.monthlyRate')} />
-                  <Bar dataKey="electric" stackId="a" fill="#FBBF24" name={t('vehicle.electric')} />
-                  <Bar dataKey="water" stackId="a" fill="#10B981" name={t('vehicle.water')} />
-                  <Bar dataKey="waste" stackId="a" fill="#8B5CF6" name={t('vehicle.waste')} />
+                  <Legend formatter={chartLegendText} />
+                  <Bar dataKey="monthly_rate" stackId="a" fill={chartSeries(0)} name={t('vehicle.monthlyRate')} />
+                  <Bar dataKey="electric" stackId="a" fill={chartSeries(1)} name={t('vehicle.electric')} />
+                  <Bar dataKey="water" stackId="a" fill={chartSeries(2)} name={t('vehicle.water')} />
+                  <Bar dataKey="waste" stackId="a" fill={chartSeries(3)} name={t('vehicle.waste')} />
                 </RechartsBarChart>
               </ResponsiveContainer>
             </div>
@@ -1798,19 +1796,19 @@ export default function Analytics() {
                     services: vendor.service_count,
                   }))}
                 layout="vertical"
-                margin={{ top: 5, right: 30, left: 120, bottom: 5 }}
+                margin={{ top: 5, right: 30, left: 10, bottom: 5 }}
               >
-                <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                <CartesianGrid stroke={CHART_GRID} />
                 <XAxis
                   type="number"
-                  stroke="#9E9E9E"
+                  stroke={CHART_AXIS}
                   style={{ fontSize: '12px' }}
-                  label={{ value: t('vehicle.totalSpentAxis', { currency: currencySymbol }), position: 'insideBottom', offset: -5, fill: '#9E9E9E' }}
+                  label={{ value: t('vehicle.totalSpentAxis', { currency: currencySymbol }), position: 'insideBottom', offset: -5, fill: CHART_AXIS }}
                 />
                 <YAxis
                   type="category"
                   dataKey="vendor"
-                  stroke="#9E9E9E"
+                  stroke={CHART_AXIS}
                   style={{ fontSize: '12px' }}
                   width={120}
                 />
@@ -1822,21 +1820,20 @@ export default function Analytics() {
                     if (active && payload && payload.length) {
                       const data = payload[0].payload
                       return (
-                        <div style={{ backgroundColor: '#1a1f28', border: '1px solid #3a4050', borderRadius: '8px', padding: '12px', color: '#e4e6eb' }}>
-                          <p style={{ fontWeight: '600', marginBottom: '8px' }}>{data.vendor}</p>
-                          <p style={{ fontSize: '14px', color: '#9ca3af', marginBottom: '4px' }}>
+                        <ChartTooltipBox title={data.vendor}>
+                          <p className="mb-1 text-sm text-text-mute">
                             {t('vehicle.tooltipTotal', { value: formatCurrency(data.spending, { currencyCode, locale }) })}
                           </p>
-                          <p style={{ fontSize: '14px', color: '#9ca3af' }}>
+                          <p className="text-sm text-text-mute">
                             {t('vehicle.tooltipServices', { count: data.services })}
                           </p>
-                        </div>
+                        </ChartTooltipBox>
                       )
                     }
                     return null
                   }}
                 />
-                <Bar dataKey="spending" fill="#3B82F6" radius={[0, 4, 4, 0]} />
+                <Bar dataKey="spending" fill={chartSeries(0)} radius={[0, 4, 4, 0]} />
               </RechartsBarChart>
             </ResponsiveContainer>
           </div>
@@ -1912,31 +1909,31 @@ export default function Analytics() {
                 }))}
                 margin={{ top: 20, right: 80, bottom: 20, left: 80 }}
               >
-                <PolarGrid stroke="#333" />
+                <PolarGrid stroke={CHART_GRID} />
                 <PolarAngleAxis
                   dataKey="season"
-                  stroke="#9E9E9E"
+                  stroke={CHART_AXIS}
                   style={{ fontSize: '14px', fontWeight: '600' }}
                 />
                 <PolarRadiusAxis
                   angle={90}
                   domain={[0, 'auto']}
-                  stroke="#9E9E9E"
+                  stroke={CHART_AXIS}
                   style={{ fontSize: '12px' }}
                 />
                 <Radar
                   name={t('vehicle.totalCost')}
                   dataKey="cost"
-                  stroke="#3B82F6"
-                  fill="#3B82F6"
+                  stroke={chartSeries(0)}
+                  fill={chartSeries(0)}
                   fillOpacity={0.5}
                   strokeWidth={2}
                 />
                 <Radar
                   name={t('vehicle.serviceCount')}
                   dataKey="services"
-                  stroke="#10B981"
-                  fill="#10B981"
+                  stroke={chartSeries(1)}
+                  fill={chartSeries(1)}
                   fillOpacity={0.3}
                   strokeWidth={2}
                 />
@@ -1947,24 +1944,24 @@ export default function Analytics() {
                     if (active && payload && payload.length) {
                       const data = payload[0].payload
                       return (
-                        <div style={{ backgroundColor: '#1a1f28', border: '1px solid #3a4050', borderRadius: '8px', padding: '12px', color: '#e4e6eb' }}>
-                          <p style={{ fontWeight: '600', marginBottom: '8px' }}>{data.season}</p>
-                          <p style={{ fontSize: '14px', color: '#9ca3af', marginBottom: '4px' }}>
+                        <ChartTooltipBox title={data.season}>
+                          <p className="mb-1 text-sm text-text-mute">
                             {t('vehicle.tooltipTotalCost', { value: formatCurrency(data.cost, { currencyCode, locale }) })}
                           </p>
-                          <p style={{ fontSize: '14px', color: '#9ca3af', marginBottom: '4px' }}>
+                          <p className="mb-1 text-sm text-text-mute">
                             {t('vehicle.tooltipAverageCost', { value: formatCurrency(data.avgCost, { currencyCode, locale }) })}
                           </p>
-                          <p style={{ fontSize: '14px', color: '#9ca3af' }}>
+                          <p className="text-sm text-text-mute">
                             {t('vehicle.tooltipServices', { count: data.services })}
                           </p>
-                        </div>
+                        </ChartTooltipBox>
                       )
                     }
                     return null
                   }}
                 />
                 <Legend
+                  formatter={chartLegendText}
                   wrapperStyle={{ paddingTop: '20px', fontSize: '12px' }}
                 />
               </RadarChart>

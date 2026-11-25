@@ -62,6 +62,9 @@ vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 const captured = vi.hoisted(() => ({
   lineChartData: undefined as unknown,
   tooltipLabelFormatter: undefined as ((label: ReactNode) => ReactNode) | undefined,
+  tooltipStyle: undefined as Record<string, unknown> | undefined,
+  tooltipItemStyle: undefined as Record<string, unknown> | undefined,
+  strokes: {} as Record<string, string | undefined>,
 }))
 vi.mock('recharts', () => {
   const Pass = ({ children }: { children?: ReactNode }) => <>{children}</>
@@ -71,12 +74,17 @@ vi.mock('recharts', () => {
       captured.lineChartData = data
       return <>{children}</>
     },
-    Line: () => null,
+    Line: ({ dataKey, stroke }: { dataKey: string; stroke?: string }) => {
+      captured.strokes[dataKey] = stroke
+      return null
+    },
     XAxis: () => null,
     YAxis: () => null,
     CartesianGrid: () => null,
-    Tooltip: ({ labelFormatter }: { labelFormatter?: (label: ReactNode) => ReactNode }) => {
+    Tooltip: ({ labelFormatter, contentStyle, itemStyle }: { labelFormatter?: (label: ReactNode) => ReactNode; contentStyle?: Record<string, unknown>; itemStyle?: Record<string, unknown> }) => {
       captured.tooltipLabelFormatter = labelFormatter
+      captured.tooltipStyle = contentStyle
+      captured.tooltipItemStyle = itemStyle
       return null
     },
     Legend: () => null,
@@ -129,6 +137,8 @@ beforeEach(() => {
   vi.setSystemTime(new Date(FROZEN))
   captured.lineChartData = undefined
   captured.tooltipLabelFormatter = undefined
+  captured.tooltipStyle = undefined
+  captured.strokes = {}
   getVehicleParameters.mockResolvedValue(PARAMS)
   getTelemetry.mockResolvedValue(TELEMETRY)
   getTelemetryExportUrl.mockReturnValue('https://export.example/csv')
@@ -216,5 +226,55 @@ describe('LiveLinkChartsTab — controls + data boundary (SDQ-C, §5c, M4)', () 
     render(<LiveLinkChartsTab vin="V1" />)
     await waitFor(() => expect(getTelemetry).toHaveBeenCalledTimes(1))
     expect(screen.getByRole('button', { name: 'livelinkCharts.exportCsv' })).toBeDisabled()
+  })
+})
+
+describe('LiveLinkChartsTab chart theme', () => {
+  const lineStrokes = (): Record<string, string | undefined> => ({ ...captured.strokes })
+
+  it('draws lines from the chart slots and the tooltip from surface tokens', async () => {
+    render(<LiveLinkChartsTab vin="V1" />)
+    await waitFor(() => expect(getTelemetry).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(Object.keys(lineStrokes())).toHaveLength(3))
+    expect(lineStrokes()).toEqual({
+      p1: 'var(--color-chart-1)',
+      p2: 'var(--color-chart-2)',
+      p3: 'var(--color-chart-3)',
+    })
+    expect(captured.tooltipStyle).toMatchObject({
+      backgroundColor: 'var(--color-surface-2)',
+      border: '1px solid var(--color-border)',
+      color: 'var(--color-text)',
+    })
+    expect(captured.tooltipItemStyle).toEqual({ color: 'var(--color-text)' })
+  })
+
+  it('keeps the survivors on their colours when a parameter is dropped', async () => {
+    render(<LiveLinkChartsTab vin="V1" />)
+    await waitFor(() => expect(Object.keys(lineStrokes())).toHaveLength(3))
+    const before = lineStrokes()
+
+    fireEvent.click(screen.getByRole('button', { name: /First Param/ })) // drop p1
+    await waitFor(() => expect(getTelemetry).toHaveBeenCalledTimes(2))
+    captured.strokes = {}
+    fireEvent.click(screen.getByRole('button', { name: /Fourth Param/ })) // add p4
+    await waitFor(() => expect(Object.keys(lineStrokes()).sort()).toEqual(['p2', 'p3', 'p4']))
+
+    expect(lineStrokes().p2).toBe(before.p2)
+    expect(lineStrokes().p3).toBe(before.p3)
+    // p4 takes the slot p1 freed, not a colour p2 or p3 already wears
+    expect(lineStrokes().p4).toBe('var(--color-chart-1)')
+  })
+
+  it('marks a selected chip with its series colour, not a filled chip under white text', async () => {
+    render(<LiveLinkChartsTab vin="V1" />)
+    await waitFor(() => expect(getTelemetry).toHaveBeenCalledTimes(1))
+    const chip = screen.getByRole('button', { name: /Second Param/ })
+    expect(chip).toHaveAttribute('aria-pressed', 'true')
+    expect(chip.style.backgroundColor).toBe('')
+    expect(chip.className).toContain('text-text')
+    const swatch = chip.querySelector('[data-testid="series-swatch"]') as HTMLElement | null
+    expect(swatch?.getAttribute('style') ?? '').toContain('var(--color-chart-2)')
+    expect(screen.getByRole('button', { name: /Fourth Param/ }).querySelector('[data-testid="series-swatch"]')).toBeNull()
   })
 })

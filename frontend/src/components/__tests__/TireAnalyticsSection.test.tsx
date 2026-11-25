@@ -28,7 +28,8 @@ vi.mock('@/services/api', () => ({ default: { get: (...args: unknown[]) => apiGe
  * what each one is keyed and named by, and the rows the chart was handed. */
 const chart = vi.hoisted(() => ({
   data: [] as Record<string, unknown>[],
-  lines: [] as { dataKey: string; name: string }[],
+  lines: [] as { dataKey: string; name: string; stroke?: string }[],
+  chrome: {} as Record<string, Record<string, unknown>>,
 }))
 vi.mock('recharts', () => {
   const passthrough = ({ children }: { children?: React.ReactNode }) => <div>{children}</div>
@@ -39,14 +40,15 @@ vi.mock('recharts', () => {
       chart.lines = []
       return <div>{children}</div>
     },
-    CartesianGrid: () => null,
-    XAxis: () => null,
-    YAxis: () => null,
-    Tooltip: () => null,
+    // Chrome props land in chart.chrome so the theme test can read them.
+    CartesianGrid: (props: Record<string, unknown>) => ((chart.chrome.grid = props), null),
+    XAxis: (props: Record<string, unknown>) => ((chart.chrome.xAxis = props), null),
+    YAxis: (props: Record<string, unknown>) => ((chart.chrome.yAxis = props), null),
+    Tooltip: (props: Record<string, unknown>) => ((chart.chrome.tooltip = props), null),
     Legend: () => null,
     // Recharts falls back to the dataKey for the legend when there's no name.
-    Line: ({ dataKey, name }: { dataKey: string; name?: string }) => {
-      chart.lines.push({ dataKey, name: name ?? dataKey })
+    Line: ({ dataKey, name, stroke }: { dataKey: string; name?: string; stroke?: string }) => {
+      chart.lines.push({ dataKey, name: name ?? dataKey, stroke })
       return <div data-testid="series">{name ?? dataKey}</div>
     },
   }
@@ -644,5 +646,32 @@ describe('TireAnalyticsSection on the hour meter (#217)', () => {
     render(<TireAnalyticsSection vin={VIN} />)
     expect(await screen.findByText('vehicle.tires.canReportDistance')).toBeInTheDocument()
     expect(screen.queryByText('vehicle.tires.canReportHours')).toBeNull()
+  })
+})
+
+describe('TireAnalyticsSection chart theme', () => {
+  afterEach(() => vi.restoreAllMocks())
+  beforeEach(() => respond())
+
+  it('draws the tooltip, grid, axes and lines from theme tokens', async () => {
+    chart.chrome = {}
+    respond({
+      tires: [
+        tire({ id: 1, brand: 'Front', readings: [reading(1, '8.00'), reading(2, '7.00')] }),
+        tire({ id: 2, brand: 'Rear', readings: [reading(1, '7.50'), reading(2, '6.50')] }),
+      ],
+    })
+    await show()
+
+    expect(chart.chrome.tooltip?.contentStyle).toMatchObject({
+      backgroundColor: 'var(--color-surface-2)',
+      color: 'var(--color-text)',
+    })
+    // series-coloured row text fails contrast on light, so rows read in ink
+    expect(chart.chrome.tooltip?.itemStyle).toEqual({ color: 'var(--color-text)' })
+    expect(chart.chrome.grid?.stroke).toBe('var(--color-hair)')
+    expect(chart.chrome.xAxis?.stroke).toBe('var(--color-text-mute)')
+    expect(chart.chrome.yAxis?.stroke).toBe('var(--color-text-mute)')
+    expect(chart.lines.map((l) => l.stroke)).toEqual(['var(--color-chart-1)', 'var(--color-chart-2)'])
   })
 })
