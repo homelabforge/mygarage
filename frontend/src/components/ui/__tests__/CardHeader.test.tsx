@@ -80,6 +80,15 @@ describe('CardHeader trailing layout (the default)', () => {
     expect(before(desc, screen.getByTestId('icon'))).toBe(true)
   })
 
+  it('top-aligns the icon and actions when there is a description', () => {
+    // Centring them against a two-line block looked off next to every other header.
+    const { container } = render(<CardHeader title="Costs" description="This year" icon={BareIcon} />)
+    const row = container.firstElementChild as HTMLElement
+    expect(row).toHaveClass('items-start')
+    expect(row).not.toHaveClass('items-center')
+    expect(screen.getByTestId('icon')).toHaveClass('mt-0.5')
+  })
+
   it('renders the same markup the ~18 existing callers already get', () => {
     // Every current caller is title-only or title + icon. This is the
     // pre-change output, so the new props can't leak into the old look.

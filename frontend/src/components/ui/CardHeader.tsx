@@ -44,9 +44,10 @@ export default function CardHeader({
     )
   }
 
-  // No description keeps the bare h3, so the existing callers' markup doesn't move.
+  // No description keeps the bare h3 and items-center, so the existing callers'
+  // markup doesn't move. With one, top-align like every other described header.
   return (
-    <div className="mb-3 flex items-center justify-between gap-3">
+    <div className={`mb-3 flex ${desc ? 'items-start' : 'items-center'} justify-between gap-3`}>
       {desc ? (
         <div>
           {heading}
@@ -57,7 +58,9 @@ export default function CardHeader({
       )}
       <div className="flex items-center gap-2">
         {actions}
-        {Icon ? <Icon aria-hidden="true" className="h-5 w-5 text-(--accent-fg)" /> : null}
+        {Icon ? (
+          <Icon aria-hidden="true" className={desc ? 'mt-0.5 h-5 w-5 text-(--accent-fg)' : 'h-5 w-5 text-(--accent-fg)'} />
+        ) : null}
       </div>
     </div>
   )

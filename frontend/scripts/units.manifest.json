@@ -2674,8 +2674,8 @@
     {
       "path": "src/components/settings/WidgetKeysPanel.tsx",
       "disposition": "no unit behaviour",
-      "digest": "caf5a82e6e2ea14f82303e998725c4659825b2220120d88ac6b2c3501ec92644",
-      "reason": "no unit behaviour: dispositioned under the CORRECTED scan: every unit stem, token, quantity name and canonical field suffix this codebase uses, matched case-insensitively with NO word boundary. The earlier word-boundary version was a floor (it called AnalyticsHelpModal.tsx clean while it renders \"Average MPG:\" to every user) and it was superseded before any disposition in this file was written. This file matched 1 of them; every hit was read in context and none is a unit decision or a unit-bearing quantity. 2026-11-24 (ui-primitives): the panel header is CardHeader's leading layout now (accent icon, CardHeader title type), matching the Integrations cards. Same strings and New Key button; no unit behaviour moved."
+      "digest": "d286f8a537ed94501c52f01d4e7b008aec856ce41cb2a9fc9fac9dbfa6b49cdd",
+      "reason": "no unit behaviour: dispositioned under the CORRECTED scan: every unit stem, token, quantity name and canonical field suffix this codebase uses, matched case-insensitively with NO word boundary. The earlier word-boundary version was a floor (it called AnalyticsHelpModal.tsx clean while it renders \"Average MPG:\" to every user) and it was superseded before any disposition in this file was written. This file matched 1 of them; every hit was read in context and none is a unit decision or a unit-bearing quantity. 2026-11-24 (ui-primitives): the panel header is CardHeader's leading layout now (accent icon, CardHeader title type), matching the Integrations cards. Same strings and New Key button; no unit behaviour moved. 2026-11-24 (ui-primitives fix 1): the New Key button gets shrink-0 whitespace-nowrap so it stays on one line on a phone. Classes only; no unit behaviour moved."
     },
     {
       "path": "src/components/settings/choiceStyles.ts",
@@ -3000,8 +3000,8 @@
     {
       "path": "src/components/ui/CardHeader.tsx",
       "disposition": "no unit behaviour",
-      "digest": "53c43a7cf671b635b8174b049c71dce2d0e0ad9e284a6d3821b1fcb3d18bdc06",
-      "reason": "no unit behaviour: dispositioned under the CORRECTED scan: every unit stem, token, quantity name and canonical field suffix this codebase uses, matched case-insensitively with NO word boundary. The earlier word-boundary version was a floor (it called AnalyticsHelpModal.tsx clean while it renders \"Average MPG:\" to every user) and it was superseded before any disposition in this file was written. This file matched NONE of them. 2026-11-24 (ui-primitives): optional description line and an iconPosition prop; leading puts the icon before the title (the Settings > Integrations header, moved in). The trailing default renders the same markup as before. Layout and copy slots only; no unit behaviour moved."
+      "digest": "ecc29d4cd7b09dd4da7282d4c815f7c4eddeeb6b099a10f5fa4e3b3904e1921c",
+      "reason": "no unit behaviour: dispositioned under the CORRECTED scan: every unit stem, token, quantity name and canonical field suffix this codebase uses, matched case-insensitively with NO word boundary. The earlier word-boundary version was a floor (it called AnalyticsHelpModal.tsx clean while it renders \"Average MPG:\" to every user) and it was superseded before any disposition in this file was written. This file matched NONE of them. 2026-11-24 (ui-primitives): optional description line and an iconPosition prop; leading puts the icon before the title (the Settings > Integrations header, moved in). The trailing default renders the same markup as before. Layout and copy slots only; no unit behaviour moved. 2026-11-24 (ui-primitives fix 1): a trailing header with a description top-aligns (items-start, icon mt-0.5); without one it is unchanged. Alignment classes only; no unit behaviour moved."
     },
     {
       "path": "src/components/ui/Checkbox.tsx",

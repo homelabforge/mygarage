@@ -68,7 +68,7 @@ export default function WidgetKeysPanel(): React.ReactElement {
             type="button"
             onClick={() => setModalOpen(true)}
             disabled={disabledByAuthMode}
-            className="btn btn-primary inline-flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+            className="btn btn-primary inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Plus className="h-4 w-4" />
             {t('widgetKeys.panel.newKey')}
