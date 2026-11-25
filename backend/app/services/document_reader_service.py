@@ -136,6 +136,8 @@ async def read_document(
         user_text=prompt.user_text,
         images=images,
         base_url=base_url,
+        max_tokens=prompt.max_tokens,
+        timeout=prompt.timeout,
     )
     raw = llm_client.extract_json_object(str(content))
     fields, warnings = coerce_fields(raw, prompt.keys)

@@ -11,7 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
-DocumentKind = Literal["registration_certificate", "insurance_policy"]
+DocumentKind = Literal["registration_certificate", "insurance_policy", "service_invoice"]
 
 
 @dataclass(frozen=True)
@@ -23,13 +23,22 @@ class DocumentPrompt:
     user_text: str
     #: The keys the answer may carry; anything else is dropped.
     keys: tuple[str, ...]
+    #: Bounds the answer; a kind with a long list (invoice lines) needs more.
+    max_tokens: int = 2000
+    #: Seconds the vision call may take; a long answer from a local model is slow.
+    timeout: float = 90.0
 
 
 def _load() -> dict[str, DocumentPrompt]:
     from app.services.document_prompts.insurance_policy import PROMPT as INSURANCE
     from app.services.document_prompts.registration_certificate import PROMPT as REGISTRATION
+    from app.services.document_prompts.service_invoice import PROMPT as SERVICE_INVOICE
 
-    return {REGISTRATION.kind: REGISTRATION, INSURANCE.kind: INSURANCE}
+    return {
+        REGISTRATION.kind: REGISTRATION,
+        INSURANCE.kind: INSURANCE,
+        SERVICE_INVOICE.kind: SERVICE_INVOICE,
+    }
 
 
 PROMPTS: dict[str, DocumentPrompt] = _load()

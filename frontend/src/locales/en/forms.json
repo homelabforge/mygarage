@@ -813,7 +813,21 @@
     "visitUpdated": "Service visit updated",
     "reminderDateRequired": "Line item {{number}}: choose the reminder date",
     "reminderIntervalRequired": "Line item {{number}}: enter a reminder interval",
-    "reminderDistanceOrHours": "Line item {{number}}: use a distance or an engine-hours interval, not both"
+    "reminderDistanceOrHours": "Line item {{number}}: use a distance or an engine-hours interval, not both",
+    "readInvoice": "Read invoice",
+    "readInvoiceHint": "Fill this visit from a workshop invoice, job card or quote (PDF or photo). Nothing is saved until you press Create.",
+    "readingInvoice": "Reading the invoice… a long one can take a minute or two.",
+    "invoiceRead": "Read {{count}} lines from {{source}}. Check them before saving.",
+    "invoiceSourceText": "the PDF's text",
+    "invoiceSourceVision": "the image (vision model)",
+    "invoiceTotals": "Invoice total {{invoice}}; this visit now adds up to {{visit}}.",
+    "invoiceVendorUnknown": "Workshop on the invoice: {{name}}. It isn't in your address book; pick or add it below.",
+    "invoiceNoLines": "No lines could be read from this file.",
+    "invoiceAiOff": "Reading invoices needs “Read uploaded documents with a vision model” on: Settings → Integrations.",
+    "invoiceReadFailed": "Could not read the invoice",
+    "attachInvoice": "Attach {{name}} to this visit when saving",
+    "invoiceAttachFailed": "The visit was saved, but attaching the invoice failed: {{message}}",
+    "invoiceSourceOcr": "the scanned text"
   },
   "spotRental": {
     "address": "Address",

@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date as date_type
 from datetime import datetime
 from decimal import Decimal
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import (
     AfterValidator,
@@ -636,3 +636,44 @@ class ServiceVisitListResponse(BaseModel):
             ]
         }
     }
+
+
+class ServiceInvoiceDraftLine(BaseModel):
+    """One line read off a workshop invoice: its cost is before tax."""
+
+    description: str
+    cost: Decimal | None = None
+    kind: str | None = Field(None, description="labour, part, fee or other, as the model read it")
+    notes: str | None = None
+
+
+class ServiceInvoiceDraft(BaseModel):
+    """What a workshop invoice would fill in a service visit. Nothing is saved."""
+
+    date: date_type | None = None
+    odometer_km: Decimal | None = None
+    vendor_name: str | None = Field(None, description="The workshop as printed")
+    vendor_id: int | None = Field(
+        None, description="The address-book vendor it matched, if one did"
+    )
+    invoice_number: str | None = None
+    currency: str | None = None
+    tax_amount: Decimal | None = None
+    total: Decimal | None = Field(None, description="The invoice's own total, with tax")
+    notes: str | None = None
+    line_items: list[ServiceInvoiceDraftLine] = Field(default_factory=list)
+
+
+class ServiceInvoiceReadResponse(BaseModel):
+    """Response of POST /service-visits/read-invoice."""
+
+    draft: ServiceInvoiceDraft
+    source: Literal["text", "ocr", "llm"] = Field(
+        ...,
+        description=(
+            "text: the PDF's own text, read by the text model; ocr: the photo or scan's "
+            "OCR text, read by the text model; llm: the images, read by the vision model"
+        ),
+    )
+    model: str | None = None
+    warnings: list[str] = Field(default_factory=list)

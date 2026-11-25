@@ -54,9 +54,10 @@ export default function VendorSearch({
   // old text can't land over the newer one.
   const requestIdRef = useRef(0)
 
-  // Load initial vendor if value is provided
+  // Load the vendor named by `value`: on first render, and when the parent
+  // sets a different one (a read invoice picks the workshop).
   useEffect(() => {
-    if (value && !selectedVendor) {
+    if (value && selectedVendor?.id !== value) {
       api
         .get(`/vendors/${value}`)
         .then((response) => {

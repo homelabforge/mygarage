@@ -16,6 +16,9 @@ import VendorSearch from './VendorSearch'
 import LineItemEditor from './LineItemEditor'
 import ServiceVisitAttachmentUpload from './ServiceVisitAttachmentUpload'
 import ServiceVisitAttachmentList from './ServiceVisitAttachmentList'
+import ServiceInvoiceReader from './ServiceInvoiceReader'
+import type { ServiceInvoiceReadResponse } from '../services/serviceInvoiceService'
+import { useAiDocumentReading } from '../hooks/queries/useAiDocumentReading'
 import { useCreateServiceVisit, useUpdateServiceVisit } from '../hooks/queries/useServiceVisits'
 import { useSupplies } from '../hooks/queries/useSupplies'
 import { useRecallRecords } from '../hooks/queries/useRecallRecords'
@@ -30,9 +33,9 @@ import { supplyDisplayUnit, toCanonical, toDisplay, type SupplyUnit } from '../u
 import { estimateUsageCost } from '../utils/supplyUsageCost'
 import { getUsageTracking } from '../utils/usageTracking'
 import api from '../services/api'
-import { actionErrorMessage } from '../utils/httpErrorHandler'
+import { actionErrorMessage, getActionErrorMessage } from '../utils/httpErrorHandler'
 import { applyControlledFieldErrors, withoutFieldError } from '../utils/apiFormErrors'
-import { Badge, Button, Chip, Field, Input, NumberInput, Textarea, Mono, type SelectOption } from './ui'
+import { Badge, Button, Checkbox, Chip, Field, Input, NumberInput, Textarea, Mono, type SelectOption } from './ui'
 import CurrencyInput from './common/CurrencyInput'
 import { formatCurrency, formatCurrencyZero } from '../utils/formatUtils'
 import { useCurrencyPreference } from '../hooks/useCurrencyPreference'
@@ -202,6 +205,13 @@ function ServiceVisitForm({
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [submitting, setSubmitting] = useState(false)
   const [attachmentRefreshKey, setAttachmentRefreshKey] = useState(0)
+  const { enabled: aiReadingEnabled } = useAiDocumentReading()
+  // The invoice the form was last filled from, attached to the visit on save.
+  const [invoiceFile, setInvoiceFile] = useState<File | null>(null)
+  const [attachInvoice, setAttachInvoice] = useState(true)
+  const [invoiceSummary, setInvoiceSummary] = useState<
+    { lines: number; source: string; total: number | null; vendorUnknown: string | null; warnings: string[] } | null
+  >(null)
   const nextTempIdRef = useRef(-1)
 
   const assignTempId = () => {
@@ -563,6 +573,73 @@ function ServiceVisitForm({
     }))
   }
 
+  /**
+   * Fill the form from a read invoice. Lines nobody has typed into are
+   * replaced; lines that hold something are kept and the invoice's follow.
+   * Visit fields are filled where the invoice has a value; notes append.
+   */
+  const applyInvoice = (result: ServiceInvoiceReadResponse, file: File): void => {
+    const { draft } = result
+    const num = (v: unknown): number | undefined => {
+      const n = readNumber(v as string | number | null | undefined)
+      return n == null || Number.isNaN(n) ? undefined : n
+    }
+    const read = (draft.line_items ?? []).map((line) => ({
+      ...createEmptyLineItem(assignTempId()),
+      description: line.description,
+      cost: num(line.cost),
+      notes: line.notes ?? '',
+    }))
+    const tax = num(draft.tax_amount)
+    const odometerKm = num(draft.odometer_km)
+    setFormData((prev) => {
+      const kept = prev.line_items.filter(
+        (item) => item.id !== undefined || item.description.trim() !== '' || item.cost != null
+      )
+      const notes = draft.notes
+        ? prev.notes.includes(draft.notes)
+          ? prev.notes
+          : [prev.notes.trim(), draft.notes].filter(Boolean).join('\n')
+        : prev.notes
+      return {
+        ...prev,
+        date: draft.date ?? prev.date,
+        vendor_id: draft.vendor_id ?? prev.vendor_id,
+        odometer_km: odometerKm !== undefined ? readTypedNumber(u.distance.toInputValue(odometerKm)) : prev.odometer_km,
+        tax_amount: tax ?? prev.tax_amount,
+        invoice_number: prev.invoice_number || draft.invoice_number?.slice(0, 50) || '',
+        notes,
+        line_items: kept.length + read.length > 0 ? [...kept, ...read] : prev.line_items,
+      }
+    })
+    setNumberText((prev) => ({
+      ...prev,
+      ...(odometerKm !== undefined ? { odometer_km: u.distance.toInputValue(odometerKm) } : {}),
+      ...(tax !== undefined ? { tax_amount: String(tax) } : {}),
+    }))
+    if (draft.invoice_number) {
+      setRefsOn((prev) => ({ ...prev, invoice_number: true }))
+      setRefsTouched((prev) => ({ ...prev, invoice_number: true }))
+    }
+    setFieldErrors({})
+    setError(null)
+    setInvoiceFile(file)
+    setAttachInvoice(true)
+    setInvoiceSummary({
+      lines: read.length,
+      source: t(
+        result.source === 'text'
+          ? 'service.invoiceSourceText'
+          : result.source === 'ocr'
+            ? 'service.invoiceSourceOcr'
+            : 'service.invoiceSourceVision'
+      ),
+      total: num(draft.total) ?? null,
+      vendorUnknown: draft.vendor_id == null && draft.vendor_name ? draft.vendor_name : null,
+      warnings: result.warnings ?? [],
+    })
+  }
+
   // What this same line item has saved for this supply, if it's been saved.
   const savedUsage = (item: ServiceVisitFormLineItem, supplyId: number) =>
     item.id == null
@@ -727,6 +804,21 @@ function ServiceVisitForm({
     return null
   }
 
+  // The visit is saved by now: a failed upload is a warning, never a lost visit.
+  const attachInvoiceTo = async (visitId: number): Promise<void> => {
+    if (!invoiceFile || !attachInvoice) return
+    const form = new FormData()
+    form.append('file', invoiceFile)
+    try {
+      await api.post(`/service-visits/${visitId}/attachments`, form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      setInvoiceFile(null)
+    } catch (err) {
+      toast.error(t('service.invoiceAttachFailed', { message: getActionErrorMessage(err, t('service.attachments').toLowerCase()) }))
+    }
+  }
+
   const handleSubmit = async (e: SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault()
     setError(null)
@@ -839,6 +931,7 @@ function ServiceVisitForm({
           misc_fees: formData.misc_fees ?? null,
           line_items: updateLineItems,
         })
+        await attachInvoiceTo(visit.id)
         toast.success(t('service.visitUpdated'))
       } else {
         // Create — map to ServiceLineItemCreate with temp_id + reminder
@@ -880,7 +973,8 @@ function ServiceVisitForm({
           line_items: createLineItems,
         }
 
-        await createMutation.mutateAsync(payload)
+        const created: { id?: number } = await createMutation.mutateAsync(payload)
+        if (created?.id != null) await attachInvoiceTo(created.id)
         toast.success(t('service.visitCreated'))
       }
 
@@ -963,6 +1057,39 @@ function ServiceVisitForm({
           {/* Visit Details */}
           <div className="space-y-4">
             <h3 className="text-sm font-semibold text-text-mute uppercase tracking-wide">{t('service.visitDetails')}</h3>
+
+            {aiReadingEnabled && (
+              <ServiceInvoiceReader vin={vin} disabled={submitting} onRead={applyInvoice} />
+            )}
+            {invoiceSummary && (
+              <div className="space-y-1 rounded-panel border border-primary/30 bg-primary/5 p-3 text-sm text-text" data-testid="invoice-summary">
+                <p>{t('service.invoiceRead', { count: invoiceSummary.lines, source: invoiceSummary.source })}</p>
+                {invoiceSummary.lines === 0 && <p className="text-warning">{t('service.invoiceNoLines')}</p>}
+                {invoiceSummary.total != null && (
+                  <p className={Math.abs(invoiceSummary.total - totalCost) > 0.005 ? 'text-warning' : 'text-text-mute'}>
+                    {t('service.invoiceTotals', {
+                      invoice: formatCurrency(invoiceSummary.total, { currencyCode, locale }),
+                      visit: formatCurrencyZero(totalCost, { currencyCode, locale }),
+                    })}
+                  </p>
+                )}
+                {invoiceSummary.vendorUnknown && (
+                  <p className="text-text-mute">{t('service.invoiceVendorUnknown', { name: invoiceSummary.vendorUnknown })}</p>
+                )}
+                {invoiceSummary.warnings.map((w) => (
+                  <p key={w} className="text-warning">{w}</p>
+                ))}
+                {invoiceFile && (
+                  <Checkbox
+                    id="attach-invoice"
+                    label={t('service.attachInvoice', { name: invoiceFile.name })}
+                    checked={attachInvoice}
+                    onChange={(e) => setAttachInvoice(e.target.checked)}
+                    disabled={submitting}
+                  />
+                )}
+              </div>
+            )}
 
             <div className={`grid grid-cols-1 ${isMotorized ? 'md:grid-cols-2' : ''} gap-4`}>
               <Field id="service-date" label={t('common:date')} required error={fieldErrors.date}>

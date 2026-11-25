@@ -2272,6 +2272,20 @@
         "title": "Body_parse_registration_certificate_api_registration_certificate_parse_post",
         "type": "object"
       },
+      "Body_read_invoice_api_vehicles__vin__service_visits_read_invoice_post": {
+        "properties": {
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_read_invoice_api_vehicles__vin__service_visits_read_invoice_post",
+        "type": "object"
+      },
       "Body_test_parse_insurance_pdf_api_insurance_test_parse_post": {
         "properties": {
           "file": {
@@ -20290,6 +20304,213 @@
           "service_type"
         ],
         "title": "ServiceHistoryItem",
+        "type": "object"
+      },
+      "ServiceInvoiceDraft": {
+        "description": "What a workshop invoice would fill in a service visit. Nothing is saved.",
+        "properties": {
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date"
+          },
+          "invoice_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Invoice Number"
+          },
+          "line_items": {
+            "items": {
+              "$ref": "#/components/schemas/ServiceInvoiceDraftLine"
+            },
+            "title": "Line Items",
+            "type": "array"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "odometer_km": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Odometer Km"
+          },
+          "tax_amount": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tax Amount"
+          },
+          "total": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The invoice's own total, with tax",
+            "title": "Total"
+          },
+          "vendor_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The address-book vendor it matched, if one did",
+            "title": "Vendor Id"
+          },
+          "vendor_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The workshop as printed",
+            "title": "Vendor Name"
+          }
+        },
+        "title": "ServiceInvoiceDraft",
+        "type": "object"
+      },
+      "ServiceInvoiceDraftLine": {
+        "description": "One line read off a workshop invoice: its cost is before tax.",
+        "properties": {
+          "cost": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "labour, part, fee or other, as the model read it",
+            "title": "Kind"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          }
+        },
+        "required": [
+          "description"
+        ],
+        "title": "ServiceInvoiceDraftLine",
+        "type": "object"
+      },
+      "ServiceInvoiceReadResponse": {
+        "description": "Response of POST /service-visits/read-invoice.",
+        "properties": {
+          "draft": {
+            "$ref": "#/components/schemas/ServiceInvoiceDraft"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "source": {
+            "description": "text: the PDF's own text, read by the text model; ocr: the photo or scan's OCR text, read by the text model; llm: the images, read by the vision model",
+            "enum": [
+              "text",
+              "ocr",
+              "llm"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "draft",
+          "source"
+        ],
+        "title": "ServiceInvoiceReadResponse",
         "type": "object"
       },
       "ServiceLineItemCreate": {
@@ -54478,6 +54699,76 @@
           }
         ],
         "summary": "Create Service Visit",
+        "tags": [
+          "Service Visits"
+        ]
+      }
+    },
+    "/api/vehicles/{vin}/service-visits/read-invoice": {
+      "post": {
+        "description": "Read a workshop invoice, job card or quote (PDF or photo) into a draft\nservice visit. Writes nothing: the form fills from the draft and the\nperson saves.\n\n**Raises:**\n- **409** ``ai_reading_not_configured``: AI document reading is off\n- **409** ``{\"code\": \"vision_consent_required\", \"host\"}``: the model is\n  outside the network and ``allow_external_vision`` was not set\n- **413**: the file is too large\n- **502**: the AI endpoint failed",
+        "operationId": "read_invoice_api_vehicles__vin__service_visits_read_invoice_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vin",
+            "required": true,
+            "schema": {
+              "title": "Vin",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The person's yes to an AI model outside the household's network",
+            "in": "query",
+            "name": "allow_external_vision",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "The person's yes to an AI model outside the household's network",
+              "title": "Allow External Vision",
+              "type": "boolean"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_read_invoice_api_vehicles__vin__service_visits_read_invoice_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceInvoiceReadResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Read Invoice",
         "tags": [
           "Service Visits"
         ]

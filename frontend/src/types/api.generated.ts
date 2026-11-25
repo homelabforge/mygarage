@@ -6804,6 +6804,35 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/vehicles/{vin}/service-visits/read-invoice": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Read Invoice
+         * @description Read a workshop invoice, job card or quote (PDF or photo) into a draft
+         *     service visit. Writes nothing: the form fills from the draft and the
+         *     person saves.
+         *
+         *     **Raises:**
+         *     - **409** ``ai_reading_not_configured``: AI document reading is off
+         *     - **409** ``{"code": "vision_consent_required", "host"}``: the model is
+         *       outside the network and ``allow_external_vision`` was not set
+         *     - **413**: the file is too large
+         *     - **502**: the AI endpoint failed
+         */
+        post: operations["read_invoice_api_vehicles__vin__service_visits_read_invoice_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/vehicles/{vin}/service-visits/{visit_id}": {
         parameters: {
             query?: never;
@@ -9058,6 +9087,11 @@ export interface components {
         };
         /** Body_parse_registration_certificate_api_registration_certificate_parse_post */
         Body_parse_registration_certificate_api_registration_certificate_parse_post: {
+            /** File */
+            file: string;
+        };
+        /** Body_read_invoice_api_vehicles__vin__service_visits_read_invoice_post */
+        Body_read_invoice_api_vehicles__vin__service_visits_read_invoice_post: {
             /** File */
             file: string;
         };
@@ -16311,6 +16345,75 @@ export interface components {
             service_type: string;
             /** Vendor Name */
             vendor_name?: string | null;
+        };
+        /**
+         * ServiceInvoiceDraft
+         * @description What a workshop invoice would fill in a service visit. Nothing is saved.
+         */
+        ServiceInvoiceDraft: {
+            /** Currency */
+            currency?: string | null;
+            /** Date */
+            date?: string | null;
+            /** Invoice Number */
+            invoice_number?: string | null;
+            /** Line Items */
+            line_items?: components["schemas"]["ServiceInvoiceDraftLine"][];
+            /** Notes */
+            notes?: string | null;
+            /** Odometer Km */
+            odometer_km?: string | null;
+            /** Tax Amount */
+            tax_amount?: string | null;
+            /**
+             * Total
+             * @description The invoice's own total, with tax
+             */
+            total?: string | null;
+            /**
+             * Vendor Id
+             * @description The address-book vendor it matched, if one did
+             */
+            vendor_id?: number | null;
+            /**
+             * Vendor Name
+             * @description The workshop as printed
+             */
+            vendor_name?: string | null;
+        };
+        /**
+         * ServiceInvoiceDraftLine
+         * @description One line read off a workshop invoice: its cost is before tax.
+         */
+        ServiceInvoiceDraftLine: {
+            /** Cost */
+            cost?: string | null;
+            /** Description */
+            description: string;
+            /**
+             * Kind
+             * @description labour, part, fee or other, as the model read it
+             */
+            kind?: string | null;
+            /** Notes */
+            notes?: string | null;
+        };
+        /**
+         * ServiceInvoiceReadResponse
+         * @description Response of POST /service-visits/read-invoice.
+         */
+        ServiceInvoiceReadResponse: {
+            draft: components["schemas"]["ServiceInvoiceDraft"];
+            /** Model */
+            model?: string | null;
+            /**
+             * Source
+             * @description text: the PDF's own text, read by the text model; ocr: the photo or scan's OCR text, read by the text model; llm: the images, read by the vision model
+             * @enum {string}
+             */
+            source: "text" | "ocr" | "llm";
+            /** Warnings */
+            warnings?: string[];
         };
         /**
          * ServiceLineItemCreate
@@ -33193,6 +33296,44 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ServiceVisitResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_invoice_api_vehicles__vin__service_visits_read_invoice_post: {
+        parameters: {
+            query?: {
+                /** @description The person's yes to an AI model outside the household's network */
+                allow_external_vision?: boolean;
+            };
+            header?: never;
+            path: {
+                vin: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_read_invoice_api_vehicles__vin__service_visits_read_invoice_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceInvoiceReadResponse"];
                 };
             };
             /** @description Validation Error */
