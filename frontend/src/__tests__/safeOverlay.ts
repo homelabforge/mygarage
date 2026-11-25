@@ -21,13 +21,3 @@ export function expectSafeOverlay(dialog: Element, cap: '80vh' | '90vh' = '90vh'
   expect(dialog, 'pass the role=dialog panel, not something inside it').toHaveAttribute('role', 'dialog')
   expectPaddedOverlay(dialog.parentElement, dialog, cap)
 }
-
-/**
- * Same checks for the overlays that aren't dialogs yet (just Calendar notes now).
- * It turns into a drawer later in this batch, and this goes with it.
- */
-export function expectLegacySafeOverlay(inside: Element, cap: '80vh' | '90vh' = '90vh'): void {
-  const overlay = inside.closest('.fixed.inset-0')
-  expect(overlay, 'no fixed inset-0 overlay above this element').not.toBeNull()
-  expectPaddedOverlay(overlay, overlay!.firstElementChild, cap)
-}

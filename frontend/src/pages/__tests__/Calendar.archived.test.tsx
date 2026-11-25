@@ -10,8 +10,11 @@ import { screen } from '@testing-library/react'
 import { render } from '../../__tests__/test-utils'
 
 vi.mock('@schedule-x/react', () => ({
-  useCalendarApp: () => ({}),
+  useCalendarApp: () => ({ setTheme: vi.fn() }),
   ScheduleXCalendar: () => null,
+}))
+vi.mock('../../contexts/ThemeContext', () => ({
+  useTheme: () => ({ theme: 'dark', toggleTheme: vi.fn(), setTheme: vi.fn() }),
 }))
 vi.mock('@schedule-x/calendar', () => ({
   createViewDay: () => ({ name: 'day' }),

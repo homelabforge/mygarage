@@ -1043,3 +1043,63 @@ describe('nav breakpoint token', () => {
     expect(theme).toMatch(/--breakpoint-nav\s*:\s*56\.25rem\s*;/)
   })
 })
+
+/**
+ * Schedule-X ships its own Material palette as --sx-* custom properties. The
+ * bridge block in index.css points them at our tokens so the calendar chrome
+ * follows the theme (G2a-22). A Schedule-X bump that adds a colour would land
+ * in its default purple without a peep, so every one it defines has to be
+ * bridged or sit in SX_SKIPPED with a reason.
+ */
+describe('Schedule-X colour bridge', () => {
+  const sxDist = resolve(ROOT, 'node_modules/@schedule-x')
+  const themeCss = stripCssComments(readFileSync(resolve(sxDist, 'theme-default/dist/index.css'), 'utf8'))
+  const coreJs = readFileSync(resolve(sxDist, 'calendar/dist/core.js'), 'utf8')
+  const appCss = stripCssComments(readFileSync(resolve(SRC, 'index.css'), 'utf8'))
+
+  // Nothing in the theme css or the calendar's js reads these, so there's nothing to bridge.
+  const SX_SKIPPED: Record<string, string> = {
+    '--sx-color-secondary': 'never read by the theme css or core.js',
+    '--sx-color-on-secondary': 'never read by the theme css or core.js',
+    '--sx-color-secondary-container': 'never read by the theme css or core.js',
+    '--sx-color-on-secondary-container': 'never read by the theme css or core.js',
+    '--sx-color-tertiary': 'never read by the theme css or core.js',
+    '--sx-color-on-tertiary': 'never read by the theme css or core.js',
+    '--sx-color-tertiary-container': 'never read by the theme css or core.js',
+    '--sx-color-on-tertiary-container': 'never read by the theme css or core.js',
+    '--sx-color-shadow': 'never read by the theme css or core.js',
+    '--sx-color-surface-tint': 'never read by the theme css or core.js',
+  }
+
+  const sxNames = [...new Set([...themeCss.matchAll(/(--sx-(?:internal-)?color-[a-z0-9-]+)\s*:/g)].map((m) => m[1]))]
+
+  const bridge = ((): Map<string, string> => {
+    const block = appCss.match(
+      /\.sx-calendar-wrapper\s*,\s*\.sx-calendar-wrapper\s+\.is-dark\s*\{([^}]*)\}/,
+    )?.[1] ?? ''
+    return new Map([...block.matchAll(/(--sx-[a-z0-9-]+)\s*:\s*([^;]+);/g)].map((m) => [m[1], m[2].trim()]))
+  })()
+
+  it('reads the theme css at all', () => {
+    // 27 --sx-color-* plus 3 --sx-internal-color-* under :root (Schedule-X 4.9.1).
+    expect(sxNames.length).toBeGreaterThanOrEqual(30)
+  })
+
+  it('bridges or skips every --sx colour the theme defines', () => {
+    const missing = sxNames.filter((name) => !bridge.has(name) && !(name in SX_SKIPPED))
+    expect(missing, 'add these to the bridge in index.css, or to SX_SKIPPED with a reason').toEqual([])
+  })
+
+  it('only skips colours nothing reads', () => {
+    const read = Object.keys(SX_SKIPPED).filter(
+      (name) => themeCss.includes(`var(${name})`) || coreJs.includes(`var(${name})`),
+    )
+    expect(read).toEqual([])
+  })
+
+  it('bridges to app tokens, never a literal colour', () => {
+    expect(bridge.size).toBeGreaterThan(0)
+    const literal = [...bridge].filter(([, value]) => !/^(1px solid )?var\(--/.test(value))
+    expect(literal).toEqual([])
+  })
+})

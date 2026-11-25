@@ -22,9 +22,12 @@ const capturedCalendarConfig = vi.hoisted(() => ({ current: null as Record<strin
 vi.mock('@schedule-x/react', () => ({
   useCalendarApp: (config: Record<string, unknown>) => {
     capturedCalendarConfig.current = config
-    return {}
+    return { setTheme: vi.fn() }
   },
   ScheduleXCalendar: () => null,
+}))
+vi.mock('../../contexts/ThemeContext', () => ({
+  useTheme: () => ({ theme: 'dark', toggleTheme: vi.fn(), setTheme: vi.fn() }),
 }))
 vi.mock('@schedule-x/calendar', () => ({
   createViewDay: () => ({ name: 'day' }),

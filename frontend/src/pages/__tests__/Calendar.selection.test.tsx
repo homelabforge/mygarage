@@ -16,16 +16,18 @@ import { fireEvent, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient } from '@tanstack/react-query'
 import { render } from '../../__tests__/test-utils'
-import { expectLegacySafeOverlay } from '../../__tests__/safeOverlay'
 import { setHouseholdTimeZone } from '../../constants/i18n'
 
 const capturedCalendarConfig = vi.hoisted(() => ({ current: null as Record<string, unknown> | null }))
 vi.mock('@schedule-x/react', () => ({
   useCalendarApp: (config: Record<string, unknown>) => {
     capturedCalendarConfig.current = config
-    return {}
+    return { setTheme: vi.fn() }
   },
   ScheduleXCalendar: () => null,
+}))
+vi.mock('../../contexts/ThemeContext', () => ({
+  useTheme: () => ({ theme: 'dark', toggleTheme: vi.fn(), setTheme: vi.fn() }),
 }))
 vi.mock('@schedule-x/calendar', () => ({
   createViewDay: () => ({ name: 'day' }),
@@ -277,11 +279,16 @@ describe('Calendar month grid and bulk mode (G7 fold-in)', () => {
   })
 })
 
-describe('Calendar notes modal layout', () => {
-  it('centres inside the iPhone safe area (#305)', async () => {
+describe('Calendar notes', () => {
+  it('the notes view is a drawer', async () => {
+    // RED before G2a-22: notes were a hand-rolled fixed inset-0 overlay.
     render(<CalendarPage />)
     await screen.findByText('Oil change')
     fireEvent.click(screen.getByRole('button', { name: 'calendar.misc.viewNotes' }))
-    expectLegacySafeOverlay(screen.getByRole('heading', { name: 'calendar.eventNotes' }), '80vh')
+    const drawer = screen.getByTestId('drawer')
+    expect(drawer).toHaveAccessibleName('calendar.eventNotes')
+    expect(drawer).toHaveTextContent('Bring the coupon')
+    // Its own header close, no second Close button in the body.
+    expect(screen.getAllByRole('button', { name: 'calendar.misc.close' })).toHaveLength(1)
   })
 })

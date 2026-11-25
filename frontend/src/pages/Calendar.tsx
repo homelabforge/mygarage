@@ -26,30 +26,58 @@ import { identifierValue, vinForDisplay } from '../utils/vehicleIdentifier'
 import { cameFromNestedControl } from '../components/ClickableCard'
 import { todayInHousehold } from '@/constants/i18n'
 import { useAuth } from '@/contexts/AuthContext'
+import { useTheme } from '@/contexts/ThemeContext'
+import { Drawer } from '@/components/ui'
+
+type EventType = 'maintenance' | 'insurance' | 'warranty' | 'service'
+
+interface EventColors {
+  main: string
+  container: string
+  onContainer: string
+}
+
+interface EventCalendar {
+  colorName: EventType
+  lightColors: EventColors
+  darkColors: EventColors
+}
+
+// Schedule-X copies these straight into --sx-color-* on <html>, so a var()
+// works, and the --color-cal-* tokens flip with html.light. Same strings both ways.
+function eventCalendar(type: EventType): EventCalendar {
+  const colors = {
+    main: `var(--color-cal-${type})`,
+    container: `var(--color-cal-${type}-container)`,
+    onContainer: `var(--color-cal-${type}-on)`,
+  }
+  return { colorName: type, lightColors: colors, darkColors: colors }
+}
 
 // Map event type -> Schedule-X calendarId for per-type coloring
-const EVENT_CALENDARS = {
-  maintenance: {
-    colorName: 'maintenance',
-    lightColors: { main: '#3b82f6', container: '#dbeafe', onContainer: '#1e3a5f' },
-    darkColors: { main: '#60a5fa', onContainer: '#bfdbfe', container: '#1e3a8a' },
-  },
-  insurance: {
-    colorName: 'insurance',
-    lightColors: { main: '#ef4444', container: '#fee2e2', onContainer: '#7f1d1d' },
-    darkColors: { main: '#f87171', onContainer: '#fecaca', container: '#991b1b' },
-  },
-  warranty: {
-    colorName: 'warranty',
-    lightColors: { main: '#f59e0b', container: '#fef3c7', onContainer: '#78350f' },
-    darkColors: { main: '#fbbf24', onContainer: '#fde68a', container: '#92400e' },
-  },
-  service: {
-    colorName: 'service',
-    lightColors: { main: '#6b7280', container: '#f3f4f6', onContainer: '#374151' },
-    darkColors: { main: '#9ca3af', onContainer: '#d1d5db', container: '#4b5563' },
-  },
-} as const
+export const EVENT_CALENDARS: Record<EventType, EventCalendar> = {
+  maintenance: eventCalendar('maintenance'),
+  insurance: eventCalendar('insurance'),
+  warranty: eventCalendar('warranty'),
+  service: eventCalendar('service'),
+}
+
+// The same tokens for the legend swatches and the event-type chips. Spelled out
+// so Tailwind sees every class.
+const EVENT_SWATCH: Record<EventType, string> = {
+  maintenance: 'bg-(--color-cal-maintenance-container) border-l-4 border-(--color-cal-maintenance)',
+  insurance: 'bg-(--color-cal-insurance-container) border-l-4 border-(--color-cal-insurance)',
+  warranty: 'bg-(--color-cal-warranty-container) border-l-4 border-(--color-cal-warranty)',
+  service: 'bg-(--color-cal-service-container) border-l-4 border-(--color-cal-service)',
+}
+const EVENT_CHIP: Record<EventType, string> = {
+  maintenance: 'bg-(--color-cal-maintenance-container) text-(--color-cal-maintenance-on)',
+  insurance: 'bg-(--color-cal-insurance-container) text-(--color-cal-insurance-on)',
+  warranty: 'bg-(--color-cal-warranty-container) text-(--color-cal-warranty-on)',
+  service: 'bg-(--color-cal-service-container) text-(--color-cal-service-on)',
+}
+// Anything the backend adds later reads as maintenance, like the old chip did.
+const eventChip = (type: string): string => EVENT_CHIP[type as EventType] ?? EVENT_CHIP.maintenance
 
 /**
  * Backend event type -> translation key.
@@ -116,8 +144,10 @@ function CalendarInner({ householdTimeZone }: { householdTimeZone: string | null
   const [eventsService] = useState(() => createEventsServicePlugin())
   const [calendarControls] = useState(() => createCalendarControlsPlugin())
 
-  // Detect dark mode from <html> class
-  const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark')
+  // Only read at mount: the adapter builds the app once and ignores config after.
+  // The effect below carries later switches to the live instance.
+  const { theme } = useTheme()
+  const isDark = theme === 'dark'
 
   const calendar = useCalendarApp({
     views: [createViewMonthGrid(), createViewWeek(), createViewDay()],
@@ -242,6 +272,11 @@ function CalendarInner({ householdTimeZone }: { householdTimeZone: string | null
   useEffect(() => {
     loadEvents()
   }, [loadEvents])
+
+  // Theme switch goes to the mounted calendar, no remount, so the date and view stay.
+  useEffect(() => {
+    calendar?.setTheme(theme)
+  }, [calendar, theme])
 
   // Keep the Schedule-X grid's month/weekday names in sync with a live language switch
   useEffect(() => {
@@ -769,11 +804,7 @@ function CalendarInner({ householdTimeZone }: { householdTimeZone: string | null
                               {formatFor(event.vehicle_distance_unit).distance.formatPrimary(parseFloat(event.due_mileage_km))}
                             </span>
                           )}
-                          <span className={`text-xs font-medium uppercase ${
-                            event.type === 'insurance' ? 'text-red-500' :
-                            event.type === 'warranty' ? 'text-amber-500' :
-                            'text-blue-500'
-                          }`}>
+                          <span className={`text-xs font-medium uppercase px-1.5 py-0.5 rounded ${eventChip(event.type)}`}>
                             {t(EVENT_TYPE_KEYS[event.type] ?? EVENT_TYPE_FALLBACK_KEY)}
                           </span>
                         </div>
@@ -865,20 +896,21 @@ function CalendarInner({ householdTimeZone }: { householdTimeZone: string | null
         <div className="mt-6 bg-garage-surface border border-garage-border rounded-lg p-4">
           <h3 className="text-sm font-medium text-garage-text mb-3">{t('calendar.legend')}</h3>
           <div className="flex flex-wrap gap-4">
+            {/* Each swatch is a tiny event block: tinted fill, coloured edge. */}
             <div className="flex items-center gap-2">
-              <div className="w-4 h-4 bg-blue-600 rounded"></div>
+              <div className={`w-4 h-4 rounded-sm ${EVENT_SWATCH.maintenance}`}></div>
               <span className="text-sm text-garage-text">{t('calendar.misc.legendMaintenance')}</span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-4 h-4 bg-red-600 rounded"></div>
+              <div className={`w-4 h-4 rounded-sm ${EVENT_SWATCH.insurance}`}></div>
               <span className="text-sm text-garage-text">{t('calendar.misc.legendInsurance')}</span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-4 h-4 bg-amber-600 rounded"></div>
+              <div className={`w-4 h-4 rounded-sm ${EVENT_SWATCH.warranty}`}></div>
               <span className="text-sm text-garage-text">{t('calendar.misc.legendWarranty')}</span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-4 h-4 bg-gray-600 rounded opacity-60"></div>
+              <div className={`w-4 h-4 rounded-sm ${EVENT_SWATCH.service}`}></div>
               <span className="text-sm text-garage-text">{t('serviceList.title')}</span>
             </div>
             <div className="flex items-center gap-2">
@@ -901,99 +933,78 @@ function CalendarInner({ householdTimeZone }: { householdTimeZone: string | null
         </div>
       </div>
 
-      {/* Phase 3: Notes Modal */}
-      {showNotesModal && selectedEventForNotes && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 modal-safe-pad">
-          <div className="bg-garage-surface border border-garage-border rounded-lg max-w-2xl w-full max-h-[min(80vh,100%)] overflow-auto">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-xl font-bold text-garage-text">{t('calendar.eventNotes')}</h3>
-                <button
-                  onClick={() => setShowNotesModal(false)}
-                  className="p-1 hover:bg-garage-bg rounded transition-colors"
-                >
-                  <X className="w-5 h-5 text-garage-text-muted" />
-                </button>
-              </div>
-
-              <div className="space-y-4">
-                {/* Event details */}
-                <div>
-                  <h4 className="text-sm font-medium text-garage-text-muted mb-2">{t('calendar.misc.eventLabel')}</h4>
-                  <div className="bg-garage-bg border border-garage-border rounded-lg p-3">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className={`text-xs font-medium uppercase px-2 py-1 rounded ${
-                        selectedEventForNotes.type === 'insurance' ? 'bg-red-500/20 text-red-500' :
-                        selectedEventForNotes.type === 'warranty' ? 'bg-amber-500/20 text-amber-500' :
-                        'bg-blue-500/20 text-blue-500'
-                      }`}>
-                        {t(EVENT_TYPE_KEYS[selectedEventForNotes.type] ?? EVENT_TYPE_FALLBACK_KEY)}
-                      </span>
-                      {selectedEventForNotes.is_recurring && (
-                        <RotateCw className="w-3 h-3 text-(--accent-fg)" />
-                      )}
-                      {selectedEventForNotes.is_estimated && (
-                        <span className="flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-amber-500/20 text-amber-500">
-                          <Gauge className="w-3 h-3" />
-                          {t('calendar.misc.estBadge')}
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-lg font-medium text-garage-text mb-1">
-                      {selectedEventForNotes.title}
-                    </p>
-                    <p className="text-sm text-garage-text-muted">
-                      {selectedEventForNotes.vehicle_nickname} • {formatDate(selectedEventForNotes.date)}
-                    </p>
-                    {selectedEventForNotes.due_mileage_km && (
-                      <p className="text-sm text-garage-text-muted mt-2">
-                        {t('calendar.misc.dueAt', {
-                          distance: formatFor(selectedEventForNotes.vehicle_distance_unit).distance.formatPrimary(
-                            parseFloat(selectedEventForNotes.due_mileage_km)
-                          ),
-                        })}
-                      </p>
-                    )}
-                    {treadLine(selectedEventForNotes) && (
-                      <p className="text-sm text-garage-text-muted mt-2">{treadLine(selectedEventForNotes)}</p>
-                    )}
-                  </div>
+      {/* Phase 3: Notes, in a side drawer. It stays mounted so the close slides out. */}
+      <Drawer
+        open={showNotesModal && selectedEventForNotes !== null}
+        onClose={() => setShowNotesModal(false)}
+        title={t('calendar.eventNotes')}
+        closeLabel={t('calendar.misc.close')}
+        width="sm"
+      >
+        {selectedEventForNotes && (
+          <div className="space-y-4">
+            {/* Event details */}
+            <div>
+              <h4 className="text-sm font-medium text-garage-text-muted mb-2">{t('calendar.misc.eventLabel')}</h4>
+              <div className="bg-garage-bg border border-garage-border rounded-lg p-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className={`text-xs font-medium uppercase px-2 py-1 rounded ${eventChip(selectedEventForNotes.type)}`}>
+                    {t(EVENT_TYPE_KEYS[selectedEventForNotes.type] ?? EVENT_TYPE_FALLBACK_KEY)}
+                  </span>
+                  {selectedEventForNotes.is_recurring && (
+                    <RotateCw className="w-3 h-3 text-(--accent-fg)" />
+                  )}
+                  {selectedEventForNotes.is_estimated && (
+                    <span className="flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-amber-500/20 text-amber-500">
+                      <Gauge className="w-3 h-3" />
+                      {t('calendar.misc.estBadge')}
+                    </span>
+                  )}
                 </div>
-
-                {/* Notes content */}
-                <div>
-                  <h4 className="text-sm font-medium text-garage-text-muted mb-2">{t('noteList.title')}</h4>
-                  <div className="bg-garage-bg border border-garage-border rounded-lg p-4">
-                    <p className="text-garage-text whitespace-pre-wrap">
-                      {selectedEventForNotes.notes || t('calendar.misc.noNotes')}
-                    </p>
-                  </div>
-                </div>
-
-                {selectedEventForNotes.description && (
-                  <div>
-                    <h4 className="text-sm font-medium text-garage-text-muted mb-2">{t('documentList.descriptionLabel')}</h4>
-                    <div className="bg-garage-bg border border-garage-border rounded-lg p-4">
-                      <p className="text-garage-text whitespace-pre-wrap">
-                        {selectedEventForNotes.description}
-                      </p>
-                    </div>
-                  </div>
+                <p className="text-lg font-medium text-garage-text mb-1">
+                  {selectedEventForNotes.title}
+                </p>
+                <p className="text-sm text-garage-text-muted">
+                  {selectedEventForNotes.vehicle_nickname} • {formatDate(selectedEventForNotes.date)}
+                </p>
+                {selectedEventForNotes.due_mileage_km && (
+                  <p className="text-sm text-garage-text-muted mt-2">
+                    {t('calendar.misc.dueAt', {
+                      distance: formatFor(selectedEventForNotes.vehicle_distance_unit).distance.formatPrimary(
+                        parseFloat(selectedEventForNotes.due_mileage_km)
+                      ),
+                    })}
+                  </p>
+                )}
+                {treadLine(selectedEventForNotes) && (
+                  <p className="text-sm text-garage-text-muted mt-2">{treadLine(selectedEventForNotes)}</p>
                 )}
               </div>
+            </div>
 
-              <div className="mt-6 flex justify-end">
-                <button
-                  onClick={() => setShowNotesModal(false)}
-                  className="px-4 py-2 bg-primary text-(--accent-on-solid) rounded-lg hover:bg-primary-600 transition-colors"
-                >
-                  {t('calendar.misc.close')}
-                </button>
+            {/* Notes content */}
+            <div>
+              <h4 className="text-sm font-medium text-garage-text-muted mb-2">{t('noteList.title')}</h4>
+              <div className="bg-garage-bg border border-garage-border rounded-lg p-4">
+                <p className="text-garage-text whitespace-pre-wrap">
+                  {selectedEventForNotes.notes || t('calendar.misc.noNotes')}
+                </p>
               </div>
             </div>
+
+            {selectedEventForNotes.description && (
+              <div>
+                <h4 className="text-sm font-medium text-garage-text-muted mb-2">{t('documentList.descriptionLabel')}</h4>
+                <div className="bg-garage-bg border border-garage-border rounded-lg p-4">
+                  <p className="text-garage-text whitespace-pre-wrap">
+                    {selectedEventForNotes.description}
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
-        </div>
-      )}
+        )}
+      </Drawer>
     </div>
   )
 }
