@@ -4,7 +4,6 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '../../../__tests__/test-utils'
-import { expectLegacySafeOverlay } from '../../../__tests__/safeOverlay'
 
 const { get } = vi.hoisted(() => ({ get: vi.fn() }))
 vi.mock('@/services/api', () => ({ default: { get, put: vi.fn(), post: vi.fn(), delete: vi.fn() } }))
@@ -59,9 +58,12 @@ describe('FamilyManagementModal outside multi-user mode', () => {
 })
 
 describe('FamilyManagementModal layout', () => {
-  it('centres inside the iPhone safe area (#305)', async () => {
+  it('is a plain lg drawer, not a nested one', async () => {
     get.mockResolvedValue({ data: {} })
     render(<FamilyManagementModal isOpen onClose={vi.fn()} />)
-    expectLegacySafeOverlay(await screen.findByRole('heading', { name: 'modal.familyManagement' }))
+    const drawer = await screen.findByRole('dialog', { name: 'modal.familyManagement' })
+    expect(drawer).toHaveClass('z-drawer')
+    expect(drawer).not.toHaveClass('z-drawer-nested')
+    expect(drawer.className).toContain('[--drawer-w:min(720px,96vw)]')
   })
 })

@@ -59,11 +59,33 @@ describe('DeleteUserModal confirmation', () => {
   })
 })
 
-describe('DeleteUserModal overlay', () => {
-  it('pads the overlay with the safe-area insets on top of its p-4 (#305)', () => {
-    renderModal()
-    const overlay = screen.getByPlaceholderText('DELETE').closest('.fixed.inset-0')
-    expect(overlay).toHaveClass('modal-safe-pad')
-    expect(overlay).not.toHaveClass('p-4')
+describe('DeleteUserModal drawer', () => {
+  it('is a nested drawer with the delete button in its footer', () => {
+    const { confirmButton } = renderModal()
+    expect(screen.getByRole('dialog', { name: 'modal.deleteUser' })).toHaveClass('z-drawer-nested')
+    expect(confirmButton.closest('footer')).not.toBeNull()
+  })
+
+  // Family nulls the user as it closes this, so the exit slide needs the last one.
+  it('keeps showing the user while it slides out', () => {
+    const { rerender } = render(<DeleteUserModal isOpen user={user} onClose={() => {}} onConfirm={() => {}} />)
+    rerender(<DeleteUserModal isOpen={false} user={null} onClose={() => {}} onConfirm={() => {}} />)
+
+    expect(screen.getByRole('dialog', { name: 'modal.deleteUser' })).toBeInTheDocument()
+    expect(screen.getByText('someone@example.com', { exact: false })).toBeInTheDocument()
+  })
+
+  it('every way out clears the typed token', () => {
+    const onClose = vi.fn()
+    const { rerender } = render(<DeleteUserModal isOpen user={user} onClose={onClose} onConfirm={() => {}} />)
+    fireEvent.change(screen.getByPlaceholderText('DELETE'), { target: { value: 'DELETE' } })
+
+    // The header X is one more way out the old overlay never had.
+    fireEvent.click(screen.getByRole('button', { name: 'common:close' }))
+    expect(onClose).toHaveBeenCalledTimes(1)
+    rerender(<DeleteUserModal isOpen user={user} onClose={onClose} onConfirm={() => {}} />)
+
+    expect(screen.getByPlaceholderText('DELETE')).toHaveValue('')
+    expect(screen.getByRole('button', { name: 'modal.deleteUser' })).toBeDisabled()
   })
 })

@@ -12,7 +12,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { ReactNode } from 'react'
 import { render, screen, fireEvent, waitFor } from '../../../__tests__/test-utils'
 import { makeUser, type User } from '@/__tests__/factories'
-import { expectLegacySafeOverlay } from '@/__tests__/safeOverlay'
 
 const { put, post, t, i18n } = vi.hoisted(() => ({
   put: vi.fn(),
@@ -195,9 +194,24 @@ describe('AddEditUserModal last active admin', () => {
   })
 })
 
-describe('AddEditUserModal layout', () => {
-  it('centres inside the iPhone safe area (#305)', () => {
+describe('AddEditUserModal drawer', () => {
+  it('is a nested drawer titled for the edit, with Save in the footer', () => {
     renderEdit(account())
-    expectLegacySafeOverlay(screen.getByRole('heading', { name: 'modal.editUser' }))
+    expect(screen.getByRole('dialog', { name: 'modal.editUser' })).toHaveClass('z-drawer-nested')
+    const update = screen.getByRole('button', { name: 'common:update' })
+    expect(update.closest('footer')).not.toBeNull()
+    expect(update).toHaveAttribute('form', 'add-edit-user-form')
+    expect(update.closest('form')).toBeNull()
+  })
+
+  // Family nulls the user in the same render that closes this, so without the
+  // latch the slide-out flashes a blank Add user form.
+  it('keeps showing the edited user while it slides out', () => {
+    const props = { onClose: vi.fn(), onSave: vi.fn(), currentUserId: 1, activeAdminCount: 1 }
+    const { rerender } = render(<AddEditUserModal isOpen user={account()} {...props} />)
+    rerender(<AddEditUserModal isOpen={false} user={null} {...props} />)
+
+    expect(screen.getByRole('dialog', { name: 'modal.editUser' })).toBeInTheDocument()
+    expect(screen.getByDisplayValue('dana@example.com')).toBeInTheDocument()
   })
 })

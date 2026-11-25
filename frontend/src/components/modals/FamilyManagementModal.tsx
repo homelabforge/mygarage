@@ -10,7 +10,7 @@
 import { useTranslation } from 'react-i18next'
 import { useState, useEffect, useCallback } from 'react'
 import {
-  Users, X, Car, AlertTriangle, Bell, Loader2,
+  Users, Car, AlertTriangle, Bell, Loader2,
   Shield, UserPlus, Key, Info,
 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -20,6 +20,7 @@ import { isSettingOn } from '@/utils/settingSwitch'
 import { useAuth } from '@/contexts/AuthContext'
 import { familyService } from '@/services/familyService'
 import type { FamilyMemberData } from '@/types/family'
+import { Drawer } from '@/components/ui'
 import type { components } from '@/types/api.generated'
 import FamilyMemberCard from '@/components/FamilyMemberCard'
 import AddEditUserModal from '@/components/modals/AddEditUserModal'
@@ -346,31 +347,6 @@ export default function FamilyManagementModal({ isOpen, onClose }: FamilyManagem
     }
   }
 
-  // ─── Escape key handler ──────────────────────────────────────────────
-
-  useEffect(() => {
-    if (!isOpen) return
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return
-
-      if (showAddEditModal) {
-        setShowAddEditModal(false)
-        setSelectedUser(null)
-      } else if (showDeleteModal) {
-        setShowDeleteModal(false)
-        setSelectedUser(null)
-      } else if (showLocalAuthModal) {
-        setShowLocalAuthModal(false)
-      } else {
-        onClose()
-      }
-    }
-
-    document.addEventListener('keydown', handleKeyDown)
-    return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [isOpen, showAddEditModal, showDeleteModal, showLocalAuthModal, onClose])
-
   // ─── Helpers ─────────────────────────────────────────────────────────
 
   /** Synthetic FamilyMemberData for inactive users (backend excludes them). */
@@ -388,257 +364,243 @@ export default function FamilyManagementModal({ isOpen, onClose }: FamilyManagem
     family_dashboard_order: 999,
   })
 
-  if (!isOpen) return null
-
+  // The child drawers portal out to body, so they can live in here. The modal
+  // stack keeps Esc on whichever one is on top.
   return (
-    <>
-      <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 modal-safe-pad">
-        <div className="bg-garage-surface border border-garage-border rounded-lg max-w-6xl w-full max-h-[min(90vh,100%)] flex flex-col">
-          {/* Header */}
-          <div className="p-6 border-b border-garage-border flex items-center justify-between flex-shrink-0">
-            <div className="flex items-center gap-2">
-              <Users className="w-6 h-6 text-(--accent-fg)" />
-              <div>
-                <h2 className="text-2xl font-bold text-garage-text">{t('modal.familyManagement')}</h2>
-                <p className="text-sm text-garage-text-muted">
-                  {t('modal.familyManagementDescription')}
-                </p>
+    <Drawer
+      open={isOpen}
+      onClose={onClose}
+      title={t('modal.familyManagement')}
+      icon={Users}
+      width="lg"
+      closeLabel={t('common:close')}
+    >
+      <p className="mb-5 text-sm text-garage-text-muted">
+        {t('modal.familyManagementDescription')}
+      </p>
+      {loading ? (
+        <div className="flex items-center justify-center py-16">
+          <Loader2 className="w-8 h-8 text-(--accent-fg) animate-spin" />
+        </div>
+      ) : (
+        <div className="space-y-6">
+          {/* Stats Row */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="bg-garage-bg border border-garage-border rounded-lg p-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-primary/20 rounded-lg">
+                  <Users className="w-5 h-5 text-(--accent-fg)" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-garage-text">{totalMembers}</p>
+                  <p className="text-sm text-garage-text-muted">{t('modal.members')}</p>
+                </div>
               </div>
             </div>
-            <button onClick={onClose} className="p-2 hover:bg-garage-surface-light rounded-lg transition-colors">
-              <X className="w-5 h-5 text-garage-text-muted" />
-            </button>
+            <div className="bg-garage-bg border border-garage-border rounded-lg p-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-info/20 rounded-lg">
+                  <Car className="w-5 h-5 text-info" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-garage-text">{totalVehicles}</p>
+                  <p className="text-sm text-garage-text-muted">{t('modal.vehicles')}</p>
+                </div>
+              </div>
+            </div>
+            <div className="bg-garage-bg border border-garage-border rounded-lg p-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-warning/20 rounded-lg">
+                  <Bell className="w-5 h-5 text-warning" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-garage-text">{totalUpcoming}</p>
+                  <p className="text-sm text-garage-text-muted">{t('modal.upcoming')}</p>
+                </div>
+              </div>
+            </div>
+            <div className="bg-garage-bg border border-garage-border rounded-lg p-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-danger/20 rounded-lg">
+                  <AlertTriangle className="w-5 h-5 text-danger" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-garage-text">{totalOverdue}</p>
+                  <p className="text-sm text-garage-text-muted">{t('modal.overdue')}</p>
+                </div>
+              </div>
+            </div>
           </div>
 
-          {/* Content */}
-          <div className="flex-1 overflow-y-auto p-6">
-            {loading ? (
-              <div className="flex items-center justify-center py-16">
-                <Loader2 className="w-8 h-8 text-(--accent-fg) animate-spin" />
-              </div>
+          {/* Warning banner when members failed to load */}
+          {!membersLoaded && (
+            <div className="flex items-center gap-3 p-3 bg-warning/10 border border-warning/30 rounded-lg">
+              <Info className="w-5 h-5 text-warning flex-shrink-0" />
+              <p className="text-sm text-garage-text">
+                {t('modal.memberDataUnavailable')}
+              </p>
+            </div>
+          )}
+
+          {/* Toolbar */}
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            {/* Multi-user toggle (local auth only) */}
+            {authMode === 'local' ? (
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={isSettingOn(multiUserEnabled)}
+                  onChange={(e) => void handleMultiUserToggle(e.target.checked)}
+                  className="w-4 h-4 accent-(--accent-solid) bg-garage-bg border-garage-border rounded focus:ring-primary focus:ring-2"
+                />
+                <span className="text-sm font-medium text-garage-text">
+                  {t('familyManagementModal.multiUserMode')}
+                </span>
+              </label>
             ) : (
-              <div className="space-y-6">
-                {/* Stats Row */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="bg-garage-bg border border-garage-border rounded-lg p-4">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-primary/20 rounded-lg">
-                        <Users className="w-5 h-5 text-(--accent-fg)" />
-                      </div>
-                      <div>
-                        <p className="text-2xl font-bold text-garage-text">{totalMembers}</p>
-                        <p className="text-sm text-garage-text-muted">{t('modal.members')}</p>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="bg-garage-bg border border-garage-border rounded-lg p-4">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-info/20 rounded-lg">
-                        <Car className="w-5 h-5 text-info" />
-                      </div>
-                      <div>
-                        <p className="text-2xl font-bold text-garage-text">{totalVehicles}</p>
-                        <p className="text-sm text-garage-text-muted">{t('modal.vehicles')}</p>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="bg-garage-bg border border-garage-border rounded-lg p-4">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-warning/20 rounded-lg">
-                        <Bell className="w-5 h-5 text-warning" />
-                      </div>
-                      <div>
-                        <p className="text-2xl font-bold text-garage-text">{totalUpcoming}</p>
-                        <p className="text-sm text-garage-text-muted">{t('modal.upcoming')}</p>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="bg-garage-bg border border-garage-border rounded-lg p-4">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-danger/20 rounded-lg">
-                        <AlertTriangle className="w-5 h-5 text-danger" />
-                      </div>
-                      <div>
-                        <p className="text-2xl font-bold text-garage-text">{totalOverdue}</p>
-                        <p className="text-sm text-garage-text-muted">{t('modal.overdue')}</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Warning banner when members failed to load */}
-                {!membersLoaded && (
-                  <div className="flex items-center gap-3 p-3 bg-warning/10 border border-warning/30 rounded-lg">
-                    <Info className="w-5 h-5 text-warning flex-shrink-0" />
-                    <p className="text-sm text-garage-text">
-                      {t('modal.memberDataUnavailable')}
-                    </p>
-                  </div>
-                )}
-
-                {/* Toolbar */}
-                <div className="flex items-center justify-between gap-4 flex-wrap">
-                  {/* Multi-user toggle (local auth only) */}
-                  {authMode === 'local' ? (
-                    <label className="flex items-center gap-3 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={isSettingOn(multiUserEnabled)}
-                        onChange={(e) => void handleMultiUserToggle(e.target.checked)}
-                        className="w-4 h-4 accent-(--accent-solid) bg-garage-bg border-garage-border rounded focus:ring-primary focus:ring-2"
-                      />
-                      <span className="text-sm font-medium text-garage-text">
-                        {t('familyManagementModal.multiUserMode')}
-                      </span>
-                    </label>
-                  ) : (
-                    <div />
-                  )}
-
-                  <div className="flex items-center gap-2">
-                    {authMode === 'local' && (
-                      <>
-                        <button
-                          onClick={() => setShowLocalAuthModal(true)}
-                          className="flex items-center gap-2 px-3 py-2 bg-garage-bg border border-garage-border rounded-lg hover:bg-garage-surface text-garage-text transition-colors text-sm"
-                        >
-                          <Key className="w-4 h-4" />
-                          {t('modal.configureAuth')}
-                        </button>
-                        <button
-                          onClick={handleAddUser}
-                          className="flex items-center gap-2 px-3 py-2 bg-primary text-(--accent-on-solid) rounded-lg hover:bg-primary/90 transition-colors text-sm"
-                        >
-                          <UserPlus className="w-4 h-4" />
-                          {t('familyManagementModal.addUser')}
-                        </button>
-                      </>
-                    )}
-                  </div>
-                </div>
-
-                {/* Member sections */}
-                {!shouldLoadUsers && !authEverEnabled ? (
-                  <div className="text-center py-12">
-                    <Shield className="w-16 h-16 text-garage-text-muted mx-auto mb-4 opacity-50" />
-                    <h3 className="text-xl font-semibold text-garage-text mb-2">{t('modal.authNotEnabled')}</h3>
-                    <p className="text-garage-text-muted">
-                      {t('modal.enableAuthDescription')}
-                    </p>
-                  </div>
-                ) : (
-                  <>
-                    {/* On Dashboard */}
-                    {visibleMembers.length > 0 && (
-                      <section>
-                        <h3 className="text-sm font-medium text-garage-text-muted mb-3 uppercase tracking-wide">
-                          {t('modal.onDashboard')} ({visibleMembers.length})
-                        </h3>
-                        <div className="space-y-3">
-                          {visibleMembers.map(({ user: u, member }, index) => (
-                            <FamilyMemberCard
-                              key={u.id}
-                              member={member ?? buildSyntheticMember(u)}
-                              defaultExpanded={false}
-                              user={u}
-                              currentUserId={currentUser?.id}
-                              activeAdminCount={activeAdminCount}
-                              showActions
-                              isUpdating={updatingUserId === u.id}
-                              membersLoaded={membersLoaded}
-                              onEdit={() => handleEditUser(u)}
-                              onDelete={() => handleDeleteUser(u)}
-                              onToggleActive={() => void handleToggleActive(u)}
-                              onToggleDashboard={() => void handleToggleDashboard(u)}
-                              onResetPassword={() => handleResetPassword(u)}
-                              onToggleRelink={(arm) => void handleToggleRelink(u, arm)}
-                              onMoveUp={() => void handleMoveUp(u.id, index)}
-                              onMoveDown={() => void handleMoveDown(u.id, index)}
-                              canMoveUp={index > 0}
-                              canMoveDown={index < visibleMembers.length - 1}
-                            />
-                          ))}
-                        </div>
-                      </section>
-                    )}
-
-                    {/* Hidden from Dashboard */}
-                    {hiddenMembers.length > 0 && (
-                      <section>
-                        <h3 className="text-sm font-medium text-garage-text-muted mb-3 uppercase tracking-wide">
-                          {t('modal.hiddenFromDashboard')} ({hiddenMembers.length})
-                        </h3>
-                        <div className="space-y-3">
-                          {hiddenMembers.map(({ user: u, member }) => (
-                            <FamilyMemberCard
-                              key={u.id}
-                              member={member ?? buildSyntheticMember(u)}
-                              defaultExpanded={false}
-                              user={u}
-                              currentUserId={currentUser?.id}
-                              activeAdminCount={activeAdminCount}
-                              showActions
-                              isUpdating={updatingUserId === u.id}
-                              membersLoaded={membersLoaded}
-                              onEdit={() => handleEditUser(u)}
-                              onDelete={() => handleDeleteUser(u)}
-                              onToggleActive={() => void handleToggleActive(u)}
-                              onToggleDashboard={() => void handleToggleDashboard(u)}
-                              onResetPassword={() => handleResetPassword(u)}
-                              onToggleRelink={(arm) => void handleToggleRelink(u, arm)}
-                            />
-                          ))}
-                        </div>
-                      </section>
-                    )}
-
-                    {/* Inactive */}
-                    {inactiveUsers.length > 0 && (
-                      <section>
-                        <h3 className="text-sm font-medium text-garage-text-muted mb-3 uppercase tracking-wide">
-                          {t('modal.inactive')} ({inactiveUsers.length})
-                        </h3>
-                        <div className="space-y-3">
-                          {inactiveUsers.map((u) => (
-                            <FamilyMemberCard
-                              key={u.id}
-                              member={buildSyntheticMember(u)}
-                              defaultExpanded={false}
-                              user={u}
-                              currentUserId={currentUser?.id}
-                              activeAdminCount={activeAdminCount}
-                              showActions
-                              isUpdating={updatingUserId === u.id}
-                              membersLoaded={membersLoaded}
-                              onEdit={() => handleEditUser(u)}
-                              onDelete={() => handleDeleteUser(u)}
-                              onToggleActive={() => void handleToggleActive(u)}
-                              onToggleRelink={(arm) => void handleToggleRelink(u, arm)}
-                            />
-                          ))}
-                        </div>
-                      </section>
-                    )}
-
-                    {/* Empty state */}
-                    {visibleMembers.length === 0 && hiddenMembers.length === 0 && inactiveUsers.length === 0 && (
-                      <div className="text-center py-12">
-                        <Users className="w-16 h-16 text-garage-text-muted mx-auto mb-4 opacity-50" />
-                        <h3 className="text-xl font-semibold text-garage-text mb-2">{t('modal.noUsers')}</h3>
-                        <p className="text-garage-text-muted">
-                          {t('modal.addUsersDescription')}
-                        </p>
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
+              <div />
             )}
-          </div>
-        </div>
-      </div>
 
-      {/* Child modals — stacked above (z-[60]) */}
+            <div className="flex items-center gap-2">
+              {authMode === 'local' && (
+                <>
+                  <button
+                    onClick={() => setShowLocalAuthModal(true)}
+                    className="flex items-center gap-2 px-3 py-2 bg-garage-bg border border-garage-border rounded-lg hover:bg-garage-surface text-garage-text transition-colors text-sm"
+                  >
+                    <Key className="w-4 h-4" />
+                    {t('modal.configureAuth')}
+                  </button>
+                  <button
+                    onClick={handleAddUser}
+                    className="flex items-center gap-2 px-3 py-2 bg-primary text-(--accent-on-solid) rounded-lg hover:bg-primary/90 transition-colors text-sm"
+                  >
+                    <UserPlus className="w-4 h-4" />
+                    {t('familyManagementModal.addUser')}
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Member sections */}
+          {!shouldLoadUsers && !authEverEnabled ? (
+            <div className="text-center py-12">
+              <Shield className="w-16 h-16 text-garage-text-muted mx-auto mb-4 opacity-50" />
+              <h3 className="text-xl font-semibold text-garage-text mb-2">{t('modal.authNotEnabled')}</h3>
+              <p className="text-garage-text-muted">
+                {t('modal.enableAuthDescription')}
+              </p>
+            </div>
+          ) : (
+            <>
+              {/* On Dashboard */}
+              {visibleMembers.length > 0 && (
+                <section>
+                  <h3 className="text-sm font-medium text-garage-text-muted mb-3 uppercase tracking-wide">
+                    {t('modal.onDashboard')} ({visibleMembers.length})
+                  </h3>
+                  <div className="space-y-3">
+                    {visibleMembers.map(({ user: u, member }, index) => (
+                      <FamilyMemberCard
+                        key={u.id}
+                        member={member ?? buildSyntheticMember(u)}
+                        defaultExpanded={false}
+                        user={u}
+                        currentUserId={currentUser?.id}
+                        activeAdminCount={activeAdminCount}
+                        showActions
+                        isUpdating={updatingUserId === u.id}
+                        membersLoaded={membersLoaded}
+                        onEdit={() => handleEditUser(u)}
+                        onDelete={() => handleDeleteUser(u)}
+                        onToggleActive={() => void handleToggleActive(u)}
+                        onToggleDashboard={() => void handleToggleDashboard(u)}
+                        onResetPassword={() => handleResetPassword(u)}
+                        onToggleRelink={(arm) => void handleToggleRelink(u, arm)}
+                        onMoveUp={() => void handleMoveUp(u.id, index)}
+                        onMoveDown={() => void handleMoveDown(u.id, index)}
+                        canMoveUp={index > 0}
+                        canMoveDown={index < visibleMembers.length - 1}
+                      />
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              {/* Hidden from Dashboard */}
+              {hiddenMembers.length > 0 && (
+                <section>
+                  <h3 className="text-sm font-medium text-garage-text-muted mb-3 uppercase tracking-wide">
+                    {t('modal.hiddenFromDashboard')} ({hiddenMembers.length})
+                  </h3>
+                  <div className="space-y-3">
+                    {hiddenMembers.map(({ user: u, member }) => (
+                      <FamilyMemberCard
+                        key={u.id}
+                        member={member ?? buildSyntheticMember(u)}
+                        defaultExpanded={false}
+                        user={u}
+                        currentUserId={currentUser?.id}
+                        activeAdminCount={activeAdminCount}
+                        showActions
+                        isUpdating={updatingUserId === u.id}
+                        membersLoaded={membersLoaded}
+                        onEdit={() => handleEditUser(u)}
+                        onDelete={() => handleDeleteUser(u)}
+                        onToggleActive={() => void handleToggleActive(u)}
+                        onToggleDashboard={() => void handleToggleDashboard(u)}
+                        onResetPassword={() => handleResetPassword(u)}
+                        onToggleRelink={(arm) => void handleToggleRelink(u, arm)}
+                      />
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              {/* Inactive */}
+              {inactiveUsers.length > 0 && (
+                <section>
+                  <h3 className="text-sm font-medium text-garage-text-muted mb-3 uppercase tracking-wide">
+                    {t('modal.inactive')} ({inactiveUsers.length})
+                  </h3>
+                  <div className="space-y-3">
+                    {inactiveUsers.map((u) => (
+                      <FamilyMemberCard
+                        key={u.id}
+                        member={buildSyntheticMember(u)}
+                        defaultExpanded={false}
+                        user={u}
+                        currentUserId={currentUser?.id}
+                        activeAdminCount={activeAdminCount}
+                        showActions
+                        isUpdating={updatingUserId === u.id}
+                        membersLoaded={membersLoaded}
+                        onEdit={() => handleEditUser(u)}
+                        onDelete={() => handleDeleteUser(u)}
+                        onToggleActive={() => void handleToggleActive(u)}
+                        onToggleRelink={(arm) => void handleToggleRelink(u, arm)}
+                      />
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              {/* Empty state */}
+              {visibleMembers.length === 0 && hiddenMembers.length === 0 && inactiveUsers.length === 0 && (
+                <div className="text-center py-12">
+                  <Users className="w-16 h-16 text-garage-text-muted mx-auto mb-4 opacity-50" />
+                  <h3 className="text-xl font-semibold text-garage-text mb-2">{t('modal.noUsers')}</h3>
+                  <p className="text-garage-text-muted">
+                    {t('modal.addUsersDescription')}
+                  </p>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
       <AddEditUserModal
         isOpen={showAddEditModal}
         onClose={() => { setShowAddEditModal(false); setSelectedUser(null) }}
@@ -664,6 +626,6 @@ export default function FamilyManagementModal({ isOpen, onClose }: FamilyManagem
         onShowUserManagement={() => setShowLocalAuthModal(false)}
         onShowAddUser={() => { setShowLocalAuthModal(false); handleAddUser() }}
       />
-    </>
+    </Drawer>
   )
 }

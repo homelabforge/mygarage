@@ -1,9 +1,10 @@
 import { useTranslation } from 'react-i18next'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { AlertTriangle } from 'lucide-react'
 import { toast } from 'sonner'
 import api from '@/services/api'
 import { getActionErrorMessage } from '@/utils/httpErrorHandler'
+import { Button, Drawer } from '@/components/ui'
 
 /** Literal the admin must type to arm the delete button. Not translated on purpose. */
 const CONFIRM_TOKEN = 'DELETE'
@@ -51,6 +52,20 @@ export default function DeleteUserModal({ isOpen, onClose, user, onConfirm }: De
   const { t } = useTranslation('forms')
   const [confirmText, setConfirmText] = useState('')
   const [loading, setLoading] = useState(false)
+  // Family nulls the user as it closes this, so the slide-out shows the last one.
+  const lastUserRef = useRef(user)
+  if (user) lastUserRef.current = user
+  const shownUser = user ?? lastUserRef.current
+
+  // This stays mounted between users, so a typed DELETE for one must never arm
+  // the button for the next. Every close goes through here, and a new user resets it too.
+  const handleClose = (): void => {
+    setConfirmText('')
+    onClose()
+  }
+  useEffect(() => {
+    setConfirmText('')
+  }, [user?.id])
 
   const handleDelete = async () => {
     if (confirmText !== CONFIRM_TOKEN || !user) return
@@ -60,8 +75,7 @@ export default function DeleteUserModal({ isOpen, onClose, user, onConfirm }: De
       await api.delete(`/auth/users/${user.id}`)
       toast.success(t('modal.userDeleted'))
       onConfirm()
-      onClose()
-      setConfirmText('')
+      handleClose()
     } catch (error: unknown) {
       toast.error(getActionErrorMessage(error, t('modal.deleteUserAction')))
     } finally {
@@ -69,84 +83,81 @@ export default function DeleteUserModal({ isOpen, onClose, user, onConfirm }: De
     }
   }
 
-  if (!isOpen || !user) return null
+  if (!shownUser) return null
 
   return (
-    <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-[60] modal-safe-pad">
-      <div className="bg-garage-surface border border-garage-border rounded-lg max-w-md w-full">
-        <div className="p-6 space-y-4">
-          {/* Warning Icon */}
-          <div className="flex items-center gap-3">
-            <div className="p-3 bg-danger/10 rounded-full">
-              <AlertTriangle className="w-6 h-6 text-danger" />
-            </div>
-            <div>
-              <h2 className="text-xl font-bold text-garage-text">{t('modal.deleteUser')}</h2>
-              <p className="text-sm text-garage-text-muted">{t('modal.cannotBeUndone')}</p>
-            </div>
+    <Drawer
+      open={isOpen}
+      onClose={handleClose}
+      nested
+      width="2xs"
+      title={t('modal.deleteUser')}
+      closeLabel={t('common:close')}
+      footer={
+        <>
+          <Button variant="secondary" onClick={handleClose}>
+            {t('deleteUserModal.cancel')}
+          </Button>
+          <Button
+            variant="danger"
+            onClick={() => void handleDelete()}
+            disabled={confirmText !== CONFIRM_TOKEN || loading}
+            loading={loading}
+          >
+            {loading ? t('common:deleting') : t('modal.deleteUser')}
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        {/* Warning Icon */}
+        <div className="flex items-center gap-3">
+          <div className="p-3 bg-danger/10 rounded-full">
+            <AlertTriangle aria-hidden="true" className="w-6 h-6 text-danger" />
           </div>
+          <p className="text-sm text-garage-text-muted">{t('modal.cannotBeUndone')}</p>
+        </div>
 
-          {/* User Info */}
-          <div className="p-4 bg-garage-bg border border-garage-border rounded-lg">
-            <p className="text-sm text-garage-text">
-              <strong>{t('modal.username')}:</strong> {user.username}
+        {/* User Info */}
+        <div className="p-4 bg-garage-bg border border-garage-border rounded-lg">
+          <p className="text-sm text-garage-text">
+            <strong>{t('modal.username')}:</strong> {shownUser.username}
+          </p>
+          <p className="text-sm text-garage-text">
+            <strong>{t('modal.email')}:</strong> {shownUser.email}
+          </p>
+          {shownUser.is_admin && (
+            <p className="text-sm text-warning mt-2">
+              <strong>{t('deleteUserModal.adminUserWarning')}</strong>
             </p>
-            <p className="text-sm text-garage-text">
-              <strong>{t('modal.email')}:</strong> {user.email}
-            </p>
-            {user.is_admin && (
-              <p className="text-sm text-warning mt-2">
-                <strong>{t('deleteUserModal.adminUserWarning')}</strong>
-              </p>
-            )}
-          </div>
+          )}
+        </div>
 
-          {/* Impact Warning */}
-          <div className="p-4 bg-danger/10 border border-danger/30 rounded-lg">
-            <p className="text-sm text-danger font-semibold mb-2">{t('modal.dataImpact')}:</p>
-            <ul className="text-sm text-garage-text space-y-1">
-              <li>• {t('modal.deleteImpact.account')}</li>
-              <li>• {t('modal.deleteImpact.vehicles')}</li>
-              <li>• {t('modal.deleteImpact.records')}</li>
-              <li>• {t('modal.deleteImpact.irreversible')}</li>
-            </ul>
-          </div>
+        {/* Impact Warning */}
+        <div className="p-4 bg-danger/10 border border-danger/30 rounded-lg">
+          <p className="text-sm text-danger font-semibold mb-2">{t('modal.dataImpact')}:</p>
+          <ul className="text-sm text-garage-text space-y-1">
+            <li>• {t('modal.deleteImpact.account')}</li>
+            <li>• {t('modal.deleteImpact.vehicles')}</li>
+            <li>• {t('modal.deleteImpact.records')}</li>
+            <li>• {t('modal.deleteImpact.irreversible')}</li>
+          </ul>
+        </div>
 
-          {/* Confirmation Input */}
-          <div>
-            <label className="block text-sm font-medium text-garage-text mb-2">
-              {renderConfirmPrompt(t('deleteUserModal.typeToConfirm', { token: CONFIRM_TOKEN }))}
-            </label>
-            <input
-              type="text"
-              value={confirmText}
-              onChange={(e) => setConfirmText(e.target.value)}
-              placeholder={CONFIRM_TOKEN}
-              className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-lg text-garage-text focus:outline-none focus:ring-2 focus:ring-danger"
-            />
-          </div>
-
-          {/* Actions */}
-          <div className="flex gap-3">
-            <button
-              onClick={() => {
-                onClose()
-                setConfirmText('')
-              }}
-              className="flex-1 px-4 py-2 bg-garage-bg border border-garage-border rounded-lg hover:bg-garage-surface text-garage-text transition-colors"
-            >
-              {t('deleteUserModal.cancel')}
-            </button>
-            <button
-              onClick={handleDelete}
-              disabled={confirmText !== CONFIRM_TOKEN || loading}
-              className="flex-1 px-4 py-2 bg-danger text-white rounded-lg hover:bg-danger/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {loading ? t('common:deleting') : t('modal.deleteUser')}
-            </button>
-          </div>
+        {/* Confirmation Input */}
+        <div>
+          <label className="block text-sm font-medium text-garage-text mb-2">
+            {renderConfirmPrompt(t('deleteUserModal.typeToConfirm', { token: CONFIRM_TOKEN }))}
+          </label>
+          <input
+            type="text"
+            value={confirmText}
+            onChange={(e) => setConfirmText(e.target.value)}
+            placeholder={CONFIRM_TOKEN}
+            className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-lg text-garage-text focus:outline-none focus:ring-2 focus:ring-danger"
+          />
         </div>
       </div>
-    </div>
+    </Drawer>
   )
 }

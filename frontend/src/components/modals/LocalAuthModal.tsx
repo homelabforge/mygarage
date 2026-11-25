@@ -134,6 +134,7 @@ export default function LocalAuthModal({
       title={t('modal.localAuth.title')}
       onClose={handleClose}
       isOpen={isOpen}
+      nested
       width="md"
       icon={Shield}
       footer={
