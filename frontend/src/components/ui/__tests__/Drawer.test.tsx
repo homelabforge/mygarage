@@ -586,19 +586,19 @@ describe('Drawer — nested overlay', () => {
 })
 
 describe('Drawer: on the way out', () => {
-  it('goes inert the moment it starts closing, so its form is dead before transitionend', () => {
-    const onSubmit = vi.fn((event: { preventDefault: () => void }) => event.preventDefault())
+  it('goes inert the moment it starts closing, and its backdrop eats a stray second click', () => {
+    const onChildClose = vi.fn()
     const ui = (childOpen: boolean): ReactElement => (
       <Drawer open onClose={() => {}} title="Family">
         <button>Add user</button>
         <Drawer
           open={childOpen}
           nested
-          onClose={() => {}}
+          onClose={onChildClose}
           title="Add user"
           footer={<button type="submit" form="add-user-form">Create</button>}
         >
-          <form id="add-user-form" onSubmit={onSubmit}>
+          <form id="add-user-form">
             <input aria-label="Username" />
           </form>
         </Drawer>
@@ -618,10 +618,15 @@ describe('Drawer: on the way out', () => {
     // Cancel. The child is still mounted and sliding out.
     rerender(ui(false))
     expect(child.isConnected).toBe(true)
-    for (const node of [child, childBackdrop]) {
-      expect(node).toHaveAttribute('inert')
-      expect(node).toHaveClass('pointer-events-none')
-    }
+    expect(child).toHaveAttribute('inert')
+    expect(child).toHaveClass('pointer-events-none')
+    // The backdrop has nothing to protect, so it stays hit-testable and soaks
+    // up the second click of a double-click instead of letting it through to
+    // whatever's underneath. That click is a no-op, not a second close.
+    expect(childBackdrop).not.toHaveAttribute('inert')
+    expect(childBackdrop).not.toHaveClass('pointer-events-none')
+    fireEvent.click(childBackdrop)
+    expect(onChildClose).not.toHaveBeenCalled()
     expect(screen.getByRole('button', { name: 'Create' }).closest('[inert]')).toBe(child)
     // Focus went back to the trigger in the live parent, not left in the dying form.
     expect(document.activeElement).toBe(trigger)
@@ -629,7 +634,6 @@ describe('Drawer: on the way out', () => {
 
     fireEvent.transitionEnd(child)
     expect(child.isConnected).toBe(false)
-    expect(onSubmit).not.toHaveBeenCalled()
   })
 
   it('drops the inert again if it reopens mid-exit', () => {

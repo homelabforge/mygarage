@@ -249,8 +249,10 @@ export default function Drawer({
 
   const backdropZ = nested ? 'z-drawer-nested-backdrop' : 'z-drawer-backdrop'
   const panelZ = nested ? 'z-drawer-nested' : 'z-drawer'
-  // Still sliding out. It's already off the stack, so make it dead to clicks,
-  // keys and focus, or a Cancelled form can still submit on its way out.
+  // Still sliding out. It's already off the stack, so the panel goes dead to
+  // clicks, keys and focus, or a Cancelled form can still submit on its way out.
+  // The backdrop stays hit-testable but does nothing, so a double-click's
+  // second hit doesn't fall through to the page underneath.
   const closing = !open
   const gone = closing ? 'pointer-events-none' : ''
 
@@ -259,11 +261,10 @@ export default function Drawer({
       <div
         ref={backdropRef}
         data-testid="drawer-backdrop"
-        onClick={onClose}
-        inert={closing || undefined}
+        onClick={open ? onClose : undefined}
         className={`fixed inset-0 ${backdropZ} bg-black/50 transition-opacity duration-(--duration-fast) ease-standard motion-reduce:transition-none ${
           entered ? 'opacity-100' : 'opacity-0'
-        } ${gone}`}
+        }`}
         aria-hidden="true"
       />
       <div
