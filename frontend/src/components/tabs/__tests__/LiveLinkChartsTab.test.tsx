@@ -66,12 +66,19 @@ const captured = vi.hoisted(() => ({
   tooltipItemStyle: undefined as Record<string, unknown> | undefined,
   strokes: {} as Record<string, string | undefined>,
 }))
-vi.mock('recharts', () => {
+vi.mock('recharts', async () => {
+  const { useEffect } = await import('react')
   const Pass = ({ children }: { children?: ReactNode }) => <>{children}</>
   return {
     ResponsiveContainer: Pass,
+    // Strokes are the CURRENT chart's lines only: a fresh map on every chart
+    // render, and none at all once the chart is gone (the loading spinner).
     LineChart: ({ data, children }: { data: unknown; children?: ReactNode }) => {
       captured.lineChartData = data
+      captured.strokes = {}
+      useEffect(() => () => {
+        captured.strokes = {}
+      }, [])
       return <>{children}</>
     },
     Line: ({ dataKey, stroke }: { dataKey: string; stroke?: string }) => {
@@ -304,9 +311,14 @@ describe('LiveLinkChartsTab chart theme', () => {
       fireEvent.click(chip)
       fireEvent.click(chip)
     })
-    // the state change re-renders inside act, so strokes now hold the new render
     expect(screen.getByRole('button', { name: /First Param/ })).toHaveAttribute('aria-pressed', 'true')
-    expect(captured.strokes.p1).toMatch(/^var\(--color-chart-[1-8]\)$/)
+    // The refetched chart has exactly the picked lines, each in its chip's colour.
+    await waitFor(() => expect(Object.keys(captured.strokes).sort()).toEqual(['p1', 'p2', 'p3']))
+    for (const [key, name] of [['p1', /First Param/], ['p2', /Second Param/], ['p3', /Third Param/]] as const) {
+      const swatch = screen.getByRole('button', { name }).querySelector<HTMLElement>('[data-testid="series-swatch"]')
+      expect(captured.strokes[key]).toMatch(/^var\(--color-chart-[1-8]\)$/)
+      expect(swatch?.style.backgroundColor).toBe(captured.strokes[key])
+    }
   })
 })
 

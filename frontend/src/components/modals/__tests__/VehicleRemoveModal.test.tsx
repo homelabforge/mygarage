@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { render } from '../../../__tests__/test-utils'
-import { expectSafeOverlay } from '../../../__tests__/safeOverlay'
 import type { Vehicle } from '@/types/vehicle'
 
 const post = vi.fn().mockResolvedValue({ data: {} })
@@ -85,13 +84,6 @@ describe('VehicleRemoveModal: the archive sale price', () => {
     expect(body.sale_price).toBeNull()
     expect(body.sale_date).toBeNull()
     expect(screen.queryByText('common:validation.amount.negative')).not.toBeInTheDocument()
-  })
-})
-
-describe('VehicleRemoveModal layout', () => {
-  it('centres inside the iPhone safe area (#305)', () => {
-    render(<VehicleRemoveModal isOpen onClose={vi.fn()} vehicle={vehicle} onConfirm={vi.fn()} />)
-    expectSafeOverlay(screen.getByRole('dialog', { name: 'modal.removeVehicle' }))
   })
 })
 

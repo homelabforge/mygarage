@@ -26,10 +26,33 @@ const COLOUR_PROPS = new Set([
   'outlineColor', 'stopColor', 'floodColor', 'lightingColor', 'fillColor',
 ])
 
+// Every custom property index.css declares, so a var() has to name a real one.
+const TOKENS = new Set([...readFileSync(resolve(SRC, 'index.css'), 'utf8').matchAll(/(--[\w-]+)\s*:/g)].map((m) => m[1]))
+
+/**
+ * A var() that's really a token: its name is declared in index.css, and any
+ * fallback is another such var(). var(--misspelled, red) renders red in both
+ * themes, so a literal fallback doesn't count.
+ */
+function isTokenVar(value: string): boolean {
+  const m = /^var\(\s*(--[\w-]+)\s*(?:,\s*(.*))?\)$/.exec(value.trim())
+  if (!m || !TOKENS.has(m[1])) return false
+  return m[2] === undefined || isTokenVar(m[2])
+}
+
 /** A literal paint value that's fine anywhere: no paint, inherited, or a token. */
 function isSafePaint(value: string): boolean {
   const v = value.trim()
-  return ['none', 'transparent', 'inherit', 'currentColor', 'currentcolor'].includes(v) || v.startsWith('var(')
+  return ['none', 'transparent', 'inherit', 'currentColor', 'currentcolor'].includes(v) || isTokenVar(v)
+}
+
+/** A built token like `var(--color-chart-${n})`: some declared token starts with
+ *  the head's name, and no literal fallback follows in the tail. */
+function isTokenTemplate(node: ts.TemplateExpression): boolean {
+  const head = /^var\(\s*(--[\w-]*)$/.exec(node.head.text.trim())
+  if (!head || ![...TOKENS].some((token) => token.startsWith(head[1]))) return false
+  const rest = node.templateSpans.map((span) => span.literal.text).join('')
+  return !/,\s*(?!var\()\S/.test(rest)
 }
 
 function propName(name: ts.PropertyName | ts.JsxAttributeName, sf: ts.SourceFile): string {
@@ -86,11 +109,13 @@ function scanChartColours(fileName: string, text: string): ChartColourHit[] {
       if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) {
         const name = owner(node, sf)
         if (COLOUR_PROPS.has(name) && !isSafePaint(value)) reasons.push(`${name} literal`)
+        // chartTheme's constants reach a stroke through a name, so any var() anywhere has to be a real token.
+        else if (value.trim().startsWith('var(') && !isTokenVar(value)) reasons.push('bad var()')
       }
       // A built string on a colour prop is fine only as a token: `var(--color-chart-${n})`.
       if (ts.isTemplateHead(node)) {
         const name = owner(node.parent, sf)
-        if (COLOUR_PROPS.has(name) && !value.trim().startsWith('var(')) reasons.push(`${name} template`)
+        if (COLOUR_PROPS.has(name) && !isTokenTemplate(node.parent as ts.TemplateExpression)) reasons.push(`${name} template`)
       }
       if (reasons.length > 0) {
         const line = sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1
@@ -149,6 +174,12 @@ describe('chart colours come from theme tokens', () => {
     ['background', "const a = { background: 'white' }"],
     ['a template on stroke', 'const a = <Line stroke={`rgb(${r}, 0, 0)`} />'],
     ['a template on fill', 'const a = { fill: `hsl(${h} 50% 50%)` }'],
+    ['a misspelled token with a literal fallback', 'const a = <Line stroke="var(--misspelled-token, red)" />'],
+    ['a real token with a literal fallback', "const a = { fill: 'var(--color-chart-1, red)' }"],
+    ['a token index.css never declares', "const a = { color: 'var(--colour-text)' }"],
+    ['a token template with a literal fallback', 'const a = <Line stroke={`var(--color-chart-${n}, red)`} />'],
+    ['a token template on a made-up prefix', 'const a = <Line stroke={`var(--chart-colour-${n})`} />'],
+    ['a theme constant with a typo and a fallback', "export const CHART_GRID = 'var(--color-hiar, red)'"],
   ])('catches a literal colour through %s', (_form, snippet) => {
     expect(scanChartColours('snippet.tsx', snippet)).toHaveLength(1)
   })
@@ -158,6 +189,7 @@ describe('chart colours come from theme tokens', () => {
       'const a = <Line stroke={`var(--color-chart-${n})`} />',
       "const b = { color: 'inherit', borderColor: 'currentColor' }",
       "const c = <Bar fill={on ? 'var(--color-chart-1)' : 'none'} />",
+      "const d = { color: 'var(--color-text-mute, var(--color-text))' }",
     ].join('\n')
     expect(scanChartColours('snippet.tsx', snippet)).toEqual([])
   })

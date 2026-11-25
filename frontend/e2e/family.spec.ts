@@ -1,4 +1,4 @@
-import { request as apiRequest, type APIRequestContext, type Locator, type Page } from '@playwright/test'
+import { request as apiRequest, type APIRequestContext, type APIResponse, type Locator, type Page } from '@playwright/test'
 
 import { test, expect } from './helpers/fixtures'
 import { adminSessionFromStorageState } from './helpers/seed'
@@ -21,23 +21,62 @@ const THROWAWAY = {
   password: 'E2eTest!ng123',
 }
 
+const MULTI_USER = 'multi_user_enabled'
+
+/**
+ * A setting as it was before the spec touched it. A missing row and a stored
+ * null mean different things here: the backend allows new users with no row
+ * and refuses them on a saved null.
+ */
+type SettingSnapshot = { exists: false } | { exists: true; value: string | null }
+
+/** Null when the read failed, so teardown knows to leave the setting alone. */
+async function snapshotSetting(
+  request: Pick<APIRequestContext, 'get'>,
+  auth: Record<string, string>,
+  key: string,
+): Promise<SettingSnapshot | null> {
+  const res = await request.get(`${API_BASE}/settings/${key}`, { headers: auth })
+  if (res.status() === 404 && String((await res.json()).detail).includes('not found')) return { exists: false }
+  if (!res.ok()) return null
+  return { exists: true, value: (await res.json()).value as string | null }
+}
+
+/** Puts a setting back the way the snapshot found it. No snapshot, no touch. */
+async function restoreSetting(
+  request: APIRequestContext,
+  auth: Record<string, string>,
+  key: string,
+  snap: SettingSnapshot | null,
+): Promise<void> {
+  if (snap === null) return
+  if (!snap.exists) {
+    const gone = await request.delete(`${API_BASE}/settings/${key}`, { headers: auth })
+    // 404 means it was never created, which is already right.
+    expect([204, 404], await gone.text()).toContain(gone.status())
+    return
+  }
+  // PUT, not batch: batch takes strings only, and a stored null has to go back as null.
+  let put = await request.put(`${API_BASE}/settings/${key}`, { headers: auth, data: { value: snap.value } })
+  if (put.status() === 404) put = await request.post(`${API_BASE}/settings`, { headers: auth, data: { key, value: snap.value } })
+  expect(put.ok(), await put.text()).toBe(true)
+}
+
 let api: APIRequestContext
 let headers: Record<string, string> = {}
-// Whatever multi_user_enabled was before, so afterAll can put it back. Undefined means no row.
-let priorMultiUser: string | undefined
+// Whatever multi_user_enabled was before, so afterAll can put it back. Null until it's been read.
+let priorMultiUser: SettingSnapshot | null = null
 let throwawayId: number | null = null
 
 test.beforeAll(async () => {
   api = await apiRequest.newContext({ baseURL: ROOT_BASE_URL })
   headers = (await adminSessionFromStorageState(api, API_BASE, AUTH_FILE)).headers
 
-  const settings = await api.get(`${API_BASE}/settings`, { headers })
-  expect(settings.ok(), await settings.text()).toBe(true)
-  const rows = (await settings.json()).settings as { key: string; value: string | null }[]
-  priorMultiUser = rows.find((row) => row.key === 'multi_user_enabled')?.value ?? undefined
+  priorMultiUser = await snapshotSetting(api, headers, MULTI_USER)
+  expect(priorMultiUser, `could not read ${MULTI_USER}`).not.toBeNull()
 
   // The backend refuses new users while multi-user is saved off.
-  const on = await api.post(`${API_BASE}/settings/batch`, { headers, data: { settings: { multi_user_enabled: 'true' } } })
+  const on = await api.post(`${API_BASE}/settings/batch`, { headers, data: { settings: { [MULTI_USER]: 'true' } } })
   expect(on.ok(), await on.text()).toBe(true)
 
   const created = await api.post(`${API_BASE}/auth/users`, { headers, data: THROWAWAY })
@@ -55,14 +94,57 @@ test.afterAll(async () => {
       }
     } finally {
       // Its own finally, so a failed user cleanup still puts the setting back.
-      const restored = priorMultiUser === undefined
-        ? await api.delete(`${API_BASE}/settings/multi_user_enabled`, { headers })
-        : await api.post(`${API_BASE}/settings/batch`, { headers, data: { settings: { multi_user_enabled: priorMultiUser } } })
-      expect(restored.ok(), await restored.text()).toBeTruthy()
+      // A snapshot that never landed leaves it alone.
+      if (api) await restoreSetting(api, headers, MULTI_USER, priorMultiUser)
     }
   } finally {
     await api?.dispose()
   }
+})
+
+test.describe('Family teardown', () => {
+  test('puts a missing row, a stored null and an unread setting back as they were', async () => {
+    const read = async (): Promise<{ status: number; value?: string | null }> => {
+      const res = await api.get(`${API_BASE}/settings/${MULTI_USER}`, { headers })
+      return res.ok() ? { status: res.status(), value: (await res.json()).value } : { status: res.status() }
+    }
+    const turnOn = async (): Promise<void> => {
+      const on = await api.post(`${API_BASE}/settings/batch`, { headers, data: { settings: { [MULTI_USER]: 'true' } } })
+      expect(on.ok(), await on.text()).toBe(true)
+    }
+    try {
+      // A stored null comes back as null, not as a deleted row.
+      const blank = await api.put(`${API_BASE}/settings/${MULTI_USER}`, { headers, data: { value: null } })
+      expect(blank.ok(), await blank.text()).toBe(true)
+      const wasNull = await snapshotSetting(api, headers, MULTI_USER)
+      expect(wasNull).toEqual({ exists: true, value: null })
+      await turnOn()
+      await restoreSetting(api, headers, MULTI_USER, wasNull)
+      expect(await read()).toEqual({ status: 200, value: null })
+
+      // No row comes back as no row.
+      expect((await api.delete(`${API_BASE}/settings/${MULTI_USER}`, { headers })).status()).toBe(204)
+      const wasAbsent = await snapshotSetting(api, headers, MULTI_USER)
+      expect(wasAbsent).toEqual({ exists: false })
+      await turnOn()
+      await restoreSetting(api, headers, MULTI_USER, wasAbsent)
+      expect(await read()).toEqual({ status: 404 })
+
+      // A read that failed touches nothing. The e2e backend can run with auth
+      // off, so a stand-in answers 503 rather than counting on a 401.
+      await turnOn()
+      const down: Pick<APIRequestContext, 'get'> = {
+        get: async () => ({ status: () => 503, ok: () => false, json: async () => ({ detail: 'Service unavailable' }) }) as unknown as APIResponse,
+      }
+      const unread = await snapshotSetting(down, {}, MULTI_USER)
+      expect(unread).toBeNull()
+      await restoreSetting(api, headers, MULTI_USER, unread)
+      expect(await read()).toEqual({ status: 200, value: 'true' })
+    } finally {
+      // The other tests here want it on.
+      await turnOn()
+    }
+  })
 })
 
 /** Whether a real click on the middle of this element would land on it. */

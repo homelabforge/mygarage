@@ -26,6 +26,18 @@ describe('Dialog', () => {
     expect(root).toHaveAttribute('inert')
   })
 
+  it('pads its overlay inside the safe area and caps the box at 90vh or the padded height (#305)', () => {
+    // jsdom has no layout, so the classes; e2e/safe-area.spec.ts measures what they compute to.
+    render(<Dialog open onClose={() => {}} title="Decode VIN"><p>x</p></Dialog>, { container: root })
+    const box = screen.getByRole('dialog', { name: 'Decode VIN' })
+    const overlay = box.parentElement!
+    expect(overlay).toHaveClass('modal-safe-pad')
+    // A leftover p-4 would fight the utility's padding.
+    expect(overlay.className).not.toMatch(/(^|\s)p-4(\s|$)/)
+    expect(box).toHaveClass('max-h-[min(90vh,100%)]')
+    expect(box.className).not.toMatch(/(^|\s)max-h-(full|\[\d+vh\])(\s|$)/)
+  })
+
   it('renders nothing when closed', () => {
     render(<Dialog open={false} onClose={() => {}} title="Remove vehicle">x</Dialog>, { container: root })
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()

@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { dirname, join, relative, resolve } from 'node:path'
 import * as ts from 'typescript'
 
@@ -197,8 +196,14 @@ function scan(root: string, files: string[], fs: Fs = diskFs): string[] {
             )
             return
           }
-          // a nested Drawer/Dialog is its own host, and one level is enough
-          if (HOSTS.has(tag) || followed) return
+          // a nested Drawer/Dialog is its own host
+          if (HOSTS.has(tag)) return
+          // One level is all it follows. A wrapper inside a wrapper gets reported
+          // instead of dropped, so a padded form can't hide two components down.
+          if (followed) {
+            rows.push(`comp ${host} -> ${via}<${tag}> ${where} (not followed)`)
+            return
+          }
           const r = resolveComp(inFile, tag)
           const inner = r ? returnedTops(r.fn) : []
           // can't see inside it, so say so instead of passing quietly
@@ -227,9 +232,9 @@ function scanInline(sources: Record<string, string>): string[] {
 
 const padded = (rows: string[]): string[] => rows.filter((r) => r.startsWith('PAD'))
 
-/** Component names the walk couldn't open, deduped. */
+/** Component names the walk couldn't open, deduped. The last hop is the one it stopped at. */
 const unresolved = (rows: string[]): string[] =>
-  [...new Set(rows.filter((r) => r.startsWith('comp')).map((r) => /-> <(\w+)>/.exec(r)?.[1] ?? r))].sort()
+  [...new Set(rows.filter((r) => r.startsWith('comp')).map((r) => /-> (?:<\w+>\/)*<(\w+)>/.exec(r)?.[1] ?? r))].sort()
 
 // Things the walk can't open on purpose. Anything new here needs a reason, or
 // it's a form wrapper the guard just stopped seeing.
@@ -341,30 +346,51 @@ describe('drawer and dialog bodies own their padding', () => {
   })
 
   it('follows a component into its own file and flags its padded root', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'drawer-pad-'))
-    try {
-      writeFileSync(
-        join(dir, 'Host.tsx'),
-        [
-          "import MyForm from './MyForm'",
-          'export function Host() {',
-          '  return (',
-          '    <Drawer open onClose={close} title="t">',
-          '      <MyForm />',
-          '    </Drawer>',
-          '  )',
-          '}',
-        ].join('\n'),
-      )
-      writeFileSync(
-        join(dir, 'MyForm.tsx'),
-        ['export default function MyForm() {', '  return <form className="space-y-4 pl-6" />', '}'].join('\n'),
-      )
-      const rows = scan(dir, walk(dir))
-      expect(padded(rows)).toEqual(['PAD Host.tsx:4 <Drawer> -> <MyForm>/<form> MyForm.tsx:2  [pl-6]'])
-    } finally {
-      rmSync(dir, { recursive: true, force: true })
-    }
+    const rows = scanInline({
+      'Host.tsx': [
+        "import MyForm from './MyForm'",
+        'export function Host() {',
+        '  return (',
+        '    <Drawer open onClose={close} title="t">',
+        '      <MyForm />',
+        '    </Drawer>',
+        '  )',
+        '}',
+      ].join('\n'),
+      'MyForm.tsx': ['export default function MyForm() {', '  return <form className="space-y-4 pl-6" />', '}'].join('\n'),
+    })
+    expect(padded(rows)).toEqual(['PAD Host.tsx:4 <Drawer> -> <MyForm>/<form> MyForm.tsx:2  [pl-6]'])
+  })
+
+  it('reports a wrapper inside a wrapper instead of dropping it, next to a sibling it did follow', () => {
+    // Outer -> Inner -> a padded form. It only follows one level, so Inner has
+    // to show up as unopened, or both gates pass over the padded form.
+    const rows = scanInline({
+      'Twice.tsx': [
+        'function Plain() {',
+        '  return <div className="space-y-2" />',
+        '}',
+        'function Inner() {',
+        '  return <form className="px-6" />',
+        '}',
+        'function Outer() {',
+        '  return <Inner />',
+        '}',
+        'export function Host() {',
+        '  return (',
+        '    <Drawer open onClose={close} title="t">',
+        '      <Plain />',
+        '      <Outer />',
+        '    </Drawer>',
+        '  )',
+        '}',
+      ].join('\n'),
+    })
+    expect(rows).toEqual([
+      'comp Twice.tsx:12 <Drawer> -> <Outer>/<Inner> Twice.tsx:8 (not followed)',
+      'ok  Twice.tsx:12 <Drawer> -> <Plain>/<div> Twice.tsx:2',
+    ])
+    expect(unresolved(rows)).toEqual(['Inner'])
   })
 
   it('unwraps memo and forwardRef to reach the padded root', () => {

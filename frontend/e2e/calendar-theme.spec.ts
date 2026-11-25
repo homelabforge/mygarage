@@ -192,12 +192,38 @@ test('a theme switch repaints the mounted calendar both ways and keeps its view 
   await expectPopupThemed(page)
 })
 
-test('every event colour pair reads at 4.5:1 or better in both themes', async ({ page }) => {
+/** A rendered event's label colour and the background it actually sits on. */
+async function eventInk(page: Page): Promise<{ fg: string; bg: string }> {
+  // Month grid is the default view; week view puts all-day events in the date grid.
+  const event = page.locator('.sx__month-grid-event, .sx__date-grid-event', { hasText: TITLE }).first()
+  await expect(event).toBeVisible({ timeout: 15000 })
+  return event.evaluate((el, title) => {
+    // The text node holding the title, so this is the colour the words get.
+    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT)
+    let label: Element = el
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      if ((node.textContent ?? '').includes(title)) {
+        label = node.parentElement ?? el
+        break
+      }
+    }
+    let paint: Element | null = label
+    while (paint && getComputedStyle(paint).backgroundColor === 'rgba(0, 0, 0, 0)') paint = paint.parentElement
+    return { fg: getComputedStyle(label).color, bg: getComputedStyle(paint ?? el).backgroundColor }
+  }, TITLE)
+}
+
+test('a rendered event label and every event colour pair read at 4.5:1 or better in both themes', async ({ page }) => {
   await page.goto('/calendar')
   await expect(page.locator('.sx__calendar')).toBeVisible({ timeout: 15000 })
   const start = await currentTheme(page)
   for (const theme of [start, start === 'dark' ? 'light' : 'dark', start] as Theme[]) {
     if ((await currentTheme(page)) !== theme) await flipTheme(page, theme)
+    // What's on screen, not just the tokens: Schedule-X could be handed the wrong one.
+    const ink = await eventInk(page)
+    const shown = await contrast(page, ink.fg, ink.bg)
+    expect(shown, `${theme} rendered maintenance event is ${shown.toFixed(2)}:1 (${ink.fg} on ${ink.bg})`).toBeGreaterThanOrEqual(4.5)
+    // Only reminders are seeded, so the other three types are checked at the token level.
     for (const type of CAL_TYPES) {
       const ratio = await contrast(
         page,

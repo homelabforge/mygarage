@@ -46,39 +46,64 @@ async function setLanguage(request: APIRequestContext, language: string): Promis
   expect(res.ok(), `Language ${language} failed: ${res.status()}`).toBeTruthy()
 }
 
-/** Opens the dashboard in a language, with that language's first paint. */
+/**
+ * Opens the dashboard in a language. The fixture pins 'en' in localStorage, and
+ * useLanguageSync swaps in the saved account language once the app loads, so
+ * wait for html lang rather than lean on init-script order.
+ */
 async function openDashboard(page: Page, request: APIRequestContext, lang: Lang): Promise<void> {
   await setLanguage(request, lang)
-  // Runs after the fixture's 'en' pin, so it wins.
-  await page.addInitScript((value) => localStorage.setItem('i18nextLng', value), lang)
   await page.goto('/')
   await expect(page.locator('html')).toHaveAttribute('lang', lang, { timeout: 15000 })
 }
 
 interface CaptionScan {
-  count: number
+  /** Expected captions this card didn't show, so nothing got measured for them. */
+  missing: string[]
   problems: string[]
 }
 
+// The card shows year, make and model, not the nickname, so it's found by its VIN.
+let seededVin = ''
+
 /**
- * Every stat-tile caption on the page, checked word by word.
+ * The seeded car's four stat-tile captions, checked word by word.
  *
- * A word whose Range comes back as two rects got broken across lines, and a
- * word past the tile's padding spilled out. Tiles are found by caption text,
- * not the test id, so this runs on any build.
+ * Every expected caption has to be there, or it's reported missing. The words
+ * are walked across text nodes, so a caption split inside an inline child is
+ * still measured. A word on more than one line got broken, and a word past
+ * the tile's padding spilled out.
  */
 async function scanCaptions(page: Page, labels: string[]): Promise<CaptionScan> {
-  return page.evaluate(async (wanted) => {
+  return page.evaluate(async ({ wanted, vin }) => {
     await document.fonts.ready
     const problems: string[] = []
-    let count = 0
-    for (const tile of document.querySelectorAll<HTMLElement>('main .rounded-tile')) {
+    // The biggest box around one set of tiles is that vehicle's card.
+    const card = [...document.querySelectorAll<HTMLElement>('main [data-testid="vehicle-stat-tiles"]')]
+      .map((tiles) => {
+        let box = tiles
+        while (box.parentElement && box.parentElement.querySelectorAll('[data-testid="vehicle-stat-tiles"]').length === 1) box = box.parentElement
+        return { tiles, box }
+      })
+      .find(({ box }) => (box.textContent ?? '').includes(vin))?.tiles
+    const found = new Set<string>()
+    for (const tile of card?.querySelectorAll<HTMLElement>('.rounded-tile') ?? []) {
       const caption = tile.lastElementChild as HTMLElement | null
-      const node = caption?.firstChild
-      if (!caption || !node || node.nodeType !== Node.TEXT_NODE) continue
-      const text = node.textContent ?? ''
+      if (!caption) continue
+      // Every text node under the caption, with where each one starts in the whole.
+      const pieces: { node: Text; start: number }[] = []
+      let text = ''
+      const walker = document.createTreeWalker(caption, NodeFilter.SHOW_TEXT)
+      for (let node = walker.nextNode() as Text | null; node; node = walker.nextNode() as Text | null) {
+        pieces.push({ node, start: text.length })
+        text += node.data
+      }
       if (!wanted.includes(text.trim())) continue
-      count += 1
+      found.add(text.trim())
+      const at = (offset: number, end: boolean): [Text, number] => {
+        const piece = [...pieces].reverse().find((p) => (end ? p.start < offset : p.start <= offset))!
+        return [piece.node, offset - piece.start]
+      }
       // The caption div always fills the tile, so measure the words themselves
       // against the tile's content box. A nowrap or truncated caption spills here.
       const t = tile.getBoundingClientRect()
@@ -86,18 +111,25 @@ async function scanCaptions(page: Page, labels: string[]): Promise<CaptionScan> 
       const inner = { left: t.left + parseFloat(style.paddingLeft), right: t.right - parseFloat(style.paddingRight) }
       for (const match of text.matchAll(/\S+/g)) {
         const range = document.createRange()
-        range.setStart(node, match.index)
-        range.setEnd(node, match.index + match[0].length)
-        const rects = range.getClientRects().length
-        if (rects !== 1) problems.push(`"${match[0]}" in "${text.trim()}" spans ${rects} rects`)
+        range.setStart(...at(match.index, false))
+        range.setEnd(...at(match.index + match[0].length, true))
+        // Pieces of one word in two inline nodes give two rects on one line, so count lines.
+        const rects = [...range.getClientRects()].filter((r) => r.width > 0).sort((a, b) => a.top - b.top)
+        let lines = 0
+        let bottom = -Infinity
+        for (const r of rects) {
+          if (r.top >= bottom - 1) lines += 1
+          bottom = Math.max(bottom, r.bottom)
+        }
+        if (lines !== 1) problems.push(`"${match[0]}" in "${text.trim()}" sits on ${lines} lines`)
         const w = range.getBoundingClientRect()
         if (w.left < inner.left - 0.5 || w.right > inner.right + 0.5) {
           problems.push(`"${match[0]}" in "${text.trim()}" spills out of its tile (${w.left.toFixed(1)}..${w.right.toFixed(1)} vs ${inner.left.toFixed(1)}..${inner.right.toFixed(1)})`)
         }
       }
     }
-    return { count, problems }
-  }, labels)
+    return { missing: wanted.filter((label) => !found.has(label.trim())), problems }
+  }, { wanted: labels, vin: seededVin })
 }
 
 /** Pins the tile container's width and counts the grid's tracks. */
@@ -120,7 +152,7 @@ test.beforeAll(async () => {
   const me = await api.get(`${API_BASE}/auth/me`, { headers: admin.headers })
   expect(me.ok(), `auth/me: ${me.status()}`).toBeTruthy()
   adminId = (await me.json()).id as number
-  await ledger.vehicle({
+  seededVin = await ledger.vehicle({
     vin: randomVin('TILE'),
     nickname: 'E2E Tile Car',
     vehicle_type: 'Car',
@@ -165,11 +197,12 @@ test.describe('Dashboard stat tiles', () => {
       const failures: string[] = []
       for (const width of WIDTHS) {
         await page.setViewportSize({ width, height: 900 })
-        // Wait for the cards to land before the first scan.
+        // Wait for the seeded card to land with all four captions.
         await expect
-          .poll(async () => (await scanCaptions(page, labels)).count, { timeout: 15000 })
-          .toBeGreaterThan(0)
+          .poll(async () => (await scanCaptions(page, labels)).missing, { timeout: 15000 })
+          .toEqual([])
         const scan = await scanCaptions(page, labels)
+        for (const label of scan.missing) failures.push(`${width}px: "${label}" was never measured`)
         for (const problem of scan.problems) failures.push(`${width}px: ${problem}`)
       }
       expect(failures, failures.join('\n')).toEqual([])

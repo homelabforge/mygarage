@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { render } from '../../../__tests__/test-utils'
-import { expectSafeOverlay } from '../../../__tests__/safeOverlay'
 
 const post = vi.fn().mockResolvedValue({ data: {} })
 vi.mock('@/services/api', () => ({ default: { post: (...a: unknown[]) => post(...a) } }))
@@ -107,11 +106,6 @@ describe('BulkArchiveModal', () => {
 
     expect(backdrop?.className).toContain('bg-black/50')
     expect(backdrop?.className).not.toContain('bg-opacity-')
-  })
-
-  it('centres inside the iPhone safe area (#305)', () => {
-    render(<BulkArchiveModal {...PROPS} />)
-    expectSafeOverlay(screen.getByRole('dialog'))
   })
 })
 

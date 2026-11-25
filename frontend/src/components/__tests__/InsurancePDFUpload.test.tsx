@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { fireEvent, render, screen } from '../../__tests__/test-utils'
-import { expectSafeOverlay } from '../../__tests__/safeOverlay'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import InsurancePDFUpload from '../InsurancePDFUpload'
@@ -48,11 +47,6 @@ describe('InsurancePDFUpload — portal (coupled contract, keep green)', () => {
     const heading = screen.getByRole('heading', { name: 'insurancePdfUpload.title' })
     expect(document.body).toContainElement(heading)
     expect(container).not.toContainElement(heading)
-  })
-
-  it('centres inside the iPhone safe area (#305)', () => {
-    render(<InsurancePDFUpload onDataExtracted={vi.fn()} onClose={vi.fn()} />)
-    expectSafeOverlay(screen.getByRole('dialog', { name: 'insurancePdfUpload.title' }))
   })
 })
 
