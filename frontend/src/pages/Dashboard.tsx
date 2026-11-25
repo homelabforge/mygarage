@@ -246,7 +246,9 @@ export default function Dashboard() {
                 {t('dashboard.myVehiclesSection', { count: ownedVehicles.length })}
               </h2>
               {ownedVehicles.length > 0 ? (
-                <div className="grid grid-cols-[repeat(auto-fill,minmax(340px,1fr))] gap-[22px]">
+                // min() lets a card shrink below 340 on a phone narrower than 372,
+                // or the page scrolls sideways. Same on the two grids below.
+                <div className="grid grid-cols-[repeat(auto-fill,minmax(min(340px,100%),1fr))] gap-[22px]">
                   {ownedVehicles.map((vehicleStats) => (
                     // Each card reads its own vehicle's odometer unit (#172).
                     <VehicleUnitScope key={vehicleStats.vin} distanceUnit={vehicleStats.distance_unit}>
@@ -280,7 +282,7 @@ export default function Dashboard() {
                 <h2 className="mb-4 text-lg font-semibold tracking-[-0.01em] text-text">
                   {t('dashboard.sharedWithMeSection', { count: sharedVehicles.length })}
                 </h2>
-                <div className="grid grid-cols-[repeat(auto-fill,minmax(340px,1fr))] gap-[22px]">
+                <div className="grid grid-cols-[repeat(auto-fill,minmax(min(340px,100%),1fr))] gap-[22px]">
                   {sharedVehicles.map((vehicleStats) => (
                     <VehicleUnitScope key={vehicleStats.vin} distanceUnit={vehicleStats.distance_unit}>
                       <VehicleStatisticsCard stats={vehicleStats} />
@@ -320,7 +322,7 @@ export default function Dashboard() {
                     />
                   </Card>
                 ) : (
-                  <div className="grid grid-cols-[repeat(auto-fill,minmax(340px,1fr))] gap-[22px]">
+                  <div className="grid grid-cols-[repeat(auto-fill,minmax(min(340px,100%),1fr))] gap-[22px]">
                     {referenceVehicles.map((vehicle) => (
                       <ExternalVehicleCard
                         key={`ref-${vehicle.id}`}
