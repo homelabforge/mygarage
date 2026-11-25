@@ -22,18 +22,23 @@ describe('ServiceTab loading overlay', () => {
     render(<ServiceTab vin="V1" />)
     fireEvent.click(screen.getByRole('button', { name: 'add visit' }))
 
-    const overlay = screen.getByText('common:loading').closest('.fixed.inset-0')
+    const overlay = document.querySelector('.fixed.inset-0')
     // No padding of its own before, so the insets alone.
     expect(overlay).toHaveClass('modal-safe-inset')
   })
 
-  it('reads its box out as a polite status, not the whole scrim', () => {
+  it('announces loading through a live region that was already there', () => {
+    // A status box that mounts with its text inside goes unread by a lot of
+    // screen readers, so the region waits empty and the text swaps in.
     render(<ServiceTab vin="V1" />)
-    fireEvent.click(screen.getByRole('button', { name: 'add visit' }))
-
     const status = screen.getByRole('status')
     expect(status).toHaveAttribute('aria-live', 'polite')
+    expect(status).toHaveClass('sr-only')
+    expect(status).toBeEmptyDOMElement()
+
+    fireEvent.click(screen.getByRole('button', { name: 'add visit' }))
     expect(status).toHaveTextContent('common:loading')
-    expect(status).not.toHaveClass('fixed')
+    expect(screen.getByRole('status')).toBe(status)
+    expect(status.closest('.fixed')).toBeNull()
   })
 })

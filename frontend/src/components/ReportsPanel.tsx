@@ -240,7 +240,7 @@ export default function ReportsPanel({ vin }: ReportsPanelProps) {
 
       {isGenerating && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 modal-safe-inset">
-          <div role="status" aria-live="polite" className="bg-surface rounded-lg p-6 max-w-sm border border-border">
+          <div className="bg-surface rounded-lg p-6 max-w-sm border border-border">
             <div className="flex items-center gap-3">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-(--accent-solid)"></div>
               <p className="text-text">{t('reports.generating')}</p>
@@ -248,6 +248,10 @@ export default function ReportsPanel({ vin }: ReportsPanelProps) {
           </div>
         </div>
       )}
+      {/* Always mounted, so screen readers pick up the text when it swaps in. */}
+      <div role="status" aria-live="polite" className="sr-only">
+        {isGenerating ? t('reports.generating') : null}
+      </div>
     </div>
   )
 }

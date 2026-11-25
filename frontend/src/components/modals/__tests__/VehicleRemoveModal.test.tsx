@@ -117,4 +117,17 @@ describe('VehicleRemoveModal as a dialog', () => {
     fireEvent.click(screen.getByRole('button', { name: /modal\.archiveRecommended/ }))
     expect(screen.getByRole('dialog', { name: 'modal.archiveVehicle' })).toBeInTheDocument()
   })
+
+  it('puts focus on the new step instead of dropping it to the page', () => {
+    // The option you click unmounts with its step, so focus used to land on <body>.
+    render(<VehicleRemoveModal isOpen onClose={vi.fn()} vehicle={vehicle} onConfirm={vi.fn()} />, { container: root })
+    fireEvent.click(screen.getByRole('button', { name: /modal\.archiveRecommended/ }))
+    expect(document.activeElement).toBe(screen.getByRole('combobox'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'common:back' }))
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: /modal\.archiveRecommended/ }))
+
+    fireEvent.click(screen.getByRole('button', { name: /modal\.deletePermanently/ }))
+    expect(document.activeElement).toBe(screen.getByPlaceholderText('DELETE'))
+  })
 })

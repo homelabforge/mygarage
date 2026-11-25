@@ -27,7 +27,7 @@ export default function AnalyticsHelpModal({ isOpen, onClose }: AnalyticsHelpMod
       onClose={onClose}
       title={t('vehicleHelp.title')}
       icon={Info}
-      width="md"
+      width="lg"
       closeLabel={t('vehicleHelp.close')}
       footer={
         <Button variant="primary" onClick={onClose}>
@@ -38,7 +38,7 @@ export default function AnalyticsHelpModal({ isOpen, onClose }: AnalyticsHelpMod
       <div className="space-y-8">
         {/* Overview */}
         <section>
-          <h3 className="text-xl font-semibold text-garage-text mb-3">{t('vehicleHelp.overview.title')}</h3>
+          <h3 className="text-lg font-semibold text-garage-text mb-3">{t('vehicleHelp.overview.title')}</h3>
           <p className="text-garage-text-muted leading-relaxed">
             {t('vehicleHelp.overview.body')}
           </p>
@@ -46,7 +46,7 @@ export default function AnalyticsHelpModal({ isOpen, onClose }: AnalyticsHelpMod
 
         {/* Cost Analysis */}
         <section>
-          <h3 className="text-xl font-semibold text-garage-text mb-3">{t('vehicleHelp.costAnalysis.title')}</h3>
+          <h3 className="text-lg font-semibold text-garage-text mb-3">{t('vehicleHelp.costAnalysis.title')}</h3>
           <div className="space-y-2 text-garage-text-muted">
             <p><strong className="text-garage-text">{t('vehicleHelp.costAnalysis.totalCostLabel')}</strong> {t('vehicleHelp.costAnalysis.totalCostDesc')}</p>
             <p><strong className="text-garage-text">{t('vehicleHelp.costAnalysis.avgMonthlyLabel')}</strong> {t('vehicleHelp.costAnalysis.avgMonthlyDesc')}</p>
@@ -57,7 +57,7 @@ export default function AnalyticsHelpModal({ isOpen, onClose }: AnalyticsHelpMod
 
         {/* Rolling Averages */}
         <section>
-          <h3 className="text-xl font-semibold text-garage-text mb-3">{t('vehicleHelp.rollingAverages.title')}</h3>
+          <h3 className="text-lg font-semibold text-garage-text mb-3">{t('vehicleHelp.rollingAverages.title')}</h3>
           <div className="space-y-2 text-garage-text-muted">
             <p><strong className="text-garage-text">{t('vehicleHelp.rollingAverages.threeMonthLabel')}</strong> {t('vehicleHelp.rollingAverages.threeMonthDesc')}</p>
             <p><strong className="text-garage-text">{t('vehicleHelp.rollingAverages.sixMonthLabel')}</strong> {t('vehicleHelp.rollingAverages.sixMonthDesc')}</p>
@@ -70,7 +70,7 @@ export default function AnalyticsHelpModal({ isOpen, onClose }: AnalyticsHelpMod
 
         {/* Trend Analysis */}
         <section>
-          <h3 className="text-xl font-semibold text-garage-text mb-3">{t('vehicleHelp.trendDirection.title')}</h3>
+          <h3 className="text-lg font-semibold text-garage-text mb-3">{t('vehicleHelp.trendDirection.title')}</h3>
           <div className="space-y-2 text-garage-text-muted">
             <p><strong className="text-garage-text">{t('vehicleHelp.trendDirection.increasingLabel')}</strong> {t('vehicleHelp.trendDirection.increasingDesc')}</p>
             <p><strong className="text-garage-text">{t('vehicleHelp.trendDirection.decreasingLabel')}</strong> {t('vehicleHelp.trendDirection.decreasingDesc')}</p>
@@ -80,7 +80,7 @@ export default function AnalyticsHelpModal({ isOpen, onClose }: AnalyticsHelpMod
 
         {/* Anomaly Detection */}
         <section>
-          <h3 className="text-xl font-semibold text-garage-text mb-3">{t('vehicleHelp.anomalies.title')}</h3>
+          <h3 className="text-lg font-semibold text-garage-text mb-3">{t('vehicleHelp.anomalies.title')}</h3>
           <div className="space-y-2 text-garage-text-muted">
             <p>
               {t('vehicleHelp.anomalies.body')}
@@ -95,7 +95,7 @@ export default function AnalyticsHelpModal({ isOpen, onClose }: AnalyticsHelpMod
 
         {/* Fuel Economy */}
         <section>
-          <h3 className="text-xl font-semibold text-garage-text mb-3">{t('vehicleHelp.fuelEconomy.title')}</h3>
+          <h3 className="text-lg font-semibold text-garage-text mb-3">{t('vehicleHelp.fuelEconomy.title')}</h3>
           <div className="space-y-2 text-garage-text-muted">
             <p>
               <strong className="text-garage-text">{t('vehicleHelp.fuelEconomy.economyCalcLabel', { unit: u.consumption.label })}</strong> {t('vehicleHelp.fuelEconomy.economyCalcDesc')}
@@ -110,7 +110,7 @@ export default function AnalyticsHelpModal({ isOpen, onClose }: AnalyticsHelpMod
 
         {/* Vendor Analysis */}
         <section>
-          <h3 className="text-xl font-semibold text-garage-text mb-3">{t('vehicleHelp.vendorSpending.title')}</h3>
+          <h3 className="text-lg font-semibold text-garage-text mb-3">{t('vehicleHelp.vendorSpending.title')}</h3>
           <p className="text-garage-text-muted">
             {t('vehicleHelp.vendorSpending.body')}
           </p>
@@ -118,7 +118,7 @@ export default function AnalyticsHelpModal({ isOpen, onClose }: AnalyticsHelpMod
 
         {/* Seasonal Patterns */}
         <section>
-          <h3 className="text-xl font-semibold text-garage-text mb-3">{t('vehicleHelp.seasonal.title')}</h3>
+          <h3 className="text-lg font-semibold text-garage-text mb-3">{t('vehicleHelp.seasonal.title')}</h3>
           <div className="space-y-2 text-garage-text-muted">
             <p>
               {t('vehicleHelp.seasonal.body')}
@@ -134,7 +134,7 @@ export default function AnalyticsHelpModal({ isOpen, onClose }: AnalyticsHelpMod
 
         {/* Period Comparison */}
         <section>
-          <h3 className="text-xl font-semibold text-garage-text mb-3">{t('vehicleHelp.periodComparison.title')}</h3>
+          <h3 className="text-lg font-semibold text-garage-text mb-3">{t('vehicleHelp.periodComparison.title')}</h3>
           <p className="text-garage-text-muted">
             {t('vehicleHelp.periodComparison.body')}
           </p>
@@ -142,7 +142,7 @@ export default function AnalyticsHelpModal({ isOpen, onClose }: AnalyticsHelpMod
 
         {/* Maintenance Predictions */}
         <section>
-          <h3 className="text-xl font-semibold text-garage-text mb-3">{t('vehicleHelp.predictions.title')}</h3>
+          <h3 className="text-lg font-semibold text-garage-text mb-3">{t('vehicleHelp.predictions.title')}</h3>
           <div className="space-y-2 text-garage-text-muted">
             <p>
               {t('vehicleHelp.predictions.body')}
@@ -158,7 +158,7 @@ export default function AnalyticsHelpModal({ isOpen, onClose }: AnalyticsHelpMod
 
         {/* Tires */}
         <section>
-          <h3 className="text-xl font-semibold text-garage-text mb-3">{t('vehicleHelp.tires.title')}</h3>
+          <h3 className="text-lg font-semibold text-garage-text mb-3">{t('vehicleHelp.tires.title')}</h3>
           <div className="space-y-2 text-garage-text-muted">
             <p>{t('vehicleHelp.tires.body')}</p>
             <p><strong className="text-garage-text">{t('vehicleHelp.tires.readinessLabel')}</strong> {t('vehicleHelp.tires.readinessDesc')}</p>
@@ -169,7 +169,7 @@ export default function AnalyticsHelpModal({ isOpen, onClose }: AnalyticsHelpMod
 
         {/* Export Features */}
         <section>
-          <h3 className="text-xl font-semibold text-garage-text mb-3">{t('vehicleHelp.export.title')}</h3>
+          <h3 className="text-lg font-semibold text-garage-text mb-3">{t('vehicleHelp.export.title')}</h3>
           <div className="space-y-2 text-garage-text-muted">
             <p><strong className="text-garage-text">{t('vehicleHelp.export.csvLabel')}</strong> {t('vehicleHelp.export.csvDesc')}</p>
             <p><strong className="text-garage-text">{t('vehicleHelp.export.pdfLabel')}</strong> {t('vehicleHelp.export.pdfDesc')}</p>
@@ -178,7 +178,7 @@ export default function AnalyticsHelpModal({ isOpen, onClose }: AnalyticsHelpMod
 
         {/* Tips */}
         <section className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <h3 className="text-xl font-semibold text-blue-900 mb-3">{t('vehicleHelp.tips.title')}</h3>
+          <h3 className="text-lg font-semibold text-blue-900 mb-3">{t('vehicleHelp.tips.title')}</h3>
           <ul className="list-disc list-inside space-y-1 text-blue-800">
             <li>{t('vehicleHelp.tips.enterAllRecords')}</li>
             <li>{t('vehicleHelp.tips.includeOdometer')}</li>

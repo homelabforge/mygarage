@@ -8,12 +8,13 @@
  */
 
 import { useTranslation } from 'react-i18next'
-import { useId, useState, type ReactElement } from 'react'
+import { useEffect, useId, useRef, useState, type ReactElement } from 'react'
 import { Archive, Trash2, Eye, EyeOff } from 'lucide-react'
 import { toast } from 'sonner'
 import api from '@/services/api'
 import { getActionErrorMessage } from '@/utils/httpErrorHandler'
 import { Button, Dialog, NumberInput, Select } from '@/components/ui'
+import { FOCUSABLE_SELECTOR, FORM_FIELD_SELECTOR, isRendered } from '@/components/ui/focusTrap'
 import { moneyTextError } from '@/schemas/shared'
 import { parseOptionalDecimal } from '@/utils/decimalInput'
 import type { Vehicle } from '@/types/vehicle'
@@ -48,6 +49,22 @@ export default function VehicleRemoveModal({ isOpen, onClose, vehicle, onConfirm
 
   // Delete confirmation state
   const [confirmText, setConfirmText] = useState('')
+
+  // The option you click goes away with its step, so focus would drop to the
+  // page. Put it where Dialog would on open: first field, else first control.
+  const bodyRef = useRef<HTMLDivElement>(null)
+  const shownMode = useRef(mode)
+  useEffect(() => {
+    if (shownMode.current === mode) return
+    shownMode.current = mode
+    const body = bodyRef.current
+    if (!body) return
+    const target = [
+      ...body.querySelectorAll<HTMLElement>(FORM_FIELD_SELECTOR),
+      ...body.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR),
+    ].find(isRendered)
+    target?.focus()
+  }, [mode])
 
   const resetForm = () => {
     setMode('select')
@@ -169,7 +186,7 @@ export default function VehicleRemoveModal({ isOpen, onClose, vehicle, onConfirm
       size="lg"
       footer={step.footer}
     >
-      <div className="space-y-4">
+      <div ref={bodyRef} className="space-y-4">
         <p id={descriptionId} className="text-sm text-garage-text-muted">{step.description}</p>
 
         {/* Mode Selection */}

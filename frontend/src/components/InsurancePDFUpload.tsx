@@ -186,11 +186,16 @@ export default function InsurancePDFUpload({ onDataExtracted, onClose }: Insuran
     return <Chip tone={CONFIDENCE_TONE[confidence]}>{labels[confidence]}</Chip>
   }
 
+  // Not while a parse is out: its answer would land in a closed dialog.
+  const close = (): void => {
+    if (!uploading) onClose()
+  }
+
   // A Dialog sits above the policy drawer it opens from, so it stays live over it.
   return (
     <Dialog
       open
-      onClose={onClose}
+      onClose={close}
       title={t('insurancePdfUpload.title')}
       closeLabel={t('common:close')}
       size="2xl"

@@ -65,7 +65,16 @@ describe('ConfirmDialog', () => {
       ['confirm', () => fireEvent.click(screen.getByRole('button', { name: 'Delete' })), true],
       ['cancel', () => fireEvent.click(screen.getByRole('button', { name: 'Cancel' })), false],
       ['escape', () => fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' }), false],
-      ['backdrop', () => fireEvent.click(screen.getByTestId('dialog-backdrop')), false],
+      [
+        'backdrop',
+        () => {
+          // A real click presses first; Dialog only dismisses when both ends are on the backdrop.
+          const backdrop = screen.getByTestId('dialog-backdrop')
+          fireEvent.pointerDown(backdrop)
+          fireEvent.click(backdrop)
+        },
+        false,
+      ],
     ]
     for (const [how, answer, expected] of answers) {
       let outcome!: Outcome

@@ -202,6 +202,36 @@ test.describe('Modal stack', () => {
     await expect(drawer).not.toHaveAttribute('inert')
   })
 
+  // Chromium hands that click to the overlay (the common ancestor), so a drag-select
+  // that let go past the panel used to read as a backdrop click and close it.
+  test('a drag from the VIN field that ends on the backdrop keeps the dialog and the text', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 })
+    await page.goto('/about')
+    await page.getByRole('button', { name: 'VIN Decoder' }).click()
+    const dialog = page.getByRole('dialog', { name: 'VIN Decoder' })
+    await expect(dialog).toBeVisible()
+    const field = dialog.getByRole('textbox').first()
+    await field.fill('1HGBH41JXMN109186')
+
+    const box = await field.boundingBox()
+    const panel = await dialog.boundingBox()
+    expect(box && panel).toBeTruthy()
+    const y = box!.y + box!.height / 2
+    await page.mouse.move(box!.x + 20, y)
+    await page.mouse.down()
+    // Out past the panel's left edge, onto the dimmed backdrop.
+    await page.mouse.move(panel!.x - 40, y, { steps: 8 })
+    await page.mouse.up()
+
+    await page.waitForTimeout(300)
+    await expect(dialog).toBeVisible()
+    await expect(field).toHaveValue('1HGBH41JXMN109186')
+
+    // A real press and release on the backdrop still closes it.
+    await page.mouse.click(panel!.x - 40, y)
+    await expect(dialog).toBeHidden()
+  })
+
   // Linux Chromium has no BarcodeDetector, so Scan opens the typed-code dialog.
   // React events bubble through its portal, so a leaked submit would save the
   // supply and close the drawer.

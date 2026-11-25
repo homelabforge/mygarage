@@ -31,6 +31,8 @@ describe('AnalyticsHelpModal as a drawer', () => {
     render(<AnalyticsHelpModal isOpen onClose={vi.fn()} />, { container: root })
     const drawer = screen.getByTestId('drawer')
     expect(drawer).toHaveAccessibleName('vehicleHelp.title')
+    // Same width as its garage sibling.
+    expect(drawer).toHaveClass('[--drawer-w:min(720px,96vw)]')
     expect(root.contains(drawer)).toBe(false)
   })
 })

@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type MouseEvent, type ReactElement, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type MouseEvent, type PointerEvent, type ReactElement, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { FOCUSABLE_SELECTOR, FORM_FIELD_SELECTOR, isRendered, trapTab } from './focusTrap'
@@ -58,6 +58,8 @@ export default function Dialog({
   const footerRef = useRef<HTMLDivElement>(null)
   const [entered, setEntered] = useState(false)
   const titleId = useId()
+  // Whether the last press started on the backdrop itself. See onBackdropClick.
+  const downOnBackdrop = useRef(false)
 
   // Same deal as Drawer: callers pass inline arrows, and re-running the
   // effect on every render would bounce focus around.
@@ -105,15 +107,23 @@ export default function Dialog({
 
   if (!open) return null
 
-  // Only a click on the backdrop itself, not one that bubbled out of the panel.
+  const onBackdropPointerDown = (event: PointerEvent<HTMLDivElement>): void => {
+    downOnBackdrop.current = event.target === event.currentTarget
+  }
+
+  // Both ends have to be on the backdrop. A drag that starts in a field and lets
+  // go out here gets its click sent to the overlay, and that's not a dismiss.
   const onBackdropClick = (event: MouseEvent<HTMLDivElement>): void => {
-    if (event.target === event.currentTarget) onCloseRef.current()
+    const startedHere = downOnBackdrop.current
+    downOnBackdrop.current = false
+    if (startedHere && event.target === event.currentTarget) onCloseRef.current()
   }
 
   return createPortal(
     <div
       ref={overlayRef}
       data-testid="dialog-backdrop"
+      onPointerDown={onBackdropPointerDown}
       onClick={onBackdropClick}
       className={`fixed inset-0 z-dialog-backdrop modal-safe-pad flex items-center justify-center bg-black/50 transition-opacity duration-(--duration-fast) ease-standard motion-reduce:transition-none ${
         entered ? 'opacity-100' : 'opacity-0'

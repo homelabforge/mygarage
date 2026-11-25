@@ -236,13 +236,19 @@ describe('ReportsPanel generating overlay', () => {
     expect(overlay).toHaveClass('modal-safe-inset')
   })
 
-  it('reads its box out as a polite status, not the whole scrim', async () => {
+  it('announces generating through a live region that was already there', async () => {
+    // A status box that mounts with its text inside goes unread by a lot of
+    // screen readers, so the region waits empty and the text swaps in.
     apiGet.mockReturnValue(new Promise(() => {}))
     render(<ReportsPanel vin="V1" />)
-    fireEvent.click(screen.getByRole('button', { name: SERVICE_PDF }))
-    const status = await screen.findByRole('status')
+    const status = screen.getByRole('status')
     expect(status).toHaveAttribute('aria-live', 'polite')
-    expect(status).toHaveTextContent(analyticsEn.reports.generating)
-    expect(status).not.toHaveClass('fixed')
+    expect(status).toHaveClass('sr-only')
+    expect(status).toBeEmptyDOMElement()
+
+    fireEvent.click(screen.getByRole('button', { name: SERVICE_PDF }))
+    await waitFor(() => expect(status).toHaveTextContent(analyticsEn.reports.generating))
+    expect(screen.getByRole('status')).toBe(status)
+    expect(status.closest('.fixed')).toBeNull()
   })
 })

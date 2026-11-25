@@ -112,16 +112,21 @@ export default function PhotoUpload({ vin, onSuccess, onClose }: PhotoUploadProp
     }
   }
 
+  // Closing mid-upload would still fire onSuccess when it lands, so hold off till then.
+  const close = (): void => {
+    if (!uploading) onClose()
+  }
+
   return (
     <Dialog
       open
-      onClose={onClose}
+      onClose={close}
       title={t('photoUpload.title')}
       closeLabel={t('common:close')}
       size="2xl"
       footer={
         <>
-          <Button type="button" variant="secondary" data-dialog-cancel onClick={onClose}>
+          <Button type="button" variant="secondary" data-dialog-cancel onClick={close} disabled={uploading}>
             {t('photoUpload.cancel')}
           </Button>
           {/* Lives outside the form now, so form= keeps it the submit button. */}

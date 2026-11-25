@@ -112,9 +112,40 @@ describe('Dialog', () => {
       <Dialog open onClose={onClose} title="Remove vehicle"><p>Body</p></Dialog>,
       { container: root },
     )
+    fireEvent.pointerDown(screen.getByText('Body'))
     fireEvent.click(screen.getByText('Body'))
     expect(onClose).not.toHaveBeenCalled()
+    const backdrop = screen.getByTestId('dialog-backdrop')
+    fireEvent.pointerDown(backdrop)
+    fireEvent.click(backdrop)
+    expect(onClose).toHaveBeenCalledOnce()
+  })
+
+  it('a drag from a field in the panel that lets go over the backdrop does not close', () => {
+    // Chromium sends that click to the overlay, the common ancestor, so it looked
+    // like a backdrop click and threw away whatever was typed.
+    const onClose = vi.fn()
+    render(
+      <Dialog open onClose={onClose} title="Upload"><input aria-label="Title" /></Dialog>,
+      { container: root },
+    )
+    fireEvent.pointerDown(screen.getByRole('textbox', { name: 'Title' }))
     fireEvent.click(screen.getByTestId('dialog-backdrop'))
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('forgets where the last press started once its click lands', () => {
+    const onClose = vi.fn()
+    render(
+      <Dialog open onClose={onClose} title="Upload"><input aria-label="Title" /></Dialog>,
+      { container: root },
+    )
+    const backdrop = screen.getByTestId('dialog-backdrop')
+    fireEvent.pointerDown(backdrop)
+    fireEvent.click(backdrop)
+    expect(onClose).toHaveBeenCalledOnce()
+    // A bare click with no press of its own (a synthetic one) mustn't ride on the old press.
+    fireEvent.click(backdrop)
     expect(onClose).toHaveBeenCalledOnce()
   })
 
