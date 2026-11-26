@@ -152,7 +152,15 @@ cd frontend
 bun run test:run src/constants/__tests__/tollSystems.test.ts
 ```
 
-The file is listed in `frontend/scripts/units.manifest.json`, so the Unit Manifest check fails on your PR until its digest is re-stamped. A maintainer does that when merging.
+The file is listed in `frontend/scripts/units.manifest.json`, so Frontend Tests fails on your PR with a `[digest]` line until its digest is re-stamped. Re-stamp it yourself and commit the result:
+
+```bash
+cd frontend
+bun run scripts/validate-units-manifest.ts --update
+git add scripts/units.manifest.json
+```
+
+A maintainer reviews the re-stamped row. The manifest's `[weakened]` check only guards rows whose file didn't change, so on a changed file nothing checks the row's disposition and findings for us; the maintainer does.
 
 ## Submitting Translations
 
