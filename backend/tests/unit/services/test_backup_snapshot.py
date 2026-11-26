@@ -1550,6 +1550,7 @@ async def test_a_start_that_cant_write_its_safety_archive_stops_before_touching_
             service.apply_pending_restore()
 
     text = str(refused.value)
+    assert "pre-restore safety archive" in text
     assert "Nothing live was touched" in text
     assert "To cancel it instead, delete" in text
     assert _live_state(service, db_path) == before
@@ -1638,11 +1639,15 @@ async def test_a_swap_begun_and_marker_deleted_by_hand_stops_the_start(
     (service.data_dir / ".restore-pending" / "applying").unlink()
     before = _every_file(tmp_path)
 
-    with pytest.raises(RuntimeError, match="its swap had begun") as refused:
+    with pytest.raises(
+        RuntimeError, match="had started swapping files in, but its progress file"
+    ) as refused:
         service.apply_pending_restore()
 
     assert _every_file(tmp_path) == before, "the refused start changed files"
     assert _prerestore_archives(service)[0].name in str(refused.value)
+    # No way to finish it, so the way back isn't an "instead".
+    assert "from just before the restore: delete" in str(refused.value)
 
 
 @pytest.mark.integration
@@ -1678,7 +1683,9 @@ async def test_a_swap_begun_with_marker_and_manifest_gone_stops_the_start(
         (staging / "manifest.json").write_text("{ cut off")
     before = _every_file(tmp_path)
 
-    with pytest.raises(RuntimeError, match="its swap had begun") as refused:
+    with pytest.raises(
+        RuntimeError, match="had started swapping files in, but its progress file"
+    ) as refused:
         service.apply_pending_restore()
 
     assert _every_file(tmp_path) == before, "the refused start changed files"

@@ -274,21 +274,31 @@ def _cannot_finish(
     )
     database = info.get("database") or (str(target) if target else None)
     staged_db = f" and {sanitize_for_log(database)}{_PENDING_SUFFIX}" if database else ""
+    # "instead" only reads right when there's a way to finish it first.
+    instead = " instead" if finish else ""
     return _stuck(
         "A restore was being applied when MyGarage last stopped, and this start can't finish it: "
         f"{reason}. Its files are kept, and MyGarage won't start until this is settled. "
-        f"{finish}To go back to the data from just before the restore instead: delete "
+        f"{finish}To go back to the data from just before the restore{instead}: delete "
         f"{staging}{staged_db}, start MyGarage with MYGARAGE_MAINTENANCE_MODE=1, restore "
         f"{prerestore} from Settings > Backup & Restore, then restart without maintenance mode."
     )
 
 
-def _cannot_begin(staging: Path, staged_db: Path, reason: object) -> RestoreInProgressError:
+def _cannot_begin(staging: Path, staged_db: Path, reason: str) -> RestoreInProgressError:
     """A staged restore that failed before its first live change: nothing to undo, two ways on."""
     return _stuck(
-        f"A staged restore couldn't begin at this start: {reason}. Nothing live was touched, and "
-        "MyGarage won't start until this is settled. To apply it, fix that and start MyGarage "
+        f"A staged restore couldn't start: {reason}. Nothing live was touched, and MyGarage "
+        "won't start until this is settled. To apply the restore, fix that and start MyGarage "
         f"again. To cancel it instead, delete {staging} and {staged_db}, then start MyGarage."
+    )
+
+
+def _marker_gone(staging: Path) -> str:
+    """Why a swap that had begun can't go on: someone deleted its progress file."""
+    return (
+        f"it had started swapping files in, but its progress file {staging / APPLYING_NAME} "
+        "has been deleted"
     )
 
 
@@ -353,9 +363,7 @@ def apply_pending_restore(
             if (staging / "previous").exists():
                 # Folders were set aside, so the swap had begun and someone deleted the marker:
                 # half swapped, not a broken staging.
-                raise _cannot_finish(
-                    staging, "its swap had begun, but its applying marker is gone", ""
-                )
+                raise _cannot_finish(staging, _marker_gone(staging), "")
             reason = "part of its staging is missing (the staged database or a staged folder)"
         else:
             return _swap_in(data_dir, staging, manifest, target, backup_dir, before_swap)
@@ -368,7 +376,7 @@ def apply_pending_restore(
             # hand and the manifest no help either. Same as above, never a cleanup or a discard.
             raise _cannot_finish(
                 staging,
-                f"its swap had begun, but its applying marker is gone and {reason}",
+                f"{_marker_gone(staging)} and {reason}",
                 "",
                 target,
             )
@@ -425,17 +433,28 @@ def _swap_in(
         _finish_cleanup(staging, source)
         return source
     if not applying.exists():
+        # The data this restore replaces goes into a safety archive, on disk, before anything
+        # changes. Then the marker tells every later start the live data may be half swapped.
+        # Two tries so the log says which of the two failed.
         try:
-            # The data this restore replaces goes into a safety archive, on disk, before anything
-            # changes. Then the marker tells every later start the live data may be half swapped.
             before_swap(prerestore)
+        except (OSError, sqlite3.Error, ValueError) as exc:
+            # ValueError: a hand-edited archive name that validate_filename refuses.
+            shown = sanitize_for_log(prerestore)
+            raise _cannot_begin(
+                staging,
+                staged_db,
+                f"saving the current data to the pre-restore safety archive {shown} failed ({exc})",
+            ) from exc
+        try:
             _write_json(
                 applying,
                 {"database": str(target), "source_backup": source, "prerestore_backup": prerestore},
             )
-        except (OSError, sqlite3.Error, ValueError) as exc:
-            # ValueError: a hand-edited archive name that validate_filename refuses.
-            raise _cannot_begin(staging, staged_db, exc) from exc
+        except OSError as exc:
+            raise _cannot_begin(
+                staging, staged_db, f"its progress file {applying} couldn't be written ({exc})"
+            ) from exc
     elif not (backup_dir / prerestore).exists():
         # Written now, it would file the half-swapped data as "before the restore".
         shown = sanitize_for_log(prerestore)
