@@ -1206,6 +1206,7 @@ async def get_vehicle_analytics(
         vin=vin,
         vehicle_name=vehicle_name,
         vehicle_type=vehicle.vehicle_type,  # pyright: ignore[reportArgumentType]  # lenient vocab reads the stored str
+        distance_unit=vehicle.distance_unit,  # pyright: ignore[reportArgumentType]  # lenient vocab reads the stored str
         statistics=statistics,
         statistics_as_paid=statistics_as_paid,
         cost_analysis=cost_analysis,

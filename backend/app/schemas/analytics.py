@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 
 from app.schemas.tire import TireResponse
 from app.schemas.vehicle import LenientVehicleType
+from app.utils.unit_resolution import LenientDistanceUnit
 
 
 class MonthlyCostSummary(BaseModel):
@@ -314,6 +315,14 @@ class VehicleAnalytics(BaseModel):
     vin: str
     vehicle_name: str  # e.g., "2021 Honda Accord"
     vehicle_type: LenientVehicleType
+    # Rides along so the page can scope itself without fetching the vehicle too.
+    distance_unit: LenientDistanceUnit = Field(
+        default=None,
+        description=(
+            "The unit this vehicle's odometer reads (km or mi); null follows the "
+            "viewer's account. The analytics page shows the vehicle's distances in it."
+        ),
+    )
 
     # Cost Analysis
     cost_analysis: CostAnalysis

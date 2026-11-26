@@ -87,7 +87,7 @@ def _sent(mock: AsyncMock) -> list[tuple[str, float]]:
 
 
 def _at(monkeypatch, when: datetime) -> None:
-    monkeypatch.setattr("app.services.telemetry_service.utc_now", lambda: when)
+    monkeypatch.setattr("app.services.telemetry.alerts.utc_now", lambda: when)
 
 
 @pytest.mark.integration
@@ -116,7 +116,7 @@ class TestNotifyOnce:
 
         await svc.check_thresholds(vin, LEVEL, 24.0, once=True)
         later = param.warning_last_notified_at + timedelta(hours=6)
-        monkeypatch.setattr("app.services.telemetry_service.utc_now", lambda: later)
+        monkeypatch.setattr("app.services.telemetry.alerts.utc_now", lambda: later)
         await svc.check_thresholds(vin, LEVEL, 23.0, once=True)
 
         assert mock.await_count == 1

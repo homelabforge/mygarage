@@ -184,7 +184,7 @@ function DEFRecordForm({
         // INVALID_NUMBER symbol, which throws on every implicit coercion.
         odometer_km:
           canonicalFromUnitField(
-            String(readNumber(data.odometer_km) ?? ''),
+            readNumber(data.odometer_km),
             odometerOrigin,
             u.distance
           ) ?? cleared,
@@ -196,7 +196,7 @@ function DEFRecordForm({
         liters:
           toLitersWirePrecision(
             canonicalFromUnitField(
-              String(readNumber(data.liters) ?? ''),
+              readNumber(data.liters),
               litersOrigin,
               u.volume
             )

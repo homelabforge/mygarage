@@ -33,7 +33,11 @@ from tests._users import TEST_PASSWORD_HASH
 
 @asynccontextmanager
 async def _fresh_vehicle(
-    db_session: AsyncSession, test_user: dict[str, object], nickname: str
+    db_session: AsyncSession,
+    test_user: dict[str, object],
+    nickname: str,
+    *,
+    distance_unit: str | None = None,
 ) -> AsyncIterator[dict]:
     """A vehicle on a fresh VIN, deleted afterwards with every record on it.
 
@@ -51,6 +55,7 @@ async def _fresh_vehicle(
             make="Ford",
             model="F-150",
             fuel_type="gas",
+            distance_unit=distance_unit,
         )
     )
     await db_session.commit()
@@ -128,6 +133,28 @@ class TestVehicleAnalyticsRoutes:
         assert "fuel_economy" in data
         assert "service_history" in data
         assert "predictions" in data
+
+    @pytest.mark.parametrize("unit", ["mi", None])
+    async def test_vehicle_analytics_carries_the_distance_unit(
+        self,
+        client: AsyncClient,
+        auth_headers: dict[str, str],
+        db_session: AsyncSession,
+        test_user: dict[str, object],
+        unit: str | None,
+    ) -> None:
+        """The page scopes itself from this, so it never fetches the vehicle too."""
+        async with _fresh_vehicle(
+            db_session, test_user, "Distance Unit Vehicle", distance_unit=unit
+        ) as vehicle:
+            response = await client.get(
+                f"/api/analytics/vehicles/{vehicle['vin']}", headers=auth_headers
+            )
+
+            assert response.status_code == 200, response.text
+            data = response.json()
+            assert "distance_unit" in data
+            assert data["distance_unit"] == unit
 
     async def test_get_vehicle_analytics_nonexistent_vin(self, client: AsyncClient, auth_headers):
         """Analytics for a nonexistent VIN returns 404."""

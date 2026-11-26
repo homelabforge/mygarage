@@ -166,6 +166,7 @@
     "notFound": "Analisi non trovate",
     "notAvailable": "N/D",
     "offlineCached": "Offline: visualizzazione dell'istantanea memorizzata nella cache.",
+    "offlineCachedRange": "Offline: visualizzazione dell'istantanea memorizzata nella cache ({{range}}).",
     "fillAllDates": "Compila tutti i campi data",
     "comparisonFailed": "Impossibile recuperare i dati di confronto",
     "costProjection": "Proiezione dei costi",

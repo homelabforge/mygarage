@@ -29,8 +29,8 @@ import { describe, expect, it } from 'vitest'
 import { makeUnitSet } from '@/__tests__/factories'
 import {
   canonicalFromPriceField,
+  formatPricePerUnit,
   priceOverCanonicalMax,
-  priceToDisplay,
   seedPriceField,
   toLitersWirePrecision,
   type PriceBasis,
@@ -58,12 +58,12 @@ const unseededPrice = (basis: PriceBasis | string | null): PriceFieldOrigin => (
  * What a form posts for a volume the user TYPED, spelled as the forms spell it.
  *
  * The three writers all compose these two calls in this order, so exercising
- * the composition is exercising what ships. `String(x ?? '')` is the forms'
- * own shape: an absent value takes `canonicalFromUnitField`'s blank path.
+ * the composition is exercising what ships. The forms hand the number over
+ * as is, and an absent value takes `canonicalFromUnitField`'s blank path.
  */
 const enteredVolume = (typed: number | null | undefined, units: UnitSet): number | null =>
   toLitersWirePrecision(
-    canonicalFromUnitField(String(typed ?? ''), UNSEEDED, makeUnitFormat(units).volume)
+    canonicalFromUnitField(typed, UNSEEDED, makeUnitFormat(units).volume)
   )
 
 /** The same for a price the user typed, under a basis they did not change. */
@@ -126,11 +126,11 @@ describe('price display and entry — per_volume', () => {
     // Real bug repro: stored $1.136/L reads $4.30/gal on US gallons and
     // $5.16/gal on imperial ones. 1.136 x 3.785411784 = 4.300227787 -> 4.300;
     // 1.136 x 4.54609 = 5.16435824 -> 5.164.
-    expect(priceToDisplay(1.136, US, 'per_volume')).toBe(4.3)
-    expect(priceToDisplay(1.136, UK, 'per_volume')).toBe(5.164)
+    expect(seedPriceField(1.136, US, 'per_volume').display).toBe('4.3')
+    expect(seedPriceField(1.136, UK, 'per_volume').display).toBe('5.164')
     // A litre user's price IS canonical: no conversion, and no re-rounding of
     // a stored value they never touched.
-    expect(priceToDisplay(1.135845, METRIC, 'per_volume')).toBe(1.135845)
+    expect(seedPriceField(1.135845, METRIC, 'per_volume').display).toBe('1.135845')
   })
 
   it('divides an entered price by the resolved set\'s litres-per-unit', () => {
@@ -145,11 +145,11 @@ describe('price display and entry — per_volume', () => {
     const typed = 6
     const canonical = enteredPrice(typed, UK, 'per_volume')
     expect(canonical).toBe(1.31981548979)
-    expect(priceToDisplay(canonical, UK, 'per_volume')).toBe(typed)
+    expect(seedPriceField(canonical, UK, 'per_volume').display).toBe(String(typed))
   })
 
   it('accepts the string an API response carries', () => {
-    expect(priceToDisplay('1.136', UK, 'per_volume')).toBe(5.164)
+    expect(seedPriceField('1.136', UK, 'per_volume').display).toBe('5.164')
     expect(seedPriceField('1.136', UK, 'per_volume').canonical).toBe(1.136)
   })
 })
@@ -157,35 +157,57 @@ describe('price display and entry — per_volume', () => {
 describe('price display and entry — per_weight', () => {
   it('scales by the resolved MASS token, independently of the volume one', () => {
     // $2.2046/kg is about $1.00/lb; $1.00/lb is 1 / 0.45359237 = 2.20462262185.
-    expect(priceToDisplay(2.2046, UK, 'per_weight')).toBe(1)
+    expect(seedPriceField(2.2046, UK, 'per_weight').display).toBe('1')
     expect(enteredPrice(1, UK, 'per_weight')).toBe(2.20462262185)
     // A kilogram user's price is already canonical, even though the same set
     // names a gallon for volume.
     const kgWithGallons = makeUnitSet({ volume: 'gal_uk', mass: 'kg' })
-    expect(priceToDisplay(2.2046, kgWithGallons, 'per_weight')).toBe(2.2046)
+    expect(seedPriceField(2.2046, kgWithGallons, 'per_weight').display).toBe('2.2046')
   })
 })
 
 describe('price display and entry — bases with no unit to convert', () => {
   it('leaves per_kwh, per_tank and an unknown basis alone on a gallon set', () => {
-    expect(priceToDisplay(0.13, UK, 'per_kwh')).toBe(0.13)
+    expect(seedPriceField(0.13, UK, 'per_kwh').display).toBe('0.13')
     expect(enteredPrice(0.13, UK, 'per_kwh')).toBe(0.13)
-    expect(priceToDisplay(25, UK, 'per_tank')).toBe(25)
+    expect(seedPriceField(25, UK, 'per_tank').display).toBe('25')
     expect(enteredPrice(25, UK, 'per_tank')).toBe(25)
-    expect(priceToDisplay(1.136, UK, null)).toBe(1.136)
-    expect(priceToDisplay(1.136, UK, undefined)).toBe(1.136)
-    expect(priceToDisplay(1.136, UK, 'something_else')).toBe(1.136)
+    expect(seedPriceField(1.136, UK, null).display).toBe('1.136')
+    expect(seedPriceField(1.136, UK, undefined).display).toBe('1.136')
+    expect(seedPriceField(1.136, UK, 'something_else').display).toBe('1.136')
     // Same set, same value, a basis that DOES name a unit: proves the four
     // pass-throughs above are the basis dispatch and not a dead helper.
-    expect(priceToDisplay(1.136, UK, 'per_volume')).toBe(5.164)
+    expect(seedPriceField(1.136, UK, 'per_volume').display).toBe('5.164')
   })
 
-  it('returns null for an absent or unparseable price, and converts a real one', () => {
-    expect(priceToDisplay(null, UK, 'per_volume')).toBeNull()
-    expect(priceToDisplay(undefined, METRIC, 'per_volume')).toBeNull()
-    expect(priceToDisplay('not a number', UK, 'per_volume')).toBeNull()
+  it('seeds an empty display for an absent or unparseable price, and converts a real one', () => {
+    expect(seedPriceField(null, UK, 'per_volume').display).toBe('')
+    expect(seedPriceField(undefined, METRIC, 'per_volume').display).toBe('')
+    expect(seedPriceField('not a number', UK, 'per_volume').display).toBe('')
     expect(enteredPrice(NaN, UK, 'per_volume')).toBeNull()
     expect(enteredPrice(6, UK, 'per_volume')).toBe(1.31981548979)
+  })
+})
+
+describe('formatPricePerUnit, the list columns\' one price formatter', () => {
+  const money = { currencyCode: 'USD', locale: 'en-US' }
+
+  it('converts by the resolved set, then formats at rate precision', () => {
+    // Same stored $1.136/L as above: 4.300 on US gallons, 5.164 on imperial,
+    // shown at RATE_DIGITS.
+    expect(formatPricePerUnit(1.136, US, 'per_volume', money)).toBe('$4.30')
+    expect(formatPricePerUnit(1.136, UK, 'per_volume', money)).toBe('$5.16')
+    expect(formatPricePerUnit('1.136', UK, 'per_volume', money)).toBe('$5.16')
+  })
+
+  it('renders formatCurrency\'s dash for a missing or zero price', () => {
+    expect(formatPricePerUnit(null, US, 'per_volume', money)).toBe('-')
+    expect(formatPricePerUnit(undefined, US, 'per_volume', money)).toBe('-')
+    expect(formatPricePerUnit(0, US, 'per_volume', money)).toBe('-')
+    // Junk text and a non-finite number read as no price too.
+    expect(formatPricePerUnit('garbage', US, 'per_volume', money)).toBe('-')
+    expect(formatPricePerUnit('Infinity', US, 'per_volume', money)).toBe('-')
+    expect(formatPricePerUnit(Number.POSITIVE_INFINITY, UK, 'per_volume', money)).toBe('-')
   })
 })
 

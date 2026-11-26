@@ -148,12 +148,14 @@
  * Escape hatch: `// units-exempt(<kind>): <reason>` on the offending line or the
  * line above. Use it for a genuine non-display branch (parsing a stored legacy
  * key, a preset-selection control, resolved-set dispatch inside the unit layer),
- * never to silence a display conversion. The kind list is task 8's and is not
- * decoration: the bare `// units-exempt:` form silences EVERY kind on its line,
- * including one nobody had considered when they wrote the reason, and after the
- * clean-room flip this pragma is the only suppression the gate has left. On a
- * binary DECLARATION the kind is `binary-conversion` or `formatter-binary`, and
- * that one line silences every call site of it in every module: see
+ * never to silence a display conversion. The kind list is required. The bare
+ * `// units-exempt: <reason>` form used to silence EVERY kind on its line,
+ * including ones nobody thought about when they wrote the reason, and after the
+ * clean-room flip this pragma is the only suppression the gate has left. So now
+ * one with no kind, or a kind this gate doesn't have, exempts nothing and is a
+ * `bare-pragma` finding of its own (G3b-76).
+ * On a binary DECLARATION the kind is `binary-conversion` or `formatter-binary`,
+ * and that one line silences every call site of it in every module: see
  * `declarationExempt`.
  *
  * Usage:
@@ -168,7 +170,7 @@
  *   bun run scripts/validate-units.ts --suppressions   # print every suppression
  *
  * ★ `--derived` also prints EXEMPT_BINARY_DECLARATIONS, and the gate's success
- * line counts them. One `// units-exempt:` on a binary declaration silences
+ * line counts them. One `// units-exempt(<kind>):` on a binary declaration silences
  * every call site of it in every module, which no other use of the hatch does,
  * so the number is printed beside the tick rather than buried.
  * Exit code: 1 on any finding. `--update` without `--baseline` exits 2.
@@ -231,8 +233,19 @@ interface TsNode {
   /** An import specifier's ORIGINAL name when it was imported under an alias. */
   propertyName?: TsNode
   modifiers?: { kind: number }[]
+  /** Full start (leading trivia included) and end, for the comment walk. */
+  pos: number
+  end: number
   getText: (source?: TsSourceFile) => string
   getStart: (source?: TsSourceFile) => number
+  /** Every child INCLUDING tokens, which `forEachChild` skips. */
+  getChildren: (source?: TsSourceFile) => TsNode[]
+}
+
+interface TsCommentRange {
+  pos: number
+  end: number
+  kind: number
 }
 
 interface TsDiagnostic {
@@ -262,6 +275,8 @@ interface TsApi {
     kind: number,
   ) => TsSourceFile
   forEachChild: (node: TsNode, cb: (child: TsNode) => void) => void
+  getLeadingCommentRanges: (text: string, pos: number) => TsCommentRange[] | undefined
+  getTrailingCommentRanges: (text: string, pos: number) => TsCommentRange[] | undefined
 }
 
 function loadTypeScript(): TsApi {
@@ -343,14 +358,48 @@ const LITERAL_KINDS = new Set([
 ])
 
 /**
- * The escape hatch. It must carry a reason, and it may name the kinds it covers.
+ * Every kind this gate can report, declared once so the claim can count them.
+ *
+ * ★ THE SUCCESS LINE USED TO SAY "five detectors" AS A WORD. That is the defect
+ * this file's own header records against itself two screens up: an earlier
+ * version said "~53" while the baseline twelve lines away said 43. A number in
+ * the gate's central claim is the worst place in the repo for one, because it is
+ * the sentence people quote and the one nothing was checking.
+ *
+ * So the count is `FINDING_KINDS.length` and `record()` refuses a kind that is
+ * not in here, which makes a sixth leg register itself or fail loudly on its
+ * first finding. `units_gate_selftest.py`'s clean-room proof reads the kinds
+ * back out of the `record(...)` CALL SITES independently and asserts the two
+ * agree, so neither half can drift alone, and it demands a corpus positive for
+ * each one.
+ */
+const FINDING_KINDS = [
+  'compare',
+  'switch-case',
+  'formatter-binary',
+  'binary-conversion',
+  'token-branch',
+  'bare-pragma',
+] as const
+
+/**
+ * What a pragma may name. Not `bare-pragma`: a refused pragma can't excuse
+ * another. Both lists sit up here because module-load code already reaches
+ * `lineExempts` through the declaration hatch.
+ */
+const NAMEABLE_KINDS: ReadonlySet<string> = new Set(
+  FINDING_KINDS.filter((k) => k !== 'bare-pragma'),
+)
+
+/**
+ * The escape hatch. It must carry a reason, and it must name the kinds it covers.
  *
  * Round 1 tested `line.includes('units-exempt')`, so a bare marker with no
  * justification silenced a finding while the docstring and the failure message
  * both promised "with the reason". Requiring the comment introducer and a
  * colon also stops the marker matching inside an ordinary string literal.
  *
- * ★ THE OPTIONAL KIND LIST IS TASK 8'S, AND THE OBJECTION IT ANSWERS IS ON THE
+ * ★ THE KIND LIST IS TASK 8'S, AND THE OBJECTION IT ANSWERS IS ON THE
  * RECORD. `units.manifest.json` asked for the three `SettingsSystemTab`
  * comparisons to be exempted "structurally or by exact match in the gate rather
  * than with a reason-bearing pragma, which silences anything", and it was right
@@ -360,9 +409,11 @@ const LITERAL_KINDS = new Set([
  * suppression left.
  *
  * `// units-exempt(compare): reason` silences the comparison leg on that line
- * and nothing else, so a token branch added beside it is still reported. The
- * bare form still means every kind and is kept for a site that genuinely wants
- * it; nothing in `src/` uses it any more.
+ * and nothing else, so a token branch added beside it is still reported.
+ *
+ * ★ NO KIND, OR A KIND THIS GATE DOESN'T HAVE, IS REFUSED (G3b-76). It exempts
+ * nothing and `scanSource` reports it as `bare-pragma`, so it can't sit there
+ * looking live. `bare-pragma` itself can't be named: that finding is never exempt.
  *
  * ★ WHY NOT the exact-match table the manifest offered as the alternative: a
  * table of (file, kind, text) inside the gate is a baseline under another name,
@@ -373,20 +424,110 @@ const LITERAL_KINDS = new Set([
  */
 const EXEMPT_PRAGMA = /(?:^|\s)\/\/\s*units-exempt(?:\(([^)]*)\))?:\s*\S/
 
-/** True when one line's pragma covers this finding kind. */
-function lineExempts(line: string, kind: string): boolean {
-  // ★ A LINE THAT MERELY MENTIONS THE PRAGMA IS NOT ONE. `EXEMPT_PRAGMA` allows
-  // any whitespace before the `//`, so a JSDoc continuation line DESCRIBING the
-  // hatch exempted whatever came after it. `utils/units.ts` has two such lines
-  // and they were inert only because a backtick happens to sit before the `//`
-  // in both, which is luck rather than a rule. A `*` in the leading whitespace
-  // is a block comment's continuation and cannot be a line comment.
-  if (/^\s*\*/.test(line)) return false
-  const match = EXEMPT_PRAGMA.exec(line)
-  if (match === null) return false
+/**
+ * Any spelling of the marker at all. A `//` comment that has it but doesn't
+ * match `EXEMPT_PRAGMA` (no colon, nothing after the colon) is a malformed
+ * pragma, and it's reported rather than ignored (R1-M4, F-3).
+ */
+const PRAGMA_MARKER = /units-exempt\b/
+
+/** The `//` comments of one source, as their text, by every 1-based line each covers. */
+type LineComments = ReadonlyMap<number, readonly string[]>
+
+const commentsBySource = new WeakMap<TsSourceFile, LineComments>()
+
+/**
+ * Every real `//` comment in a source, from the parser's own comment ranges.
+ *
+ * ★ NOT A REGEX OVER RAW LINES. That read pragma-shaped text inside a string
+ * or a template literal as a comment, and a JSDoc line DESCRIBING the hatch as
+ * the hatch (`utils/units.ts` has two, inert only because a backtick sat
+ * before the `//`). Walking every node and token and asking for its leading and
+ * trailing comment ranges sees only what the parser calls a comment. JSX text
+ * is skipped: `<p>// hi</p>` is text, and the scan at a JsxText's edges would
+ * read it as one. A block comment is never a pragma.
+ *
+ * Shared by `lineExempts` and the `bare-pragma` check in `scanSource`, so the
+ * two can't disagree about what counts as a pragma.
+ */
+function sourceComments(source: TsSourceFile): LineComments {
+  const cached = commentsBySource.get(source)
+  if (cached !== undefined) return cached
+  if (typeof source.text !== 'string') {
+    throw new Error(
+      'this TypeScript build exposes no SourceFile.text, so the line lookup behind ' +
+        'every `// units-exempt(<kind>):` pragma would silently read the wrong lines. ' +
+        'Refusing to run.',
+    )
+  }
+  if (typeof ts.getLeadingCommentRanges !== 'function' || typeof ts.getTrailingCommentRanges !== 'function') {
+    throw new Error(
+      'this TypeScript build exposes no comment ranges, so no pragma could be found ' +
+        'and every one would silently stop working. Refusing to run.',
+    )
+  }
+  const text = source.text
+  const ranges = new Map<number, TsCommentRange>()
+  const jsxText: TsNode[] = []
+  const take = (found: TsCommentRange[] | undefined): void => {
+    for (const range of found ?? []) ranges.set(range.pos, range)
+  }
+  const visit = (node: TsNode): void => {
+    if (node.kind === ts.SyntaxKind.JsxText) {
+      jsxText.push(node)
+      return
+    }
+    take(ts.getLeadingCommentRanges(text, node.pos))
+    take(ts.getTrailingCommentRanges(text, node.end))
+    for (const child of node.getChildren(source)) visit(child)
+  }
+  visit(source)
+  const byLine = new Map<number, string[]>()
+  for (const range of ranges.values()) {
+    if (range.kind !== ts.SyntaxKind.SingleLineCommentTrivia) continue
+    if (jsxText.some((node) => range.pos >= node.pos && range.pos < node.end)) continue
+    const first = source.getLineAndCharacterOfPosition(range.pos).line + 1
+    const last = source.getLineAndCharacterOfPosition(range.end).line + 1
+    for (let line = first; line <= last; line++) {
+      const list = byLine.get(line) ?? []
+      list.push(text.slice(range.pos, range.end))
+      byLine.set(line, list)
+    }
+  }
+  commentsBySource.set(source, byLine)
+  return byLine
+}
+
+/** The pragma in one comment, or null when it isn't a well-formed one. */
+function pragmaOn(comment: string): RegExpExecArray | null {
+  return EXEMPT_PRAGMA.exec(comment)
+}
+
+/**
+ * The kinds a pragma names, or null when it can't be honoured: no list, an
+ * empty one, or any kind outside `NAMEABLE_KINDS`. A null here exempts nothing
+ * and is a `bare-pragma` finding.
+ */
+function pragmaKinds(match: RegExpExecArray): string[] | null {
   const scope = match[1]
-  if (scope === undefined) return true
-  return scope.split(',').map((k) => k.trim()).includes(kind)
+  if (scope === undefined) return null
+  const kinds = scope.split(',').map((k) => k.trim())
+  if (kinds.some((k) => !NAMEABLE_KINDS.has(k))) return null
+  return kinds
+}
+
+/** True when one comment's pragma covers this finding kind. */
+function commentExempts(comment: string, kind: string): boolean {
+  const match = pragmaOn(comment)
+  if (match === null) return false
+  const kinds = pragmaKinds(match)
+  if (kinds === null) return false
+  return kinds.includes(kind)
+}
+
+/** True when a comment on one line covers this finding kind. */
+function lineExempts(comments: LineComments, line: number, kind: string): boolean {
+  return (comments.get(line) ?? []).some((comment) => commentExempts(comment, kind))
 }
 
 /**
@@ -397,32 +538,8 @@ function lineExempts(line: string, kind: string): boolean {
  * as one function is what stops the two drifting into two different escape
  * hatches with one name.
  */
-function exemptedAtLine(lines: string[], line: number, kind: string): boolean {
-  return lineExempts(lines[line - 1] ?? '', kind) || lineExempts(lines[line - 2] ?? '', kind)
-}
-
-/**
- * The WHOLE text of a parsed source, as lines.
- *
- * ★ NOT `source.getText()`, and the difference is not cosmetic. `getText()` on
- * a node returns the text from its `getStart()` to its end, and a SourceFile's
- * start is AFTER its leading trivia, so on a module opening with a docstring it
- * silently returns fewer lines than the file has: `supplyUnits.ts` gave 82 for
- * a 140-line file. Every line lookup was then off by the size of the header and
- * two of the three declaration exemptions below did not fire, while the third
- * did, which is the shape of bug that gets shipped. `text` is the source's own
- * full string and is checked rather than defaulted, because a build that did
- * not expose it would put the offset back without a word.
- */
-function sourceLines(source: TsSourceFile): string[] {
-  if (typeof source.text !== 'string') {
-    throw new Error(
-      'this TypeScript build exposes no SourceFile.text, so the line lookup behind ' +
-        'every `// units-exempt:` pragma would silently read the wrong lines. Refusing ' +
-        'to run.',
-    )
-  }
-  return source.text.split('\n')
+function exemptedAtLine(comments: LineComments, line: number, kind: string): boolean {
+  return lineExempts(comments, line, kind) || lineExempts(comments, line - 1, kind)
 }
 
 /**
@@ -450,11 +567,11 @@ function sourceLines(source: TsSourceFile): string[] {
 function declarationExempt(
   node: TsNode,
   source: TsSourceFile,
-  lines: string[],
+  comments: LineComments,
   kind: string,
 ): boolean {
   const line = source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1
-  return exemptedAtLine(lines, line, kind)
+  return exemptedAtLine(comments, line, kind)
 }
 
 // ---------------------------------------------------------------------------
@@ -751,7 +868,7 @@ function formatterMethodsIn(
   onlyClass: string | null,
 ): { binary: Set<string>; statics: Set<string>; exempt: Set<string> } {
   const ctx = binaryTypeContext(source)
-  const lines = sourceLines(source)
+  const comments = sourceComments(source)
   const binary = new Set<string>()
   const statics = new Set<string>()
   const exempt = new Set<string>()
@@ -770,7 +887,7 @@ function formatterMethodsIn(
         // receiver requirement already matches both.
         if (isStatic(member)) statics.add(member.name.getText(source))
         if (!takesBinarySystem(member, source, ctx)) continue
-        if (declarationExempt(member, source, lines, 'formatter-binary'))
+        if (declarationExempt(member, source, comments, 'formatter-binary'))
           exempt.add(member.name.getText(source))
         else binary.add(member.name.getText(source))
       }
@@ -876,7 +993,7 @@ interface BinarySurface {
  * over, exactly as the precondition predicted, and it was invisible to every
  * leg of this gate for the whole of phase 3b. It is ruled (R3, deferred
  * pending the D8 amendment) rather than repaired, and the ruling is recorded
- * at the three declarations with `// units-exempt:` so the fifteen sites do
+ * at the three declarations with `// units-exempt(binary-conversion):` so the fifteen sites do
  * not each need their own copy of it. See `declarationExempt`.
  *
  * The formatter leg gets the same widening in the same walk. It adds nothing
@@ -1092,7 +1209,7 @@ function conversionHelpersIn(source: TsSourceFile): {
   exemptExported: Set<string>
 } {
   const ctx = binaryTypeContext(source)
-  const lines = sourceLines(source)
+  const comments = sourceComments(source)
   const exportedBinary = new Set<string>()
   const localBinary = new Set<string>()
   const exported = new Set<string>()
@@ -1101,7 +1218,7 @@ function conversionHelpersIn(source: TsSourceFile): {
   for (const decl of helperDeclarationsIn(source)) {
     if (decl.exported) exported.add(decl.name)
     if (!takesBinarySystem(decl.signature, source, ctx)) continue
-    if (declarationExempt(decl.anchor, source, lines, 'binary-conversion')) {
+    if (declarationExempt(decl.anchor, source, comments, 'binary-conversion')) {
       exempt.add(decl.name)
       if (decl.exported) exemptExported.add(decl.name)
       continue
@@ -1237,31 +1354,7 @@ export interface Finding {
 }
 
 /**
- * Every kind this gate can report, declared once so the claim can count them.
- *
- * ★ THE SUCCESS LINE USED TO SAY "five detectors" AS A WORD. That is the defect
- * this file's own header records against itself two screens up: an earlier
- * version said "~53" while the baseline twelve lines away said 43. A number in
- * the gate's central claim is the worst place in the repo for one, because it is
- * the sentence people quote and the one nothing was checking.
- *
- * So the count is `FINDING_KINDS.length` and `record()` refuses a kind that is
- * not in here, which makes a sixth leg register itself or fail loudly on its
- * first finding. `units_gate_selftest.py`'s clean-room proof reads the kinds
- * back out of the `record(...)` CALL SITES independently and asserts the two
- * agree, so neither half can drift alone, and it demands a corpus positive for
- * each one.
- */
-const FINDING_KINDS = [
-  'compare',
-  'switch-case',
-  'formatter-binary',
-  'binary-conversion',
-  'token-branch',
-] as const
-
-/**
- * How many findings a `// units-exempt:` pragma removed on this run.
+ * How many findings a `// units-exempt(<kind>):` pragma removed on this run.
  *
  * ★ Counted rather than described, because after the flip the pragma is the
  * only suppression left and a clean-room tick that does not say how many sites
@@ -1746,11 +1839,11 @@ export function scanSource(source: string, rel: string): Finding[] {
     ...BINARY_FORMATTER_METHODS,
     ...formatterMethodsIn(sf, null).binary,
   ])
-  const lines = source.split('\n')
+  const comments = sourceComments(sf)
   const index = indexDeclarations(sf)
   const findings: Finding[] = []
 
-  const record = (node: TsNode, kind_: string, text: string): void => {
+  const record = (at: TsNode | number, kind_: string, text: string): void => {
     if (!(FINDING_KINDS as readonly string[]).includes(kind_)) {
       throw new Error(
         `${rel}: reported a finding of kind ${JSON.stringify(kind_)}, which is not in ` +
@@ -1760,10 +1853,12 @@ export function scanSource(source: string, rel: string): Finding[] {
           'to the list, and give it a corpus positive: the clean-room proof requires one.',
       )
     }
-    const line = sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1
+    const line =
+      typeof at === 'number' ? at : sf.getLineAndCharacterOfPosition(at.getStart(sf)).line + 1
     // Escape hatch: the offending line or the line directly above it, and it
-    // has to name this kind or name none.
-    if (exemptedAtLine(lines, line, kind_)) {
+    // has to name this kind. A `bare-pragma` finding is never exempt, because
+    // `bare-pragma` isn't in NAMEABLE_KINDS.
+    if (exemptedAtLine(comments, line, kind_)) {
       exemptedFindings += 1
       const key = `${rel}::${kind_}`
       pragmaSuppressed.set(key, (pragmaSuppressed.get(key) ?? 0) + 1)
@@ -1771,6 +1866,21 @@ export function scanSource(source: string, rel: string): Finding[] {
     }
     findings.push({ file: rel, line, kind: kind_, text })
   }
+
+  // ★ G3b-76: a pragma with no kind, or one this gate doesn't have, is refused
+  // on sight. It exempts nothing, and leaving it unreported would let it sit
+  // there looking live. So is one with no colon or no reason (R1-M4): anything
+  // with the marker that isn't a well-formed pragma. Lives here so `--scan` and
+  // the tree walk both see it.
+  comments.forEach((texts, line) => {
+    for (const text of texts) {
+      if (!PRAGMA_MARKER.test(text)) continue
+      const pragma = pragmaOn(text)
+      if (pragma === null || pragmaKinds(pragma) === null) {
+        record(line, 'bare-pragma', normalize(text))
+      }
+    }
+  })
 
   const walk = (node: TsNode): void => {
     if (node.kind === ts.SyntaxKind.BinaryExpression && node.operatorToken) {
@@ -1944,7 +2054,7 @@ function printReport(findings: Finding[]): void {
  *
  * A gate's success line is the sentence people quote, so the one suppression
  * that reaches ACROSS files is counted in it rather than left to `--derived`.
- * Task 8 made the binary vocabularies tree-wide, and one `// units-exempt:` on
+ * Task 8 made the binary vocabularies tree-wide, and one `// units-exempt(<kind>):` on
  * a declaration then silences every call site of that declaration everywhere;
  * the number moving is what stops that growing quietly.
  */
@@ -2143,7 +2253,10 @@ function main(): void {
         '                       not reconvert the rounded display value.\n' +
         '  [token-branch]       a resolved token read as a proxy for a whole system.\n' +
         '                       Read the quantity you actually mean: deriving the\n' +
-        '                       distance half from units.volume is the defect.\n\n' +
+        '                       distance half from units.volume is the defect.\n' +
+        '  [bare-pragma]        a units-exempt with no kind, or a kind this gate does\n' +
+        '                       not have. It exempts nothing. Name the kind(s) the\n' +
+        '                       line actually trips, or delete it.\n\n' +
         'This gate is CLEAN-ROOM: there is no baseline to record a finding in, and\n' +
         '--update refuses to write one. The pragma is the only suppression there is,\n' +
         'it has to name the kind above, and every run counts how many sites use it.\n',

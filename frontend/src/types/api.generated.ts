@@ -19982,6 +19982,11 @@ export interface components {
                 [key: string]: unknown;
             } | null;
             /**
+             * Distance Unit
+             * @description The unit this vehicle's odometer reads (km or mi); null follows the viewer's account. The analytics page shows the vehicle's distances in it.
+             */
+            distance_unit?: ("km" | "mi") | null;
+            /**
              * Fuel Alerts
              * @default []
              */

@@ -29538,6 +29538,22 @@
             ],
             "title": "Def Analysis"
           },
+          "distance_unit": {
+            "anyOf": [
+              {
+                "enum": [
+                  "km",
+                  "mi"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The unit this vehicle's odometer reads (km or mi); null follows the viewer's account. The analytics page shows the vehicle's distances in it.",
+            "title": "Distance Unit"
+          },
           "fuel_alerts": {
             "default": [],
             "items": {

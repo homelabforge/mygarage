@@ -68,6 +68,8 @@ vi.mock('../../hooks/useUnitPreference', () => ({
 }))
 // Mutable so the rate-digits test can read the page in yen.
 const currencyMock = vi.hoisted(() => ({ code: 'USD' }))
+// The page files its offline copy under the signed-in account.
+vi.mock('../../contexts/AuthContext', () => ({ useAuth: () => ({ user: { id: 1 }, authMode: 'local' }) }))
 vi.mock('../../hooks/useCurrencyPreference', () => ({
   useCurrencyPreference: () => ({ currencyCode: currencyMock.code, locale: 'en-US' }),
 }))
@@ -99,6 +101,7 @@ function baseAnalytics(overrides: Partial<VehicleAnalytics> = {}): VehicleAnalyt
   return {
     vehicle_name: 'Test Tractor',
     vehicle_type: 'Car',
+    distance_unit: null,
     vin: 'V1',
     days_owned: 100,
     total_km_driven: null,

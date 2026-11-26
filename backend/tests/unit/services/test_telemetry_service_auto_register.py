@@ -75,11 +75,9 @@ class TestAutoRegisterNewParamInference:
         param = await svc.auto_register_parameter("2F-FUELTANKLEVEL", unit=None, param_class=None)
 
         assert param.param_class == "percentage"
-        # Literal, not computed via _classify_param — that call would make the
-        # assertion tautological. ("percentage" currently classifies to
-        # "other"; the category-distinct case is pinned by
-        # test_new_row_category_recomputed_from_inferred_class below.)
-        assert param.category == "other"
+        # Literal, not computed via _classify_param: that call would make the
+        # assertion tautological. A fuel key on percentage files under fuel (B-9).
+        assert param.category == "fuel"
 
     async def test_new_row_category_recomputed_from_inferred_class(self, db_session):
         """config={} registration of an RPM PID resolves class "frequency"
@@ -143,6 +141,63 @@ class TestAutoRegisterNewParamInference:
 
 
 @pytest.mark.asyncio
+class TestPercentageCategory:
+    """WiCAN files every % reading under class percentage, so the key decides
+    the category (B-9). Expected values are literals for the reason above."""
+
+    @pytest.mark.parametrize(
+        ("key", "expected"),
+        [
+            ("2F-FuelTankLevel", "fuel"),
+            ("FUEL", "fuel"),
+            ("HV_BATT_SOC", "electrical"),
+            ("THROTTLE_POS", "engine"),
+        ],
+    )
+    async def test_a_new_percentage_reading_gets_a_real_category(
+        self, db_session: AsyncSession, key: str, expected: str
+    ) -> None:
+        from sqlalchemy import delete
+
+        # The suite shares one database, so clear any row an earlier test left.
+        await db_session.execute(
+            delete(LiveLinkParameter).where(LiveLinkParameter.param_key == key)
+        )
+        await db_session.flush()
+
+        param = await TelemetryService(db_session).auto_register_parameter(
+            key, unit="%", param_class="percentage"
+        )
+
+        assert param.category == expected
+
+    async def test_a_percentage_row_an_admin_left_on_other_stays_other(
+        self, db_session: AsyncSession
+    ) -> None:
+        """Once 165 has run, a percentage row on other is there on purpose.
+        Registering it again must not move it to fuel."""
+        svc = TelemetryService(db_session)
+        key = f"ZZFUELPCT_{uuid.uuid4().hex[:8].upper()}"
+        db_session.add(
+            LiveLinkParameter(
+                param_key=key,
+                display_name="Admin kept this on other",
+                unit="%",
+                param_class="percentage",
+                category="other",
+                show_on_dashboard=True,
+                archive_only=True,
+                storage_interval_seconds=0,
+            )
+        )
+        await db_session.flush()
+
+        param = await svc.auto_register_parameter(key, unit="%", param_class="percentage")
+
+        assert param.category == "other"
+
+
+@pytest.mark.asyncio
 class TestAutoRegisterBackfillInference:
     """Existing rows with a None class get backfilled by inference, without
     ever touching user-owned dashboard display state."""
@@ -168,6 +223,8 @@ class TestAutoRegisterBackfillInference:
         param = await svc.auto_register_parameter("2F-FUELTANKLEVEL", unit=None, param_class=None)
 
         assert param.param_class == "percentage"
+        # The class backfill sets the category for the class it fills, by key.
+        assert param.category == "fuel"
         # Display flags are user-owned dashboard state — backfill must never
         # flip them, even though the resolved class's "new row" defaults
         # would differ (percentage is not in the dashboard-default list).

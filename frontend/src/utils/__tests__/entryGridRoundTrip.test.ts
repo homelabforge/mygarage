@@ -36,7 +36,6 @@ import { describe, expect, it } from 'vitest'
 import { makeUnitSet } from '@/__tests__/factories'
 import {
   canonicalFromPriceField,
-  priceToDisplay,
   seedPriceField,
   toLitersWirePrecision,
 } from '../decimalSafe'
@@ -99,7 +98,6 @@ function volumeRow(set: { name: string; units: UnitSet }, canonical: number): Ro
 /** The same for a price field, at the `per_volume` basis all three writers use. */
 function priceRow(set: { name: string; units: UnitSet }, canonical: number): Row {
   const origin = seedPriceField(canonical, set.units, 'per_volume')
-  const naiveDisplay = priceToDisplay(canonical, set.units, 'per_volume')
   return {
     set: set.name,
     canonical,
@@ -109,7 +107,7 @@ function priceRow(set: { name: string; units: UnitSet }, canonical: number): Row
     // unseeded origin is exactly "no origin", so this is the production read
     // with the one thing this task added taken away.
     naive: canonicalFromPriceField(
-      String(naiveDisplay ?? ''),
+      origin.display,
       { canonical: null, display: '', basis: 'per_volume' },
       set.units,
       'per_volume'

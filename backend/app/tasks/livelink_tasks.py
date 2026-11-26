@@ -16,6 +16,7 @@ from app.services.session_service import SessionService
 from app.services.settings_service import SettingsService
 from app.services.telemetry_service import TelemetryService
 from app.utils.datetime_utils import utc_now
+from app.utils.household_time import household_today, load_household_zone
 from app.utils.logging_utils import sanitize_for_log
 
 logger = logging.getLogger(__name__)
@@ -313,11 +314,13 @@ async def prune_old_telemetry():
 async def generate_daily_summaries():
     """Generate daily summary aggregates for telemetry data.
 
-    Runs daily at 1 AM. Creates/updates summary records for the
-    previous day's telemetry data.
+    Runs daily at 1 AM, container time, and upserts the last three household
+    days. The cron has no zone, so with one day a DST shift or a missed run
+    would lose a day for good; re-running a day just updates it.
     """
     async with AsyncSessionLocal() as db:
         try:
+            await load_household_zone(db)
             livelink_service = LiveLinkService(db)
             if not await livelink_service.is_enabled():
                 return
@@ -329,19 +332,16 @@ async def generate_daily_summaries():
             if not aggregation_enabled:
                 return
 
-            # Generate summaries for yesterday
-            yesterday = utc_now().replace(hour=0, minute=0, second=0, microsecond=0)
-            yesterday -= timedelta(days=1)
-
             telemetry_service = TelemetryService(db)
-            summary_count = await telemetry_service.generate_daily_summary(yesterday)
-
-            if summary_count > 0:
-                logger.info(
-                    "Generated %d daily summary records for %s",
-                    summary_count,
-                    yesterday.date(),
-                )
+            # Ask once, so a night before migration 164 logs one refusal, not three.
+            if not await telemetry_service.summary_date_column_ready():
+                return
+            today = household_today()
+            for days_back in (3, 2, 1):
+                day = today - timedelta(days=days_back)
+                summary_count = await telemetry_service.generate_daily_summary(day)
+                if summary_count > 0:
+                    logger.info("Generated %d daily summary records for %s", summary_count, day)
 
         except Exception as e:
             logger.error("Error generating daily summaries: %s", e)

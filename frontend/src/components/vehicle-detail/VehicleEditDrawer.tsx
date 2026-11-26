@@ -311,7 +311,7 @@ function VehicleEditForm({
       // same adapter, then takes the API's declared precision.
       const canonical = toLitersWirePrecision(
         canonicalFromUnitField(
-          String(data.def_tank_capacity_liters),
+          data.def_tank_capacity_liters,
           defCapacityOrigin.current,
           u.volume
         )

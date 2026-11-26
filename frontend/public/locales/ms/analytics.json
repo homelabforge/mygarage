@@ -166,6 +166,7 @@
     "notFound": "Analitik tidak ditemui",
     "notAvailable": "T/A",
     "offlineCached": "Luar talian: memaparkan syot kilat analitik dalam cache.",
+    "offlineCachedRange": "Luar talian: memaparkan syot kilat analitik dalam cache ({{range}}).",
     "fillAllDates": "Sila isi semua medan tarikh",
     "comparisonFailed": "Gagal mendapatkan data perbandingan",
     "costProjection": "Unjuran Kos",

@@ -43,7 +43,8 @@ from app.services.location_service import LocationService
 from app.services.notifications.dispatcher import NotificationDispatcher
 from app.services.post_commit import after_commit
 from app.services.session_service import SessionService
-from app.services.telemetry_service import TelemetryService, normalises_odometer
+from app.services.telemetry.odometer import normalises_odometer
+from app.services.telemetry_service import TelemetryService
 from app.utils.datetime_utils import utc_now
 from app.utils.logging_utils import sanitize_for_log
 

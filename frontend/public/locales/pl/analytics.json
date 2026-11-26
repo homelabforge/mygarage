@@ -166,6 +166,7 @@
     "notFound": "Nie znaleziono analityki",
     "notAvailable": "b.d.",
     "offlineCached": "Offline: wyświetlana jest zapisana kopia analityki.",
+    "offlineCachedRange": "Offline: wyświetlana jest zapisana kopia analityki ({{range}}).",
     "fillAllDates": "Wypełnij wszystkie pola dat",
     "comparisonFailed": "Nie udało się pobrać danych porównania",
     "costProjection": "Prognoza kosztów",

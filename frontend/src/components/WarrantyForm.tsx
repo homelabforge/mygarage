@@ -61,7 +61,7 @@ function WarrantyForm({ vin, record, onClose, onSuccess }: WarrantyFormProps) {
       // route skips keys that aren't sent, so neither could clear the field.
       end_date: data.end_date || null,
       mileage_limit_km:
-        canonicalFromUnitField(String(limitTyped ?? ''), mileageLimitOrigin, u.distance) ??
+        canonicalFromUnitField(limitTyped, mileageLimitOrigin, u.distance) ??
         null,
       coverage_details: data.coverage_details,
       policy_number: data.policy_number,

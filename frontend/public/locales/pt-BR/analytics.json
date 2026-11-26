@@ -166,6 +166,7 @@
     "notFound": "Análises não encontradas",
     "notAvailable": "N/D",
     "offlineCached": "Offline: exibindo análises salvas em cache.",
+    "offlineCachedRange": "Offline: exibindo análises salvas em cache ({{range}}).",
     "fillAllDates": "Preencha todos os campos de data",
     "comparisonFailed": "Erro ao buscar os dados da comparação",
     "costProjection": "Projeção de custos",

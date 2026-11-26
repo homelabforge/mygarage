@@ -60,6 +60,8 @@ vi.mock('../../hooks/useUnitPreference', () => {
   return { useUnitPreference: pref, useAccountUnitPreference: pref }
 })
 // The reporter's configuration: Polish złoty.
+// The page files its offline copy under the signed-in account.
+vi.mock('../../contexts/AuthContext', () => ({ useAuth: () => ({ user: { id: 1 }, authMode: 'local' }) }))
 vi.mock('../../hooks/useCurrencyPreference', () => ({
   useCurrencyPreference: () => ({ currencyCode: 'PLN', locale: 'pl-PL' }),
 }))
@@ -92,7 +94,7 @@ const BELOW: AnomalyAlert = {
 
 function analyticsWith(anomalies: AnomalyAlert[]): VehicleAnalytics {
   return {
-    vehicle_name: 'Ram', vehicle_type: 'Truck', vin: 'V1', days_owned: 100,
+    vehicle_name: 'Ram', vehicle_type: 'Truck', distance_unit: null, vin: 'V1', days_owned: 100,
     total_km_driven: null, average_km_per_month: null,
     cost_analysis: {
       total_cost: '0.00', average_monthly_cost: '0.00', months_tracked: 0,

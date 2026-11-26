@@ -121,6 +121,8 @@ vi.mock('../../hooks/useUnitPreference', () => ({
   useUnitPreference: () => unitPreferenceMock(),
   useAccountUnitPreference: () => unitPreferenceMock(),
 }))
+// The page files its offline copy under the signed-in account.
+vi.mock('../../contexts/AuthContext', () => ({ useAuth: () => ({ user: { id: 1 }, authMode: 'local' }) }))
 vi.mock('../../hooks/useCurrencyPreference', () => ({
   useCurrencyPreference: () => ({ currencyCode: 'USD', locale: 'en-US' }),
 }))
@@ -161,6 +163,7 @@ function baseAnalytics(overrides: Partial<VehicleAnalytics> = {}): VehicleAnalyt
   return {
     vehicle_name: 'Test Car',
     vehicle_type: 'Car',
+    distance_unit: null,
     vin: 'V1',
     days_owned: 100,
     total_km_driven: null,

@@ -251,10 +251,15 @@ class TestMixedPages:
                 "/api/calendar",
                 f"/api/vehicles/{vin}",
                 "/api/vehicles",
+                f"/api/analytics/vehicles/{vin}",
             ):
                 response = await client.get(path, headers=auth_headers)
                 assert response.status_code == 200, (path, response.text)
             dash = (await client.get("/api/dashboard", headers=auth_headers)).json()
             assert next(v for v in dash["vehicles"] if v["vin"] == vin)["distance_unit"] is None
+            analytics = (
+                await client.get(f"/api/analytics/vehicles/{vin}", headers=auth_headers)
+            ).json()
+            assert analytics["distance_unit"] is None
         finally:
             await _drop(db_session, vin)

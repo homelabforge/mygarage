@@ -3,13 +3,13 @@ import { useTranslation } from 'react-i18next'
 import { Edit, Trash2, Plus, Fuel, Droplets } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDateForDisplay } from '../utils/dateUtils'
-import { formatCurrency, RATE_DIGITS } from '../utils/formatUtils'
+import { formatCurrency } from '../utils/formatUtils'
 import { useCurrencyPreference } from '../hooks/useCurrencyPreference'
 import type { FuelRecord } from '../types/fuel'
 import PropaneRecordForm from './PropaneRecordForm'
 import { useUnitPreference } from '../hooks/useUnitPreference'
 import { UnitFormatter } from '../utils/units'
-import { priceToDisplay } from '../utils/decimalSafe'
+import { formatPricePerUnit } from '../utils/decimalSafe'
 import { usePropaneRecords, useDeletePropaneRecord } from '../hooks/queries/usePropaneRecords'
 import { useQueryClient } from '@tanstack/react-query'
 import { getActionErrorMessage } from '../utils/httpErrorHandler'
@@ -88,9 +88,7 @@ export default function PropaneRecordList({ vin }: PropaneRecordListProps) {
     // `propaneList.gallons` ("Gallons") lied to metric users. `volumeUnit` interpolates the system unit.
     { id: 'gallons', header: t('propaneList.volumeUnit', { unit: UnitFormatter.getVolumeUnit(units) }), align: 'right', mono: true, render: (r) => formatVolume(r.propane_liters ?? undefined) },
     { id: 'price', header: t('propaneList.pricePerUnit'), align: 'right', mono: true,
-      render: (r) => r.price_per_unit
-        ? formatCurrency(priceToDisplay(r.price_per_unit, units, r.price_basis ?? 'per_volume') ?? 0, { currencyCode, locale, fractionDigits: RATE_DIGITS })
-        : '-' },
+      render: (r) => formatPricePerUnit(r.price_per_unit, units, r.price_basis ?? 'per_volume', { currencyCode, locale }) },
     { id: 'cost', header: t('propaneList.cost'), align: 'right', mono: true, render: (r) => formatCurrency(r.cost, { currencyCode, locale }) },
     { id: 'vendor', header: t('propaneList.vendor'), align: 'left', render: (r) => extractVendor(r.notes ?? undefined) },
     { id: 'actions', header: t('propaneList.actions'), align: 'right',

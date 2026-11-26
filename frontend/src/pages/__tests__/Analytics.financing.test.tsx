@@ -81,6 +81,8 @@ vi.mock('../../hooks/useUnitPreference', () => ({
   useUnitPreference: () => ({ system: 'metric', showBoth: false, units: METRIC_UNITS }),
   useAccountUnitPreference: () => ({ system: 'metric', showBoth: false, units: METRIC_UNITS }),
 }))
+// The page files its offline copy under the signed-in account.
+vi.mock('../../contexts/AuthContext', () => ({ useAuth: () => ({ user: { id: 1 }, authMode: 'local' }) }))
 vi.mock('../../hooks/useCurrencyPreference', () => ({
   useCurrencyPreference: () => ({ currencyCode: 'USD', locale: 'en-US' }),
 }))
@@ -120,6 +122,7 @@ function analyticsWith(monthly: MonthlyCostSummary[], totalFinancing: string): V
   return {
     vehicle_name: 'Test Car',
     vehicle_type: 'Car',
+    distance_unit: null,
     vin: 'V1',
     days_owned: 100,
     total_km_driven: null,
