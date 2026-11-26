@@ -184,6 +184,23 @@ describe('PropaneRecordList — one gallon per page, taken from the user', () =>
     expect(screen.getByText('propaneList.avgCostPerVolume (gal (UK))')).toBeInTheDocument()
   })
 
+  it('reads a legacy row with no price basis as per volume', () => {
+    // Pre-basis rows carry null. The column treats them as $/L, same as the
+    // form does, so the imperial user still sees $3.48 and not the raw $0.77.
+    unitPrefMock.system = 'imperial'
+    unitPrefMock.units = UK_IMPERIAL_UNITS
+    usePropaneRecordsMock.mockReturnValue({
+      data: { records: [{ ...record, price_basis: null }] },
+      isLoading: false,
+      error: null,
+    })
+
+    render(<PropaneRecordList vin="TEST12345678901234" />, { wrapper: withConfirm })
+
+    expect(within(table()).getByText('$3.48')).toBeInTheDocument()
+    expect(within(table()).queryByText('$0.77')).not.toBeInTheDocument()
+  })
+
   it('stays in litres for a metric set', () => {
     unitPrefMock.system = 'metric'
 

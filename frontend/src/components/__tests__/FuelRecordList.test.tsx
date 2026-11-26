@@ -174,7 +174,7 @@ describe('FuelRecordList — row cells scoped to the named table', () => {
     useFuelRecordsMock.mockReturnValue({ data: { records: [perWeight], total: 1, average_l_per_100km: '8.5' }, isLoading: false, error: null })
     render(<FuelRecordList {...DEFAULT_PROPS} />, { wrapper: withConfirm })
     await waitFor(() => expect(apiGetMock).toHaveBeenCalled())
-    // metric priceToDisplay(per_weight) passes the value through → formatCurrency(1.85) → "$1.85"
+    // metric formatPricePerUnit(per_weight) passes the value through → "$1.85"
     expect(within(table()).getByText(/1\.85/)).toBeInTheDocument()
     expect(within(table()).getByRole('columnheader', { name: 'fuelList.unitPrice' })).toBeInTheDocument()
   })

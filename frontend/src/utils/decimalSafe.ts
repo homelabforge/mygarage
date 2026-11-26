@@ -31,6 +31,7 @@
  * display MULTIPLIES by the denominator factor where a volume adapter divides,
  * and its denominator can change under the field while the number does not.
  */
+import { formatCurrency, RATE_DIGITS } from './formatUtils'
 import { unitFieldUnchanged, type UnitFieldOrigin } from './unitFormat'
 import { UnitConverter } from './units'
 import type { UnitSet } from '@/types/units'
@@ -171,12 +172,17 @@ function canonicalPerTypedUnit(
  * unit, as the client's resolved set names it. per_kwh and per_tank are
  * universal and pass through unchanged.
  *
+ * Module-private since units-livelink, same call as `priceToCanonical` below.
+ * Its number is a rounded display, and handing it out invites somebody to post
+ * it. Fields seed through `seedPriceField` and list columns render through
+ * `formatPricePerUnit`, so nothing outside needs the bare number.
+ *
  * @param value The stored canonical price, as a number or an API string.
  * @param units The client's resolved unit set.
  * @param basis The record's price basis.
  * @returns The price per displayed unit, or null when there is no value.
  */
-export function priceToDisplay(
+function priceToDisplay(
   value: number | string | null | undefined,
   units: UnitSet,
   basis: PriceBasis | string | null | undefined,
@@ -190,6 +196,28 @@ export function priceToDisplay(
   // here would rewrite it on a save the user never made an edit in.
   if (factor === null || factor === 1) return num
   return parseFloat((num * factor).toFixed(PRICE_DISPLAY_DECIMALS))
+}
+
+/**
+ * A stored price as a list column shows it: per the user's unit, as currency.
+ *
+ * One formatter for the fuel and propane columns, so they can't drift apart on
+ * conversion or precision. A missing or zero price renders formatCurrency's
+ * `-`, same as the columns did by hand.
+ *
+ * @param value The stored canonical price, as a number or an API string.
+ * @param units The client's resolved unit set.
+ * @param basis The record's price basis.
+ * @param opts The currency code and locale to format with.
+ * @returns The formatted price per displayed unit, or `-` when there is none.
+ */
+export function formatPricePerUnit(
+  value: number | string | null | undefined,
+  units: UnitSet,
+  basis: PriceBasis | string | null | undefined,
+  opts: { currencyCode: string; locale: string },
+): string {
+  return formatCurrency(priceToDisplay(value, units, basis), { ...opts, fractionDigits: RATE_DIGITS })
 }
 
 /**

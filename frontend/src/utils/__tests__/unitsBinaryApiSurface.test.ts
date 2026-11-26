@@ -569,10 +569,14 @@ describe('the binary conversion surface', () => {
     // money-fits added `priceOverCanonicalMax`, the price cap's check. It
     // converts the same way but answers yes or no, so nothing can post what it
     // computes, and `priceToCanonical` stays private.
+    //
+    // units-livelink took `priceToDisplay` private too. The list columns go
+    // through `formatPricePerUnit`, which hands back a formatted string, not a
+    // number anybody could feed into a write.
     expect(decimalSafeExports()).toEqual([
       'canonicalFromPriceField',
+      'formatPricePerUnit',
       'priceOverCanonicalMax',
-      'priceToDisplay',
       'readNumber',
       'seedPriceField',
       'toLitersWirePrecision',

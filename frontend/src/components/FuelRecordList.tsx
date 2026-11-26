@@ -17,7 +17,7 @@ import {
   formatFuelRate,
   fuelRateLabel,
 } from '../utils/unitFormat'
-import { priceToDisplay } from '../utils/decimalSafe'
+import { formatPricePerUnit } from '../utils/decimalSafe'
 import { getUsageTracking } from '../utils/usageTracking'
 import { useFuelRecords, useDeleteFuelRecord, useImportFuelCSV } from '../hooks/queries/useFuelRecords'
 import { getActionErrorMessage } from '../utils/httpErrorHandler'
@@ -295,10 +295,10 @@ export default function FuelRecordList({ vin, onAddClick, onEditClick }: FuelRec
         r.octane != null ? (r.octane_scale ? `${r.octane} ${r.octane_scale}` : String(r.octane)) : '-',
     }] : []),
     // B8: generic truthful header — the row value already respects every price_basis
-    // via priceToDisplay(…, r.price_basis), so a volume-only "Price/L" heading would
+    // via formatPricePerUnit(…, r.price_basis), so a volume-only "Price/L" heading would
     // lie for per_weight/per_kwh/per_tank rows. "Unit price" is honest across all four.
     { id: 'price', header: t('fuelList.unitPrice'), align: 'right', mono: true,
-      render: (r) => r.price_per_unit ? formatCurrency(priceToDisplay(r.price_per_unit, units, r.price_basis) ?? 0, { currencyCode, locale, fractionDigits: RATE_DIGITS }) : '-' },
+      render: (r) => formatPricePerUnit(r.price_per_unit, units, r.price_basis, { currencyCode, locale }) },
     { id: 'cost', header: t('fuelList.totalCost'), align: 'right', mono: true,
       render: (r) => r.cost ? formatCurrency(parseFloat(r.cost.toString()), { currencyCode, locale }) : '-' },
     ...(tracksDistance ? [{
