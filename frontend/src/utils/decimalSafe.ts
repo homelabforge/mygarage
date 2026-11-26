@@ -187,9 +187,11 @@ function priceToDisplay(
   units: UnitSet,
   basis: PriceBasis | string | null | undefined,
 ): number | null {
-  if (value == null) return null
-  const num = typeof value === 'string' ? parseFloat(value) : value
-  if (isNaN(num)) return null
+  // Junk text and a non-finite price both read as no price. The old isNaN
+  // guard couldn't fail a test (formatCurrency dashes a NaN anyway) and let
+  // Infinity through to the column as "$∞".
+  const num = readNumber(value)
+  if (num === undefined || !Number.isFinite(num)) return null
   const factor = canonicalPerTypedUnit(units, basis)
   // A factor of 1 means the client's unit IS the canonical one, so there is
   // nothing to convert and nothing to re-round: rounding a stored litre price

@@ -275,7 +275,7 @@ function FuelRecordForm({ vin, record, onClose, onSuccess }: FuelRecordFormProps
    * the helper. `canonicalFromUnitField` decided "the user did not touch this"
    * by string comparison against `toInputValue`, i.e. `toFixed(precision)`.
    * The temperature field HOLDS that string; the odometer is a
-   * react-hook-form NUMBER, so its submit can only offer `String(number)`, and
+   * react-hook-form NUMBER, so its submit could only offer `String(number)`, and
    * the two spellings agreed only because `mi` and `km` carry no decimals.
    * Phase 3b task 3 hit the same gap on propane's two-decimal mass field,
    * where the sidestep does not reach, and made the helper compare the

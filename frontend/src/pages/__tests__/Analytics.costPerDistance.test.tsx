@@ -109,6 +109,8 @@ vi.mock('../../hooks/useUnitPreference', () => ({
   // Rates read the ACCOUNT's units (#172); set it apart to prove the split.
   useAccountUnitPreference: () => accountPreferenceMock() ?? unitPreferenceMock(),
 }))
+// The page files its offline copy under the signed-in account.
+vi.mock('../../contexts/AuthContext', () => ({ useAuth: () => ({ user: { id: 1 }, authMode: 'local' }) }))
 vi.mock('../../hooks/useCurrencyPreference', () => ({
   useCurrencyPreference: () => ({ currencyCode: 'USD', locale: 'en-US' }),
 }))

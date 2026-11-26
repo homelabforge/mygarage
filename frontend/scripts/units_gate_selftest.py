@@ -195,6 +195,7 @@ MUTATIONS = [
             "S-P52-scoped-pragma-without-reason",
             "S-P53-empty-kind-list",
             "S-P54-misspelled-kind",
+            "S-P56-scoped-pragma-empty-reason",
             "S-P6-aliased-boolean",
             "S-P7-destructuring-rename",
             "S-P8-resolvedSystem",
@@ -387,17 +388,11 @@ MUTATIONS = [
         "  return text.replace(/\\s+/g, ' ').trim()",
         "  return text",
         "script",
-        [
-            "S-P20-multiline",
-            "S-P50-bare-pragma-refused",
-            "S-P51-bare-pragma-silences-nothing",
-            "S-P53-empty-kind-list",
-            "S-P54-misspelled-kind",
-            "S-P55-bare-pragma-not-exemptable",
-        ],
+        ["S-P20-multiline"],
         "a wrapped comparison must key the same as a flat one or the baseline splits. "
-        "The bare-pragma text goes through it too, so an indented pragma keys the "
-        "same as a flush one.",
+        "The bare-pragma text goes through it too, but since R1-M4 that text is the "
+        "comment itself, with no indentation for this to strip, so those cases "
+        "don't move here any more.",
     ),
     Mutation(
         "M22-hardcode-tsx-scriptkind",
@@ -810,7 +805,7 @@ MUTATIONS = [
     Mutation(
         "M70-declaration-exemption-ignored",
         "gate",
-        "  return exemptedAtLine(lines, line, kind)",
+        "  return exemptedAtLine(comments, line, kind)",
         "  return false",
         "script",
         ["S-N17-exempt-binary-declaration"],
@@ -951,13 +946,14 @@ MUTATIONS = [
     Mutation(
         "M82-docstring-mention-is-a-pragma",
         "gate",
-        "  if (/^\\s*\\*/.test(line)) return null",
-        "  if (false) return null",
+        "    if (range.kind !== ts.SyntaxKind.SingleLineCommentTrivia) continue",
+        "    if (false) continue",
         "script",
         ["S-N22-pragma-mentioned-in-a-docstring"],
         "prose about a guard must not be the guard. Two lines in `utils/units.ts` "
         "describe this pragma inside a docstring and were inert only because a "
-        "backtick precedes the `//` in both.",
+        "backtick precedes the `//` in both. ★ Since R1-M4 the hatch reads the "
+        "parser's comments, and a block comment is never a pragma.",
     ),
     Mutation(
         "M72-scoped-pragma-silences-anything",
@@ -983,27 +979,34 @@ MUTATIONS = [
         "  if (kinds === null) return true",
         "script",
         [
-            "S-P51-bare-pragma-silences-nothing",
-            "S-P53-empty-kind-list",
-            "S-P54-misspelled-kind",
-        ],
-        "G3b-76 run rather than described: the bare pragma as task 8 left it, "
-        "covering every kind on its line. Reporting it isn't enough if it still "
-        "exempts, so this one has to die on its own. An empty or misspelled kind "
-        "list takes the same path.",
-    ),
-    Mutation(
-        "M85-drop-bare-pragma-detection",
-        "gate",
-        "      record(i + 1, 'bare-pragma', normalize(text))\n",
-        "",
-        "script",
-        [
             "S-P50-bare-pragma-refused",
             "S-P51-bare-pragma-silences-nothing",
             "S-P53-empty-kind-list",
             "S-P54-misspelled-kind",
             "S-P55-bare-pragma-not-exemptable",
+        ],
+        "G3b-76 run rather than described: the bare pragma as task 8 left it, "
+        "covering every kind on its line. Reporting it isn't enough if it still "
+        "exempts, so this one has to die on its own. An empty or misspelled kind "
+        "list takes the same path. ★ Since T1-m1 dropped `record()`'s own skip for "
+        "`bare-pragma`, a pragma like that also silences its own report here, so "
+        "S-P50 and S-P55 go quiet too.",
+    ),
+    Mutation(
+        "M85-drop-bare-pragma-detection",
+        "gate",
+        "        record(line, 'bare-pragma', normalize(text))\n",
+        "",
+        "script",
+        [
+            "S-P22-bare-pragma",
+            "S-P50-bare-pragma-refused",
+            "S-P51-bare-pragma-silences-nothing",
+            "S-P52-scoped-pragma-without-reason",
+            "S-P53-empty-kind-list",
+            "S-P54-misspelled-kind",
+            "S-P55-bare-pragma-not-exemptable",
+            "S-P56-scoped-pragma-empty-reason",
         ],
         "the other half of G3b-76. A bare pragma that exempts nothing but isn't "
         "reported sits in the tree looking like it works, and the next reader "
@@ -1026,19 +1029,37 @@ MUTATIONS = [
     Mutation(
         "M87-bare-pragma-exemptable",
         "gate",
-        "    if (kind_ !== 'bare-pragma' && exemptedAtLine(lines, line, kind_)) {",
-        "    if (exemptedAtLine(lines, line, kind_)) {",
+        "  FINDING_KINDS.filter((k) => k !== 'bare-pragma'),",
+        "  FINDING_KINDS.filter(() => true),",
         "script",
         ["S-P55-bare-pragma-not-exemptable"],
-        "a refused pragma must not be excusable by another one. Defended twice: "
-        "`record()` skips the exemption for this kind, and `bare-pragma` isn't "
-        "nameable. Either alone flips nothing, so this removes both.",
-        also=[
-            (
-                "  FINDING_KINDS.filter((k) => k !== 'bare-pragma'),",
-                "  FINDING_KINDS.filter(() => true),",
-            )
-        ],
+        "a refused pragma must not be excusable by another one. `bare-pragma` "
+        "isn't nameable, and that's the one defence: `record()` used to skip the "
+        "exemption for this kind as well, but nothing could reach that skip once "
+        "the name was refused, so it went.",
+    ),
+    Mutation(
+        "M88-only-the-colon-form-is-a-marker",
+        "gate",
+        "const PRAGMA_MARKER = /units-exempt\\b/",
+        "const PRAGMA_MARKER = /units-exempt(?:\\([^)]*\\))?:/",
+        "script",
+        ["S-P22-bare-pragma", "S-P52-scoped-pragma-without-reason"],
+        "R1-M4 / F-3: a pragma with no colon was neither honoured nor reported, so "
+        "it sat in the tree looking live. Any spelling of the marker counts now, "
+        "and narrowing it back to the colon form puts both quiet again.",
+    ),
+    Mutation(
+        "M89-scan-raw-lines-for-pragmas",
+        "gate",
+        "  comments.forEach((texts, line) => {",
+        "  new Map((sf.text ?? '').split('\\n').map((t, i) => [i + 1, [t]] as [number, string[]])).forEach((texts, line) => {",
+        "script",
+        ["S-N23-pragma-text-inside-a-string"],
+        "R1-M4: the bare-pragma check read raw lines, so pragma-shaped text in a "
+        "string or a template literal failed the gate. It reads the parser's "
+        "comments now, the same set the hatch honours, and going back to lines "
+        "brings the false finding back.",
     ),
     Mutation(
         "M73-scoped-pragma-not-recognised",
@@ -1050,11 +1071,13 @@ MUTATIONS = [
             "S-N17-exempt-binary-declaration",
             "S-N19-scoped-pragma-own-kind",
             "S-N4-pragma",
-            "S-P53-empty-kind-list",
-            "S-P54-misspelled-kind",
-            "S-P55-bare-pragma-not-exemptable",
+            "S-P42-scoped-pragma-wrong-kind",
+            "S-P43-scoped-declaration-wrong-kind",
         ],
-        "the far side of M72: a form the regex does not recognise silences nothing, "
+        "★ Since R1-M4 a form the regex doesn't recognise also reports itself as a "
+        "bare pragma, so the wrong-kind cases move (one more finding each) and the "
+        "malformed ones don't (they were reported already). "
+        "The far side of M72: a form the regex does not recognise silences nothing, "
         "and after task 8 EVERY pragma under `src/` that suppresses anything carries "
         "the bracket. MEASURED by applying this mutation to the real gate and "
         "running `--report`: 45 findings under 32 keys across 11 files land in a "
@@ -1264,8 +1287,8 @@ MUTATIONS = [
     Mutation(
         "M10a-drop-same-line-pragma",
         "gate",
-        "  return lineExempts(lines[line - 1] ?? '', kind) || lineExempts(lines[line - 2] ?? '', kind)",
-        "  return lineExempts(lines[line - 2] ?? '', kind)",
+        "  return lineExempts(comments, line, kind) || lineExempts(comments, line - 1, kind)",
+        "  return lineExempts(comments, line - 1, kind)",
         "script",
         ["S-N4-pragma"],
         "R4 requires the escape hatch, so each of its two positions needs a test",
@@ -1273,8 +1296,8 @@ MUTATIONS = [
     Mutation(
         "M10b-drop-line-above-pragma",
         "gate",
-        "  return lineExempts(lines[line - 1] ?? '', kind) || lineExempts(lines[line - 2] ?? '', kind)",
-        "  return lineExempts(lines[line - 1] ?? '', kind)",
+        "  return lineExempts(comments, line, kind) || lineExempts(comments, line - 1, kind)",
+        "  return lineExempts(comments, line, kind)",
         "script",
         [
             "S-N4-pragma",
@@ -1298,8 +1321,8 @@ MUTATIONS = [
         "const EXEMPT_PRAGMA = /(?:^|\\s)\\/\\/\\s*units-exempt(?:\\(([^)]*)\\))?/",
         "script",
         [
-            "S-P22-bare-pragma",
             "S-P52-scoped-pragma-without-reason",
+            "S-P56-scoped-pragma-empty-reason",
         ],
         "the docstring and the failure message both promise a reason. ★ G3b-76 "
         "moved this: it used to be `/units-exempt/`, which made every pragma bare, "
@@ -2108,7 +2131,7 @@ def crossfile_proof() -> list[str]:
         )
         return p.returncode, p.stdout + p.stderr
 
-    HATCH_OFF = ("  return exemptedAtLine(lines, line, kind)", "  return false")
+    HATCH_OFF = ("  return exemptedAtLine(comments, line, kind)", "  return false")
     SINGLE_FILE = (
         "const BINARY_CONVERSION_HELPERS = BINARY_SURFACE.helpers",
         "const BINARY_CONVERSION_HELPERS = deriveBinaryConversionHelpers()",

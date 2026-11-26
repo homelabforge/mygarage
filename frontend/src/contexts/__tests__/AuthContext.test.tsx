@@ -258,6 +258,10 @@ describe('AuthContext', () => {
 
     // Mock logout API call
     mockedApi.post.mockResolvedValueOnce({})
+    // Offline analytics copies, this account's, an old VIN-only one, and something else.
+    localStorage.setItem('analytics-cache-1-V1', '{}')
+    localStorage.setItem('analytics-cache-V1', '{}')
+    localStorage.setItem('vehicle-cache-V1', '{}')
 
     await act(async () => {
       screen.getByText('Logout').click()
@@ -269,6 +273,11 @@ describe('AuthContext', () => {
     })
 
     expect(clearCSRFToken).toHaveBeenCalled()
+    // The next account on this browser mustn't read them offline.
+    expect(localStorage.getItem('analytics-cache-1-V1')).toBeNull()
+    expect(localStorage.getItem('analytics-cache-V1')).toBeNull()
+    expect(localStorage.getItem('vehicle-cache-V1')).toBe('{}')
+    localStorage.clear()
   })
 
   it('register calls API with correct payload', async () => {

@@ -2294,6 +2294,7 @@
   "analytics:vehicle.notFound": "ffdaa3c7:0020a0f4:d",
   "analytics:vehicle.notAvailable": "e2f79e5b:eb34623b:d",
   "analytics:vehicle.offlineCached": "4dd8642f:6f0e1c72:d",
+  "analytics:vehicle.offlineCachedRange": "08a134d0:1099292d:d",
   "analytics:vehicle.fillAllDates": "0f9cdfd9:602ddc1b:d",
   "analytics:vehicle.comparisonFailed": "73f4a6ae:99f323c8:d",
   "analytics:vehicle.costProjection": "9f2aa752:b871fea6:d",

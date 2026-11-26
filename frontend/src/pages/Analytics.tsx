@@ -22,6 +22,8 @@ import {
 import { NON_MOTORIZED_TYPES } from '../schemas/vehicle'
 import { UnitFormatter } from '../utils/units'
 import { withBase } from '../utils/basePath'
+import { analyticsCacheOwner, readCachedAnalytics, rememberAnalytics } from '../utils/analyticsCache'
+import { useAuth } from '../contexts/AuthContext'
 import {
   ArrowLeft,
   TrendingUp,
@@ -105,6 +107,8 @@ type AnomalyRange = '3m' | '6m' | '12m' | 'ytd' | 'all' | 'custom'
 
 /** The window the page opens on, and the only one written to the offline cache. */
 const DEFAULT_ANOMALY_RANGE: AnomalyRange = '12m'
+/** Its label, for the offline banner when a cached copy stands in for another window. */
+const DEFAULT_ANOMALY_RANGE_LABEL = 'vehicle.anomalyRange12m'
 
 /**
  * A month with only financing has no running-cost records. The cost trend line and its
@@ -161,6 +165,8 @@ function AnalyticsContent({
   const { currencyCode, locale } = useCurrencyPreference()
   const currencySymbol = useCurrencySymbol()
   const dateLocale = useDateLocale()
+  const { user, authMode } = useAuth()
+  const cacheOwner = analyticsCacheOwner(authMode, user?.id)
   const [analytics, setAnalytics] = useState<VehicleAnalytics | null>(null)
   const [vendorAnalytics, setVendorAnalytics] = useState<VendorAnalyticsSummary | null>(null)
   const [seasonalAnalytics, setSeasonalAnalytics] = useState<SeasonalAnalyticsSummary | null>(null)
@@ -199,12 +205,10 @@ function AnalyticsContent({
   const fetchAnalytics = useCallback(async () => {
     if (!vin) return
 
-    // One cache entry per vehicle, not per (vehicle, range, start, end). The
-    // per-window key wrote a fresh multi-KB blob on every keystroke in a date
-    // input, never evicted any of them, and orphaned the pre-existing
-    // `analytics-cache-${vin}` entries. This cache exists for the offline
-    // fallback below, so the default window is the only one worth keeping.
-    const cacheKey = `analytics-cache-${vin}`
+    // One cache entry per account and vehicle, not per (vehicle, range, start,
+    // end). The per-window key wrote a fresh multi-KB blob on every keystroke in
+    // a date input and never evicted any of them. This cache exists for the
+    // offline fallback below, so the default window is the only one worth keeping.
     const isDefaultWindow = anomalyRange === DEFAULT_ANOMALY_RANGE
 
     try {
@@ -220,23 +224,16 @@ function AnalyticsContent({
       const data: VehicleAnalytics = response.data
       setAnalytics(data)
       onDistanceUnit({ vin, unit: data.distance_unit ?? null })
-      if (isDefaultWindow) {
-        try {
-          localStorage.setItem(cacheKey, JSON.stringify({ timestamp: Date.now(), data }))
-        } catch {
-          // Quota exceeded on a small device: the cache is a convenience, and
-          // failing to write it must not surface as a load error.
-        }
-      }
+      if (isDefaultWindow) rememberAnalytics(cacheOwner, vin, data)
       setError(null)
     } catch (error) {
       if (!navigator.onLine) {
-        const cached = localStorage.getItem(cacheKey)
+        // Junk in storage reads as no copy, so it lands on the error panel.
+        const cached = readCachedAnalytics(cacheOwner, vin)
         if (cached) {
-          const parsed = JSON.parse(cached)
-          setAnalytics(parsed.data)
+          setAnalytics(cached)
           // A copy cached before distance_unit rode along has none: account units.
-          onDistanceUnit({ vin, unit: parsed.data?.distance_unit ?? null })
+          onDistanceUnit({ vin, unit: cached.distance_unit ?? null })
           // The banner says it's cached. Setting error here hid the whole snapshot
           // behind the error panel.
           setFromCache(true)
@@ -248,7 +245,7 @@ function AnalyticsContent({
     } finally {
       setLoading(false)
     }
-  }, [vin, t, anomalyRange, anomalyStart, anomalyEnd, onDistanceUnit])
+  }, [vin, t, anomalyRange, anomalyStart, anomalyEnd, onDistanceUnit, cacheOwner])
 
   useEffect(() => {
     fetchAnalytics()
@@ -558,7 +555,12 @@ function AnalyticsContent({
         {fromCache && (
           <div className="mt-2 inline-flex items-center gap-2 text-xs text-amber-500">
             <AlertTriangle className="w-4 h-4" />
-            <span>{t('vehicle.offlineCached')}</span>
+            {/* Only the default window is ever cached, so say so when another one is picked. */}
+            <span>
+              {anomalyRange === DEFAULT_ANOMALY_RANGE
+                ? t('vehicle.offlineCached')
+                : t('vehicle.offlineCachedRange', { range: t(DEFAULT_ANOMALY_RANGE_LABEL) })}
+            </span>
           </div>
         )}
       </div>

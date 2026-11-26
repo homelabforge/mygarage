@@ -539,4 +539,13 @@ describe('canonicalFromUnitField', () => {
     const blank: UnitFieldOrigin = { canonical: null, display: '' }
     expect(canonicalFromUnitField(0, blank, u.distance)).toBe(0)
   })
+
+  it('a finite entry that overflows in the conversion is null, not Infinity', () => {
+    const blank: UnitFieldOrigin = { canonical: null, display: '' }
+    const miles = makeUnitFormat(IMPERIAL).distance
+    // 1.5e308 is finite, and times 1.609344 it isn't.
+    expect(miles.toCanonical(1.5e308)).toBe(Number.POSITIVE_INFINITY)
+    expect(canonicalFromUnitField('1.5e308', blank, miles)).toBeNull()
+    expect(canonicalFromUnitField(1.5e308, blank, miles)).toBeNull()
+  })
 })

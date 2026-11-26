@@ -166,6 +166,7 @@
     "notFound": "Analytics not found",
     "notAvailable": "N/A",
     "offlineCached": "Offline: showing cached analytics snapshot.",
+    "offlineCachedRange": "Offline: showing the cached analytics snapshot ({{range}}).",
     "fillAllDates": "Please fill in all date fields",
     "comparisonFailed": "Failed to fetch comparison data",
     "costProjection": "Cost Projection",

@@ -204,6 +204,10 @@ describe('formatPricePerUnit, the list columns\' one price formatter', () => {
     expect(formatPricePerUnit(null, US, 'per_volume', money)).toBe('-')
     expect(formatPricePerUnit(undefined, US, 'per_volume', money)).toBe('-')
     expect(formatPricePerUnit(0, US, 'per_volume', money)).toBe('-')
+    // Junk text and a non-finite number read as no price too.
+    expect(formatPricePerUnit('garbage', US, 'per_volume', money)).toBe('-')
+    expect(formatPricePerUnit('Infinity', US, 'per_volume', money)).toBe('-')
+    expect(formatPricePerUnit(Number.POSITIVE_INFINITY, UK, 'per_volume', money)).toBe('-')
   })
 })
 

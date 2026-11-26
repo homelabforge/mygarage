@@ -7,6 +7,7 @@ import type { UnitSet } from '../types/units'
 import { readPublicUnitDefaults, type PublicSetting } from '../utils/publicUnitDefaults'
 import { readPublicDefaultCountry } from '../utils/publicCountryDefault'
 import { setHouseholdTimeZone } from '../constants/i18n'
+import { forgetAllAnalytics } from '../utils/analyticsCache'
 
 /**
  * The user shape comes from the generated schema, not from a hand-maintained
@@ -115,6 +116,8 @@ export function AuthProvider({ children }: { children: ReactNode}) {
     setToken(null)
     setUser(null)
     clearCSRFToken() // Clear CSRF token on logout (Security Enhancement v2.10.0)
+    // The next account on this browser mustn't find this one's offline analytics.
+    forgetAllAnalytics()
   }, [user])
 
   // The mode the client last loaded, so a background refresh can spot a change.

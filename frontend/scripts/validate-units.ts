@@ -233,8 +233,19 @@ interface TsNode {
   /** An import specifier's ORIGINAL name when it was imported under an alias. */
   propertyName?: TsNode
   modifiers?: { kind: number }[]
+  /** Full start (leading trivia included) and end, for the comment walk. */
+  pos: number
+  end: number
   getText: (source?: TsSourceFile) => string
   getStart: (source?: TsSourceFile) => number
+  /** Every child INCLUDING tokens, which `forEachChild` skips. */
+  getChildren: (source?: TsSourceFile) => TsNode[]
+}
+
+interface TsCommentRange {
+  pos: number
+  end: number
+  kind: number
 }
 
 interface TsDiagnostic {
@@ -264,6 +275,8 @@ interface TsApi {
     kind: number,
   ) => TsSourceFile
   forEachChild: (node: TsNode, cb: (child: TsNode) => void) => void
+  getLeadingCommentRanges: (text: string, pos: number) => TsCommentRange[] | undefined
+  getTrailingCommentRanges: (text: string, pos: number) => TsCommentRange[] | undefined
 }
 
 function loadTypeScript(): TsApi {
@@ -412,20 +425,82 @@ const NAMEABLE_KINDS: ReadonlySet<string> = new Set(
 const EXEMPT_PRAGMA = /(?:^|\s)\/\/\s*units-exempt(?:\(([^)]*)\))?:\s*\S/
 
 /**
- * The pragma on one line, or null when there isn't one.
+ * Any spelling of the marker at all. A `//` comment that has it but doesn't
+ * match `EXEMPT_PRAGMA` (no colon, nothing after the colon) is a malformed
+ * pragma, and it's reported rather than ignored (R1-M4, F-3).
+ */
+const PRAGMA_MARKER = /units-exempt\b/
+
+/** The `//` comments of one source, as their text, by every 1-based line each covers. */
+type LineComments = ReadonlyMap<number, readonly string[]>
+
+const commentsBySource = new WeakMap<TsSourceFile, LineComments>()
+
+/**
+ * Every real `//` comment in a source, from the parser's own comment ranges.
+ *
+ * ★ NOT A REGEX OVER RAW LINES. That read pragma-shaped text inside a string
+ * or a template literal as a comment, and a JSDoc line DESCRIBING the hatch as
+ * the hatch (`utils/units.ts` has two, inert only because a backtick sat
+ * before the `//`). Walking every node and token and asking for its leading and
+ * trailing comment ranges sees only what the parser calls a comment. JSX text
+ * is skipped: `<p>// hi</p>` is text, and the scan at a JsxText's edges would
+ * read it as one. A block comment is never a pragma.
  *
  * Shared by `lineExempts` and the `bare-pragma` check in `scanSource`, so the
  * two can't disagree about what counts as a pragma.
  */
-function pragmaOn(line: string): RegExpExecArray | null {
-  // ★ A LINE THAT MERELY MENTIONS THE PRAGMA IS NOT ONE. `EXEMPT_PRAGMA` allows
-  // any whitespace before the `//`, so a JSDoc continuation line DESCRIBING the
-  // hatch exempted whatever came after it. `utils/units.ts` has two such lines
-  // and they were inert only because a backtick happens to sit before the `//`
-  // in both, which is luck rather than a rule. A `*` in the leading whitespace
-  // is a block comment's continuation and cannot be a line comment.
-  if (/^\s*\*/.test(line)) return null
-  return EXEMPT_PRAGMA.exec(line)
+function sourceComments(source: TsSourceFile): LineComments {
+  const cached = commentsBySource.get(source)
+  if (cached !== undefined) return cached
+  if (typeof source.text !== 'string') {
+    throw new Error(
+      'this TypeScript build exposes no SourceFile.text, so the line lookup behind ' +
+        'every `// units-exempt(<kind>):` pragma would silently read the wrong lines. ' +
+        'Refusing to run.',
+    )
+  }
+  if (typeof ts.getLeadingCommentRanges !== 'function' || typeof ts.getTrailingCommentRanges !== 'function') {
+    throw new Error(
+      'this TypeScript build exposes no comment ranges, so no pragma could be found ' +
+        'and every one would silently stop working. Refusing to run.',
+    )
+  }
+  const text = source.text
+  const ranges = new Map<number, TsCommentRange>()
+  const jsxText: TsNode[] = []
+  const take = (found: TsCommentRange[] | undefined): void => {
+    for (const range of found ?? []) ranges.set(range.pos, range)
+  }
+  const visit = (node: TsNode): void => {
+    if (node.kind === ts.SyntaxKind.JsxText) {
+      jsxText.push(node)
+      return
+    }
+    take(ts.getLeadingCommentRanges(text, node.pos))
+    take(ts.getTrailingCommentRanges(text, node.end))
+    for (const child of node.getChildren(source)) visit(child)
+  }
+  visit(source)
+  const byLine = new Map<number, string[]>()
+  for (const range of ranges.values()) {
+    if (range.kind !== ts.SyntaxKind.SingleLineCommentTrivia) continue
+    if (jsxText.some((node) => range.pos >= node.pos && range.pos < node.end)) continue
+    const first = source.getLineAndCharacterOfPosition(range.pos).line + 1
+    const last = source.getLineAndCharacterOfPosition(range.end).line + 1
+    for (let line = first; line <= last; line++) {
+      const list = byLine.get(line) ?? []
+      list.push(text.slice(range.pos, range.end))
+      byLine.set(line, list)
+    }
+  }
+  commentsBySource.set(source, byLine)
+  return byLine
+}
+
+/** The pragma in one comment, or null when it isn't a well-formed one. */
+function pragmaOn(comment: string): RegExpExecArray | null {
+  return EXEMPT_PRAGMA.exec(comment)
 }
 
 /**
@@ -441,13 +516,18 @@ function pragmaKinds(match: RegExpExecArray): string[] | null {
   return kinds
 }
 
-/** True when one line's pragma covers this finding kind. */
-function lineExempts(line: string, kind: string): boolean {
-  const match = pragmaOn(line)
+/** True when one comment's pragma covers this finding kind. */
+function commentExempts(comment: string, kind: string): boolean {
+  const match = pragmaOn(comment)
   if (match === null) return false
   const kinds = pragmaKinds(match)
   if (kinds === null) return false
   return kinds.includes(kind)
+}
+
+/** True when a comment on one line covers this finding kind. */
+function lineExempts(comments: LineComments, line: number, kind: string): boolean {
+  return (comments.get(line) ?? []).some((comment) => commentExempts(comment, kind))
 }
 
 /**
@@ -458,32 +538,8 @@ function lineExempts(line: string, kind: string): boolean {
  * as one function is what stops the two drifting into two different escape
  * hatches with one name.
  */
-function exemptedAtLine(lines: string[], line: number, kind: string): boolean {
-  return lineExempts(lines[line - 1] ?? '', kind) || lineExempts(lines[line - 2] ?? '', kind)
-}
-
-/**
- * The WHOLE text of a parsed source, as lines.
- *
- * ★ NOT `source.getText()`, and the difference is not cosmetic. `getText()` on
- * a node returns the text from its `getStart()` to its end, and a SourceFile's
- * start is AFTER its leading trivia, so on a module opening with a docstring it
- * silently returns fewer lines than the file has: `supplyUnits.ts` gave 82 for
- * a 140-line file. Every line lookup was then off by the size of the header and
- * two of the three declaration exemptions below did not fire, while the third
- * did, which is the shape of bug that gets shipped. `text` is the source's own
- * full string and is checked rather than defaulted, because a build that did
- * not expose it would put the offset back without a word.
- */
-function sourceLines(source: TsSourceFile): string[] {
-  if (typeof source.text !== 'string') {
-    throw new Error(
-      'this TypeScript build exposes no SourceFile.text, so the line lookup behind ' +
-        'every `// units-exempt:` pragma would silently read the wrong lines. Refusing ' +
-        'to run.',
-    )
-  }
-  return source.text.split('\n')
+function exemptedAtLine(comments: LineComments, line: number, kind: string): boolean {
+  return lineExempts(comments, line, kind) || lineExempts(comments, line - 1, kind)
 }
 
 /**
@@ -511,11 +567,11 @@ function sourceLines(source: TsSourceFile): string[] {
 function declarationExempt(
   node: TsNode,
   source: TsSourceFile,
-  lines: string[],
+  comments: LineComments,
   kind: string,
 ): boolean {
   const line = source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1
-  return exemptedAtLine(lines, line, kind)
+  return exemptedAtLine(comments, line, kind)
 }
 
 // ---------------------------------------------------------------------------
@@ -812,7 +868,7 @@ function formatterMethodsIn(
   onlyClass: string | null,
 ): { binary: Set<string>; statics: Set<string>; exempt: Set<string> } {
   const ctx = binaryTypeContext(source)
-  const lines = sourceLines(source)
+  const comments = sourceComments(source)
   const binary = new Set<string>()
   const statics = new Set<string>()
   const exempt = new Set<string>()
@@ -831,7 +887,7 @@ function formatterMethodsIn(
         // receiver requirement already matches both.
         if (isStatic(member)) statics.add(member.name.getText(source))
         if (!takesBinarySystem(member, source, ctx)) continue
-        if (declarationExempt(member, source, lines, 'formatter-binary'))
+        if (declarationExempt(member, source, comments, 'formatter-binary'))
           exempt.add(member.name.getText(source))
         else binary.add(member.name.getText(source))
       }
@@ -937,7 +993,7 @@ interface BinarySurface {
  * over, exactly as the precondition predicted, and it was invisible to every
  * leg of this gate for the whole of phase 3b. It is ruled (R3, deferred
  * pending the D8 amendment) rather than repaired, and the ruling is recorded
- * at the three declarations with `// units-exempt:` so the fifteen sites do
+ * at the three declarations with `// units-exempt(binary-conversion):` so the fifteen sites do
  * not each need their own copy of it. See `declarationExempt`.
  *
  * The formatter leg gets the same widening in the same walk. It adds nothing
@@ -1153,7 +1209,7 @@ function conversionHelpersIn(source: TsSourceFile): {
   exemptExported: Set<string>
 } {
   const ctx = binaryTypeContext(source)
-  const lines = sourceLines(source)
+  const comments = sourceComments(source)
   const exportedBinary = new Set<string>()
   const localBinary = new Set<string>()
   const exported = new Set<string>()
@@ -1162,7 +1218,7 @@ function conversionHelpersIn(source: TsSourceFile): {
   for (const decl of helperDeclarationsIn(source)) {
     if (decl.exported) exported.add(decl.name)
     if (!takesBinarySystem(decl.signature, source, ctx)) continue
-    if (declarationExempt(decl.anchor, source, lines, 'binary-conversion')) {
+    if (declarationExempt(decl.anchor, source, comments, 'binary-conversion')) {
       exempt.add(decl.name)
       if (decl.exported) exemptExported.add(decl.name)
       continue
@@ -1783,7 +1839,7 @@ export function scanSource(source: string, rel: string): Finding[] {
     ...BINARY_FORMATTER_METHODS,
     ...formatterMethodsIn(sf, null).binary,
   ])
-  const lines = source.split('\n')
+  const comments = sourceComments(sf)
   const index = indexDeclarations(sf)
   const findings: Finding[] = []
 
@@ -1800,8 +1856,9 @@ export function scanSource(source: string, rel: string): Finding[] {
     const line =
       typeof at === 'number' ? at : sf.getLineAndCharacterOfPosition(at.getStart(sf)).line + 1
     // Escape hatch: the offending line or the line directly above it, and it
-    // has to name this kind. A `bare-pragma` finding is never exempt.
-    if (kind_ !== 'bare-pragma' && exemptedAtLine(lines, line, kind_)) {
+    // has to name this kind. A `bare-pragma` finding is never exempt, because
+    // `bare-pragma` isn't in NAMEABLE_KINDS.
+    if (exemptedAtLine(comments, line, kind_)) {
       exemptedFindings += 1
       const key = `${rel}::${kind_}`
       pragmaSuppressed.set(key, (pragmaSuppressed.get(key) ?? 0) + 1)
@@ -1812,11 +1869,16 @@ export function scanSource(source: string, rel: string): Finding[] {
 
   // ★ G3b-76: a pragma with no kind, or one this gate doesn't have, is refused
   // on sight. It exempts nothing, and leaving it unreported would let it sit
-  // there looking live. Lives here so `--scan` and the tree walk both see it.
-  lines.forEach((text, i) => {
-    const pragma = pragmaOn(text)
-    if (pragma !== null && pragmaKinds(pragma) === null) {
-      record(i + 1, 'bare-pragma', normalize(text))
+  // there looking live. So is one with no colon or no reason (R1-M4): anything
+  // with the marker that isn't a well-formed pragma. Lives here so `--scan` and
+  // the tree walk both see it.
+  comments.forEach((texts, line) => {
+    for (const text of texts) {
+      if (!PRAGMA_MARKER.test(text)) continue
+      const pragma = pragmaOn(text)
+      if (pragma === null || pragmaKinds(pragma) === null) {
+        record(line, 'bare-pragma', normalize(text))
+      }
     }
   })
 

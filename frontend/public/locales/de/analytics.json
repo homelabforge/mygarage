@@ -166,6 +166,7 @@
     "notFound": "Analysen nicht gefunden",
     "notAvailable": "k. A.",
     "offlineCached": "Offline: Es wird eine zwischengespeicherte Momentaufnahme der Analyse angezeigt.",
+    "offlineCachedRange": "Offline: Es wird eine zwischengespeicherte Momentaufnahme der Analyse angezeigt ({{range}}).",
     "fillAllDates": "Bitte fülle alle Datumsfelder aus",
     "comparisonFailed": "Vergleichsdaten konnten nicht geladen werden",
     "costProjection": "Kostenprognose",

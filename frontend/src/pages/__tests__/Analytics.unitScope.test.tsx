@@ -64,12 +64,15 @@ vi.mock('react-i18next', () => {
   }
 })
 
-// The real unit hooks run against a metric account.
+// The real unit hooks run against a metric account. `user` is swapped per test
+// for the account-switch case.
 const authValue = {
-  user: { unit_preference: 'metric', show_both_units: false, resolved_units: METRIC_UNITS },
+  user: { id: 1, unit_preference: 'metric', show_both_units: false, resolved_units: METRIC_UNITS },
   isAuthenticated: true,
   defaultUnitPrefs: null,
+  authMode: 'local',
 }
+const USER_A = authValue.user
 vi.mock('../../contexts/AuthContext', () => ({ useAuth: () => authValue }))
 vi.mock('../../hooks/useCurrencyPreference', () => ({
   useCurrencyPreference: () => ({ currencyCode: 'USD', locale: 'en-US' }),
@@ -182,6 +185,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   localStorage.clear()
   setOnline(true)
+  authValue.user = USER_A
 })
 
 afterEach(() => {
@@ -216,7 +220,7 @@ describe('Analytics: the vehicle unit comes from the analytics response', () => 
     mockedApiGet.mockRejectedValue(new Error('offline'))
     setOnline(false)
     localStorage.setItem(
-      'analytics-cache-V1',
+      'analytics-cache-1-V1',
       JSON.stringify({ timestamp: Date.now(), data: baseAnalytics({ distance_unit: 'mi' }) }),
     )
     renderAt('V1')
@@ -231,7 +235,7 @@ describe('Analytics: the vehicle unit comes from the analytics response', () => 
     setOnline(false)
     // Written before distance_unit rode along, so the key is missing outright.
     const { distance_unit: _dropped, ...legacy } = baseAnalytics()
-    localStorage.setItem('analytics-cache-V1', JSON.stringify({ timestamp: Date.now(), data: legacy }))
+    localStorage.setItem('analytics-cache-1-V1', JSON.stringify({ timestamp: Date.now(), data: legacy }))
     renderAt('V1')
 
     expect(await screen.findByText(KM_LINE)).toBeInTheDocument()
@@ -272,5 +276,86 @@ describe('Analytics: the vehicle unit comes from the analytics response', () => 
     expect(screen.getByText(MI_LINE)).toBeInTheDocument()
     expect(screen.queryByText(KM_LINE)).not.toBeInTheDocument()
     expect(screen.queryByText(/vehicle\.distanceDriven \(1,000 km\)/)).not.toBeInTheDocument()
+  })
+})
+
+describe('Analytics: the offline copy belongs to one account', () => {
+  const ERROR_PANEL = 'vehicle.loadAction'
+
+  function goOffline(): void {
+    mockedApiGet.mockRejectedValue(new Error('offline'))
+    setOnline(false)
+  }
+
+  it("online, the copy is written under the account's own key", async () => {
+    respondWith(baseAnalytics({ distance_unit: 'mi' }))
+    renderAt('V1')
+
+    expect(await screen.findByText(MI_LINE)).toBeInTheDocument()
+    expect(localStorage.getItem('analytics-cache-1-V1')).not.toBeNull()
+    expect(localStorage.getItem('analytics-cache-V1')).toBeNull()
+  })
+
+  it("another account on the same browser doesn't get it", async () => {
+    // Account 1 loads it online, which writes the copy.
+    respondWith(baseAnalytics({ distance_unit: 'mi' }))
+    renderAt('V1')
+    expect(await screen.findByText(MI_LINE)).toBeInTheDocument()
+    cleanup()
+
+    // Account 2 opens the same VIN offline.
+    goOffline()
+    authValue.user = { ...USER_A, id: 2 }
+    renderAt('V1')
+
+    expect(await screen.findByText(new RegExp(ERROR_PANEL))).toBeInTheDocument()
+    expect(screen.queryByText(MI_LINE)).not.toBeInTheDocument()
+    expect(screen.queryByText('vehicle.offlineCached')).not.toBeInTheDocument()
+  })
+
+  it('an old copy keyed by VIN alone is never read', async () => {
+    goOffline()
+    localStorage.setItem(
+      'analytics-cache-V1',
+      JSON.stringify({ timestamp: Date.now(), data: baseAnalytics({ distance_unit: 'mi' }) }),
+    )
+    renderAt('V1')
+
+    expect(await screen.findByText(new RegExp(ERROR_PANEL))).toBeInTheDocument()
+    expect(screen.queryByText(MI_LINE)).not.toBeInTheDocument()
+  })
+
+  it('a corrupt copy shows the error panel and throws nothing', async () => {
+    goOffline()
+    localStorage.setItem('analytics-cache-1-V1', '{not json')
+    const unhandled = vi.fn()
+    window.addEventListener('unhandledrejection', unhandled)
+    try {
+      renderAt('V1')
+
+      expect(await screen.findByText(new RegExp(ERROR_PANEL))).toBeInTheDocument()
+      expect(screen.queryByRole('status')).not.toBeInTheDocument()
+      // Give a stray rejection a turn to surface before checking for one.
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      })
+      expect(unhandled).not.toHaveBeenCalled()
+    } finally {
+      window.removeEventListener('unhandledrejection', unhandled)
+    }
+  })
+
+  it('picked away from the cached window, the banner says which window it holds', async () => {
+    respondWith(baseAnalytics())
+    renderAt('V1')
+    expect(await screen.findByText(KM_LINE)).toBeInTheDocument()
+
+    goOffline()
+    fireEvent.change(screen.getByLabelText('vehicle.anomalyRange'), { target: { value: '3m' } })
+
+    expect(
+      await screen.findByText('vehicle.offlineCachedRange (vehicle.anomalyRange12m)'),
+    ).toBeInTheDocument()
+    expect(screen.queryByText('vehicle.offlineCached')).not.toBeInTheDocument()
   })
 })

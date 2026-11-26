@@ -60,6 +60,8 @@ vi.mock('../../hooks/useUnitPreference', () => {
   return { useUnitPreference: pref, useAccountUnitPreference: pref }
 })
 // The reporter's configuration: Polish złoty.
+// The page files its offline copy under the signed-in account.
+vi.mock('../../contexts/AuthContext', () => ({ useAuth: () => ({ user: { id: 1 }, authMode: 'local' }) }))
 vi.mock('../../hooks/useCurrencyPreference', () => ({
   useCurrencyPreference: () => ({ currencyCode: 'PLN', locale: 'pl-PL' }),
 }))

@@ -166,6 +166,7 @@
     "notFound": "Analyses introuvables",
     "notAvailable": "N/D",
     "offlineCached": "Hors ligne : affichage d’un instantané des analyses mis en cache.",
+    "offlineCachedRange": "Hors ligne : affichage d’un instantané des analyses mis en cache ({{range}}).",
     "fillAllDates": "Veuillez remplir tous les champs de date",
     "comparisonFailed": "Échec de la récupération des données de comparaison",
     "costProjection": "Projection des coûts",

@@ -68,6 +68,8 @@ vi.mock('../../hooks/useUnitPreference', () => ({
 }))
 // Mutable so the rate-digits test can read the page in yen.
 const currencyMock = vi.hoisted(() => ({ code: 'USD' }))
+// The page files its offline copy under the signed-in account.
+vi.mock('../../contexts/AuthContext', () => ({ useAuth: () => ({ user: { id: 1 }, authMode: 'local' }) }))
 vi.mock('../../hooks/useCurrencyPreference', () => ({
   useCurrencyPreference: () => ({ currencyCode: currencyMock.code, locale: 'en-US' }),
 }))

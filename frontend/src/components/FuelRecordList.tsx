@@ -294,7 +294,7 @@ export default function FuelRecordList({ vin, onAddClick, onEditClick }: FuelRec
       render: (r: FuelRecord) =>
         r.octane != null ? (r.octane_scale ? `${r.octane} ${r.octane_scale}` : String(r.octane)) : '-',
     }] : []),
-    // B8: generic truthful header — the row value already respects every price_basis
+    // B8: generic truthful header. The row value already respects every price_basis
     // via formatPricePerUnit(…, r.price_basis), so a volume-only "Price/L" heading would
     // lie for per_weight/per_kwh/per_tank rows. "Unit price" is honest across all four.
     { id: 'price', header: t('fuelList.unitPrice'), align: 'right', mono: true,

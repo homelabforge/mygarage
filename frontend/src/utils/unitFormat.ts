@@ -731,7 +731,10 @@ export function canonicalFromUnitField(
   if (unitFieldUnchanged(text, origin)) return origin.canonical
   if (text.trim() === '') return null
   const value = Number(text)
-  return Number.isFinite(value) ? quantity.toCanonical(value) : null
+  if (!Number.isFinite(value)) return null
+  // A finite entry can still overflow on the way: 1e308 mi is Infinity km.
+  const out = quantity.toCanonical(value)
+  return out !== null && Number.isFinite(out) ? out : null
 }
 
 /**

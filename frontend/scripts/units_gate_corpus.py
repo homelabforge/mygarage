@@ -457,10 +457,13 @@ SCRIPT_POSITIVE = [
         "  // units-exempt\n"
         "  return system === 'imperial' ? 'mi' : 'km'\n"
         "}\n",
-        1,
-        "compare",
-        "the docstring and the failure message both promise a reason, so a bare marker cannot silence",
-        "M32-pragma-without-reason",
+        2,
+        why="the docstring and the failure message both promise a reason, so a bare "
+        "marker cannot silence. ★ It used to sit there unreported too, because only "
+        "the colon form counted as a pragma at all. Any comment with the marker "
+        "that isn't well formed is a `bare-pragma` now (R1-M4).",
+        pinned_by="M88-only-the-colon-form-is-a-marker",
+        expect_kinds=("bare-pragma", "compare"),
     ),
     Case(
         "S-P23-string-union",
@@ -1026,12 +1029,30 @@ SCRIPT_POSITIVE = [
         "  // units-exempt(compare)\n"
         "  return system === 'imperial' ? 'mi' : 'km'\n"
         "}\n",
-        1,
-        "compare",
-        "the reason is still required once the kind is. S-P22 used to pin that "
+        2,
+        why="the reason is still required once the kind is. S-P22 used to pin that "
         "with a bare marker, but a bare marker can't silence anything now, so "
-        "this is the shape the reason rule actually guards.",
-        "M32-pragma-without-reason",
+        "this is the shape the reason rule actually guards. ★ And it's reported: "
+        "with no colon it was neither honoured nor named (R1-M4, F-3).",
+        pinned_by="M32-pragma-without-reason / M88-only-the-colon-form-is-a-marker",
+        # The pragma's own text says `compare`, so the compare finding is pinned
+        # by its expression.
+        expect_kinds=("bare-pragma", "compare system"),
+    ),
+    Case(
+        "S-P56-scoped-pragma-empty-reason",
+        HOOK_IMPORT + "export function label(): string {\n"
+        "  const { system } = useUnitPreference()\n"
+        "  // units-exempt(compare):\n"
+        "  return system === 'imperial' ? 'mi' : 'km'\n"
+        "}\n",
+        2,
+        why="the colon is there and the reason isn't. It silences nothing, and "
+        "it's reported rather than left looking live (R1-M4, F-3).",
+        pinned_by="M32-pragma-without-reason",
+        # The pragma's own text says `compare`, so the compare finding is pinned
+        # by its expression.
+        expect_kinds=("bare-pragma", "compare system"),
     ),
     Case(
         "S-P53-empty-kind-list",
@@ -1359,6 +1380,20 @@ SCRIPT_NEGATIVE = [
         "both, which is luck rather than a rule. Prose about a guard must not be "
         "the guard.",
         "M82-docstring-mention-is-a-pragma",
+        ext=".ts",
+    ),
+    Case(
+        "S-N23-pragma-text-inside-a-string",
+        "export function hint(km: number): string {\n"
+        "  const how = 'park it with // units-exempt: a reason'\n"
+        "  return `${how} or // units-exempt(compare) ${km}`\n"
+        "}\n",
+        0,
+        why="★ a string isn't a comment. The bare-pragma check used to read raw "
+        "lines, so pragma-shaped text in a string or a template literal failed "
+        "the gate as a malformed pragma (R1-M4). It reads the parser's comments "
+        "now, the same ones the hatch honours.",
+        pinned_by="M89-scan-raw-lines-for-pragmas",
         ext=".ts",
     ),
     Case(
