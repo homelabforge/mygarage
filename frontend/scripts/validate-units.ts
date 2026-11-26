@@ -152,7 +152,8 @@
  * `// units-exempt: <reason>` form used to silence EVERY kind on its line,
  * including ones nobody thought about when they wrote the reason, and after the
  * clean-room flip this pragma is the only suppression the gate has left. So now
- * a bare one exempts nothing and is a `bare-pragma` finding of its own (G3b-76).
+ * one with no kind, or a kind this gate doesn't have, exempts nothing and is a
+ * `bare-pragma` finding of its own (G3b-76).
  * On a binary DECLARATION the kind is `binary-conversion` or `formatter-binary`,
  * and that one line silences every call site of it in every module: see
  * `declarationExempt`.
@@ -344,6 +345,40 @@ const LITERAL_KINDS = new Set([
 ])
 
 /**
+ * Every kind this gate can report, declared once so the claim can count them.
+ *
+ * ★ THE SUCCESS LINE USED TO SAY "five detectors" AS A WORD. That is the defect
+ * this file's own header records against itself two screens up: an earlier
+ * version said "~53" while the baseline twelve lines away said 43. A number in
+ * the gate's central claim is the worst place in the repo for one, because it is
+ * the sentence people quote and the one nothing was checking.
+ *
+ * So the count is `FINDING_KINDS.length` and `record()` refuses a kind that is
+ * not in here, which makes a sixth leg register itself or fail loudly on its
+ * first finding. `units_gate_selftest.py`'s clean-room proof reads the kinds
+ * back out of the `record(...)` CALL SITES independently and asserts the two
+ * agree, so neither half can drift alone, and it demands a corpus positive for
+ * each one.
+ */
+const FINDING_KINDS = [
+  'compare',
+  'switch-case',
+  'formatter-binary',
+  'binary-conversion',
+  'token-branch',
+  'bare-pragma',
+] as const
+
+/**
+ * What a pragma may name. Not `bare-pragma`: a refused pragma can't excuse
+ * another. Both lists sit up here because module-load code already reaches
+ * `lineExempts` through the declaration hatch.
+ */
+const NAMEABLE_KINDS: ReadonlySet<string> = new Set(
+  FINDING_KINDS.filter((k) => k !== 'bare-pragma'),
+)
+
+/**
  * The escape hatch. It must carry a reason, and it must name the kinds it covers.
  *
  * Round 1 tested `line.includes('units-exempt')`, so a bare marker with no
@@ -351,7 +386,7 @@ const LITERAL_KINDS = new Set([
  * both promised "with the reason". Requiring the comment introducer and a
  * colon also stops the marker matching inside an ordinary string literal.
  *
- * ★ THE OPTIONAL KIND LIST IS TASK 8'S, AND THE OBJECTION IT ANSWERS IS ON THE
+ * ★ THE KIND LIST IS TASK 8'S, AND THE OBJECTION IT ANSWERS IS ON THE
  * RECORD. `units.manifest.json` asked for the three `SettingsSystemTab`
  * comparisons to be exempted "structurally or by exact match in the gate rather
  * than with a reason-bearing pragma, which silences anything", and it was right
@@ -363,12 +398,9 @@ const LITERAL_KINDS = new Set([
  * `// units-exempt(compare): reason` silences the comparison leg on that line
  * and nothing else, so a token branch added beside it is still reported.
  *
- * ★ THE BARE FORM IS REFUSED (G3b-76). Task 8 kept it "for a site that genuinely
- * wants it", which left the manifest's objection standing for anyone who typed
- * the shorter spelling. It now exempts nothing, and `scanSource` reports it as a
- * `bare-pragma` finding so it can't sit there looking like it works. Still
- * matched here rather than dropped from the regex, because a pragma the gate
- * can't see is one it can't refuse.
+ * ★ NO KIND, OR A KIND THIS GATE DOESN'T HAVE, IS REFUSED (G3b-76). It exempts
+ * nothing and `scanSource` reports it as `bare-pragma`, so it can't sit there
+ * looking live. `bare-pragma` itself can't be named: that finding is never exempt.
  *
  * ★ WHY NOT the exact-match table the manifest offered as the alternative: a
  * table of (file, kind, text) inside the gate is a baseline under another name,
@@ -396,14 +428,26 @@ function pragmaOn(line: string): RegExpExecArray | null {
   return EXEMPT_PRAGMA.exec(line)
 }
 
+/**
+ * The kinds a pragma names, or null when it can't be honoured: no list, an
+ * empty one, or any kind outside `NAMEABLE_KINDS`. A null here exempts nothing
+ * and is a `bare-pragma` finding.
+ */
+function pragmaKinds(match: RegExpExecArray): string[] | null {
+  const scope = match[1]
+  if (scope === undefined) return null
+  const kinds = scope.split(',').map((k) => k.trim())
+  if (kinds.some((k) => !NAMEABLE_KINDS.has(k))) return null
+  return kinds
+}
+
 /** True when one line's pragma covers this finding kind. */
 function lineExempts(line: string, kind: string): boolean {
   const match = pragmaOn(line)
   if (match === null) return false
-  const scope = match[1]
-  // A bare pragma exempts nothing; scanSource reports it instead.
-  if (scope === undefined) return false
-  return scope.split(',').map((k) => k.trim()).includes(kind)
+  const kinds = pragmaKinds(match)
+  if (kinds === null) return false
+  return kinds.includes(kind)
 }
 
 /**
@@ -1254,31 +1298,6 @@ export interface Finding {
 }
 
 /**
- * Every kind this gate can report, declared once so the claim can count them.
- *
- * ★ THE SUCCESS LINE USED TO SAY "five detectors" AS A WORD. That is the defect
- * this file's own header records against itself two screens up: an earlier
- * version said "~53" while the baseline twelve lines away said 43. A number in
- * the gate's central claim is the worst place in the repo for one, because it is
- * the sentence people quote and the one nothing was checking.
- *
- * So the count is `FINDING_KINDS.length` and `record()` refuses a kind that is
- * not in here, which makes a sixth leg register itself or fail loudly on its
- * first finding. `units_gate_selftest.py`'s clean-room proof reads the kinds
- * back out of the `record(...)` CALL SITES independently and asserts the two
- * agree, so neither half can drift alone, and it demands a corpus positive for
- * each one.
- */
-const FINDING_KINDS = [
-  'compare',
-  'switch-case',
-  'formatter-binary',
-  'binary-conversion',
-  'token-branch',
-  'bare-pragma',
-] as const
-
-/**
  * How many findings a `// units-exempt(<kind>):` pragma removed on this run.
  *
  * ★ Counted rather than described, because after the flip the pragma is the
@@ -1781,8 +1800,8 @@ export function scanSource(source: string, rel: string): Finding[] {
     const line =
       typeof at === 'number' ? at : sf.getLineAndCharacterOfPosition(at.getStart(sf)).line + 1
     // Escape hatch: the offending line or the line directly above it, and it
-    // has to name this kind. A bare one names none and exempts nothing.
-    if (exemptedAtLine(lines, line, kind_)) {
+    // has to name this kind. A `bare-pragma` finding is never exempt.
+    if (kind_ !== 'bare-pragma' && exemptedAtLine(lines, line, kind_)) {
       exemptedFindings += 1
       const key = `${rel}::${kind_}`
       pragmaSuppressed.set(key, (pragmaSuppressed.get(key) ?? 0) + 1)
@@ -1791,12 +1810,14 @@ export function scanSource(source: string, rel: string): Finding[] {
     findings.push({ file: rel, line, kind: kind_, text })
   }
 
-  // ★ G3b-76: a bare `// units-exempt: <reason>` is refused on sight. It
-  // exempts nothing now, and leaving it unreported would let it sit there
-  // looking like it works. Lives here so `--scan` and the tree walk both see it.
+  // ★ G3b-76: a pragma with no kind, or one this gate doesn't have, is refused
+  // on sight. It exempts nothing, and leaving it unreported would let it sit
+  // there looking live. Lives here so `--scan` and the tree walk both see it.
   lines.forEach((text, i) => {
     const pragma = pragmaOn(text)
-    if (pragma !== null && pragma[1] === undefined) record(i + 1, 'bare-pragma', normalize(text))
+    if (pragma !== null && pragmaKinds(pragma) === null) {
+      record(i + 1, 'bare-pragma', normalize(text))
+    }
   })
 
   const walk = (node: TsNode): void => {
@@ -2170,7 +2191,10 @@ function main(): void {
         '                       not reconvert the rounded display value.\n' +
         '  [token-branch]       a resolved token read as a proxy for a whole system.\n' +
         '                       Read the quantity you actually mean: deriving the\n' +
-        '                       distance half from units.volume is the defect.\n\n' +
+        '                       distance half from units.volume is the defect.\n' +
+        '  [bare-pragma]        a units-exempt with no kind, or a kind this gate does\n' +
+        '                       not have. It exempts nothing. Name the kind(s) the\n' +
+        '                       line actually trips, or delete it.\n\n' +
         'This gate is CLEAN-ROOM: there is no baseline to record a finding in, and\n' +
         '--update refuses to write one. The pragma is the only suppression there is,\n' +
         'it has to name the kind above, and every run counts how many sites use it.\n',

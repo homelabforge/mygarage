@@ -193,6 +193,8 @@ MUTATIONS = [
             "S-P5-switch",
             "S-P51-bare-pragma-silences-nothing",
             "S-P52-scoped-pragma-without-reason",
+            "S-P53-empty-kind-list",
+            "S-P54-misspelled-kind",
             "S-P6-aliased-boolean",
             "S-P7-destructuring-rename",
             "S-P8-resolvedSystem",
@@ -389,6 +391,9 @@ MUTATIONS = [
             "S-P20-multiline",
             "S-P50-bare-pragma-refused",
             "S-P51-bare-pragma-silences-nothing",
+            "S-P53-empty-kind-list",
+            "S-P54-misspelled-kind",
+            "S-P55-bare-pragma-not-exemptable",
         ],
         "a wrapped comparison must key the same as a flat one or the baseline splits. "
         "The bare-pragma text goes through it too, so an indented pragma keys the "
@@ -957,7 +962,7 @@ MUTATIONS = [
     Mutation(
         "M72-scoped-pragma-silences-anything",
         "gate",
-        "  return scope.split(',').map((k) => k.trim()).includes(kind)",
+        "  return kinds.includes(kind)",
         "  return true",
         "script",
         [
@@ -974,31 +979,66 @@ MUTATIONS = [
     Mutation(
         "M84-bare-pragma-silences-everything",
         "gate",
-        "  if (scope === undefined) return false",
-        "  if (scope === undefined) return true",
+        "  if (kinds === null) return false",
+        "  if (kinds === null) return true",
         "script",
         [
-            "S-P50-bare-pragma-refused",
             "S-P51-bare-pragma-silences-nothing",
+            "S-P53-empty-kind-list",
+            "S-P54-misspelled-kind",
         ],
         "G3b-76 run rather than described: the bare pragma as task 8 left it, "
         "covering every kind on its line. Reporting it isn't enough if it still "
-        "exempts, so this one has to die on its own. S-P50 goes too, because a "
-        "bare pragma that covers everything covers its own finding.",
+        "exempts, so this one has to die on its own. An empty or misspelled kind "
+        "list takes the same path.",
     ),
     Mutation(
         "M85-drop-bare-pragma-detection",
         "gate",
-        "    if (pragma !== null && pragma[1] === undefined) record(i + 1, 'bare-pragma', normalize(text))\n",
+        "      record(i + 1, 'bare-pragma', normalize(text))\n",
         "",
         "script",
         [
             "S-P50-bare-pragma-refused",
             "S-P51-bare-pragma-silences-nothing",
+            "S-P53-empty-kind-list",
+            "S-P54-misspelled-kind",
+            "S-P55-bare-pragma-not-exemptable",
         ],
         "the other half of G3b-76. A bare pragma that exempts nothing but isn't "
         "reported sits in the tree looking like it works, and the next reader "
         "trusts it.",
+    ),
+    Mutation(
+        "M86-unknown-kind-not-refused",
+        "gate",
+        "  if (kinds.some((k) => !NAMEABLE_KINDS.has(k))) return null\n",
+        "",
+        "script",
+        [
+            "S-P53-empty-kind-list",
+            "S-P54-misspelled-kind",
+            "S-P55-bare-pragma-not-exemptable",
+        ],
+        "an empty list or a typo in the kind looks scoped and silences nothing, so "
+        "it reads as live. Drop the check and both go quiet again.",
+    ),
+    Mutation(
+        "M87-bare-pragma-exemptable",
+        "gate",
+        "    if (kind_ !== 'bare-pragma' && exemptedAtLine(lines, line, kind_)) {",
+        "    if (exemptedAtLine(lines, line, kind_)) {",
+        "script",
+        ["S-P55-bare-pragma-not-exemptable"],
+        "a refused pragma must not be excusable by another one. Defended twice: "
+        "`record()` skips the exemption for this kind, and `bare-pragma` isn't "
+        "nameable. Either alone flips nothing, so this removes both.",
+        also=[
+            (
+                "  FINDING_KINDS.filter((k) => k !== 'bare-pragma'),",
+                "  FINDING_KINDS.filter(() => true),",
+            )
+        ],
     ),
     Mutation(
         "M73-scoped-pragma-not-recognised",
@@ -1010,6 +1050,9 @@ MUTATIONS = [
             "S-N17-exempt-binary-declaration",
             "S-N19-scoped-pragma-own-kind",
             "S-N4-pragma",
+            "S-P53-empty-kind-list",
+            "S-P54-misspelled-kind",
+            "S-P55-bare-pragma-not-exemptable",
         ],
         "the far side of M72: a form the regex does not recognise silences nothing, "
         "and after task 8 EVERY pragma under `src/` that suppresses anything carries "

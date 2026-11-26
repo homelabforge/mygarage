@@ -210,9 +210,9 @@ export class UnitConverter {
  *
  * So each comparison carried a bare `// units-exempt:` naming who owned its
  * call sites, and the exemption expired when they were migrated rather than when
- * somebody remembered. That bare form silenced anything, and the gate refuses it
- * now (`EXEMPT_PRAGMA` in `validate-units.ts`), so the exemptions never rested on
- * that prose: `utils/__tests__/unitsBinaryApiSurface.test.ts` derives this
+ * somebody remembered. The gate refuses that bare form now (`EXEMPT_PRAGMA` in
+ * `validate-units.ts`). Back then it silenced anything, so the exemptions never
+ * rested on that prose: `utils/__tests__/unitsBinaryApiSurface.test.ts` derives this
  * surface from the file and fails when a method outlives its last production
  * caller. Seven methods failed it at t=0 and are gone; `getWeightUnit` followed
  * the moment task 3 moved `PropaneRecordForm` onto the mass adapter;

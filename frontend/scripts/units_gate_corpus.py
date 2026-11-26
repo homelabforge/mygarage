@@ -1033,6 +1033,46 @@ SCRIPT_POSITIVE = [
         "this is the shape the reason rule actually guards.",
         "M32-pragma-without-reason",
     ),
+    Case(
+        "S-P53-empty-kind-list",
+        HOOK_IMPORT + "export function label(): string {\n"
+        "  const { system } = useUnitPreference()\n"
+        "  // units-exempt(): a reason\n"
+        "  return system === 'imperial' ? 'mi' : 'km'\n"
+        "}\n",
+        2,
+        why="an empty kind list looks scoped and covers nothing, which is the bare "
+        "pragma's objection in different clothes. Refused, and the compare stands.",
+        pinned_by="M86-unknown-kind-not-refused",
+        expect_kinds=("bare-pragma", "compare"),
+    ),
+    Case(
+        "S-P54-misspelled-kind",
+        HOOK_IMPORT + "export function label(): string {\n"
+        "  const { system } = useUnitPreference()\n"
+        "  // units-exempt(comapre): a reason\n"
+        "  return system === 'imperial' ? 'mi' : 'km'\n"
+        "}\n",
+        2,
+        why="a typo in the kind used to fail quietly: it silenced nothing and "
+        "read as live. Now it's reported, and the compare stands.",
+        pinned_by="M86-unknown-kind-not-refused",
+        expect_kinds=("bare-pragma", "compare"),
+    ),
+    Case(
+        "S-P55-bare-pragma-not-exemptable",
+        "export function label(km: number): string {\n"
+        "  // units-exempt(bare-pragma): a reason\n"
+        "  // units-exempt: a reason\n"
+        "  return `${km} km`\n"
+        "}\n",
+        2,
+        "bare-pragma",
+        "a refused pragma can't be excused by another one. Naming `bare-pragma` "
+        "is itself refused, and the bare one below it still reports.",
+        "M86-unknown-kind-not-refused / M87-bare-pragma-exemptable",
+        ext=".ts",
+    ),
 ]
 
 SCRIPT_NEGATIVE = [
