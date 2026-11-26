@@ -191,6 +191,8 @@ MUTATIONS = [
             "S-P3-yoda",
             "S-P4-neq",
             "S-P5-switch",
+            "S-P51-bare-pragma-silences-nothing",
+            "S-P52-scoped-pragma-without-reason",
             "S-P6-aliased-boolean",
             "S-P7-destructuring-rename",
             "S-P8-resolvedSystem",
@@ -383,8 +385,14 @@ MUTATIONS = [
         "  return text.replace(/\\s+/g, ' ').trim()",
         "  return text",
         "script",
-        ["S-P20-multiline"],
-        "a wrapped comparison must key the same as a flat one or the baseline splits",
+        [
+            "S-P20-multiline",
+            "S-P50-bare-pragma-refused",
+            "S-P51-bare-pragma-silences-nothing",
+        ],
+        "a wrapped comparison must key the same as a flat one or the baseline splits. "
+        "The bare-pragma text goes through it too, so an indented pragma keys the "
+        "same as a flush one.",
     ),
     Mutation(
         "M22-hardcode-tsx-scriptkind",
@@ -938,8 +946,8 @@ MUTATIONS = [
     Mutation(
         "M82-docstring-mention-is-a-pragma",
         "gate",
-        "  if (/^\\s*\\*/.test(line)) return false",
-        "  if (false) return false",
+        "  if (/^\\s*\\*/.test(line)) return null",
+        "  if (false) return null",
         "script",
         ["S-N22-pragma-mentioned-in-a-docstring"],
         "prose about a guard must not be the guard. Two lines in `utils/units.ts` "
@@ -964,12 +972,45 @@ MUTATIONS = [
         "the answer falsifiable rather than a comment.",
     ),
     Mutation(
+        "M84-bare-pragma-silences-everything",
+        "gate",
+        "  if (scope === undefined) return false",
+        "  if (scope === undefined) return true",
+        "script",
+        [
+            "S-P50-bare-pragma-refused",
+            "S-P51-bare-pragma-silences-nothing",
+        ],
+        "G3b-76 run rather than described: the bare pragma as task 8 left it, "
+        "covering every kind on its line. Reporting it isn't enough if it still "
+        "exempts, so this one has to die on its own. S-P50 goes too, because a "
+        "bare pragma that covers everything covers its own finding.",
+    ),
+    Mutation(
+        "M85-drop-bare-pragma-detection",
+        "gate",
+        "    if (pragma !== null && pragma[1] === undefined) record(i + 1, 'bare-pragma', normalize(text))\n",
+        "",
+        "script",
+        [
+            "S-P50-bare-pragma-refused",
+            "S-P51-bare-pragma-silences-nothing",
+        ],
+        "the other half of G3b-76. A bare pragma that exempts nothing but isn't "
+        "reported sits in the tree looking like it works, and the next reader "
+        "trusts it.",
+    ),
+    Mutation(
         "M73-scoped-pragma-not-recognised",
         "gate",
         "const EXEMPT_PRAGMA = /(?:^|\\s)\\/\\/\\s*units-exempt(?:\\(([^)]*)\\))?:\\s*\\S/",
         "const EXEMPT_PRAGMA = /(?:^|\\s)\\/\\/\\s*units-exempt:\\s*\\S/",
         "script",
-        ["S-N19-scoped-pragma-own-kind"],
+        [
+            "S-N17-exempt-binary-declaration",
+            "S-N19-scoped-pragma-own-kind",
+            "S-N4-pragma",
+        ],
         "the far side of M72: a form the regex does not recognise silences nothing, "
         "and after task 8 EVERY pragma under `src/` that suppresses anything carries "
         "the bracket. MEASURED by applying this mutation to the real gate and "
@@ -1211,14 +1252,17 @@ MUTATIONS = [
         "M32-pragma-without-reason",
         "gate",
         "const EXEMPT_PRAGMA = /(?:^|\\s)\\/\\/\\s*units-exempt(?:\\(([^)]*)\\))?:\\s*\\S/",
-        "const EXEMPT_PRAGMA = /units-exempt/",
+        "const EXEMPT_PRAGMA = /(?:^|\\s)\\/\\/\\s*units-exempt(?:\\(([^)]*)\\))?/",
         "script",
         [
             "S-P22-bare-pragma",
-            "S-P42-scoped-pragma-wrong-kind",
-            "S-P43-scoped-declaration-wrong-kind",
+            "S-P52-scoped-pragma-without-reason",
         ],
-        "the docstring and the failure message both promise a reason",
+        "the docstring and the failure message both promise a reason. ★ G3b-76 "
+        "moved this: it used to be `/units-exempt/`, which made every pragma bare, "
+        "and once a bare pragma silences nothing that mutant only tightened the "
+        "gate and stopped testing the reason at all. It keeps the kind list now, "
+        "so a scoped pragma with no reason is what silences.",
     ),
     Mutation(
         "M38-any-unit-member-flags",

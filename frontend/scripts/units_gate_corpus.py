@@ -133,6 +133,10 @@ class Case:
     ext: str = ".tsx"
     #: exact normalized text the single finding must carry. Pins normalize().
     expect_text: str = ""
+    #: for a case that must report MORE THAN ONE kind, where `expect_kind` can't
+    #: work because it has to appear in every finding. Matched as a multiset:
+    #: each listed kind is a substring of exactly one finding.
+    expect_kinds: tuple[str, ...] = ()
     tags: list[str] = field(default_factory=list)
 
 
@@ -985,6 +989,50 @@ SCRIPT_POSITIVE = [
         "M50-drop-double-quoted-vocabulary",
         ext=".ts",
     ),
+    # ---- G3b-76: the bare pragma is refused, not honoured ----
+    Case(
+        "S-P50-bare-pragma-refused",
+        "export function label(km: number): string {\n"
+        "  // units-exempt: a reason\n"
+        "  return `${km} km`\n"
+        "}\n",
+        1,
+        "bare-pragma",
+        "★ the bare form used to silence EVERY kind on its line, which is the "
+        "manifest's \"silences anything\" objection. It's refused now, and refused "
+        "on its own, so one sitting above clean code still fails: nobody gets to "
+        "park a blanket hatch for later.",
+        "M85-drop-bare-pragma-detection",
+        ext=".ts",
+    ),
+    Case(
+        "S-P51-bare-pragma-silences-nothing",
+        HOOK_IMPORT + "export function label(): string {\n"
+        "  const { system } = useUnitPreference()\n"
+        "  // units-exempt: a reason\n"
+        "  return system === 'imperial' ? 'mi' : 'km'\n"
+        "}\n",
+        2,
+        why="the other half: refusing the pragma isn't enough if it still "
+        "exempts. The compare below it has to stand as well, so both kinds come "
+        "back.",
+        pinned_by="M84-bare-pragma-silences-everything",
+        expect_kinds=("bare-pragma", "compare"),
+    ),
+    Case(
+        "S-P52-scoped-pragma-without-reason",
+        HOOK_IMPORT + "export function label(): string {\n"
+        "  const { system } = useUnitPreference()\n"
+        "  // units-exempt(compare)\n"
+        "  return system === 'imperial' ? 'mi' : 'km'\n"
+        "}\n",
+        1,
+        "compare",
+        "the reason is still required once the kind is. S-P22 used to pin that "
+        "with a bare marker, but a bare marker can't silence anything now, so "
+        "this is the shape the reason rule actually guards.",
+        "M32-pragma-without-reason",
+    ),
 ]
 
 SCRIPT_NEGATIVE = [
@@ -1039,9 +1087,9 @@ SCRIPT_NEGATIVE = [
         "S-N4-pragma",
         HOOK_IMPORT + "export function legacyLabel(): string {\n"
         "  const { system } = useUnitPreference()\n"
-        "  // units-exempt: parses a browser key phase 4 retires, not a display branch\n"
+        "  // units-exempt(compare): parses a browser key phase 4 retires, not a display branch\n"
         "  const above = system === 'imperial' ? 'mi' : 'km'\n"
-        "  const same = system === 'metric' ? 'km' : 'mi' // units-exempt: same reason\n"
+        "  const same = system === 'metric' ? 'km' : 'mi' // units-exempt(compare): same reason\n"
         "  return above + same\n"
         "}\n",
         0,
@@ -1212,7 +1260,7 @@ SCRIPT_NEGATIVE = [
         "S-N17-exempt-binary-declaration",
         "import type { UnitSystem } from '@/utils/units'\n"
         + HOOK_IMPORT
-        + "// units-exempt: the ruling lives at the declaration, not on each call site.\n"
+        + "// units-exempt(binary-conversion): the ruling lives at the declaration, not on each call site.\n"
         "export function toCanonicalPerches(value: number, s: UnitSystem): number {\n"
         "  return convert(value, s)\n"
         "}\n"
@@ -1566,6 +1614,16 @@ def check(case: Case, got: int, detail: list[str]) -> str | None:
             return (
                 f"*** WRONG RULE FIRED *** expected {case.expect_kind!r}, "
                 f"got {[d[:160] for d in wrong]}"
+            )
+    if case.expect_kinds:
+        kinds = set(case.expect_kinds)
+        hits = [[k for k in kinds if k in d] for d in detail]
+        if sorted(k for h in hits for k in h) != sorted(case.expect_kinds) or any(
+            len(h) != 1 for h in hits
+        ):
+            return (
+                f"*** WRONG RULES FIRED *** expected one each of "
+                f"{list(case.expect_kinds)}, got {[d[:160] for d in detail]}"
             )
     if case.expect_text:
         texts = [d.split(" ", 1)[1] if " " in d else d for d in detail]

@@ -148,12 +148,13 @@
  * Escape hatch: `// units-exempt(<kind>): <reason>` on the offending line or the
  * line above. Use it for a genuine non-display branch (parsing a stored legacy
  * key, a preset-selection control, resolved-set dispatch inside the unit layer),
- * never to silence a display conversion. The kind list is task 8's and is not
- * decoration: the bare `// units-exempt:` form silences EVERY kind on its line,
- * including one nobody had considered when they wrote the reason, and after the
- * clean-room flip this pragma is the only suppression the gate has left. On a
- * binary DECLARATION the kind is `binary-conversion` or `formatter-binary`, and
- * that one line silences every call site of it in every module: see
+ * never to silence a display conversion. The kind list is required. The bare
+ * `// units-exempt: <reason>` form used to silence EVERY kind on its line,
+ * including ones nobody thought about when they wrote the reason, and after the
+ * clean-room flip this pragma is the only suppression the gate has left. So now
+ * a bare one exempts nothing and is a `bare-pragma` finding of its own (G3b-76).
+ * On a binary DECLARATION the kind is `binary-conversion` or `formatter-binary`,
+ * and that one line silences every call site of it in every module: see
  * `declarationExempt`.
  *
  * Usage:
@@ -168,7 +169,7 @@
  *   bun run scripts/validate-units.ts --suppressions   # print every suppression
  *
  * ★ `--derived` also prints EXEMPT_BINARY_DECLARATIONS, and the gate's success
- * line counts them. One `// units-exempt:` on a binary declaration silences
+ * line counts them. One `// units-exempt(<kind>):` on a binary declaration silences
  * every call site of it in every module, which no other use of the hatch does,
  * so the number is printed beside the tick rather than buried.
  * Exit code: 1 on any finding. `--update` without `--baseline` exits 2.
@@ -343,7 +344,7 @@ const LITERAL_KINDS = new Set([
 ])
 
 /**
- * The escape hatch. It must carry a reason, and it may name the kinds it covers.
+ * The escape hatch. It must carry a reason, and it must name the kinds it covers.
  *
  * Round 1 tested `line.includes('units-exempt')`, so a bare marker with no
  * justification silenced a finding while the docstring and the failure message
@@ -360,9 +361,14 @@ const LITERAL_KINDS = new Set([
  * suppression left.
  *
  * `// units-exempt(compare): reason` silences the comparison leg on that line
- * and nothing else, so a token branch added beside it is still reported. The
- * bare form still means every kind and is kept for a site that genuinely wants
- * it; nothing in `src/` uses it any more.
+ * and nothing else, so a token branch added beside it is still reported.
+ *
+ * ★ THE BARE FORM IS REFUSED (G3b-76). Task 8 kept it "for a site that genuinely
+ * wants it", which left the manifest's objection standing for anyone who typed
+ * the shorter spelling. It now exempts nothing, and `scanSource` reports it as a
+ * `bare-pragma` finding so it can't sit there looking like it works. Still
+ * matched here rather than dropped from the regex, because a pragma the gate
+ * can't see is one it can't refuse.
  *
  * ★ WHY NOT the exact-match table the manifest offered as the alternative: a
  * table of (file, kind, text) inside the gate is a baseline under another name,
@@ -373,19 +379,30 @@ const LITERAL_KINDS = new Set([
  */
 const EXEMPT_PRAGMA = /(?:^|\s)\/\/\s*units-exempt(?:\(([^)]*)\))?:\s*\S/
 
-/** True when one line's pragma covers this finding kind. */
-function lineExempts(line: string, kind: string): boolean {
+/**
+ * The pragma on one line, or null when there isn't one.
+ *
+ * Shared by `lineExempts` and the `bare-pragma` check in `scanSource`, so the
+ * two can't disagree about what counts as a pragma.
+ */
+function pragmaOn(line: string): RegExpExecArray | null {
   // ★ A LINE THAT MERELY MENTIONS THE PRAGMA IS NOT ONE. `EXEMPT_PRAGMA` allows
   // any whitespace before the `//`, so a JSDoc continuation line DESCRIBING the
   // hatch exempted whatever came after it. `utils/units.ts` has two such lines
   // and they were inert only because a backtick happens to sit before the `//`
   // in both, which is luck rather than a rule. A `*` in the leading whitespace
   // is a block comment's continuation and cannot be a line comment.
-  if (/^\s*\*/.test(line)) return false
-  const match = EXEMPT_PRAGMA.exec(line)
+  if (/^\s*\*/.test(line)) return null
+  return EXEMPT_PRAGMA.exec(line)
+}
+
+/** True when one line's pragma covers this finding kind. */
+function lineExempts(line: string, kind: string): boolean {
+  const match = pragmaOn(line)
   if (match === null) return false
   const scope = match[1]
-  if (scope === undefined) return true
+  // A bare pragma exempts nothing; scanSource reports it instead.
+  if (scope === undefined) return false
   return scope.split(',').map((k) => k.trim()).includes(kind)
 }
 
@@ -1258,10 +1275,11 @@ const FINDING_KINDS = [
   'formatter-binary',
   'binary-conversion',
   'token-branch',
+  'bare-pragma',
 ] as const
 
 /**
- * How many findings a `// units-exempt:` pragma removed on this run.
+ * How many findings a `// units-exempt(<kind>):` pragma removed on this run.
  *
  * ★ Counted rather than described, because after the flip the pragma is the
  * only suppression left and a clean-room tick that does not say how many sites
@@ -1750,7 +1768,7 @@ export function scanSource(source: string, rel: string): Finding[] {
   const index = indexDeclarations(sf)
   const findings: Finding[] = []
 
-  const record = (node: TsNode, kind_: string, text: string): void => {
+  const record = (at: TsNode | number, kind_: string, text: string): void => {
     if (!(FINDING_KINDS as readonly string[]).includes(kind_)) {
       throw new Error(
         `${rel}: reported a finding of kind ${JSON.stringify(kind_)}, which is not in ` +
@@ -1760,9 +1778,10 @@ export function scanSource(source: string, rel: string): Finding[] {
           'to the list, and give it a corpus positive: the clean-room proof requires one.',
       )
     }
-    const line = sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1
+    const line =
+      typeof at === 'number' ? at : sf.getLineAndCharacterOfPosition(at.getStart(sf)).line + 1
     // Escape hatch: the offending line or the line directly above it, and it
-    // has to name this kind or name none.
+    // has to name this kind. A bare one names none and exempts nothing.
     if (exemptedAtLine(lines, line, kind_)) {
       exemptedFindings += 1
       const key = `${rel}::${kind_}`
@@ -1771,6 +1790,14 @@ export function scanSource(source: string, rel: string): Finding[] {
     }
     findings.push({ file: rel, line, kind: kind_, text })
   }
+
+  // ★ G3b-76: a bare `// units-exempt: <reason>` is refused on sight. It
+  // exempts nothing now, and leaving it unreported would let it sit there
+  // looking like it works. Lives here so `--scan` and the tree walk both see it.
+  lines.forEach((text, i) => {
+    const pragma = pragmaOn(text)
+    if (pragma !== null && pragma[1] === undefined) record(i + 1, 'bare-pragma', normalize(text))
+  })
 
   const walk = (node: TsNode): void => {
     if (node.kind === ts.SyntaxKind.BinaryExpression && node.operatorToken) {
@@ -1944,7 +1971,7 @@ function printReport(findings: Finding[]): void {
  *
  * A gate's success line is the sentence people quote, so the one suppression
  * that reaches ACROSS files is counted in it rather than left to `--derived`.
- * Task 8 made the binary vocabularies tree-wide, and one `// units-exempt:` on
+ * Task 8 made the binary vocabularies tree-wide, and one `// units-exempt(<kind>):` on
  * a declaration then silences every call site of that declaration everywhere;
  * the number moving is what stops that growing quietly.
  */
