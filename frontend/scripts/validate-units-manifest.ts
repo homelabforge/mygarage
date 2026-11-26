@@ -733,7 +733,9 @@ export function checkManifest(
         detail:
           `digest ${String(row.digest).slice(0, 12)} recorded, ${actual.slice(0, 12)} on disk. ` +
           `Re-review this file and re-stamp it: its disposition (${row.disposition}) was ` +
-          'made against different content.',
+          'made against different content. To re-stamp, run ' +
+          '`cd frontend && bun run scripts/validate-units-manifest.ts --update`, then ' +
+          'commit frontend/scripts/units.manifest.json.',
       })
     }
   }
