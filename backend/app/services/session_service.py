@@ -8,9 +8,14 @@ from decimal import Decimal
 from typing import Literal
 
 from sqlalchemy import (
+    BigInteger,
     ColumnElement,
+    Integer,
     SQLColumnExpression,
     and_,
+    case,
+    cast,
+    extract,
     func,
     not_,
     or_,
@@ -91,6 +96,21 @@ def _as_stored_odometer(km: float) -> float:
     frame and stretched its drive.
     """
     return float(round(km))
+
+
+def _epoch_micros(col: SQLColumnExpression[datetime], dialect: str) -> ColumnElement[int]:
+    """A naive timestamp column as whole microseconds since the epoch, in SQL.
+
+    Not julianday: its float days read an exact two-minute pair as 120.00003 s
+    and dropped it. SQLite gets the whole seconds off the first 19 characters
+    because strftime rounds a .9995+ fraction up a second, then adds the micros
+    from the text SQLAlchemy writes (`YYYY-MM-DD HH:MM:SS.ffffff`).
+    """
+    if dialect == "postgresql":
+        return cast(extract("epoch", col) * 1_000_000, BigInteger)
+    seconds = cast(func.strftime("%s", func.substr(col, 1, 19)), Integer)
+    micros = cast(func.coalesce(func.nullif(func.substr(col, 21, 6), ""), "0"), Integer)
+    return seconds * 1_000_000 + micros
 
 
 #: Every column `refresh_aggregates` derives from a session's window. Listed so
@@ -2217,13 +2237,21 @@ class SessionService:
         Idle: consecutive samples below 5 km/h contribute their Δt.
         Harsh accel/brake: |Δv/Δt| above ~3.5 m/s² (≈12.6 km/h per second).
 
-        NOTE: This currently loads all SPEED rows into Python. A future optimization
-        could use SQL window functions (LAG) to compute deltas in the database, but
-        that change requires test coverage to catch regressions.
+        One query: LAG pairs each sample with the one before it and the sums
+        come back as three numbers, instead of every SPEED row coming to Python.
         """
+        dialect = self.db.get_bind().dialect.name
         upper_keys = [k.upper() for k in SPEED_PARAM_KEYS]
-        result = await self.db.execute(
-            select(VehicleTelemetry.timestamp, VehicleTelemetry.value)
+        # Two speed keys can land on the same timestamp, so id breaks the tie.
+        # The old loop took whatever order the DB handed back.
+        order = (VehicleTelemetry.timestamp, VehicleTelemetry.id)
+        samples = (
+            select(
+                VehicleTelemetry.timestamp.label("ts"),
+                VehicleTelemetry.value.label("speed"),
+                func.lag(VehicleTelemetry.timestamp).over(order_by=order).label("prev_ts"),
+                func.lag(VehicleTelemetry.value).over(order_by=order).label("prev_speed"),
+            )
             .where(VehicleTelemetry.vin == session.vin)
             # Device-scoped for the same reason as the aggregates above: idle
             # seconds and harsh-event counts are derived from the SPEED series,
@@ -2231,44 +2259,43 @@ class SessionService:
             .where(VehicleTelemetry.device_id == session.device_id)
             .where(func.upper(VehicleTelemetry.param_key).in_(upper_keys))
             .where(window.covers(VehicleTelemetry.timestamp))
-            .order_by(VehicleTelemetry.timestamp.asc())
+            .subquery()
         )
-        rows = list(result.all())
-        if len(rows) < 2:
-            session.idle_seconds = 0
-            session.harsh_accel_count = 0
-            session.harsh_brake_count = 0
-            return
 
-        idle_seconds = 0.0
-        harsh_accel = 0
-        harsh_brake = 0
-        idle_threshold_kmh = IDLE_THRESHOLD_KMH
         harsh_ms2 = 3.5  # m/s²
         # Convert km/h/s to m/s²: 1 km/h/s = 1000/3600 m/s² ≈ 0.2778
         harsh_kmh_per_s = harsh_ms2 / (1000.0 / 3600.0)
+        dt_us = _epoch_micros(samples.c.ts, dialect) - _epoch_micros(samples.c.prev_ts, dialect)
+        # The first sample has no LAG, so dt_us is NULL and every case falls to 0.
+        paired = and_(dt_us > 0, dt_us <= 120_000_000)
+        dv = samples.c.speed - samples.c.prev_speed
+        idle_us = case(
+            (
+                and_(
+                    paired,
+                    samples.c.prev_speed < IDLE_THRESHOLD_KMH,
+                    samples.c.speed < IDLE_THRESHOLD_KMH,
+                ),
+                dt_us,
+            ),
+            else_=0,
+        )
+        # Rate compared by multiplying through by dt, so no division.
+        accel = case((and_(paired, dv * 1_000_000 >= harsh_kmh_per_s * dt_us), 1), else_=0)
+        brake = case((and_(paired, dv * 1_000_000 <= -harsh_kmh_per_s * dt_us), 1), else_=0)
+        result = await self.db.execute(
+            select(
+                # PG's sum(bigint) is numeric and asyncpg hands that back as Decimal.
+                cast(func.coalesce(func.sum(idle_us), 0), BigInteger),
+                func.coalesce(func.sum(accel), 0),
+                func.coalesce(func.sum(brake), 0),
+            )
+        )
+        idle_total, harsh_accel, harsh_brake = result.one()
 
-        prev_ts, prev_speed = rows[0]
-        for ts, speed in rows[1:]:
-            if prev_ts is None or ts is None or speed is None or prev_speed is None:
-                prev_ts, prev_speed = ts, speed
-                continue
-            dt = (ts - prev_ts).total_seconds()
-            if dt <= 0 or dt > 120:
-                prev_ts, prev_speed = ts, speed
-                continue
-            if float(prev_speed) < idle_threshold_kmh and float(speed) < idle_threshold_kmh:
-                idle_seconds += dt
-            dv_dt = (float(speed) - float(prev_speed)) / dt
-            if dv_dt >= harsh_kmh_per_s:
-                harsh_accel += 1
-            elif dv_dt <= -harsh_kmh_per_s:
-                harsh_brake += 1
-            prev_ts, prev_speed = ts, speed
-
-        session.idle_seconds = int(round(idle_seconds))
-        session.harsh_accel_count = harsh_accel
-        session.harsh_brake_count = harsh_brake
+        session.idle_seconds = int(round(int(idle_total) / 1e6))
+        session.harsh_accel_count = int(harsh_accel)
+        session.harsh_brake_count = int(harsh_brake)
 
     async def _get_param_stats_multi(
         self,
