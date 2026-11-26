@@ -265,28 +265,58 @@ class TestNotificationInbox:
         assert items["Oil in 1,000 km"]["kind"] == "reminder_upcoming"
         assert "Belt in 14,000 km" not in items
 
-    async def test_overdue_by_mileage_body_names_the_mileage_not_just_the_date(
-        self, client: AsyncClient, auth_headers, test_user, db_session
+    @pytest.mark.parametrize(
+        ("vin", "reminder_type", "due_in_days", "due_km", "now_km", "mileage_bit"),
+        [
+            (
+                "INBOXBODY00000001",
+                "smart",
+                90,
+                "50000",
+                "51200",
+                "due at 50,000 km (now 51,200 km)",
+            ),
+            (
+                "INBOXBODY00000002",
+                "mileage",
+                None,
+                "5000",
+                "6100",
+                "due at 5,000 km (now 6,100 km)",
+            ),
+        ],
+        ids=["smart-with-future-date", "mileage-only"],
+    )
+    async def test_overdue_by_mileage_body_names_the_mileage(
+        self,
+        client: AsyncClient,
+        auth_headers,
+        test_user,
+        db_session,
+        vin: str,
+        reminder_type: str,
+        due_in_days: int | None,
+        due_km: str,
+        now_km: str,
+        mileage_bit: str,
     ):
-        """#195: a reminder overdue by mileage with a FUTURE hard date showed
-        only 'due <future date>' under an OVERDUE label. The body must state
-        the dimension that actually fired: the mileage target and the current
-        reading, in the vehicle's own distance unit."""
-
-        vin = "INBOXBODY00000001"
+        """#195: a smart reminder overdue by mileage with a future hard date only
+        said 'due <future date>', and a mileage-only one had no due info at all.
+        The body states the target and current reading in the vehicle's unit,
+        and keeps the hard date when there is one."""
         await _vehicle(db_session, test_user, vin, distance_unit="km")
         today = date.today()
-        future = today + timedelta(days=90)
+        due_date = today + timedelta(days=due_in_days) if due_in_days is not None else None
         db_session.add_all(
             [
-                OdometerRecord(vin=vin, date=today, odometer_km=Decimal("51200")),
+                OdometerRecord(vin=vin, date=today, odometer_km=Decimal(now_km)),
                 Reminder(
                     vin=vin,
-                    title="Brake inspection",
-                    reminder_type="smart",
+                    title="Mileage body",
+                    reminder_type=reminder_type,
                     status="pending",
-                    due_date=future,
-                    due_mileage_km=Decimal("50000"),
+                    due_date=due_date,
+                    due_mileage_km=Decimal(due_km),
                 ),
             ]
         )
@@ -295,42 +325,11 @@ class TestNotificationInbox:
         response = await client.get("/api/notifications/inbox", headers=auth_headers)
 
         assert response.status_code == 200
-        items = _own_items(response, vin)
-        item = items["Brake inspection"]
+        item = _own_items(response, vin)["Mileage body"]
         assert item["kind"] == "reminder_overdue"
-        assert f"due {future.isoformat()}" in item["body"]
-        assert "due at 50,000 km (now 51,200 km)" in item["body"]
-
-    async def test_mileage_only_overdue_body_shows_the_target(
-        self, client: AsyncClient, auth_headers, test_user, db_session
-    ):
-        """#195: a mileage-only overdue reminder had NO due information in its
-        body at all (the old code only ever printed due_date)."""
-
-        vin = "INBOXBODY00000002"
-        await _vehicle(db_session, test_user, vin, distance_unit="km")
-        today = date.today()
-        db_session.add_all(
-            [
-                OdometerRecord(vin=vin, date=today, odometer_km=Decimal("6100")),
-                Reminder(
-                    vin=vin,
-                    title="Tire rotation",
-                    reminder_type="mileage",
-                    status="pending",
-                    due_mileage_km=Decimal("5000"),
-                ),
-            ]
-        )
-        await db_session.commit()
-
-        response = await client.get("/api/notifications/inbox", headers=auth_headers)
-
-        assert response.status_code == 200
-        items = _own_items(response, vin)
-        item = items["Tire rotation"]
-        assert item["kind"] == "reminder_overdue"
-        assert "due at 5,000 km (now 6,100 km)" in item["body"]
+        assert mileage_bit in item["body"]
+        if due_date is not None:
+            assert f"due {due_date.isoformat()}" in item["body"]
 
     async def test_overdue_by_hours_body_uses_the_one_hours_formatter(
         self, client: AsyncClient, auth_headers, test_user, db_session

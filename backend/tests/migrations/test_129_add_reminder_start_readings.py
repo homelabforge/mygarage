@@ -5,9 +5,10 @@ readings were on file when the reminder was made.
 """
 
 import logging
+from typing import Any
 
 import pytest
-from sqlalchemy import Numeric, inspect, text
+from sqlalchemy import Numeric, event, inspect, text
 
 from tests.migrations._loader import load_migration
 
@@ -214,6 +215,43 @@ def test_129_is_idempotent_and_keeps_a_stored_start(engine_for_migration):
     names = [c["name"] for c in inspect(engine).get_columns("vehicle_reminders")]
     assert names.count("start_odometer_km") == names.count("start_hours") == 1
     assert _starts(engine) == [(999.0, 100.0), (1000.0, 99.0)]
+
+
+def test_129_never_updates_a_reminder_that_already_has_both_starts(engine_for_migration):
+    """The per-column IS NULL guards would leave its values alone anyway, so only
+    the statements show the row filter skipping it."""
+    _dialect, engine, _url = engine_for_migration
+    _make_tables(engine)
+    mod = _load()
+    mod.upgrade(engine)
+    with engine.begin() as conn:
+        _odometer(conn, "2026-10-01", 1000, "2026-10-01 09:00:00")
+        _hours(conn, "2026-10-01", 100.0, "2026-10-01 09:00:00")
+        conn.execute(
+            text(
+                "INSERT INTO vehicle_reminders (id, vin, status, due_mileage_km, created_at, "
+                "start_odometer_km, start_hours) VALUES "
+                "(1, :vin, 'pending', 2000, '2026-10-05 12:00:00', 900, 90), "
+                "(2, :vin, 'pending', 2000, '2026-10-05 12:00:00', NULL, NULL)"
+            ),
+            {"vin": _VIN},
+        )
+    updated: list[int] = []
+
+    def record(
+        _conn: Any, _cursor: Any, statement: str, _params: Any, context: Any, *_: Any
+    ) -> None:
+        if statement.lstrip().upper().startswith("UPDATE VEHICLE_REMINDERS"):
+            updated.extend(p["id"] for p in context.compiled_parameters)
+
+    event.listen(engine, "before_cursor_execute", record)
+    try:
+        mod.upgrade(engine)
+    finally:
+        event.remove(engine, "before_cursor_execute", record)
+    # Row 2 proves the listener sees the fills.
+    assert sorted(updated) == [2, 2]
+    assert _starts(engine) == [(900.0, 90.0), (1000.0, 100.0)]
 
 
 def test_129_adds_the_columns_without_reading_tables(engine_for_migration):

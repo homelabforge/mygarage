@@ -41,6 +41,7 @@ from app.services.reminder_service import (
     _build_reminder_message,
     _due_event,
     anchor_start,
+    calculate_driving_rate,
     calculate_hours_driving_rate,
     check_due_reminders,
     classify_pending_reminders,
@@ -94,6 +95,20 @@ async def clean_reminders(db_session: AsyncSession, test_vehicle):
     await db_session.commit()
     yield
     await db_session.execute(delete(Reminder).where(Reminder.vin == test_vehicle["vin"]))
+    await db_session.commit()
+
+
+@pytest_asyncio.fixture
+async def other_vin(db_session: AsyncSession, test_user: dict[str, object]) -> AsyncIterator[str]:
+    """A second vehicle of the test's own, with no readings. Its rows cascade on delete."""
+    vin = f"RMOTHER{uuid.uuid4().hex[:10].upper()}"
+    db_session.add(
+        Vehicle(vin=vin, user_id=test_user["id"], nickname="Other vehicle", vehicle_type="Car")
+    )
+    await db_session.commit()
+    yield vin
+    await db_session.rollback()
+    await db_session.execute(delete(Vehicle).where(Vehicle.vin == vin))
     await db_session.commit()
 
 
@@ -224,6 +239,33 @@ class TestGetCurrentHours:
 
         result = await get_current_hours(vin, db_session)
         assert result == Decimal("500.0")
+
+
+# ---------------------------------------------------------------------------
+# calculate_driving_rate
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+class TestCalculateDrivingRate:
+    async def test_spans_the_windowed_min_and_max_of_its_own_vehicle(
+        self, db_session: AsyncSession, own_vehicle, other_vin
+    ):
+        """(50,012 - 49,000) km over ten days = 101.2 km/day.
+
+        The calendar, the reminders list and the bell all share this rate (#195).
+        Today's 50,012 has the older id, so a newest-row read would get 50,000."""
+        vin = own_vehicle.vin
+        today = household_today()
+        # Outside the 90-day window, and on another vehicle: neither counts.
+        await _add_odometer_record(db_session, vin, today - timedelta(days=100), Decimal("40000"))
+        await _add_odometer_record(db_session, other_vin, today, Decimal("90000"))
+        await _add_odometer_record(db_session, vin, today - timedelta(days=10), Decimal("49000"))
+        await _add_odometer_record(db_session, vin, today, Decimal("50012"))
+        await _add_odometer_record(db_session, vin, today, Decimal("50000"))
+
+        assert await calculate_driving_rate(vin, db_session) == pytest.approx(101.2)
 
 
 # ---------------------------------------------------------------------------
@@ -1395,9 +1437,11 @@ class TestCreateReminderHours:
 @pytest.mark.integration
 @pytest.mark.asyncio
 class TestCreateReminderStoresItsStart:
-    async def test_a_one_off_stores_both_current_readings_whatever_its_targets(
-        self, db_session, own_vehicle
+    async def test_a_one_off_stores_both_current_readings_or_none_without_them(
+        self, db_session, own_vehicle, other_vin
     ):
+        """The vehicle with readings gets them whatever the targets; one with no
+        readings gets (None, None), not a zero."""
         from app.schemas.reminder import ReminderCreate
 
         vin = own_vehicle.vin
@@ -1419,13 +1463,9 @@ class TestCreateReminderStoresItsStart:
                 Decimal("300.0"),
             )
 
-    async def test_a_one_off_on_a_vehicle_with_no_readings_stores_none(
-        self, db_session, test_vehicle, clean_odometer_records, clean_hours_records, clean_reminders
-    ):
-        from app.schemas.reminder import ReminderCreate
-
+        # A second vehicle with no readings at all.
         data = ReminderCreate(title="Oil", reminder_type="mileage", due_mileage_km=Decimal("47000"))
-        reminder = await create_reminder(test_vehicle["vin"], data, db_session)
+        reminder = await create_reminder(other_vin, data, db_session)
         await db_session.commit()
         await db_session.refresh(reminder)
         assert (reminder.start_odometer_km, reminder.start_hours) == (None, None)

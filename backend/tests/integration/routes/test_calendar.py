@@ -421,30 +421,59 @@ class TestCalendarRoutes:
         assert events[0]["is_estimated"] is True
         assert events[0]["date"] == (date.today() + timedelta(days=20)).isoformat()
 
-    async def test_calendar_date_overdue_outside_window_pinned_to_today(
-        self, client: AsyncClient, db_session: AsyncSession, made_users: list[str]
+    @pytest.mark.parametrize(
+        ("reminder_type", "due_in_days", "due_km", "km_until_due"),
+        [
+            ("date", -200, None, None),
+            ("smart", 180, "50000", "-1200"),
+            ("mileage", None, "50000", "-1200"),
+        ],
+        ids=["date-long-overdue", "smart-mileage-first", "mileage-only"],
+    )
+    async def test_calendar_overdue_reminder_sits_on_today_marked_overdue(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        made_users: list[str],
+        reminder_type: str,
+        due_in_days: int | None,
+        due_km: str | None,
+        km_until_due: str | None,
     ):
-        """#195: a long-overdue date reminder must surface TODAY, not on its
-        past date. The frontend fetches ±3 months around the viewed month, so
-        an event placed on the old due date falls out of the window entirely
-        and the reminder silently vanishes from the calendar."""
+        """#195, three ways an overdue reminder went missing. A long-past date
+        fell out of the frontend's fetch window (3 months either side). A smart
+        one overdue by mileage sat on its future date as on_track. A mileage-only
+        one was pinned to today but read due_soon, as the ladder only knew dates."""
         vin, headers = await _isolated_vehicle(db_session, made_users)
-        db_session.add(
-            Reminder(
-                vin=vin,
-                title="Ancient Overdue Inspection",
-                reminder_type="date",
-                due_date=date.today() - timedelta(days=200),
-                status="pending",
-            )
+        db_session.add_all(
+            [
+                OdometerRecord(vin=vin, date=date.today(), odometer_km=Decimal("51200")),
+                Reminder(
+                    vin=vin,
+                    title="Overdue Pinned Today",
+                    reminder_type=reminder_type,
+                    due_date=(
+                        date.today() + timedelta(days=due_in_days)
+                        if due_in_days is not None
+                        else None
+                    ),
+                    due_mileage_km=Decimal(due_km) if due_km is not None else None,
+                    status="pending",
+                ),
+            ]
         )
         await db_session.commit()
 
-        events = await _reminder_events(client, headers, "Ancient Overdue Inspection")
+        events = await _reminder_events(client, headers, "Overdue Pinned Today")
         assert len(events) == 1
-        assert events[0]["date"] == date.today().isoformat()
-        assert events[0]["urgency"] == "overdue"
-        assert events[0]["status"] == "overdue"
+        event = events[0]
+        assert event["date"] == date.today().isoformat()
+        assert event["urgency"] == "overdue"
+        assert event["status"] == "overdue"
+        if km_until_due is None:
+            assert event["km_until_due"] is None
+        else:
+            assert Decimal(event["km_until_due"]) == Decimal(km_until_due)
 
     @pytest.mark.parametrize("shape", ["date-overdue", "mileage-reached", "mileage-no-reading"])
     async def test_calendar_snoozed_due_reminder_surfaces_on_its_return_day(
@@ -654,63 +683,6 @@ class TestCalendarRoutes:
         assert summary["overdue"] == 1
         assert summary["upcoming_7_days"] == 0
         assert summary["upcoming_30_days"] == 0
-
-    async def test_calendar_mileage_overdue_with_future_due_date_is_overdue_today(
-        self, client: AsyncClient, db_session: AsyncSession, made_users: list[str]
-    ):
-        """#195 ('Brake inspection'): overdue by mileage but not yet by time.
-        The old code used due_date unconditionally, so the event sat months in
-        the future as on_track while the bell called it overdue."""
-        vin, headers = await _isolated_vehicle(db_session, made_users)
-        db_session.add_all(
-            [
-                OdometerRecord(vin=vin, date=date.today(), odometer_km=Decimal("51200")),
-                Reminder(
-                    vin=vin,
-                    title="Brake Inspection Mileage First",
-                    reminder_type="smart",
-                    due_date=date.today() + timedelta(days=180),
-                    due_mileage_km=Decimal("50000"),
-                    status="pending",
-                ),
-            ]
-        )
-        await db_session.commit()
-
-        events = await _reminder_events(client, headers, "Brake Inspection Mileage First")
-        assert len(events) == 1
-        event = events[0]
-        assert event["date"] == date.today().isoformat()
-        assert event["urgency"] == "overdue"
-        assert event["status"] == "overdue"
-        assert Decimal(event["km_until_due"]) == Decimal("-1200")
-
-    async def test_calendar_mileage_only_overdue_is_marked_overdue_not_due_soon(
-        self, client: AsyncClient, db_session: AsyncSession, made_users: list[str]
-    ):
-        """#195 ('Tire rotation'): a mileage-only overdue reminder was pinned
-        to today but labelled due_soon/high, because the urgency ladder only
-        knew dates and today is not < today."""
-        vin, headers = await _isolated_vehicle(db_session, made_users)
-        db_session.add_all(
-            [
-                OdometerRecord(vin=vin, date=date.today(), odometer_km=Decimal("51200")),
-                Reminder(
-                    vin=vin,
-                    title="Tire Rotation Mileage Only",
-                    reminder_type="mileage",
-                    due_mileage_km=Decimal("50000"),
-                    status="pending",
-                ),
-            ]
-        )
-        await db_session.commit()
-
-        events = await _reminder_events(client, headers, "Tire Rotation Mileage Only")
-        assert len(events) == 1
-        assert events[0]["date"] == date.today().isoformat()
-        assert events[0]["urgency"] == "overdue"
-        assert events[0]["status"] == "overdue"
 
     async def test_calendar_event_structure(
         self, client: AsyncClient, auth_headers, own_vehicle: Vehicle, db_session: AsyncSession
