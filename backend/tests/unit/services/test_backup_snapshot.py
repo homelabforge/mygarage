@@ -1505,6 +1505,8 @@ async def test_a_swap_that_keeps_failing_stops_the_start_with_the_way_out(
     text = str(first.value)
     assert "Invalid cross-device link" in text
     assert "To finish it, fix that and start MyGarage again" in text
+    # There is a way to finish it, so the way back is the "instead".
+    assert "from just before the restore instead: delete" in text
     assert "MYGARAGE_MAINTENANCE_MODE=1" in text
     assert (live_photos / "old.jpg").exists(), "the live photos moved"
     assert service.apply_pending_restore() == STAGED
@@ -1514,15 +1516,18 @@ async def test_a_swap_that_keeps_failing_stops_the_start_with_the_way_out(
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-@pytest.mark.parametrize("cause", ["disk_full", "unreadable_database", "bad_archive_name"])
+@pytest.mark.parametrize(
+    "cause", ["disk_full", "unreadable_database", "bad_archive_name", "progress_file"]
+)
 async def test_a_start_that_cant_write_its_safety_archive_stops_before_touching_anything(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, cause: str, db_session: AsyncSession
 ) -> None:
     """The pre-restore archive can't be written: the start stops, nothing live changed, and the log says how to cancel.
 
-    bad_archive_name is a hand-edited manifest whose name validate_filename refuses. A guard;
-    mutants: let the error through (a bare traceback at every start), or leave ValueError out
-    of the catch (bad_archive_name).
+    bad_archive_name is a hand-edited manifest whose name validate_filename refuses.
+    progress_file is the archive written and the applying marker refused right after it. A
+    guard; mutants: let the error through (a bare traceback at every start), or leave
+    ValueError out of the catch (bad_archive_name).
     """
     service, db_path = _live_and_archive(tmp_path)
     await service.restore_full_backup(STAGED, db_session, create_safety=False)
@@ -1536,11 +1541,17 @@ async def test_a_start_that_cant_write_its_safety_archive_stops_before_touching_
     def _unreadable(self: BackupService, output_path: Path) -> None:
         raise sqlite3.DatabaseError("database disk image is malformed")
 
+    def _marker_refused(path: Path, data: dict[str, object]) -> None:
+        raise OSError(errno.EACCES, "Permission denied", str(path))
+
     with monkeypatch.context() as patched:
         if cause == "disk_full":
             patched.setattr(BackupService, "_write_safety_archive", _disk_full)
         elif cause == "unreadable_database":
             patched.setattr(BackupService, "_snapshot_sqlite", _unreadable)
+        elif cause == "progress_file":
+            staging_module = importlib.import_module("app.services.restore_staging")
+            patched.setattr(staging_module, "_write_json", _marker_refused)
         else:
             manifest = json.loads(manifest_path.read_text())
             manifest["good_name"] = manifest["prerestore_backup"]
@@ -1550,10 +1561,21 @@ async def test_a_start_that_cant_write_its_safety_archive_stops_before_touching_
             service.apply_pending_restore()
 
     text = str(refused.value)
-    assert "pre-restore safety archive" in text
+    # The log names the step that failed.
+    if cause == "progress_file":
+        assert "its progress file" in text
+        assert "pre-restore safety archive" not in text
+    else:
+        assert "pre-restore safety archive" in text
     assert "Nothing live was touched" in text
     assert "To cancel it instead, delete" in text
-    assert _live_state(service, db_path) == before
+    after = _live_state(service, db_path)
+    if cause == "progress_file":
+        # The archive got written first, and reading the database rewrites the -shm index.
+        # That's SQLite's scratch file, not data.
+        before.pop("db-shm")
+        after.pop("db-shm")
+    assert after == before
     assert not (service.data_dir / ".restore-pending" / "applying").exists()
     if manifest:
         manifest["prerestore_backup"] = manifest.pop("good_name")
