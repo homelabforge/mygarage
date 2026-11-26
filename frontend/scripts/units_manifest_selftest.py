@@ -996,7 +996,10 @@ def round_trip_probe(root: Path, manifest: Path) -> list[str]:
     return failures
 
 
-REMEDY_COMMAND = "cd frontend && bun run scripts/validate-units-manifest.ts --update"
+# The finding says where to run it from, or a paste from inside frontend/ breaks.
+REMEDY_COMMAND = (
+    "from the repo root run `cd frontend && bun run scripts/validate-units-manifest.ts --update`"
+)
 REMEDY_COMMIT = "commit frontend/scripts/units.manifest.json"
 
 

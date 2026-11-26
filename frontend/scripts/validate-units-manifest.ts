@@ -733,7 +733,7 @@ export function checkManifest(
         detail:
           `digest ${String(row.digest).slice(0, 12)} recorded, ${actual.slice(0, 12)} on disk. ` +
           `Re-review this file and re-stamp it: its disposition (${row.disposition}) was ` +
-          'made against different content. To re-stamp, run ' +
+          'made against different content. To re-stamp, from the repo root run ' +
           '`cd frontend && bun run scripts/validate-units-manifest.ts --update`, then ' +
           'commit frontend/scripts/units.manifest.json.',
       })
@@ -959,9 +959,10 @@ function main(): void {
         '               pins that a conclusion changed FOR A REASON, never that\n' +
         '               the reason was good.\n' +
         '  [digest]     the file changed under a disposition made against older\n' +
-        '               content. Re-read it, then `--update` to re-stamp. That\n' +
-        '               re-stamp is an explicit re-acknowledgement; it is NOT\n' +
-        '               evidence the re-read happened.\n',
+        '               content. Re-read it, then re-stamp from the repo root:\n' +
+        '                 cd frontend && bun run scripts/validate-units-manifest.ts --update\n' +
+        '               That re-stamp is an explicit re-acknowledgement; it is\n' +
+        '               NOT evidence the re-read happened.\n',
     )
     process.exit(1)
   }
