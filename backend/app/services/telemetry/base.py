@@ -14,7 +14,7 @@ class TelemetryBase:
 
     db: AsyncSession
 
-    def __init__(self, db: AsyncSession):
+    def __init__(self, db: AsyncSession) -> None:
         """Initialize with database session."""
         self.db = db
 

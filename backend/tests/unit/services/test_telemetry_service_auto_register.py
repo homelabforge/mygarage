@@ -154,7 +154,9 @@ class TestPercentageCategory:
             ("THROTTLE_POS", "engine"),
         ],
     )
-    async def test_a_new_percentage_reading_gets_a_real_category(self, db_session, key, expected):
+    async def test_a_new_percentage_reading_gets_a_real_category(
+        self, db_session: AsyncSession, key: str, expected: str
+    ) -> None:
         from sqlalchemy import delete
 
         # The suite shares one database, so clear any row an earlier test left.
@@ -169,7 +171,9 @@ class TestPercentageCategory:
 
         assert param.category == expected
 
-    async def test_a_percentage_row_an_admin_left_on_other_stays_other(self, db_session):
+    async def test_a_percentage_row_an_admin_left_on_other_stays_other(
+        self, db_session: AsyncSession
+    ) -> None:
         """Once 165 has run, a percentage row on other is there on purpose.
         Registering it again must not move it to fuel."""
         svc = TelemetryService(db_session)

@@ -138,11 +138,11 @@ class TestVehicleAnalyticsRoutes:
     async def test_vehicle_analytics_carries_the_distance_unit(
         self,
         client: AsyncClient,
-        auth_headers,
+        auth_headers: dict[str, str],
         db_session: AsyncSession,
         test_user: dict[str, object],
         unit: str | None,
-    ):
+    ) -> None:
         """The page scopes itself from this, so it never fetches the vehicle too."""
         async with _fresh_vehicle(
             db_session, test_user, "Distance Unit Vehicle", distance_unit=unit
