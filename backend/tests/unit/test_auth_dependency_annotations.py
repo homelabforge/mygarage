@@ -18,9 +18,11 @@ snippet of every form, and `test_every_none_dependency_call_is_read` fails if
 the real tree has a form it can't read.
 
 Names resolve per module: an alias or an import rename means what its own
-module says, or what the scanned module it's imported from says. Class-instance
-dependencies (`Depends(SomeChecker())`) and `Depends(partial(...))` stay blind;
-nothing in app/ uses them.
+module says, or what the scanned module it's imported from says.
+`Depends(partial(f))` reads as f, and an instance of a class in app/
+(`Depends(Gate())`, or `gate = Gate()` at module level) as `Gate.__call__`. An
+instance from outside app/ has to be in `EXTERNAL_INSTANCES`. Any other Depends
+argument is an `unreadable dependency` finding, so a new form fails loud.
 """
 
 import ast
@@ -46,6 +48,16 @@ KNOWN_NONE_DEPS = frozenset(
     }
 )
 
+#: Callable instances from outside app/, spelled the way the scanner reads them,
+#: and whether each can hand back None. HTTPBearer returns None instead of a 403
+#: when auto_error is off. An outside instance missing here is unreadable.
+EXTERNAL_INSTANCES: Mapping[str, bool] = {"HTTPBearer(auto_error=False)": True}
+
+#: What a Depends argument the scanner can't read reports as.
+UNREADABLE = "unreadable dependency"
+#: A bare `Depends()` builds the annotation's class, and a constructor never hands back None.
+_ANNOTATION_CLASS = "<the annotation's class>"
+
 _DEPENDS = frozenset({"Depends", "Security"})
 _GENERATORS = frozenset({"Generator", "AsyncGenerator", "Iterator", "AsyncIterator"})
 
@@ -58,13 +70,16 @@ class Finding(NamedTuple):
     file: str
     line: int
     function: str
-    #: The param's name, or "return" for a wrapper whose return type drops the None.
+    #: The param's name, "return" for a wrapper whose return type drops the None,
+    #: or "" for an unreadable Depends that feeds no param.
     param: str
     dep: str
 
     def __str__(self) -> str:
         """One line for the failure message."""
         where = f"{self.file}:{self.line} {self.function}"
+        if self.dep == UNREADABLE:
+            return f"{where}({self.param}) has a Depends the scanner can't read"
         if self.param == "return":
             return f"{where}() takes {self.dep} but its return type drops None"
         return f"{where}({self.param}) is fed by {self.dep}"
@@ -181,8 +196,25 @@ class _Scanner:
                     self.aliases[(label, stmt.target.id)].append(stmt.value)
                 elif isinstance(stmt, ast.TypeAlias):
                     self.aliases[(label, stmt.name.id)].append(stmt.value)
+        # A class's own `__call__` goes by `Cls.__call__`, so `Depends(Cls())` can find it.
+        self.callable_classes: set[str] = set()
+        self.dep_names: dict[int, str] = {}
+        for tree in self.trees.values():
+            for cls in ast.walk(tree):
+                if not isinstance(cls, ast.ClassDef):
+                    continue
+                for stmt in cls.body:
+                    if isinstance(stmt, ast.FunctionDef | ast.AsyncFunctionDef) and (
+                        stmt.name == "__call__"
+                    ):
+                        self.callable_classes.add(cls.name)
+                        self.dep_names[id(stmt)] = f"{cls.name}.__call__"
         # Depends calls we managed to tie to a param, by node id.
         self.bound: set[int] = set()
+
+    def _dep_name(self, fn: _Func) -> str:
+        """What a Depends on this function reads as: its name, or `Cls.__call__`."""
+        return self.dep_names.get(id(fn), fn.name)
 
     def _source_label(self, label: str, stmt: ast.ImportFrom) -> str | None:
         """The scanned module a `from ... import` reads, or None if it isn't one."""
@@ -247,12 +279,40 @@ class _Scanner:
         return None
 
     def _dep_target(self, label: str, call: ast.Call) -> str | None:
-        """The dependency a Depends call names, positional or `dependency=`, resolved."""
+        """The dependency a Depends call names, positional or `dependency=`. None if unreadable."""
         node: ast.expr | None = call.args[0] if call.args else None
         if node is None:
             node = next((kw.value for kw in call.keywords if kw.arg == "dependency"), None)
+        if node is None:
+            return _ANNOTATION_CLASS
+        return self._runs(label, node)
+
+    def _runs(
+        self, label: str, node: ast.expr, seen: frozenset[tuple[str, str]] = frozenset()
+    ) -> str | None:
+        """What a Depends argument runs: a function, `Cls.__call__` or an outside instance."""
+        if isinstance(node, ast.Call):
+            func = _name(node.func)
+            func = func and self._target_name(label, func)
+            if not func:
+                return None
+            if func == "partial":
+                return self._runs(label, node.args[0], seen) if node.args else None
+            if func in self.callable_classes:
+                return f"{func}.__call__"
+            # Anything else built by a call has to be in the table, spelled exactly.
+            spelled = ast.unparse(ast.Call(ast.Name(func), node.args, node.keywords))
+            return spelled if spelled in EXTERNAL_INSTANCES else None
         name = _name(node)
-        return self._target_name(label, name) if name else None
+        if name is None:
+            return None
+        key = (label, name)
+        if isinstance(node, ast.Name) and key not in seen:
+            # A module-level name means whatever it's bound to, and every binding has to agree.
+            if bound := self._resolve(label, name):
+                reads = {self._runs(def_label, value, seen | {key}) for def_label, value in bound}
+                return reads.pop() if len(reads) == 1 else None
+        return self._target_name(label, name)
 
     def _default_deps(self, label: str, default: ast.expr | None) -> list[str]:
         """Dependencies named by a param's default: `Depends(f)`, or an alias of one."""
@@ -266,8 +326,7 @@ class _Scanner:
         deps: list[str] = []
         for def_label, c in calls:
             self.bound.add(id(c))
-            if target := self._dep_target(def_label, c):
-                deps.append(target)
+            deps.append(self._dep_target(def_label, c) or UNREADABLE)
         return deps
 
     def _readings(
@@ -285,7 +344,7 @@ class _Scanner:
             for elt in elts[1:]:
                 if call := self._depends_call(label, elt):
                     self.bound.add(id(call))
-                    dep = dep or self._dep_target(label, call)
+                    dep = dep or self._dep_target(label, call) or UNREADABLE
             return [(label, elts[0], dep)]
         if isinstance(ann, ast.Name) and (label, ann.id) not in seen:
             if bound := self._resolve(label, ann.id):
@@ -363,13 +422,17 @@ class _Scanner:
         # another module's same-named real dependency keeps it checked.
         defs: dict[str, list[_Func]] = defaultdict(list)
         for _, fn in self.funcs:
-            defs[fn.name].append(fn)
+            defs[self._dep_name(fn)].append(fn)
         side_effect = {name for name, fns in defs.items() if all(map(_returns_exactly_none, fns))}
-        none_deps = set(known) | {
-            fn.name
-            for label, fn in self.funcs
-            if fn.name not in side_effect and self.returns_none(label, fn)
-        }
+        none_deps = (
+            set(known)
+            | {spelled for spelled, admits in EXTERNAL_INSTANCES.items() if admits}
+            | {
+                self._dep_name(fn)
+                for label, fn in self.funcs
+                if self._dep_name(fn) not in side_effect and self.returns_none(label, fn)
+            }
+        )
         used = {dep for label, fn in self.funcs for *_, dep in self.depends_params(label, fn)}
         findings: list[Finding] = []
 
@@ -380,7 +443,8 @@ class _Scanner:
         while changed:
             changed = False
             for label, fn in self.funcs:
-                if fn.name not in used or fn.name in none_deps or fn.name in side_effect:
+                name = self._dep_name(fn)
+                if name not in used or name in none_deps or name in side_effect:
                     continue
                 fed = [
                     (arg, dep)
@@ -388,14 +452,32 @@ class _Scanner:
                     if dep in none_deps
                 ]
                 if fed and not all(_raises_on_none(fn, arg.arg) for arg, _ in fed):
-                    findings.append(Finding(label, fn.lineno, fn.name, "return", fed[0][1]))
-                    none_deps.add(fn.name)
+                    findings.append(Finding(label, fn.lineno, name, "return", fed[0][1]))
+                    none_deps.add(name)
                     changed = True
 
         for label, fn in self.funcs:
             for arg, type_label, typ, dep in self.depends_params(label, fn):
-                if dep in none_deps and not self.admits_none(type_label, typ):
-                    findings.append(Finding(label, arg.lineno, fn.name, arg.arg, dep))
+                if dep == UNREADABLE or (
+                    dep in none_deps and not self.admits_none(type_label, typ)
+                ):
+                    findings.append(Finding(label, arg.lineno, self._dep_name(fn), arg.arg, dep))
+
+        # An unreadable Depends that feeds no param (a `dependencies=[...]` list, an
+        # unused alias) still fails, so a new form can't slip in anywhere.
+        owner: dict[int, str] = {}
+        for _, fn in self.funcs:  # outer defs come first, so the innermost one wins
+            owner.update((id(n), self._dep_name(fn)) for n in ast.walk(fn))
+        for label, tree in self.trees.items():
+            for node in ast.walk(tree):
+                if (
+                    isinstance(node, ast.expr)
+                    and (call := self._depends_call(label, node))
+                    and id(call) not in self.bound
+                    and self._dep_target(label, call) is None
+                ):
+                    where = owner.get(id(call), "<module>")
+                    findings.append(Finding(label, call.lineno, where, "", UNREADABLE))
 
         # The instrument check: every Depends on a None dependency should be one we
         # read as a param, or sit in a `dependencies=[...]` list where no param exists.
@@ -439,7 +521,9 @@ class TestAppTree:
                 f"A param: type it `User | None` and handle the None. A `return` line "
                 f"is a dependency that takes one of these and returns a type without "
                 f"None: type its return `... | None`, or raise on a None user at the top "
-                f"(`if u is None: raise ...`).",
+                f"(`if u is None: raise ...`). An unreadable one: use a plain function, "
+                f"or teach the scanner that form (an outside instance goes in "
+                f"EXTERNAL_INSTANCES).",
                 pytrace=False,
             )
 
@@ -606,6 +690,50 @@ async def b(_: None = Depends(gate)): ...
                 set(),
                 id="side-effect-deps-are-not-none-deps",
             ),
+            pytest.param(
+                """
+from functools import partial
+async def lies(u: User = Depends(partial(require_auth))): ...
+async def ann(u: Annotated[User, Depends(partial(require_auth, strict=True))]): ...
+async def honest(u: User | None = Depends(partial(require_auth))): ...
+""",
+                {("lies", "u"), ("ann", "u")},
+                id="partial",
+            ),
+            pytest.param(
+                """
+import functools
+async def lies(u: User = Depends(functools.partial(require_auth))): ...
+async def honest(u: User | None = Depends(functools.partial(require_auth))): ...
+""",
+                {("lies", "u")},
+                id="functools-partial",
+            ),
+            pytest.param(
+                """
+class MaybeUser:
+    async def __call__(self, request: Request) -> User | None: ...
+class SureUser:
+    async def __call__(self, request: Request) -> User: ...
+maybe_user = MaybeUser()
+async def lies(u: User = Depends(MaybeUser())): ...
+async def lies_by_name(u: User = Depends(maybe_user)): ...
+async def honest(u: User | None = Depends(MaybeUser())): ...
+async def sure(u: User = Depends(SureUser())): ...
+""",
+                {("lies", "u"), ("lies_by_name", "u")},
+                id="class-instances",
+            ),
+            pytest.param(
+                """
+security = HTTPBearer(auto_error=False)
+async def lies(c: HTTPAuthorizationCredentials = Depends(security)): ...
+async def inline(c: HTTPAuthorizationCredentials = Depends(HTTPBearer(auto_error=False))): ...
+async def honest(c: HTTPAuthorizationCredentials | None = Depends(security)): ...
+""",
+                {("lies", "c"), ("inline", "c")},
+                id="outside-instance-that-admits-none",
+            ),
         ],
     )
     def test_forms(self, src: str, expected: set[tuple[str, str]]) -> None:
@@ -697,6 +825,15 @@ async def route(_: None = Depends(zone)): ...
 """
         assert _lies(src) == set()
 
+    def test_a_callable_class_can_be_a_lying_wrapper(self) -> None:
+        src = """
+class Gate:
+    async def __call__(self, u: User | None = Depends(require_auth)) -> User:
+        return u
+async def route(a: User = Depends(Gate())): ...
+"""
+        assert _lies(src) == {("Gate.__call__", "return"), ("route", "a")}
+
     def test_a_route_is_not_a_wrapper(self) -> None:
         # Nothing depends on a route handler, so its return type isn't a promise about None.
         src = """
@@ -717,6 +854,56 @@ async def b(u: User = wrap(Depends(require_auth))): ...
 """
         result = scan({"snippet.py": src})
         assert result.unbound == ["snippet.py:4"]
+
+
+class TestScannerUnreadable:
+    """A Depends argument the scanner can't read is a finding, typed honestly or not."""
+
+    def test_a_dependency_it_cannot_read_is_a_finding(self) -> None:
+        # make_dep() hands back a lambda, so nobody can say what it returns.
+        src = """
+def make_dep():
+    return lambda: None
+made = make_dep()
+class NoCall: ...
+async def lies(u: User = Depends(make_dep())): ...
+async def honest(u: User | None = Depends(make_dep())): ...
+async def lam(u: User | None = Depends(lambda: None)): ...
+async def by_name(u: User | None = Depends(made)): ...
+async def no_call(u: User | None = Depends(NoCall())): ...
+async def outside(k: str | None = Depends(APIKeyHeader(name="k"))): ...
+async def flag(c: Creds | None = Depends(HTTPBearer(auto_error=strict))): ...
+async def ann(u: Annotated[User | None, Depends(partial())]): ...
+@router.get("/x", dependencies=[Depends(make_dep())])
+async def listed(): ...
+"""
+        result = scan({"snippet.py": src})
+        assert {(f.function, f.param) for f in result.findings} == {
+            ("lies", "u"),
+            ("honest", "u"),
+            ("lam", "u"),
+            ("by_name", "u"),
+            ("no_call", "u"),
+            ("outside", "k"),
+            ("flag", "c"),
+            ("ann", "u"),
+            ("listed", ""),
+        }
+        assert {f.dep for f in result.findings} == {UNREADABLE}
+
+    def test_readable_forms_are_not_unreadable(self) -> None:
+        # Bare Depends() builds the annotation's class, which is never None.
+        src = """
+class Paging: ...
+security = HTTPBearer(auto_error=False)
+bearer = security
+async def a(p: Paging = Depends()): ...
+async def b(p: Annotated[Paging, Depends()]): ...
+async def c(p: Paging = Depends(Paging)): ...
+async def d(c: Creds | None = Depends(bearer)): ...
+async def e(db: Session = Depends(get_db)): ...
+"""
+        assert _lies(src) == set()
 
 
 class TestScannerModules:
