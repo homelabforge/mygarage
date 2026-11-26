@@ -19,7 +19,7 @@ from __future__ import annotations
 import os
 import uuid
 from collections.abc import Collection, Generator
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import TypedDict
 
@@ -883,7 +883,7 @@ def _summary(
         TelemetryDailySummary(
             vin=vin,
             param_key=key,
-            date=datetime.combine(day, time()),
+            date=day,
             min_value=min(values),
             max_value=max(values),
             avg_value=sum(values) / len(values),
@@ -903,7 +903,7 @@ def _summaries(engine: Engine, vin: str, key: str = "ODOMETER") -> dict[date, tu
                 TelemetryDailySummary.sample_count,
             ).where(TelemetryDailySummary.vin == vin, TelemetryDailySummary.param_key == key)
         ).all()
-    return {day.date(): (lo, hi, avg, n) for day, lo, hi, avg, n in rows}
+    return {day: (lo, hi, avg, n) for day, lo, hi, avg, n in rows}
 
 
 def test_readings_keep_their_fraction_and_records_stay_whole_km(engine):
@@ -2047,7 +2047,7 @@ def test_a_switch_day_summary_its_rows_no_longer_back_is_left(engine, capsys, re
         day = s.scalars(
             select(TelemetryDailySummary).where(
                 TelemetryDailySummary.vin == TQVIN,
-                TelemetryDailySummary.date == datetime(2026, 7, 1),
+                TelemetryDailySummary.date == date(2026, 7, 1),
             )
         ).one()
         day.min_value, day.max_value = min(original), max(original)

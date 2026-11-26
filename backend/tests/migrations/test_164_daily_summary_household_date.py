@@ -1,0 +1,216 @@
+"""Migration 164: telemetry_daily_summary.date becomes a DATE.
+
+The summary job keys a day by its household date now. On SQLite a new
+``2026-03-09`` key and an old ``2026-03-09 00:00:00`` one both get past the
+unique constraint, so the old rows are rebuilt as plain dates there; PostgreSQL
+casts the column. Old rows keep their date part and stay UTC-day aggregates.
+"""
+
+from datetime import date
+
+import pytest
+from sqlalchemy import Date, DateTime, Engine, inspect, select, text
+from sqlalchemy.exc import IntegrityError
+
+from app.models.vehicle_telemetry import TelemetryDailySummary
+from tests.migrations._loader import load_migration
+
+pytestmark = pytest.mark.migrations
+
+_NAME = "164_daily_summary_household_date"
+_BOTH = pytest.mark.parametrize("engine_for_migration", ["sqlite", "pg"], indirect=True)
+_VIN = "1HGCM82633A004352"
+
+#: (param_key, min, max, avg, count), all on 2026-03-09 at UTC midnight.
+_SEED = [
+    ("SPEED", 0.0, 112.5, 48.25, 1200),
+    ("COOLANT_TEMP", 71.0, 96.0, 88.5, 640),
+]
+
+
+def _make_old_table(engine: Engine) -> None:
+    """The table as 032 made it: a timestamp column, unnamed unique and two indexes."""
+    pg = engine.dialect.name == "postgresql"
+    pk = "SERIAL PRIMARY KEY" if pg else "INTEGER PRIMARY KEY AUTOINCREMENT"
+    ts = "TIMESTAMP" if pg else "DATETIME"
+    with engine.begin() as conn:
+        conn.execute(text("CREATE TABLE vehicles (vin VARCHAR(17) PRIMARY KEY)"))
+        conn.execute(text("INSERT INTO vehicles (vin) VALUES (:v)"), {"v": _VIN})
+        conn.execute(
+            text(
+                f"CREATE TABLE telemetry_daily_summary (id {pk},"
+                " vin VARCHAR(17) NOT NULL REFERENCES vehicles(vin) ON DELETE CASCADE,"
+                f" param_key VARCHAR(100) NOT NULL, date {ts} NOT NULL,"
+                " min_value FLOAT, max_value FLOAT, avg_value FLOAT,"
+                " sample_count INTEGER NOT NULL DEFAULT 0, UNIQUE(vin, param_key, date))"
+            )
+        )
+        conn.execute(
+            text(
+                "CREATE INDEX idx_daily_summary_vehicle_date ON telemetry_daily_summary(vin, date)"
+            )
+        )
+        conn.execute(
+            text(
+                "CREATE INDEX idx_daily_summary_param"
+                " ON telemetry_daily_summary(vin, param_key, date)"
+            )
+        )
+        for key, low, high, avg, n in _SEED:
+            conn.execute(
+                text(
+                    "INSERT INTO telemetry_daily_summary"
+                    " (vin, param_key, date, min_value, max_value, avg_value, sample_count)"
+                    " VALUES (:v, :k, '2026-03-09 00:00:00', :lo, :hi, :avg, :n)"
+                ),
+                {"v": _VIN, "k": key, "lo": low, "hi": high, "avg": avg, "n": n},
+            )
+
+
+def _rows(engine: Engine) -> dict[str, tuple]:
+    """Each row as the model reads it."""
+    t = TelemetryDailySummary.__table__
+    with engine.connect() as conn:
+        rows = conn.execute(
+            select(
+                t.c.param_key,
+                t.c.date,
+                t.c.min_value,
+                t.c.max_value,
+                t.c.avg_value,
+                t.c.sample_count,
+            ).order_by(t.c.param_key)
+        ).all()
+    return {r[0]: tuple(r[1:]) for r in rows}
+
+
+def _raw_dates(engine: Engine) -> list[object]:
+    with engine.connect() as conn:
+        return list(conn.execute(text("SELECT date FROM telemetry_daily_summary")).scalars())
+
+
+def _ddl(engine: Engine) -> str | None:
+    if engine.dialect.name != "sqlite":
+        return None
+    with engine.connect() as conn:
+        return conn.execute(
+            text("SELECT sql FROM sqlite_master WHERE name = 'telemetry_daily_summary'")
+        ).scalar()
+
+
+_EXPECTED = {
+    "COOLANT_TEMP": (date(2026, 3, 9), 71.0, 96.0, 88.5, 640),
+    "SPEED": (date(2026, 3, 9), 0.0, 112.5, 48.25, 1200),
+}
+
+
+def test_the_migration_is_not_fatal():
+    # The summary job refuses to write until 164 lands, so the rest of the app can run.
+    assert not getattr(load_migration(_NAME), "FATAL", False)
+
+
+@_BOTH
+def test_old_rows_become_dates_with_their_numbers_intact(engine_for_migration):
+    dialect, engine, _url = engine_for_migration
+    _make_old_table(engine)
+
+    load_migration(_NAME).upgrade(engine)
+
+    assert _rows(engine) == _EXPECTED
+    # The stored value itself, not just what the model's parser makes of it.
+    expected_raw = "2026-03-09" if dialect == "sqlite" else date(2026, 3, 9)
+    raw = _raw_dates(engine)
+    assert raw == [expected_raw, expected_raw]
+    assert all(type(v) is type(expected_raw) for v in raw)
+
+
+@_BOTH
+def test_the_column_is_date_and_keys_and_indexes_survive(engine_for_migration):
+    _dialect, engine, _url = engine_for_migration
+    _make_old_table(engine)
+
+    load_migration(_NAME).upgrade(engine)
+
+    insp = inspect(engine)
+    column = {c["name"]: c for c in insp.get_columns("telemetry_daily_summary")}["date"]
+    assert isinstance(column["type"], Date)
+    assert not isinstance(column["type"], DateTime)
+    assert column["nullable"] is False
+    uniques = [
+        sorted(u["column_names"]) for u in insp.get_unique_constraints("telemetry_daily_summary")
+    ]
+    assert uniques == [["date", "param_key", "vin"]]
+    indexes = {
+        i["name"]: i["column_names"]
+        for i in insp.get_indexes("telemetry_daily_summary")
+        if i["name"].startswith("idx_")
+    }
+    assert indexes == {
+        "idx_daily_summary_vehicle_date": ["vin", "date"],
+        "idx_daily_summary_param": ["vin", "param_key", "date"],
+    }
+    fks = insp.get_foreign_keys("telemetry_daily_summary")
+    assert [(f["constrained_columns"], f["referred_table"]) for f in fks] == [(["vin"], "vehicles")]
+    assert fks[0]["options"].get("ondelete") == "CASCADE"
+
+
+@_BOTH
+def test_a_date_key_now_collides_with_the_migrated_day(engine_for_migration):
+    # Before 164, SQLite took this as a second row for the same day.
+    _dialect, engine, _url = engine_for_migration
+    _make_old_table(engine)
+
+    load_migration(_NAME).upgrade(engine)
+
+    with pytest.raises(IntegrityError), engine.begin() as conn:
+        conn.execute(
+            text(
+                "INSERT INTO telemetry_daily_summary (vin, param_key, date, sample_count)"
+                " VALUES (:v, 'SPEED', :d, 1)"
+            ),
+            {"v": _VIN, "d": "2026-03-09"},
+        )
+
+
+@_BOTH
+def test_a_second_run_changes_nothing(engine_for_migration):
+    _dialect, engine, _url = engine_for_migration
+    _make_old_table(engine)
+    mod = load_migration(_NAME)
+    mod.upgrade(engine)
+    ddl = _ddl(engine)
+
+    mod.upgrade(engine)
+
+    assert _rows(engine) == _EXPECTED
+    assert _ddl(engine) == ddl
+
+
+@_BOTH
+def test_a_table_create_all_made_is_left_alone(engine_for_migration):
+    # A fresh install gets DATE from create_all before the runner starts.
+    _dialect, engine, _url = engine_for_migration
+    with engine.begin() as conn:
+        conn.execute(text("CREATE TABLE vehicles (vin VARCHAR(17) PRIMARY KEY)"))
+        conn.execute(text("INSERT INTO vehicles (vin) VALUES (:v)"), {"v": _VIN})
+    table = TelemetryDailySummary.metadata.tables[TelemetryDailySummary.__tablename__]
+    table.create(engine)
+    with engine.begin() as conn:
+        conn.execute(
+            table.insert().values(
+                vin=_VIN, param_key="SPEED", date=date(2026, 3, 9), sample_count=2
+            )
+        )
+    ddl = _ddl(engine)
+
+    load_migration(_NAME).upgrade(engine)
+
+    assert _ddl(engine) == ddl
+    assert _rows(engine) == {"SPEED": (date(2026, 3, 9), None, None, None, 2)}
+
+
+@_BOTH
+def test_no_table_is_a_no_op(engine_for_migration):
+    _dialect, engine, _url = engine_for_migration
+    load_migration(_NAME).upgrade(engine)
+    assert not inspect(engine).has_table("telemetry_daily_summary")

@@ -2,10 +2,11 @@ from __future__ import annotations
 
 """Vehicle telemetry models for LiveLink time-series data."""
 
+import datetime as dt
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, Float, ForeignKey, Index, Integer, String, UniqueConstraint
+from sqlalchemy import Date, DateTime, Float, ForeignKey, Index, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
@@ -102,9 +103,8 @@ class TelemetryDailySummary(Base):
         String(17), ForeignKey("vehicles.vin", ondelete="CASCADE"), nullable=False
     )
     param_key: Mapped[str] = mapped_column(String(100), nullable=False)
-    date: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False
-    )  # Date at midnight UTC for this aggregate
+    # The household's calendar day. Rows from before migration 164 are UTC days.
+    date: Mapped[dt.date] = mapped_column(Date, nullable=False)
     min_value: Mapped[float | None] = mapped_column(Float)
     max_value: Mapped[float | None] = mapped_column(Float)
     avg_value: Mapped[float | None] = mapped_column(Float)

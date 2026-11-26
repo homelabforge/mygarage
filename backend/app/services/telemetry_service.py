@@ -12,7 +12,7 @@ from decimal import Decimal
 from functools import partial
 from typing import Any, cast
 
-from sqlalchemy import and_, delete, exists, func, or_, select
+from sqlalchemy import Date, and_, delete, exists, func, inspect, or_, select
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
@@ -47,7 +47,7 @@ from app.utils.autopid_normalizer import (
     infer_param_class,
     is_telemetry_param,
 )
-from app.utils.household_time import household_today
+from app.utils.household_time import household_day_utc_bounds, household_today
 from app.utils.logging_utils import sanitize_for_log
 from app.utils.odometer_units import (
     ODOMETER_UNIT_KM,
@@ -135,6 +135,10 @@ logger = logging.getLogger(__name__)
 #: the number of vehicles, which is a household's worth, so it never needs
 #: eviction.
 _DECLARED_ODOMETER_WARNED: dict[str, date] = {}
+
+#: Flips once telemetry_daily_summary.date reads as DATE, so the summary job
+#: only inspects the column once per process. See _summary_date_column_ready.
+_summary_date_ready = False
 
 
 def _delegates_to_store_telemetry(policy: StoragePolicy) -> bool:
@@ -1578,19 +1582,49 @@ class TelemetryService:
     # Daily Aggregation
     # =========================================================================
 
-    async def generate_daily_summary(self, date: datetime, vin: str | None = None) -> int:
-        """Generate daily summary aggregates for a specific date.
+    async def _summary_date_column_ready(self) -> bool:
+        """Whether telemetry_daily_summary.date is a DATE column yet (migration 164).
+
+        On the old SQLite DATETIME column a new ``2026-03-09`` key and an old
+        ``2026-03-09 00:00:00`` one both pass the unique constraint, so writing
+        before 164 lands would double every day. Logs and says no until then.
+        """
+        global _summary_date_ready
+        if _summary_date_ready:
+            return True
+        conn = await self.db.connection()
+        columns = await conn.run_sync(
+            lambda sync_conn: inspect(sync_conn).get_columns("telemetry_daily_summary")
+        )
+        column_type = next((c["type"] for c in columns if c["name"] == "date"), None)
+        # The old column reflects as DATETIME or TIMESTAMP, neither of which is a Date.
+        if isinstance(column_type, Date):
+            _summary_date_ready = True
+            return True
+        logger.error(
+            "telemetry_daily_summary.date is %s, not DATE: migration 164 hasn't run, "
+            "so daily summaries are skipped until it does",
+            column_type,
+        )
+        return False
+
+    async def generate_daily_summary(self, day: date, vin: str | None = None) -> int:
+        """Generate summary aggregates for one household day.
+
+        The window runs from local midnight to the next one, so a DST day is
+        23 or 25 hours. Re-running a day updates its rows in place.
 
         Args:
-            date: The date to aggregate (uses midnight UTC)
+            day: The household calendar day to aggregate
             vin: Optional specific VIN (None = all vehicles)
 
         Returns:
-            Number of summary records created/updated
+            Number of summary records created/updated, 0 when migration 164
+            hasn't run yet
         """
-        # Normalize to midnight UTC
-        day_start = date.replace(hour=0, minute=0, second=0, microsecond=0)
-        day_end = day_start + timedelta(days=1)
+        if not await self._summary_date_column_ready():
+            return 0
+        day_start, day_end = household_day_utc_bounds(day)
 
         # Build query for raw telemetry
         query = (
@@ -1618,7 +1652,7 @@ class TelemetryService:
             stmt = dialect_insert(TelemetryDailySummary).values(
                 vin=row[0],
                 param_key=row[1],
-                date=day_start,
+                date=day,
                 min_value=row[2],
                 max_value=row[3],
                 avg_value=row[4],

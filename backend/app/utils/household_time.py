@@ -11,7 +11,7 @@ which remain naive UTC.
 import logging
 import os
 from contextvars import ContextVar
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import tzlocal
@@ -121,6 +121,19 @@ def household_wall_clock_to_utc(value: datetime) -> datetime:
     if value.tzinfo is None:
         value = value.replace(tzinfo=household_zone())
     return value.astimezone(UTC).replace(tzinfo=None)
+
+
+def household_day_utc_bounds(day: date) -> tuple[datetime, datetime]:
+    """A household day as its naive UTC window, start included, end not.
+
+    A DST day runs 23 or 25 hours, and a stamp at local midnight belongs to the
+    day it starts.
+    """
+    start = household_wall_clock_to_utc(datetime.combine(day, datetime.min.time()))
+    end = household_wall_clock_to_utc(
+        datetime.combine(day + timedelta(days=1), datetime.min.time())
+    )
+    return start, end
 
 
 def household_today() -> date:

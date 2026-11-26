@@ -1,5 +1,6 @@
 """Pydantic schemas for vehicle telemetry operations."""
 
+import datetime as dt
 from datetime import datetime
 from typing import Literal
 
@@ -203,7 +204,7 @@ class TelemetryQueryResponse(BaseModel):
 class DailySummaryEntry(BaseModel):
     """Schema for a daily summary entry."""
 
-    date: datetime
+    date: dt.date  # the household day
     min_value: float | None
     max_value: float | None
     avg_value: float | None
