@@ -13,7 +13,7 @@ one (EDT until 06:00 UTC, EST after).
 from __future__ import annotations
 
 import logging
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from datetime import date, datetime
 from pathlib import Path
 from uuid import uuid4
@@ -25,18 +25,22 @@ from sqlalchemy import delete, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.database import Base
+from app.models.livelink_device import LiveLinkDevice
 from app.models.settings import Setting
 from app.models.vehicle_telemetry import TelemetryDailySummary, VehicleTelemetry
 from app.services.telemetry_service import TelemetryService
 from app.tasks import livelink_tasks
 from app.utils import household_time
 from app.utils.household_time import household_day_utc_bounds
+from tests._keep_rows import Keep
 
 pytestmark = pytest.mark.asyncio
 
 NEW_YORK = ZoneInfo("America/New_York")
 # The readiness guard's per-process cache, reset by path so a move only touches this line.
 GUARD_FLAG = "app.services.telemetry.queries._summary_date_ready"
+#: make_livelink_vehicle's factory: (prefix, suffix, **device) -> (vin, device).
+LiveLinkVehicleFactory = Callable[..., Awaitable[tuple[str, LiveLinkDevice]]]
 
 
 class _PassthroughSessionContext:
@@ -58,7 +62,9 @@ def new_york() -> None:
 
 
 @pytest_asyncio.fixture
-async def vehicle(db_session: AsyncSession, make_livelink_vehicle) -> AsyncGenerator[tuple]:
+async def vehicle(
+    db_session: AsyncSession, make_livelink_vehicle: LiveLinkVehicleFactory
+) -> AsyncGenerator[tuple[str, str]]:
     """A vehicle and device of our own; its readings and summaries go afterwards."""
     # The suite never drops these, so each test needs its own.
     vin, device = await make_livelink_vehicle("dsum", uuid4().hex[:6])
@@ -103,7 +109,7 @@ async def _row_count(db: AsyncSession, vin: str) -> int | None:
     )
 
 
-async def test_day_bounds_follow_the_household_clock(new_york) -> None:
+async def test_day_bounds_follow_the_household_clock(new_york: None) -> None:
     # Spring forward: local midnight is still EST, the next one is EDT, so 23 hours.
     assert household_day_utc_bounds(date(2026, 3, 8)) == (
         datetime(2026, 3, 8, 5, 0),
@@ -122,7 +128,7 @@ async def test_day_bounds_follow_the_household_clock(new_york) -> None:
 
 
 async def test_readings_land_on_their_household_day(
-    db_session: AsyncSession, vehicle, new_york
+    db_session: AsyncSession, vehicle: tuple[str, str], new_york: None
 ) -> None:
     vin, device_id = vehicle
     # 03:30 UTC is 23:30 on the 9th in New York, 04:30 UTC is 00:30 on the 10th.
@@ -145,7 +151,7 @@ async def test_readings_land_on_their_household_day(
 
 
 async def test_a_reading_at_household_midnight_counts_on_the_new_day_only(
-    db_session: AsyncSession, vehicle, new_york
+    db_session: AsyncSession, vehicle: tuple[str, str], new_york: None
 ) -> None:
     vin, device_id = vehicle
     # 04:00 UTC on the 10th is exactly midnight in New York (EDT by then).
@@ -161,7 +167,7 @@ async def test_a_reading_at_household_midnight_counts_on_the_new_day_only(
 
 
 async def test_the_spring_forward_day_covers_its_23_hours(
-    db_session: AsyncSession, vehicle, new_york
+    db_session: AsyncSession, vehicle: tuple[str, str], new_york: None
 ) -> None:
     vin, device_id = vehicle
     await _readings(
@@ -186,7 +192,7 @@ async def test_the_spring_forward_day_covers_its_23_hours(
 
 
 async def test_the_fall_back_day_covers_its_25_hours(
-    db_session: AsyncSession, vehicle, new_york
+    db_session: AsyncSession, vehicle: tuple[str, str], new_york: None
 ) -> None:
     vin, device_id = vehicle
     await _readings(
@@ -211,7 +217,7 @@ async def test_the_fall_back_day_covers_its_25_hours(
 
 
 async def test_rerunning_a_day_updates_the_one_row(
-    db_session: AsyncSession, vehicle, new_york
+    db_session: AsyncSession, vehicle: tuple[str, str], new_york: None
 ) -> None:
     vin, device_id = vehicle
     await _readings(db_session, vin, device_id, "DSUM_RERUN", [(datetime(2026, 3, 10, 12), 4.0)])
@@ -228,9 +234,85 @@ async def test_rerunning_a_day_updates_the_one_row(
     assert await _row_count(db_session, vin) == 1
 
 
+async def test_a_migrated_utc_row_whose_reading_moved_a_day_back_is_dropped(
+    db_session: AsyncSession, vehicle: tuple[str, str], new_york: None
+) -> None:
+    vin, device_id = vehicle
+    # 02:00 UTC on the 11th is 22:00 on the 10th in New York. Migration 164
+    # carried over the UTC-day row that put it on the 11th.
+    await _readings(db_session, vin, device_id, "DSUM_MOVED", [(datetime(2026, 3, 11, 2), 7.0)])
+    db_session.add(
+        TelemetryDailySummary(
+            vin=vin,
+            param_key="DSUM_MOVED",
+            date=date(2026, 3, 11),
+            min_value=7.0,
+            max_value=7.0,
+            avg_value=7.0,
+            sample_count=1,
+        )
+    )
+    await db_session.commit()
+    svc = TelemetryService(db_session)
+
+    for _ in range(2):
+        await svc.generate_daily_summary(date(2026, 3, 10), vin=vin)
+        await svc.generate_daily_summary(date(2026, 3, 11), vin=vin)
+
+        # The reading counts once, on the 10th, and the 11th has nothing for it.
+        assert await _summaries(db_session, vin, "DSUM_MOVED") == {
+            date(2026, 3, 10): (7.0, 7.0, 7.0, 1),
+        }
+
+
+async def test_dropping_stale_rows_keeps_the_keys_the_window_backs(
+    db_session: AsyncSession,
+    vehicle: tuple[str, str],
+    new_york: None,
+    make_livelink_vehicle: LiveLinkVehicleFactory,
+) -> None:
+    vin, device_id = vehicle
+    other_vin, _other = await make_livelink_vehicle("dsum", uuid4().hex[:6])
+    await _readings(db_session, vin, device_id, "DSUM_KEPT", [(datetime(2026, 3, 11, 16), 3.0)])
+    for owner in (vin, other_vin):
+        db_session.add(
+            TelemetryDailySummary(
+                vin=owner,
+                param_key="DSUM_GONE",
+                date=date(2026, 3, 11),
+                min_value=1.0,
+                max_value=1.0,
+                avg_value=1.0,
+                sample_count=1,
+            )
+        )
+    await db_session.commit()
+    try:
+        svc = TelemetryService(db_session)
+        assert await svc.generate_daily_summary(date(2026, 3, 11), vin=vin) == 1
+
+        assert await _summaries(db_session, vin, "DSUM_KEPT") == {
+            date(2026, 3, 11): (3.0, 3.0, 3.0, 1)
+        }
+        assert await _summaries(db_session, vin, "DSUM_GONE") == {}
+        # A run for one vehicle leaves every other vehicle's day alone.
+        assert await _summaries(db_session, other_vin, "DSUM_GONE") == {
+            date(2026, 3, 11): (1.0, 1.0, 1.0, 1)
+        }
+    finally:
+        await db_session.rollback()
+        await db_session.execute(
+            delete(TelemetryDailySummary).where(TelemetryDailySummary.vin == other_vin)
+        )
+        await db_session.commit()
+
+
 @pytest_asyncio.fixture
 async def job_settings(
-    db_session: AsyncSession, keep_rows, livelink_enabled, monkeypatch: pytest.MonkeyPatch
+    db_session: AsyncSession,
+    keep_rows: Keep,
+    livelink_enabled: None,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> AsyncGenerator[None]:
     """New York household, aggregation on, the job on the fixture session, today 03-11."""
     keys = {"timezone": "America/New_York", "livelink_daily_aggregation_enabled": "true"}
@@ -256,7 +338,7 @@ async def job_settings(
 
 
 async def test_the_job_upserts_the_last_three_household_days(
-    db_session: AsyncSession, vehicle, job_settings
+    db_session: AsyncSession, vehicle: tuple[str, str], job_settings: None
 ) -> None:
     vin, device_id = vehicle
     # Local noon on each day from the 7th to the 11th, plus two late evenings
@@ -295,7 +377,10 @@ async def test_the_job_upserts_the_last_three_household_days(
 
 
 async def test_a_ready_column_is_remembered(
-    db_session: AsyncSession, vehicle, new_york, monkeypatch: pytest.MonkeyPatch
+    db_session: AsyncSession,
+    vehicle: tuple[str, str],
+    new_york: None,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     vin, _device_id = vehicle
     monkeypatch.setattr(GUARD_FLAG, False)

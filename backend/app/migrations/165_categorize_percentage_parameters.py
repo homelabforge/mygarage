@@ -5,7 +5,8 @@ branch in ``TelemetryService._classify_param``, so fuel level, throttle and
 state of charge all landed on ``other``. New rows get a category by key now;
 this moves the rows already on file.
 
-A ``percentage`` row on ``other`` or no category gets one by its canonical key:
+A ``percentage`` row on ``other`` or no category (NULL or empty, which the
+runtime treats the same) gets one by its canonical key:
 ``FUEL`` in it gives ``fuel``, ``SOC`` or ``BATT`` gives ``electrical``, anything
 else ``engine``. A category someone set stays, and so does every row on another
 class. Once this has run, a percentage row on ``other`` is one an admin put
@@ -15,7 +16,7 @@ The rule and the key canonicalizer are frozen copies, as in 062: a historical
 migration's output must not move when the runtime rule does.
 
 Not FATAL: nothing reads ``category`` yet, and the admin page writes it.
-Idempotent: a second run finds no percentage row on other or NULL.
+Idempotent: a second run finds no percentage row on other, empty or NULL.
 """
 
 from __future__ import annotations
@@ -72,7 +73,7 @@ def upgrade(engine: Engine | None = None) -> None:
                 "SELECT id, param_key FROM livelink_parameters"
                 # The app lowercases the class before it matches, so this does too.
                 " WHERE LOWER(param_class) = 'percentage'"
-                " AND (category IS NULL OR category = 'other')"
+                " AND (category IS NULL OR category = '' OR category = 'other')"
             )
         ).all()
 

@@ -2282,9 +2282,13 @@ class SessionService:
             ),
             else_=0,
         )
-        # Rate compared by multiplying through by dt, so no division.
-        accel = case((and_(paired, dv * 1_000_000 >= harsh_kmh_per_s * dt_us), 1), else_=0)
-        brake = case((and_(paired, dv * 1_000_000 <= -harsh_kmh_per_s * dt_us), 1), else_=0)
+        # A rate, worked out the way the old loop's dv / dt.total_seconds() did,
+        # so a sample right on the line lands on the same side (R1-M3). Two
+        # samples on one stamp are already out of `paired`; NULLIF keeps PG
+        # from dividing by zero if it checks the rate first.
+        rate = dv / (func.nullif(dt_us, 0) / 1_000_000.0)
+        accel = case((and_(paired, rate >= harsh_kmh_per_s), 1), else_=0)
+        brake = case((and_(paired, rate <= -harsh_kmh_per_s), 1), else_=0)
         result = await self.db.execute(
             select(
                 # PG's sum(bigint) is numeric and asyncpg hands that back as Decimal.

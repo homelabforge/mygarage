@@ -11,7 +11,7 @@ from datetime import date
 
 import pytest
 from sqlalchemy import Connection, Date, DateTime, Engine, inspect, select, text
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, OperationalError
 
 from app.models.vehicle_telemetry import TelemetryDailySummary
 from tests.migrations._loader import load_migration
@@ -112,13 +112,15 @@ _EXPECTED = {
 }
 
 
-def test_the_migration_is_not_fatal():
+def test_the_migration_is_not_fatal() -> None:
     # The summary job refuses to write until 164 lands, so the rest of the app can run.
     assert not getattr(load_migration(_NAME), "FATAL", False)
 
 
 @_BOTH
-def test_old_rows_become_dates_with_their_numbers_intact(engine_for_migration):
+def test_old_rows_become_dates_with_their_numbers_intact(
+    engine_for_migration: tuple[str, Engine, str],
+) -> None:
     dialect, engine, _url = engine_for_migration
     _make_old_table(engine)
 
@@ -133,7 +135,9 @@ def test_old_rows_become_dates_with_their_numbers_intact(engine_for_migration):
 
 
 @_BOTH
-def test_the_column_is_date_and_keys_and_indexes_survive(engine_for_migration):
+def test_the_column_is_date_and_keys_and_indexes_survive(
+    engine_for_migration: tuple[str, Engine, str],
+) -> None:
     dialect, engine, _url = engine_for_migration
     _make_old_table(engine)
 
@@ -155,7 +159,7 @@ def test_the_column_is_date_and_keys_and_indexes_survive(engine_for_migration):
     indexes = {
         i["name"]: i["column_names"]
         for i in insp.get_indexes("telemetry_daily_summary")
-        if i["name"].startswith("idx_")
+        if (i["name"] or "").startswith("idx_")
     }
     assert indexes == {
         "idx_daily_summary_vehicle_date": ["vin", "date"],
@@ -163,11 +167,13 @@ def test_the_column_is_date_and_keys_and_indexes_survive(engine_for_migration):
     }
     fks = insp.get_foreign_keys("telemetry_daily_summary")
     assert [(f["constrained_columns"], f["referred_table"]) for f in fks] == [(["vin"], "vehicles")]
-    assert fks[0]["options"].get("ondelete") == "CASCADE"
+    assert fks[0].get("options", {}).get("ondelete") == "CASCADE"
 
 
 @_BOTH
-def test_a_date_key_now_collides_with_the_migrated_day(engine_for_migration):
+def test_a_date_key_now_collides_with_the_migrated_day(
+    engine_for_migration: tuple[str, Engine, str],
+) -> None:
     # Before 164, SQLite took this as a second row for the same day.
     _dialect, engine, _url = engine_for_migration
     _make_old_table(engine)
@@ -185,7 +191,9 @@ def test_a_date_key_now_collides_with_the_migrated_day(engine_for_migration):
 
 
 @_BOTH
-def test_rows_that_share_a_date_are_merged_into_one(engine_for_migration, caplog):
+def test_rows_that_share_a_date_are_merged_into_one(
+    engine_for_migration: tuple[str, Engine, str], caplog: pytest.LogCaptureFixture
+) -> None:
     # SQLite can hold one midnight twice, PG two stamps on the same day.
     dialect, engine, _url = engine_for_migration
     second = "2026-03-09 00:00:00.000000" if dialect == "sqlite" else "2026-03-09 05:00:00"
@@ -216,8 +224,41 @@ def test_rows_that_share_a_date_are_merged_into_one(engine_for_migration, caplog
     assert any("Merged 1 " in r.getMessage() for r in caplog.records)
 
 
+@pytest.mark.parametrize("engine_for_migration", ["sqlite"], indirect=True)
+def test_a_failed_rebuild_puts_the_merged_rows_back(
+    engine_for_migration: tuple[str, Engine, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # R1-M2: the merge used to commit on its own, so a rebuild that failed
+    # after it left the old table short the rows it had folded away.
+    _dialect, engine, _url = engine_for_migration
+    seed = [
+        ("SPEED", "2026-03-09 00:00:00", 10.0, 20.0, 15.0, 2),
+        ("SPEED", "2026-03-09 00:00:00.000000", 5.0, 30.0, 25.0, 8),
+        ("COOLANT_TEMP", "2026-03-09 00:00:00", 71.0, 96.0, 88.5, 640),
+    ]
+    _make_old_table(engine, seed)
+    mod = load_migration(_NAME)
+    monkeypatch.setattr(mod, "_INDEXES", (*mod._INDEXES, "CREATE INDEX boom ON no_such_table (x)"))
+
+    with pytest.raises(OperationalError):
+        mod.upgrade(engine)
+
+    insp = inspect(engine)
+    column = {c["name"]: c for c in insp.get_columns("telemetry_daily_summary")}["date"]
+    assert isinstance(column["type"], DateTime)
+    assert not insp.has_table("telemetry_daily_summary_new")
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text(
+                "SELECT param_key, date, min_value, max_value, avg_value, sample_count"
+                " FROM telemetry_daily_summary ORDER BY id"
+            )
+        ).all()
+    assert [tuple(r) for r in rows] == seed
+
+
 @_BOTH
-def test_a_second_run_changes_nothing(engine_for_migration):
+def test_a_second_run_changes_nothing(engine_for_migration: tuple[str, Engine, str]) -> None:
     _dialect, engine, _url = engine_for_migration
     _make_old_table(engine)
     mod = load_migration(_NAME)
@@ -231,7 +272,9 @@ def test_a_second_run_changes_nothing(engine_for_migration):
 
 
 @_BOTH
-def test_a_table_create_all_made_is_left_alone(engine_for_migration):
+def test_a_table_create_all_made_is_left_alone(
+    engine_for_migration: tuple[str, Engine, str],
+) -> None:
     # A fresh install gets DATE from create_all before the runner starts.
     _dialect, engine, _url = engine_for_migration
     with engine.begin() as conn:
@@ -254,7 +297,7 @@ def test_a_table_create_all_made_is_left_alone(engine_for_migration):
 
 
 @_BOTH
-def test_no_table_is_a_no_op(engine_for_migration):
+def test_no_table_is_a_no_op(engine_for_migration: tuple[str, Engine, str]) -> None:
     _dialect, engine, _url = engine_for_migration
     load_migration(_NAME).upgrade(engine)
     assert not inspect(engine).has_table("telemetry_daily_summary")

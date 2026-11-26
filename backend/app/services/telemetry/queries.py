@@ -4,7 +4,7 @@ import logging
 from datetime import date, datetime, timedelta
 from typing import Any, cast
 
-from sqlalchemy import Date, delete, func, inspect, select
+from sqlalchemy import Date, delete, func, inspect, select, tuple_
 from sqlalchemy.engine import CursorResult
 
 from app.database import is_sqlite
@@ -47,7 +47,7 @@ class TelemetryQueriesMixin(TelemetryBase):
         """Get the live telemetry values for a vehicle, excluding dead params.
 
         `vehicle_telemetry_latest` holds one row per (vin, param_key) and is
-        never pruned — the daily job only prunes the historical table — so any
+        never pruned (the daily job only prunes the historical table), so any
         param ever written under a VIN would otherwise render as a live gauge
         forever. A misattributed first ingest left a Mitsubishi drawing DPF,
         NOx, SCR and DEF cards from a diesel six months after the fact.
@@ -193,7 +193,8 @@ class TelemetryQueriesMixin(TelemetryBase):
         """Generate summary aggregates for one household day.
 
         The window runs from local midnight to the next one, so a DST day is
-        23 or 25 hours. Re-running a day updates its rows in place.
+        23 or 25 hours. Re-running a day updates its rows in place, and the
+        day's rows end up being exactly what the window holds.
 
         Args:
             day: The household calendar day to aggregate
@@ -227,6 +228,20 @@ class TelemetryQueriesMixin(TelemetryBase):
 
         result = await self.db.execute(query)
         rows = result.fetchall()
+
+        # A migrated UTC-day row can hold a key whose readings now sit on the
+        # day before, so drop whatever this window no longer backs. Otherwise
+        # those readings count twice (R1-H2).
+        stale = delete(TelemetryDailySummary).where(TelemetryDailySummary.date == day)
+        if vin:
+            stale = stale.where(TelemetryDailySummary.vin == vin)
+        if rows:
+            stale = stale.where(
+                tuple_(TelemetryDailySummary.vin, TelemetryDailySummary.param_key).not_in(
+                    [(row[0], row[1]) for row in rows]
+                )
+            )
+        await self.db.execute(stale)
 
         count = 0
         for row in rows:

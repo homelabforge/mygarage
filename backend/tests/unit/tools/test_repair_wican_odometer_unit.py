@@ -974,7 +974,8 @@ def _pruned_window_day(engine: Engine, device_id: str) -> None:
 def test_wican_pruned_window_day_is_left_when_another_device_was_ever_here(engine, capsys):
     """R2-M2: with the raw rows pruned, the day can't be rebuilt, and an
     earlier dongle's odometer session says its readings may be in it, so it's
-    left as is and named. Red on f1986ea5 (no summary handling, no report)."""
+    left as is and named. Aug 31 too: UTC+14 puts the 12:00 start on it.
+    Red on f1986ea5 (no summary handling, no report)."""
     from tools.repair_wican_odometer_unit import _report
 
     _pruned_window_day(engine, "prundev")
@@ -992,18 +993,16 @@ def test_wican_pruned_window_day_is_left_when_another_device_was_ever_here(engin
         s.commit()
 
     plan = _plan(engine, "prundev", "km")
-    assert plan.summaries_left == [date(2026, 8, 30)]
+    assert plan.summaries_left == [date(2026, 8, 30), date(2026, 8, 31)]
     _report(plan)
     out = capsys.readouterr().out
-    assert "1 scaled, 0 rebuilt, 1 left as is" in out
+    assert "0 scaled, 0 rebuilt, 2 left as is" in out
     assert "2026-08-30: the window-start day" in out
 
     _apply(engine, "prundev", "km")
     sums = _summaries(engine, SUMVIN)
     assert sums[date(2026, 8, 30)] == (80000.0, 80400.0, 80200.0, 5)
-    assert sums[date(2026, 8, 31)] == pytest.approx(
-        (_down(80400.0), _down(80450.0), _down(80425.0), 2)
-    )
+    assert sums[date(2026, 8, 31)] == (80400.0, 80450.0, 80425.0, 2)
 
 
 def test_wican_pruned_window_day_is_scaled_on_a_single_device_vehicle(engine):
@@ -1016,6 +1015,24 @@ def test_wican_pruned_window_day_is_scaled_on_a_single_device_vehicle(engine):
     assert _summaries(engine, SUMVIN)[date(2026, 8, 30)] == pytest.approx(
         (_down(80000.0), _down(80400.0), _down(80200.0), 5)
     )
+
+
+def test_wican_pruned_day_before_the_window_start_is_named_not_scaled(engine: Engine) -> None:
+    """R1-H3: a 09:00 start is still Aug 29 at UTC-12, so Aug 29's summary is
+    in the band. It was never scaled before the band grew, and owning the key
+    doesn't say it holds anything from after the start, so it's named."""
+    _seed(engine, "earlydev", SUMVIN, INFLATED, legacy="mi", created_at=datetime(2026, 8, 30, 9))
+    with Session(engine) as s:
+        _summary(s, SUMVIN, date(2026, 8, 29), [79000.0, 79100.0], 3)
+        _summary(s, SUMVIN, date(2026, 8, 30), [80000.0, 80400.0], 5)
+        s.commit()
+
+    plan = _plan(engine, "earlydev", "km")
+
+    assert plan.summaries_left == [date(2026, 8, 29)]
+    assert {c.day: c.how for c in plan.summaries}[date(2026, 8, 30)] == "scaled"
+    _apply(engine, "earlydev", "km")
+    assert _summaries(engine, SUMVIN)[date(2026, 8, 29)] == (79000.0, 79100.0, 79050.0, 3)
 
 
 # --- Torque: TORQUE_ODOMETER stored as miles since the switch (R10) --------------
@@ -1219,7 +1236,8 @@ def test_torque_dry_run_shows_the_switch_its_source_and_the_rows_around_it(engin
         assert reading in out
     assert "x1.610" in out
     assert "clear odometer_unit" in out
-    assert "1 scaled, 1 rebuilt, 0 left as is" in out
+    # Jul 2 sits in the switch's band (UTC+14 puts 12:00 on it), and its rows back it.
+    assert "0 scaled, 2 rebuilt, 0 left as is" in out
 
 
 #: A Torque profile correction at the switch: 57,000 -> 96,561 is x1.694,
@@ -1566,9 +1584,10 @@ def test_torque_places_the_switch_at_the_first_record(engine, capsys):
     under the declaration predates every surviving row, so its `created_at` is
     the switch. That record is `Auto-updated` (the next frame rewrote its
     notes); an `Auto-recorded`-only filter finds Jul 3's, after the first raw
-    row, and refuses. The switch day can't be rebuilt and is left; the days
-    after are scaled; an overnight session from that day with no rows is kept
-    whole; a latest before the switch is named, not scaled."""
+    row, and refuses. The switch day can't be rebuilt and is left, and so is
+    Jul 2, which UTC+14 would put the switch on; the days after are scaled; an
+    overnight session from that day with no rows is kept whole; a latest
+    before the switch is named, not scaled."""
     from tools.repair_wican_odometer_unit import _report
 
     ids = _record_case(engine)
@@ -1576,7 +1595,7 @@ def test_torque_places_the_switch_at_the_first_record(engine, capsys):
     plan = _plan(engine, TQ, "km", key=TQKEY)
 
     assert plan.boundary == RECORD_SWITCH
-    assert plan.summaries_left == [date(2026, 7, 1)]
+    assert plan.summaries_left == [date(2026, 7, 1), date(2026, 7, 2)]
     assert plan.latest is None
     assert plan.stale_latest == (56950.0, datetime(2026, 6, 30, 9))
     assert [k[0] for k in plan.sessions_kept] == [ids["overnight"]]
@@ -1598,7 +1617,9 @@ def test_torque_places_the_switch_at_the_first_record(engine, capsys):
     sums = _summaries(engine, TQVIN, TQKEY)
     assert sums[date(2026, 6, 30)] == (56950.0, 56950.0, 56950.0, 1)
     assert sums[date(2026, 7, 1)] == (57000.0, _up(57040.0), (57000.0 + _up(57040.0)) / 2, 6)
-    assert sums[date(2026, 7, 2)] == pytest.approx((57100.0, 57150.0, 57125.0, 4))
+    assert sums[date(2026, 7, 2)] == pytest.approx(
+        (_up(57100.0), _up(57150.0), (_up(57100.0) + _up(57150.0)) / 2, 4)
+    )
     assert sums[date(2026, 7, 3)] == pytest.approx((57200.0, 57220.0, 57210.0, 2))
 
 
@@ -2087,7 +2108,9 @@ def _household_days(
         s.commit()
 
 
-def test_east_of_utc_a_household_day_holding_readings_from_before_b_is_rebuilt(engine):
+def test_east_of_utc_a_household_day_holding_readings_from_before_b_is_rebuilt(
+    engine: Engine,
+) -> None:
     """B is 22:30 UTC on Jul 1, already 00:30 on Jul 2 in Berlin. Berlin's
     Jul 2 starts at 22:00 UTC, so it holds the 22:10 km reading. Scaling it
     whole, as a day after B's UTC date, would shrink that km low."""
@@ -2121,7 +2144,9 @@ def test_east_of_utc_a_household_day_holding_readings_from_before_b_is_rebuilt(e
     assert sums[date(2026, 7, 2)][0] == 57005.0
 
 
-def test_west_of_utc_a_household_day_holding_readings_from_after_b_is_rebuilt(engine):
+def test_west_of_utc_a_household_day_holding_readings_from_after_b_is_rebuilt(
+    engine: Engine,
+) -> None:
     """B is 02:00 UTC on Jul 2, still 22:00 on Jul 1 in New York. New York's
     Jul 1 runs to 04:00 UTC, so its max is an inflated reading. Skipping it,
     as a day before B's UTC date, would leave that max inflated and unsaid."""
@@ -2154,7 +2179,9 @@ def test_west_of_utc_a_household_day_holding_readings_from_after_b_is_rebuilt(en
     assert sums[date(2026, 7, 2)] == pytest.approx((57060.0, 57060.0, 57060.0, 1))
 
 
-def test_a_boundary_household_day_its_rows_no_longer_back_is_reported(engine, capsys):
+def test_a_boundary_household_day_its_rows_no_longer_back_is_reported(
+    engine: Engine, capsys: pytest.CaptureFixture[str]
+) -> None:
     """The east case with the 22:10 reading pruned: neither grouping adds up to
     Jul 2 any more, so it's left and named, not scaled."""
     from tools.repair_wican_odometer_unit import _report
@@ -2182,6 +2209,118 @@ def test_a_boundary_household_day_its_rows_no_longer_back_is_reported(engine, ca
     assert "2026-07-02: the switch day" in capsys.readouterr().out
     _apply(engine, TQ, "km", key=TQKEY, switch_at=switch)
     assert _summaries(engine, TQVIN, TQKEY)[date(2026, 7, 2)] == before
+
+
+def test_west_summaries_cut_in_another_zone_are_reported_not_skipped(
+    engine: Engine, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """R1-H3: the job cut these in New York, and the setting says UTC now. Jul
+    1 holds the inflated 22:00 and 23:00 readings, and B's UTC date is Jul 2,
+    so a band built from today's zone skipped it without a word."""
+    from tools.repair_wican_odometer_unit import _report
+
+    switch = datetime(2026, 7, 2, 2)
+    days = {
+        date(2026, 7, 1): [57000.0, _up(57010.0), _up(57020.0)],
+        date(2026, 7, 2): [_up(57060.0)],
+    }
+    _household_days(
+        engine,
+        "UTC",
+        [
+            (datetime(2026, 7, 1, 20), 57000.0),
+            (switch, _up(57010.0)),
+            (datetime(2026, 7, 2, 3), _up(57020.0)),
+            (datetime(2026, 7, 2, 12), _up(57060.0)),
+        ],
+        days,
+    )
+    before = _summaries(engine, TQVIN, TQKEY)
+
+    plan = _plan(engine, TQ, "km", key=TQKEY, switch_at=switch)
+
+    assert plan.summaries == []
+    assert plan.summaries_left == [date(2026, 7, 1), date(2026, 7, 2)]
+    _report(plan)
+    assert "2026-07-01: the switch day" in capsys.readouterr().out
+    _apply(engine, TQ, "km", key=TQKEY, switch_at=switch)
+    assert _summaries(engine, TQVIN, TQKEY) == before
+
+
+def test_east_summaries_cut_in_another_zone_are_reported_not_scaled(engine: Engine) -> None:
+    """R1-H3: cut in Berlin, read with UTC. Berlin's Jul 2 holds the 22:10 km
+    reading, and a band from today's zone ends at Jul 1, so Jul 2 got scaled
+    whole and that km reading shrank."""
+    switch = datetime(2026, 7, 1, 22, 30)
+    _household_days(
+        engine,
+        "UTC",
+        [
+            (datetime(2026, 7, 1, 21), 57000.0),
+            (datetime(2026, 7, 1, 22, 10), 57005.0),
+            (switch, _up(57010.0)),
+            (datetime(2026, 7, 2, 8), _up(57050.0)),
+        ],
+        {
+            date(2026, 7, 1): [57000.0],
+            date(2026, 7, 2): [57005.0, _up(57010.0), _up(57050.0)],
+        },
+    )
+    before = _summaries(engine, TQVIN, TQKEY)
+
+    plan = _plan(engine, TQ, "km", key=TQKEY, switch_at=switch)
+
+    assert [c for c in plan.summaries if c.how == "scaled"] == []
+    assert plan.summaries_left == [date(2026, 7, 1), date(2026, 7, 2)]
+    _apply(engine, TQ, "km", key=TQKEY, switch_at=switch)
+    assert _summaries(engine, TQVIN, TQKEY) == before
+
+
+def test_an_early_backfill_goes_by_its_utc_days_raw_top(engine: Engine) -> None:
+    """R1-M1: backfill took Jun 30's top from the UTC day's raw rows, 56,950.
+    The New York summary for Jun 30 runs to 04:00 UTC on Jul 1 and tops out at
+    56,960, which matches the record neither way, so it went unproven."""
+    rows = [*HISTORY[:1], (datetime(2026, 7, 1, 3), 56960.0), *HISTORY[1:]]
+    _torque_history(engine, rows)
+    early = SWITCH - timedelta(hours=2)
+    with Session(engine) as s:
+        s.add(Setting(key="timezone", value="America/New_York"))
+        jun30 = s.scalars(
+            select(TelemetryDailySummary).where(
+                TelemetryDailySummary.vin == TQVIN,
+                TelemetryDailySummary.date == date(2026, 6, 30),
+            )
+        ).one()
+        jun30.max_value, jun30.avg_value, jun30.sample_count = 56960.0, 56955.0, 2
+        record = _record(
+            s, date(2026, 6, 30), _up(56950.0), "Backfilled from LiveLink telemetry", early
+        ).id
+        s.commit()
+
+    plan = _plan(engine, TQ, "km", key=TQKEY)
+
+    assert plan.boundary == SWITCH
+    assert plan.early_backfills == [record]
+    assert plan.unproven_backfills == []
+    assert (record, round(_up(56950.0)), 56950.0) in plan.records
+
+
+def test_the_tool_does_not_load_the_app_database() -> None:
+    """F-2: app.database builds an engine from config and can write secret.key,
+    and with --db that's the wrong database. Importing the tool mustn't load it."""
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    backend = Path(__file__).resolve().parents[3]
+    probe = (
+        "import sys; sys.path.insert(0, '.'); import tools.repair_wican_odometer_unit; "
+        "print(sorted(m for m in ('app.database', 'app.config') if m in sys.modules))"
+    )
+    done = subprocess.run(
+        [sys.executable, "-c", probe], cwd=backend, capture_output=True, text=True, check=True
+    )
+    assert done.stdout.strip() == "[]", done.stderr
 
 
 #: The phone arrived on Jul 1; its clock ran behind, so the first thing it
@@ -2287,13 +2426,14 @@ def test_the_step_case_report_has_no_record_case_caveat(engine, capsys):
 
 
 def test_a_double_converted_record_on_a_pruned_day_is_flagged_by_its_summary(engine, capsys):
-    """Final review 10 (F3-5): Jul 2's raw rows are gone, so the record's day
-    top comes from that day's summary, scaled as the plan scales it. One
-    built from a km row on pruned Jun 30, whose summary stays km, isn't
-    flagged. Red on 5af0f60c, which needed raw rows to flag anything."""
+    """Final review 10 (F3-5): every raw row is gone, so Jul 3's top comes
+    from its summary, scaled as the plan scales it. One built from a km row
+    on pruned Jun 30, whose summary stays km, isn't flagged. Red on 5af0f60c,
+    which needed raw rows to flag anything. Jul 3, not Jul 2: Jul 2 is in the
+    switch's band now, and a pruned day there is left, so it has no scaled top."""
     from tools.repair_wican_odometer_unit import _report
 
-    _record_case(engine)
+    _record_case(engine, rows=False)
     with Session(engine) as s:
         good = _record(
             s,
@@ -2304,14 +2444,14 @@ def test_a_double_converted_record_on_a_pruned_day_is_flagged_by_its_summary(eng
         ).id
         twice = _record(
             s,
-            date(2026, 7, 2),
-            _up(_up(57150.0)),
+            date(2026, 7, 3),
+            _up(_up(57220.0)),
             "Backfilled from LiveLink telemetry",
             datetime(2026, 7, 3, 10),
         ).id
         s.commit()
 
-    plan = _plan(engine, TQ, "km", key=TQKEY)
+    plan = _plan(engine, TQ, "km", key=TQKEY, switch_at=RECORD_SWITCH)
 
     assert plan.flagged_records == [twice]
     assert (good, round(_up(56950.0)), 56950.0) in plan.records

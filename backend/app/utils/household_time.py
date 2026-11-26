@@ -8,67 +8,26 @@ without invalidation code. ``utc_now()`` stays the source for timestamps,
 which remain naive UTC.
 """
 
-import logging
-import os
 from contextvars import ContextVar
 from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
-import tzlocal
 from fastapi import Depends, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models.settings import Setting
-from app.utils.logging_utils import sanitize_for_log
 
-logger = logging.getLogger(__name__)
+# The resolver lives in a leaf module so the offline tools can use it without
+# pulling in the database and config.
+from app.utils.zone_resolve import resolve_zone as resolve_zone
 
 TIMEZONE_SETTING_KEY = "timezone"
 # Computed, served from /settings/public, never stored (plan 4.4).
 EFFECTIVE_TIMEZONE_KEY = "effective_timezone"
 
 household_zone_var: ContextVar[ZoneInfo | None] = ContextVar("household_zone", default=None)
-
-# One WARNING per distinct bad value, not per request.
-_warned_values: set[str] = set()
-
-
-def _valid_zone(value: str | None, source: str) -> ZoneInfo | None:
-    """Return the zone for a candidate IANA name, or None (warning once) if unusable."""
-    if not value:
-        return None
-    try:
-        return ZoneInfo(value)
-    except Exception:
-        if value not in _warned_values:
-            _warned_values.add(value)
-            logger.warning("Ignoring invalid timezone %s from %s", sanitize_for_log(value), source)
-        return None
-
-
-def resolve_zone(row_value: str | None) -> ZoneInfo:
-    """Effective zone from a settings-row value and the fallback chain.
-
-    Order: the row, ``MYGARAGE_TIMEZONE`` (presence in the environment, not
-    the config default), the container's local zone via tzlocal, UTC.
-    """
-    zone = _valid_zone(row_value, "the timezone setting")
-    if zone is not None:
-        return zone
-    if "MYGARAGE_TIMEZONE" in os.environ:
-        zone = _valid_zone(os.environ["MYGARAGE_TIMEZONE"], "MYGARAGE_TIMEZONE")
-        if zone is not None:
-            return zone
-    try:
-        local_name = tzlocal.get_localzone_name()
-    except Exception:
-        local_name = None
-    zone = _valid_zone(local_name, "the container's local zone")
-    if zone is not None:
-        return zone
-    return ZoneInfo("UTC")
 
 
 async def load_household_zone(db: AsyncSession) -> ZoneInfo:

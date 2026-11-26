@@ -8,7 +8,7 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from app.utils import household_time
+from app.utils import zone_resolve
 from app.utils.household_time import (
     household_today,
     household_zone,
@@ -48,21 +48,19 @@ class TestResolveZone:
     @pytest.mark.parametrize("env", ["", "Also/Bogus"])
     def test_bad_env_falls_to_container_zone(self, monkeypatch, env):
         monkeypatch.setenv("MYGARAGE_TIMEZONE", env)
-        monkeypatch.setattr(
-            household_time.tzlocal, "get_localzone_name", lambda: "Pacific/Auckland"
-        )
+        monkeypatch.setattr(zone_resolve.tzlocal, "get_localzone_name", lambda: "Pacific/Auckland")
         assert resolve_zone(None) == ZoneInfo("Pacific/Auckland")
 
     def test_unresolvable_container_zone_falls_to_utc(self, monkeypatch, no_env):
         def boom():
             raise RuntimeError("no zone")
 
-        monkeypatch.setattr(household_time.tzlocal, "get_localzone_name", boom)
+        monkeypatch.setattr(zone_resolve.tzlocal, "get_localzone_name", boom)
         assert resolve_zone(None) == ZoneInfo("UTC")
 
     def test_invalid_value_warns_once_per_distinct_value(self, monkeypatch, no_env, caplog):
-        monkeypatch.setattr(household_time.tzlocal, "get_localzone_name", lambda: "UTC")
-        with caplog.at_level(logging.WARNING, logger="app.utils.household_time"):
+        monkeypatch.setattr(zone_resolve.tzlocal, "get_localzone_name", lambda: "UTC")
+        with caplog.at_level(logging.WARNING, logger="app.utils.zone_resolve"):
             resolve_zone("Not/AZone")
             resolve_zone("Not/AZone")
             resolve_zone("Other/Bogus")
@@ -79,6 +77,6 @@ class TestHouseholdToday:
 
     def test_unloaded_context_falls_back_to_the_chain(self, frozen_clock, monkeypatch, no_env):
         household_zone_var.set(None)
-        monkeypatch.setattr(household_time.tzlocal, "get_localzone_name", lambda: "America/Denver")
+        monkeypatch.setattr(zone_resolve.tzlocal, "get_localzone_name", lambda: "America/Denver")
         assert household_zone() == ZoneInfo("America/Denver")
         assert household_today() == date(2026, 9, 16)

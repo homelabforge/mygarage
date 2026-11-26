@@ -7,7 +7,7 @@ someone set, and a row on another class, stay as they are.
 """
 
 import pytest
-from sqlalchemy import Engine, text
+from sqlalchemy import Engine, inspect, text
 
 from tests.migrations._loader import load_migration
 
@@ -25,6 +25,8 @@ _SEED = [
     ("EV_SOC", "percentage", None),
     ("THROTTLE_POS", "percentage", "other"),
     ("04-ENGINELOAD", "percentage", None),
+    # The admin endpoint stores an empty string, and the runtime reads it as unset.
+    ("ZZ_EMPTY_FUEL", "percentage", ""),
     # The app matches the class case-blind, so 165 does too.
     ("ZZ_PEDAL_D", "Percentage", "other"),
     # Someone filed this one by hand, so it stays.
@@ -43,6 +45,7 @@ _EXPECTED = {
     "EV_SOC": "electrical",
     "THROTTLE_POS": "engine",
     "04-ENGINELOAD": "engine",
+    "ZZ_EMPTY_FUEL": "fuel",
     "ZZ_PEDAL_D": "engine",
     "PEDAL_POS": "temperature",
     "9B-CUSTOMSENSOR": "other",
@@ -76,13 +79,15 @@ def _categories(engine: Engine) -> dict[str, str | None]:
     return {k: c for k, c in rows}
 
 
-def test_the_migration_is_not_fatal():
+def test_the_migration_is_not_fatal() -> None:
     # Nothing reads category yet, so a failure isn't worth keeping the app down.
     assert not getattr(load_migration(_NAME), "FATAL", False)
 
 
 @_BOTH
-def test_percentage_rows_get_a_category_by_key(engine_for_migration):
+def test_percentage_rows_get_a_category_by_key(
+    engine_for_migration: tuple[str, Engine, str],
+) -> None:
     _dialect, engine, _url = engine_for_migration
     _make_table(engine)
 
@@ -92,7 +97,7 @@ def test_percentage_rows_get_a_category_by_key(engine_for_migration):
 
 
 @_BOTH
-def test_a_second_run_changes_nothing(engine_for_migration):
+def test_a_second_run_changes_nothing(engine_for_migration: tuple[str, Engine, str]) -> None:
     _dialect, engine, _url = engine_for_migration
     _make_table(engine)
     mod = load_migration(_NAME)
@@ -105,12 +110,13 @@ def test_a_second_run_changes_nothing(engine_for_migration):
 
 
 @_BOTH
-def test_no_table_is_a_no_op(engine_for_migration):
+def test_no_table_is_a_no_op(engine_for_migration: tuple[str, Engine, str]) -> None:
     _dialect, engine, _url = engine_for_migration
     load_migration(_NAME).upgrade(engine)
+    assert not inspect(engine).has_table("livelink_parameters")
 
 
-def test_the_frozen_rule_matches_the_runtime_one_today():
+def test_the_frozen_rule_matches_the_runtime_one_today() -> None:
     """Drift guard for now: 165 keeps its own copy of the rule, which may fall
     behind the runtime one later. The migration must not change if it does."""
     from app.services.telemetry.parameters import TelemetryParametersMixin

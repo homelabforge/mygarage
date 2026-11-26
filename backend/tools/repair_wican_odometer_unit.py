@@ -74,7 +74,7 @@ import sys
 from bisect import bisect_left, bisect_right
 from collections.abc import Collection
 from dataclasses import dataclass, field
-from datetime import UTC, date, datetime, time
+from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -83,7 +83,6 @@ from sqlalchemy import Connection, inspect, text
 
 sys.path.insert(0, ".")
 
-from app.utils.household_time import resolve_zone  # noqa: E402
 from app.utils.odometer_units import (  # noqa: E402
     ODOMETER_UNIT_KM,
     ODOMETER_UNIT_MI,
@@ -93,6 +92,7 @@ from app.utils.odometer_units import (  # noqa: E402
     resolve_odometer_unit,
 )
 from app.utils.units import UnitConverter  # noqa: E402
+from app.utils.zone_resolve import resolve_zone  # noqa: E402
 from tools._tool_db import (  # noqa: E402
     MIXED_STEP_HIGH,
     MIXED_STEP_LOW,
@@ -101,6 +101,11 @@ from tools._tool_db import (  # noqa: E402
     legacy_migration_applied,
     mixed_units_step,
 )
+
+#: The furthest any zone sits from UTC, west and east. A summary row cut in
+#: any zone covers its date's local day, so these bound what it can hold.
+_WESTMOST_OFFSET = timedelta(hours=12)
+_EASTMOST_OFFSET = timedelta(hours=14)
 
 #: A session's distance is the odometer's delta when it matches it this closely.
 _DELTA_TOLERANCE_KM = 0.01
@@ -194,7 +199,7 @@ class RepairPlan:
     #: How B was found, for the report.
     boundary_source: str = ""
     summaries: list[SummaryChange] = field(default_factory=list)
-    #: B's day, when its summary can be neither rebuilt nor safely scaled.
+    #: B's day in some zone, when its summary can be neither rebuilt nor safely scaled.
     summaries_left: list[date] = field(default_factory=list)
     #: Sessions kept whole because no rows survive to say which side of B they
     #: read, as (id, started_at, ended_at).
@@ -579,16 +584,20 @@ def _plan_summaries(
     this device's, and left alone and reported when not.
 
     Rows from before migration 164 are UTC days and later ones household days,
-    and a row doesn't say which. So "B's day" is every day from the earlier of
-    B's UTC and household dates to the later one, and each of those has to be
-    backed by its raw rows under one grouping or the other.
+    and a row doesn't say which, nor which zone it was cut in: the setting can
+    have changed since, or this can run where it resolves differently. So "B's
+    day" is a band holding B's date in every zone, UTC-12 to UTC+14, and each
+    day in it has to be backed by its raw rows under one grouping or the other
+    (R1-H3). A row outside it can't straddle B whatever zone cut it. The zone
+    only picks the household grouping to try.
     """
     scaled = dict(zip(plan.raw_ids, (new for _old, new in plan.raw), strict=True))
     zone = _household_zone(conn)
-    first = last = None
+    b_day = first = last = None
     if plan.boundary is not None:
-        b_days = (plan.boundary.date(), _household_date(plan.boundary, zone))
-        first, last = min(b_days), max(b_days)
+        b_day = plan.boundary.date()
+        first = (plan.boundary - _WESTMOST_OFFSET).date()
+        last = (plan.boundary + _EASTMOST_OFFSET).date()
     for row in conn.execute(
         text(
             "SELECT id, date, min_value, max_value, avg_value, sample_count "
@@ -609,7 +618,9 @@ def _plan_summaries(
             if new is not None:
                 plan.summaries.append(SummaryChange(row.id, day, "rebuilt", old, new))
                 continue
-            if not pruned_day_scales:
+            # The day before B's UTC date was never scaled whole, so a pruned
+            # one stays and is named even when the device owns the key.
+            if not pruned_day_scales or (b_day is not None and day < b_day):
                 plan.summaries_left.append(day)
                 continue
         lo, hi, avg = (None if v is None else _reading(v, plan.to) for v in old)
@@ -956,10 +967,13 @@ def _plan_early_backfills(
     top x factor), so the day's stored top says which: a match times 1.609 was
     read as miles and is scaled, a match as is stays. Anything else is named.
     """
-    tops: dict[date, float] = {}
+    # Backfill took each UTC day's top from the raw rows, so those win where
+    # any survive. A summary only fills a pruned day: since 164 it's a
+    # household day, which can hold a different top (R1-M1).
+    from_rows: dict[date, float] = {}
     for r in rows:
-        tops[r.at.date()] = max(tops.get(r.at.date(), r.value), r.value)
-    # The summary wins: it's the whole day, where pruning may have taken some rows.
+        from_rows[r.at.date()] = max(from_rows.get(r.at.date(), r.value), r.value)
+    tops: dict[date, float] = {}
     for row in conn.execute(
         text(
             "SELECT date, max_value FROM telemetry_daily_summary WHERE vin = :v AND param_key = :k"
@@ -969,6 +983,7 @@ def _plan_early_backfills(
         top = _maybe_float(row.max_value)
         if top is not None:
             tops[_at(row.date).date()] = top
+    tops |= from_rows
     for record in records:
         if record.created_at >= boundary or not record.notes.startswith("Backfilled"):
             continue

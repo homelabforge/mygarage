@@ -16,7 +16,8 @@ back ``uq_daily_summary_vin_param_date``, ``idx_daily_summary_vehicle_date`` and
 
 Rows that would share a date once they're dates (two stamps on one day, or
 SQLite's same midnight with and without microseconds) are merged first, into the
-lowest id, with the count-weighted avg.
+lowest id, with the count-weighted avg. The merge and the rebuild or cast are one
+transaction on both dialects, so a failure puts every merged row back.
 
 Not FATAL: the summary job checks the column type and writes nothing until this
 has run, and the rest of the app doesn't read the table. Idempotent: a column
@@ -27,7 +28,6 @@ from __future__ import annotations
 
 import logging
 import os
-import sqlite3
 from pathlib import Path
 
 from sqlalchemy import Connection, Date, Engine, create_engine, inspect, text
@@ -95,8 +95,6 @@ def upgrade(engine: Engine | None = None) -> None:
                 text(f'ALTER TABLE {_TABLE} ALTER COLUMN "date" TYPE DATE USING "date"::date')
             )
     else:
-        with engine.begin() as conn:
-            _merge_same_day_rows(conn, "substr(date, 1, 10)")
         _rebuild_sqlite(engine)
     logger.info("telemetry_daily_summary.date is a DATE now")
 
@@ -139,37 +137,37 @@ def _merge_same_day_rows(conn: Connection, day: str) -> None:
 
 
 def _rebuild_sqlite(engine: Engine) -> None:
-    raw = engine.raw_connection()
-    try:
-        dbapi = raw.driver_connection
-        assert isinstance(dbapi, sqlite3.Connection)
-        prev_iso = dbapi.isolation_level
-        dbapi.isolation_level = None  # we run the transaction ourselves
-        cur = dbapi.cursor()
+    """Merge the shared dates and rebuild the table, all in one transaction.
+
+    SQLite's DDL is transactional, so a failed copy or index rolls the merge
+    back with it (R1-M2). We run BEGIN and COMMIT ourselves: pysqlite's own
+    handling only opens a transaction before DML.
+    """
+    with engine.connect() as conn:
+        conn = conn.execution_options(isolation_level="AUTOCOMMIT")
         # foreign_keys can't change inside a transaction, so it goes first.
-        cur.execute("PRAGMA foreign_keys=OFF")
-        cur.execute("BEGIN")
+        conn.exec_driver_sql("PRAGMA foreign_keys=OFF")
         try:
-            cur.execute(f"DROP TABLE IF EXISTS {_TABLE}_new")
-            cur.execute(_SQLITE_DDL)
-            cur.execute(
-                f"INSERT INTO {_TABLE}_new ({_COLUMNS}) "
-                f"SELECT id, vin, param_key, substr(date, 1, 10), min_value, max_value, "
-                f"avg_value, sample_count FROM {_TABLE}"
-            )
-            cur.execute(f"DROP TABLE {_TABLE}")
-            cur.execute(f"ALTER TABLE {_TABLE}_new RENAME TO {_TABLE}")
-            for sql in _INDEXES:
-                cur.execute(sql)
-            cur.execute("COMMIT")
-        except Exception:
-            cur.execute("ROLLBACK")
-            raise
+            conn.exec_driver_sql("BEGIN")
+            try:
+                _merge_same_day_rows(conn, "substr(date, 1, 10)")
+                conn.exec_driver_sql(f"DROP TABLE IF EXISTS {_TABLE}_new")
+                conn.exec_driver_sql(_SQLITE_DDL)
+                conn.exec_driver_sql(
+                    f"INSERT INTO {_TABLE}_new ({_COLUMNS}) "
+                    f"SELECT id, vin, param_key, substr(date, 1, 10), min_value, max_value, "
+                    f"avg_value, sample_count FROM {_TABLE}"
+                )
+                conn.exec_driver_sql(f"DROP TABLE {_TABLE}")
+                conn.exec_driver_sql(f"ALTER TABLE {_TABLE}_new RENAME TO {_TABLE}")
+                for sql in _INDEXES:
+                    conn.exec_driver_sql(sql)
+                conn.exec_driver_sql("COMMIT")
+            except Exception:
+                conn.exec_driver_sql("ROLLBACK")
+                raise
         finally:
-            cur.execute("PRAGMA foreign_keys=ON")
-            dbapi.isolation_level = prev_iso
-    finally:
-        raw.close()
+            conn.exec_driver_sql("PRAGMA foreign_keys=ON")
 
 
 def downgrade() -> None:  # pragma: no cover
