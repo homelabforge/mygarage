@@ -89,4 +89,31 @@ describe('TrailerTowPanel', () => {
     expect(screen.queryByRole('button', { name: 'detail.tow.editTitle' })).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: /KZ-Durango/ })).toBeInTheDocument()
   })
+
+  // A type the app doesn't know reads as null. That's not a trailer, so the
+  // panel shows the tow side: linked trailers, no pairing card.
+  it('treats a null-type vehicle as motorized and lists its trailers', async () => {
+    const unknown = { vin: '1FTFW1E50PFA00001', nickname: 'Mystery', vehicle_type: null } as Vehicle
+    listTowedTrailersMock.mockResolvedValue([TRAILER])
+    renderPanel(unknown)
+
+    expect(await screen.findByText('detail.tow.linkedTrailers')).toBeInTheDocument()
+    expect(listTowedTrailersMock).toHaveBeenCalledWith(unknown.vin)
+    expect(getTrailerDetailsMock).not.toHaveBeenCalled()
+    expect(screen.queryByText('detail.tow.title')).not.toBeInTheDocument()
+  })
+
+  // A null-type vehicle can still tow, so the trailer's picker offers it.
+  // The second trailer is the control: trailers still drop out.
+  it('offers a null-type vehicle as a tow candidate', async () => {
+    const unknown = { vin: '1FTFW1E50PFA00001', nickname: 'Mystery', vehicle_type: null } as Vehicle
+    const otherTrailer = { vin: '5SFBT2420LE000002', nickname: 'Utility', vehicle_type: 'Trailer' } as Vehicle
+    listMock.mockResolvedValue({ vehicles: [TOW_VEHICLE, unknown, otherTrailer, TRAILER] })
+    renderPanel(TRAILER)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'detail.tow.editTitle' }))
+    const picker = within(await screen.findByRole('dialog')).getByLabelText('detail.tow.towVehicle')
+    const offered = within(picker).getAllByRole('option').map((o) => (o as HTMLOptionElement).value)
+    expect(offered).toEqual(['', TOW_VEHICLE.vin, unknown.vin])
+  })
 })
