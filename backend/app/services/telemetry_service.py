@@ -137,7 +137,7 @@ logger = logging.getLogger(__name__)
 _DECLARED_ODOMETER_WARNED: dict[str, date] = {}
 
 #: Flips once telemetry_daily_summary.date reads as DATE, so the summary job
-#: only inspects the column once per process. See _summary_date_column_ready.
+#: only inspects the column once per process. See summary_date_column_ready.
 _summary_date_ready = False
 
 
@@ -1582,7 +1582,7 @@ class TelemetryService:
     # Daily Aggregation
     # =========================================================================
 
-    async def _summary_date_column_ready(self) -> bool:
+    async def summary_date_column_ready(self) -> bool:
         """Whether telemetry_daily_summary.date is a DATE column yet (migration 164).
 
         On the old SQLite DATETIME column a new ``2026-03-09`` key and an old
@@ -1622,7 +1622,7 @@ class TelemetryService:
             Number of summary records created/updated, 0 when migration 164
             hasn't run yet
         """
-        if not await self._summary_date_column_ready():
+        if not await self.summary_date_column_ready():
             return 0
         day_start, day_end = household_day_utc_bounds(day)
 

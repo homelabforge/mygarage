@@ -6,10 +6,11 @@ unique constraint, so the old rows are rebuilt as plain dates there; PostgreSQL
 casts the column. Old rows keep their date part and stay UTC-day aggregates.
 """
 
+import logging
 from datetime import date
 
 import pytest
-from sqlalchemy import Date, DateTime, Engine, inspect, select, text
+from sqlalchemy import Connection, Date, DateTime, Engine, inspect, select, text
 from sqlalchemy.exc import IntegrityError
 
 from app.models.vehicle_telemetry import TelemetryDailySummary
@@ -21,14 +22,28 @@ _NAME = "164_daily_summary_household_date"
 _BOTH = pytest.mark.parametrize("engine_for_migration", ["sqlite", "pg"], indirect=True)
 _VIN = "1HGCM82633A004352"
 
-#: (param_key, min, max, avg, count), all on 2026-03-09 at UTC midnight.
+#: (param_key, stamp, min, max, avg, count), all at UTC midnight on 2026-03-09.
+#: The microseconds form is how SQLAlchemy writes a DATETIME on SQLite.
 _SEED = [
-    ("SPEED", 0.0, 112.5, 48.25, 1200),
-    ("COOLANT_TEMP", 71.0, 96.0, 88.5, 640),
+    ("SPEED", "2026-03-09 00:00:00.000000", 0.0, 112.5, 48.25, 1200),
+    ("COOLANT_TEMP", "2026-03-09 00:00:00", 71.0, 96.0, 88.5, 640),
 ]
 
 
-def _make_old_table(engine: Engine) -> None:
+def _insert_old(
+    conn: Connection, key: str, stamp: str, low: float, high: float, avg: float, n: int
+) -> None:
+    conn.execute(
+        text(
+            "INSERT INTO telemetry_daily_summary"
+            " (vin, param_key, date, min_value, max_value, avg_value, sample_count)"
+            " VALUES (:v, :k, :at, :lo, :hi, :avg, :n)"
+        ),
+        {"v": _VIN, "k": key, "at": stamp, "lo": low, "hi": high, "avg": avg, "n": n},
+    )
+
+
+def _make_old_table(engine: Engine, seed: list[tuple] = _SEED) -> None:
     """The table as 032 made it: a timestamp column, unnamed unique and two indexes."""
     pg = engine.dialect.name == "postgresql"
     pk = "SERIAL PRIMARY KEY" if pg else "INTEGER PRIMARY KEY AUTOINCREMENT"
@@ -56,15 +71,8 @@ def _make_old_table(engine: Engine) -> None:
                 " ON telemetry_daily_summary(vin, param_key, date)"
             )
         )
-        for key, low, high, avg, n in _SEED:
-            conn.execute(
-                text(
-                    "INSERT INTO telemetry_daily_summary"
-                    " (vin, param_key, date, min_value, max_value, avg_value, sample_count)"
-                    " VALUES (:v, :k, '2026-03-09 00:00:00', :lo, :hi, :avg, :n)"
-                ),
-                {"v": _VIN, "k": key, "lo": low, "hi": high, "avg": avg, "n": n},
-            )
+        for row in seed:
+            _insert_old(conn, *row)
 
 
 def _rows(engine: Engine) -> dict[str, tuple]:
@@ -126,7 +134,7 @@ def test_old_rows_become_dates_with_their_numbers_intact(engine_for_migration):
 
 @_BOTH
 def test_the_column_is_date_and_keys_and_indexes_survive(engine_for_migration):
-    _dialect, engine, _url = engine_for_migration
+    dialect, engine, _url = engine_for_migration
     _make_old_table(engine)
 
     load_migration(_NAME).upgrade(engine)
@@ -140,6 +148,10 @@ def test_the_column_is_date_and_keys_and_indexes_survive(engine_for_migration):
         sorted(u["column_names"]) for u in insp.get_unique_constraints("telemetry_daily_summary")
     ]
     assert uniques == [["date", "param_key", "vin"]]
+    if dialect == "sqlite":
+        # The rebuild names it the way the model does; PG keeps its own name.
+        names = [u["name"] for u in insp.get_unique_constraints("telemetry_daily_summary")]
+        assert names == ["uq_daily_summary_vin_param_date"]
     indexes = {
         i["name"]: i["column_names"]
         for i in insp.get_indexes("telemetry_daily_summary")
@@ -170,6 +182,38 @@ def test_a_date_key_now_collides_with_the_migrated_day(engine_for_migration):
             ),
             {"v": _VIN, "d": "2026-03-09"},
         )
+
+
+@_BOTH
+def test_rows_that_share_a_date_are_merged_into_one(engine_for_migration, caplog):
+    # SQLite can hold one midnight twice, PG two stamps on the same day.
+    dialect, engine, _url = engine_for_migration
+    second = "2026-03-09 00:00:00.000000" if dialect == "sqlite" else "2026-03-09 05:00:00"
+    _make_old_table(
+        engine,
+        [
+            ("SPEED", "2026-03-09 00:00:00", 10.0, 20.0, 15.0, 2),
+            ("SPEED", second, 5.0, 30.0, 25.0, 8),
+            ("COOLANT_TEMP", "2026-03-09 00:00:00", 71.0, 96.0, 88.5, 640),
+        ],
+    )
+
+    with caplog.at_level(logging.INFO):
+        load_migration(_NAME).upgrade(engine)
+
+    with engine.connect() as conn:
+        ids = (
+            conn.execute(text("SELECT id FROM telemetry_daily_summary WHERE param_key = 'SPEED'"))
+            .scalars()
+            .all()
+        )
+    # The lower id is the one kept.
+    assert ids == [1]
+    assert _rows(engine) == {
+        "COOLANT_TEMP": (date(2026, 3, 9), 71.0, 96.0, 88.5, 640),
+        "SPEED": (date(2026, 3, 9), 5.0, 30.0, 23.0, 10),
+    }
+    assert any("Merged 1 " in r.getMessage() for r in caplog.records)
 
 
 @_BOTH

@@ -333,6 +333,9 @@ async def generate_daily_summaries():
                 return
 
             telemetry_service = TelemetryService(db)
+            # Ask once, so a night before migration 164 logs one refusal, not three.
+            if not await telemetry_service.summary_date_column_ready():
+                return
             today = household_today()
             for days_back in (3, 2, 1):
                 day = today - timedelta(days=days_back)

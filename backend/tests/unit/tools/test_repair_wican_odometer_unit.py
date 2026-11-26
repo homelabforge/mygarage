@@ -2067,6 +2067,123 @@ def test_a_switch_day_summary_its_rows_no_longer_back_is_left(engine, capsys, re
     assert sums[date(2026, 7, 2)] == pytest.approx((57080.0, 57100.0, 57090.0, 2))
 
 
+def _household_days(
+    engine: Engine, zone: str, rows: list[tuple[datetime, float]], days: dict[date, list[float]]
+) -> None:
+    """A phone whose summaries the job built as household days in ``zone``."""
+    with Session(engine) as s:
+        s.add(Setting(key="timezone", value=zone))
+        _vehicle(s, TQVIN)
+        _phone(s)
+        _rows(s, rows)
+        last_at, last = rows[-1]
+        s.add(
+            VehicleTelemetryLatest(
+                vin=TQVIN, param_key=TQKEY, value=last, timestamp=last_at, received_at=last_at
+            )
+        )
+        for day, values in days.items():
+            _summary(s, TQVIN, day, values, len(values), key=TQKEY)
+        s.commit()
+
+
+def test_east_of_utc_a_household_day_holding_readings_from_before_b_is_rebuilt(engine):
+    """B is 22:30 UTC on Jul 1, already 00:30 on Jul 2 in Berlin. Berlin's
+    Jul 2 starts at 22:00 UTC, so it holds the 22:10 km reading. Scaling it
+    whole, as a day after B's UTC date, would shrink that km low."""
+    switch = datetime(2026, 7, 1, 22, 30)
+    _household_days(
+        engine,
+        "Europe/Berlin",
+        [
+            (datetime(2026, 7, 1, 21), 57000.0),  # 23:00 on Jul 1 in Berlin
+            (datetime(2026, 7, 1, 22, 10), 57005.0),  # 00:10 on Jul 2, still km
+            (switch, _up(57010.0)),
+            (datetime(2026, 7, 2, 8), _up(57050.0)),
+        ],
+        {
+            date(2026, 7, 1): [57000.0],
+            date(2026, 7, 2): [57005.0, _up(57010.0), _up(57050.0)],
+        },
+    )
+
+    plan = _plan(engine, TQ, "km", key=TQKEY, switch_at=switch)
+
+    assert {c.day: c.how for c in plan.summaries} == {
+        date(2026, 7, 1): "rebuilt",
+        date(2026, 7, 2): "rebuilt",
+    }
+    assert plan.summaries_left == []
+    _apply(engine, TQ, "km", key=TQKEY, switch_at=switch)
+    sums = _summaries(engine, TQVIN, TQKEY)
+    assert sums[date(2026, 7, 1)] == (57000.0, 57000.0, 57000.0, 1)
+    assert sums[date(2026, 7, 2)] == pytest.approx((57005.0, 57050.0, 57021.666666666664, 3))
+    assert sums[date(2026, 7, 2)][0] == 57005.0
+
+
+def test_west_of_utc_a_household_day_holding_readings_from_after_b_is_rebuilt(engine):
+    """B is 02:00 UTC on Jul 2, still 22:00 on Jul 1 in New York. New York's
+    Jul 1 runs to 04:00 UTC, so its max is an inflated reading. Skipping it,
+    as a day before B's UTC date, would leave that max inflated and unsaid."""
+    switch = datetime(2026, 7, 2, 2)
+    _household_days(
+        engine,
+        "America/New_York",
+        [
+            (datetime(2026, 7, 1, 20), 57000.0),  # 16:00 on Jul 1 in New York
+            (switch, _up(57010.0)),  # 22:00 on Jul 1
+            (datetime(2026, 7, 2, 3), _up(57020.0)),  # 23:00 on Jul 1
+            (datetime(2026, 7, 2, 12), _up(57060.0)),  # 08:00 on Jul 2
+        ],
+        {
+            date(2026, 7, 1): [57000.0, _up(57010.0), _up(57020.0)],
+            date(2026, 7, 2): [_up(57060.0)],
+        },
+    )
+
+    plan = _plan(engine, TQ, "km", key=TQKEY, switch_at=switch)
+
+    assert {c.day: c.how for c in plan.summaries} == {
+        date(2026, 7, 1): "rebuilt",
+        date(2026, 7, 2): "rebuilt",
+    }
+    assert plan.summaries_left == []
+    _apply(engine, TQ, "km", key=TQKEY, switch_at=switch)
+    sums = _summaries(engine, TQVIN, TQKEY)
+    assert sums[date(2026, 7, 1)] == pytest.approx((57000.0, 57020.0, 57010.0, 3))
+    assert sums[date(2026, 7, 2)] == pytest.approx((57060.0, 57060.0, 57060.0, 1))
+
+
+def test_a_boundary_household_day_its_rows_no_longer_back_is_reported(engine, capsys):
+    """The east case with the 22:10 reading pruned: neither grouping adds up to
+    Jul 2 any more, so it's left and named, not scaled."""
+    from tools.repair_wican_odometer_unit import _report
+
+    switch = datetime(2026, 7, 1, 22, 30)
+    _household_days(
+        engine,
+        "Europe/Berlin",
+        [
+            (datetime(2026, 7, 1, 21), 57000.0),
+            (switch, _up(57010.0)),
+            (datetime(2026, 7, 2, 8), _up(57050.0)),
+        ],
+        {
+            date(2026, 7, 1): [57000.0],
+            date(2026, 7, 2): [57005.0, _up(57010.0), _up(57050.0)],
+        },
+    )
+    before = _summaries(engine, TQVIN, TQKEY)[date(2026, 7, 2)]
+
+    plan = _plan(engine, TQ, "km", key=TQKEY, switch_at=switch)
+
+    assert plan.summaries_left == [date(2026, 7, 2)]
+    _report(plan)
+    assert "2026-07-02: the switch day" in capsys.readouterr().out
+    _apply(engine, TQ, "km", key=TQKEY, switch_at=switch)
+    assert _summaries(engine, TQVIN, TQKEY)[date(2026, 7, 2)] == before
+
+
 #: The phone arrived on Jul 1; its clock ran behind, so the first thing it
 #: left here is stamped before that.
 ARRIVED = datetime(2026, 7, 1)

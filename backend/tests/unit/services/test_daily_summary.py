@@ -259,7 +259,8 @@ async def test_the_job_upserts_the_last_three_household_days(
     db_session: AsyncSession, vehicle, job_settings
 ) -> None:
     vin, device_id = vehicle
-    # Local noon on each day from the 7th to the 11th.
+    # Local noon on each day from the 7th to the 11th, plus two late evenings
+    # that only the household zone puts on the right day.
     await _readings(
         db_session,
         vin,
@@ -267,9 +268,13 @@ async def test_the_job_upserts_the_last_three_household_days(
         "DSUM_JOB",
         [
             (datetime(2026, 3, 7, 17), 7.0),
+            # 23:30 on the 7th in New York, so the 8th never sees it.
+            (datetime(2026, 3, 8, 4, 30), 70.0),
             (datetime(2026, 3, 8, 16), 8.0),
             (datetime(2026, 3, 9, 16), 9.0),
             (datetime(2026, 3, 10, 16), 10.0),
+            # 23:30 on the 10th in New York, though UTC already says the 11th.
+            (datetime(2026, 3, 11, 3, 30), 12.0),
             (datetime(2026, 3, 11, 16), 11.0),
         ],
     )
@@ -279,7 +284,7 @@ async def test_the_job_upserts_the_last_three_household_days(
     expected = {
         date(2026, 3, 8): (8.0, 8.0, 8.0, 1),
         date(2026, 3, 9): (9.0, 9.0, 9.0, 1),
-        date(2026, 3, 10): (10.0, 10.0, 10.0, 1),
+        date(2026, 3, 10): (10.0, 12.0, 11.0, 2),
     }
     assert await _summaries(db_session, vin, "DSUM_JOB") == expected
 
@@ -351,8 +356,8 @@ async def test_the_job_writes_nothing_until_164_has_run(
             rows = (await conn.execute(text("SELECT * FROM telemetry_daily_summary"))).all()
         assert rows == []
         errors = [r.getMessage() for r in caplog.records if r.levelno >= logging.ERROR]
-        # One refusal per day the job tried, each naming 164, and nothing else went wrong.
-        assert len(errors) == 3, errors
+        # One refusal for the night, naming 164, and nothing else went wrong.
+        assert len(errors) == 1, errors
         assert all("164" in message for message in errors), errors
         from app.services import telemetry_service
 

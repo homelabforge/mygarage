@@ -77,11 +77,13 @@ from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, time
 from decimal import Decimal
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import Connection, inspect, text
 
 sys.path.insert(0, ".")
 
+from app.utils.household_time import resolve_zone  # noqa: E402
 from app.utils.odometer_units import (  # noqa: E402
     ODOMETER_UNIT_KM,
     ODOMETER_UNIT_MI,
@@ -575,9 +577,18 @@ def _plan_summaries(
     refill a pruned day. The rows have to give back the stored min, max and
     avg too. Otherwise it's scaled when ``pruned_day_scales`` says it's all
     this device's, and left alone and reported when not.
+
+    Rows from before migration 164 are UTC days and later ones household days,
+    and a row doesn't say which. So "B's day" is every day from the earlier of
+    B's UTC and household dates to the later one, and each of those has to be
+    backed by its raw rows under one grouping or the other.
     """
     scaled = dict(zip(plan.raw_ids, (new for _old, new in plan.raw), strict=True))
-    b_day = plan.boundary.date() if plan.boundary is not None else None
+    zone = _household_zone(conn)
+    first = last = None
+    if plan.boundary is not None:
+        b_days = (plan.boundary.date(), _household_date(plan.boundary, zone))
+        first, last = min(b_days), max(b_days)
     for row in conn.execute(
         text(
             "SELECT id, date, min_value, max_value, avg_value, sample_count "
@@ -586,24 +597,60 @@ def _plan_summaries(
         {"v": plan.vin, "k": plan.key},
     ):
         day = _at(row.date).date()
-        if b_day is not None and day < b_day:
+        if first is not None and day < first:
             continue
         old: Aggregate = (
             _maybe_float(row.min_value),
             _maybe_float(row.max_value),
             _maybe_float(row.avg_value),
         )
-        on_day = [r for r in rows if r.at.date() == day] if day == b_day else []
-        if day == b_day and _backs(on_day, row.sample_count, old):
+        if last is not None and day <= last:
+            new = _rebuilt_day(rows, scaled, zone, day, row.sample_count, old)
+            if new is not None:
+                plan.summaries.append(SummaryChange(row.id, day, "rebuilt", old, new))
+                continue
+            if not pruned_day_scales:
+                plan.summaries_left.append(day)
+                continue
+        lo, hi, avg = (None if v is None else _reading(v, plan.to) for v in old)
+        plan.summaries.append(SummaryChange(row.id, day, "scaled", old, (lo, hi, avg)))
+
+
+def _household_zone(conn: Connection) -> ZoneInfo:
+    """The zone the summary job used, from the timezone setting and its fallbacks."""
+    return resolve_zone(
+        conn.execute(text("SELECT value FROM settings WHERE key = 'timezone'")).scalar()
+    )
+
+
+def _household_date(at: datetime, zone: ZoneInfo) -> date:
+    """A naive UTC stamp's day on the household's clock."""
+    return at.replace(tzinfo=UTC).astimezone(zone).date()
+
+
+def _rebuilt_day(
+    rows: list[_Raw],
+    scaled: dict[int, float],
+    zone: ZoneInfo,
+    day: date,
+    count: int | None,
+    stored: Aggregate,
+) -> Aggregate | None:
+    """A boundary day rebuilt from the raw rows that back it, or None.
+
+    The rows are grouped by UTC date and by household date. If neither backs
+    the summary, or both do and rebuild it differently, it can't be told.
+    """
+    found: set[Aggregate] = set()
+    for on_day in (
+        [r for r in rows if r.at.date() == day],
+        [r for r in rows if _household_date(r.at, zone) == day],
+    ):
+        if _backs(on_day, count, stored):
             values = [Decimal(str(scaled.get(r.id, r.value))) for r in on_day]
             mean = sum(values, Decimal(0)) / len(values)
-            new: Aggregate = (float(min(values)), float(max(values)), float(mean))
-            plan.summaries.append(SummaryChange(row.id, day, "rebuilt", old, new))
-        elif day != b_day or pruned_day_scales:
-            lo, hi, avg = (None if v is None else _reading(v, plan.to) for v in old)
-            plan.summaries.append(SummaryChange(row.id, day, "scaled", old, (lo, hi, avg)))
-        else:
-            plan.summaries_left.append(day)
+            found.add((float(min(values)), float(max(values)), float(mean)))
+    return found.pop() if len(found) == 1 else None
 
 
 def _backs(rows: list[_Raw], count: int | None, stored: Aggregate) -> bool:
