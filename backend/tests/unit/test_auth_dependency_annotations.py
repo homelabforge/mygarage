@@ -21,8 +21,11 @@ Names resolve per module: an alias or an import rename means what its own
 module says, or what the scanned module it's imported from says.
 `Depends(partial(f))` reads as f, and an instance of a class in app/
 (`Depends(Gate())`, or `gate = Gate()` at module level) as `Gate.__call__`. An
-instance from outside app/ has to be in `EXTERNAL_INSTANCES`. Any other Depends
-argument is an `unreadable dependency` finding, so a new form fails loud.
+instance from outside app/ has to be in `EXTERNAL_INSTANCES`. A plain name has
+to land on a def or class in app/ or a known dependency, so a closure param, a
+local or an outside import can't pass as a function. With two Depends in one
+`Annotated`, the last one counts, as in FastAPI. Any other Depends argument is
+an `unreadable dependency` finding, so a new form fails loud.
 """
 
 import ast
@@ -153,10 +156,39 @@ def _returns_exactly_none(fn: _Func) -> bool:
     return isinstance(fn.returns, ast.Constant) and fn.returns.value is None
 
 
+def _own_binds(scope: _Func | ast.ClassDef | ast.Lambda) -> frozenset[str]:
+    """Names a def, lambda or class binds for itself: params, assignments, imports, defs."""
+    names: set[str] = set()
+    if not isinstance(scope, ast.ClassDef):
+        a = scope.args
+        params = [*a.posonlyargs, *a.args, *a.kwonlyargs, a.vararg, a.kwarg]
+        names.update(p.arg for p in params if p)
+    declared: set[str] = set()
+    todo: list[ast.AST] = list(scope.body) if isinstance(scope.body, list) else [scope.body]
+    while todo:
+        node = todo.pop()
+        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef):
+            names.add(node.name)  # a nested scope's own names stay in there
+            continue
+        if isinstance(node, ast.Lambda):
+            continue
+        if isinstance(node, ast.Name) and not isinstance(node.ctx, ast.Load):
+            names.add(node.id)
+        elif isinstance(node, ast.alias):
+            names.add((node.asname or node.name).split(".")[0])
+        elif isinstance(node, ast.ExceptHandler) and node.name:
+            names.add(node.name)
+        elif isinstance(node, ast.Global | ast.Nonlocal):
+            declared.update(node.names)
+        todo.extend(ast.iter_child_nodes(node))
+    return frozenset(names - declared)
+
+
 class _Scanner:
     """One pass over a set of sources. Labels show up in findings as file names."""
 
-    def __init__(self, sources: Mapping[str, str]) -> None:
+    def __init__(self, sources: Mapping[str, str], known: frozenset[str] = KNOWN_NONE_DEPS) -> None:
+        self.known = known
         self.trees = {label: ast.parse(src) for label, src in sources.items()}
         self.funcs: list[tuple[str, _Func]] = [
             (label, fn)
@@ -172,6 +204,9 @@ class _Scanner:
         # Any `import y as z`, scanned or not: (module, z) -> y. So `Depends as D`
         # and `require_auth as ra` still read as Depends and require_auth.
         self.renames: dict[tuple[str, str], str] = {}
+        # A scanned module bound to a name: `from app.services import auth` or
+        # `import app.services.auth as auth`, so `auth.security` reads in auth.py.
+        self.modules: dict[tuple[str, str], str] = {}
         for label, tree in self.trees.items():
             for stmt in _module_level(tree.body):
                 if isinstance(stmt, ast.ImportFrom):
@@ -182,6 +217,13 @@ class _Scanner:
                             self.renames[(label, local)] = alias.name
                         if source is not None:
                             self.imports[(label, local)] = (source, alias.name)
+                        dotted = f"{stmt.module}.{alias.name}" if stmt.module else alias.name
+                        if module := self._module_label(label, stmt.level, dotted):
+                            self.modules[(label, local)] = module
+                elif isinstance(stmt, ast.Import):
+                    for alias in stmt.names:
+                        if alias.asname and (module := self._module_label(label, 0, alias.name)):
+                            self.modules[(label, alias.asname)] = module
                 elif (
                     isinstance(stmt, ast.Assign)
                     and len(stmt.targets) == 1
@@ -198,19 +240,47 @@ class _Scanner:
                     self.aliases[(label, stmt.name.id)].append(stmt.value)
         # A class's own `__call__` goes by `Cls.__call__`, so `Depends(Cls())` can find it.
         self.callable_classes: set[str] = set()
+        self.class_names: set[str] = set()
         self.dep_names: dict[int, str] = {}
         for tree in self.trees.values():
             for cls in ast.walk(tree):
                 if not isinstance(cls, ast.ClassDef):
                     continue
+                self.class_names.add(cls.name)
                 for stmt in cls.body:
                     if isinstance(stmt, ast.FunctionDef | ast.AsyncFunctionDef) and (
                         stmt.name == "__call__"
                     ):
                         self.callable_classes.add(cls.name)
                         self.dep_names[id(stmt)] = f"{cls.name}.__call__"
+        # What a plain name may resolve to: a def or class in the sources, or a known
+        # dependency. Anything else (an outside import, a typo) can't be read.
+        self.defined = known | self.class_names | {self._dep_name(fn) for _, fn in self.funcs}
+        # Name reads that a def, lambda or class around them binds for itself: a
+        # closure param or a local. Nobody can say what those hold.
+        self.local_loads: set[int] = set()
+        for tree in self.trees.values():
+            self._mark_local_loads(tree, frozenset())
         # Depends calls we managed to tie to a param, by node id.
         self.bound: set[int] = set()
+
+    def _mark_local_loads(self, node: ast.AST, local: frozenset[str]) -> None:
+        """Note every Name read inside a scope that binds that name itself."""
+        if isinstance(node, ast.Name):
+            if isinstance(node.ctx, ast.Load) and node.id in local:
+                self.local_loads.add(id(node))
+            return
+        inner: list[ast.AST] = []
+        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef | ast.Lambda):
+            # Defaults, annotations and decorators run outside; only the body runs inside.
+            inner = list(node.body) if isinstance(node.body, list) else [node.body]
+            scope = local | _own_binds(node)
+            for child in inner:
+                self._mark_local_loads(child, scope)
+        inner_ids = {id(n) for n in inner}
+        for child in ast.iter_child_nodes(node):
+            if id(child) not in inner_ids:
+                self._mark_local_loads(child, local)
 
     def _dep_name(self, fn: _Func) -> str:
         """What a Depends on this function reads as: its name, or `Cls.__call__`."""
@@ -218,15 +288,19 @@ class _Scanner:
 
     def _source_label(self, label: str, stmt: ast.ImportFrom) -> str | None:
         """The scanned module a `from ... import` reads, or None if it isn't one."""
-        if stmt.level:
-            if stmt.module is None:
-                return None
+        if stmt.level and stmt.module is None:
+            return None
+        return self._module_label(label, stmt.level, stmt.module or "")
+
+    def _module_label(self, label: str, level: int, module: str) -> str | None:
+        """The scanned file a dotted module path names, relative or `app.`-absolute."""
+        if level:
             base = PurePosixPath(label).parent
-            for _ in range(stmt.level - 1):
+            for _ in range(level - 1):
                 base = base.parent
-            parts = [*base.parts, *stmt.module.split(".")]
-        elif stmt.module and stmt.module.startswith("app."):
-            parts = stmt.module.split(".")[1:]
+            parts = [*base.parts, *module.split(".")]
+        elif module.startswith("app."):
+            parts = module.split(".")[1:]
         else:
             return None
         stem = "/".join(p for p in parts if p not in ("", "."))
@@ -291,6 +365,17 @@ class _Scanner:
         self, label: str, node: ast.expr, seen: frozenset[tuple[str, str]] = frozenset()
     ) -> str | None:
         """What a Depends argument runs: a function, `Cls.__call__` or an outside instance."""
+        if id(node) in self.local_loads or (
+            isinstance(node, ast.Call) and id(node.func) in self.local_loads
+        ):
+            return None
+        if (
+            isinstance(node, ast.Attribute)
+            and isinstance(node.value, ast.Name)
+            and (module := self.modules.get((label, node.value.id)))
+        ):
+            # `auth.security` with auth a scanned module: read the name over there.
+            return self._runs(module, ast.Name(node.attr), seen)
         if isinstance(node, ast.Call):
             func = _name(node.func)
             func = func and self._target_name(label, func)
@@ -312,7 +397,8 @@ class _Scanner:
             if bound := self._resolve(label, name):
                 reads = {self._runs(def_label, value, seen | {key}) for def_label, value in bound}
                 return reads.pop() if len(reads) == 1 else None
-        return self._target_name(label, name)
+        target = self._target_name(label, name)
+        return target if target in self.defined else None
 
     def _default_deps(self, label: str, default: ast.expr | None) -> list[str]:
         """Dependencies named by a param's default: `Depends(f)`, or an alias of one."""
@@ -344,7 +430,8 @@ class _Scanner:
             for elt in elts[1:]:
                 if call := self._depends_call(label, elt):
                     self.bound.add(id(call))
-                    dep = dep or self._dep_target(label, call) or UNREADABLE
+                    # FastAPI runs the last one (`fastapi_specific_annotations[-1]`).
+                    dep = self._dep_target(label, call) or UNREADABLE
             return [(label, elts[0], dep)]
         if isinstance(ann, ast.Name) and (label, ann.id) not in seen:
             if bound := self._resolve(label, ann.id):
@@ -415,7 +502,7 @@ class _Scanner:
                 for dep in default_deps or ([ann_dep] if ann_dep else []):
                     yield arg, type_label, typ, dep
 
-    def run(self, known: frozenset[str]) -> ScanResult:
+    def run(self) -> ScanResult:
         """Find the None dependencies, then every param and wrapper that hides one."""
         # A `-> None` dependency is a check or a side effect: nobody gets a user from it.
         # Names are global here, so a name only counts when EVERY def of it is `-> None`;
@@ -425,7 +512,7 @@ class _Scanner:
             defs[self._dep_name(fn)].append(fn)
         side_effect = {name for name, fns in defs.items() if all(map(_returns_exactly_none, fns))}
         none_deps = (
-            set(known)
+            set(self.known)
             | {spelled for spelled, admits in EXTERNAL_INSTANCES.items() if admits}
             | {
                 self._dep_name(fn)
@@ -501,7 +588,7 @@ class _Scanner:
 
 def scan(sources: Mapping[str, str], known: frozenset[str] = KNOWN_NONE_DEPS) -> ScanResult:
     """Scan `{label: source}` for params and wrappers that hide a None."""
-    return _Scanner(sources).run(known)
+    return _Scanner(sources, known).run()
 
 
 def _app_sources() -> dict[str, str]:
@@ -669,6 +756,8 @@ async def ok(u: User | None = D(ra)): ...
             ),
             pytest.param(
                 """
+security = HTTPBearer(auto_error=False)
+async def get_current_user() -> User: ...
 def token(c: Creds | None = Depends(security)) -> str | None: ...
 async def stream() -> AsyncGenerator[Session | None]:
     yield None
@@ -681,6 +770,7 @@ async def c(u: User = Depends(get_current_user)): ...
             ),
             pytest.param(
                 """
+async def get_db() -> AsyncIterator[Session]: ...
 async def gate(db: Session = Depends(get_db)) -> None:
     if not await enabled(db):
         raise HTTPException(status_code=400)
@@ -733,6 +823,16 @@ async def honest(c: HTTPAuthorizationCredentials | None = Depends(security)): ..
 """,
                 {("lies", "c"), ("inline", "c")},
                 id="outside-instance-that-admits-none",
+            ),
+            pytest.param(
+                """
+async def get_db() -> AsyncIterator[Session]: ...
+async def lies(u: Annotated[User, Depends(get_db), Depends(require_auth)]): ...
+async def honest(u: Annotated[User | None, Depends(get_db), Depends(require_auth)]): ...
+async def first_only(u: Annotated[User, Depends(require_auth), Depends(get_db)]): ...
+""",
+                {("lies", "u")},
+                id="annotated-runs-the-last-depends",
             ),
         ],
     )
@@ -876,6 +976,7 @@ async def flag(c: Creds | None = Depends(HTTPBearer(auto_error=strict))): ...
 async def ann(u: Annotated[User | None, Depends(partial())]): ...
 @router.get("/x", dependencies=[Depends(make_dep())])
 async def listed(): ...
+async def ann_last(u: Annotated[User | None, Depends(require_auth), Depends(lambda: 1)]): ...
 """
         result = scan({"snippet.py": src})
         assert {(f.function, f.param) for f in result.findings} == {
@@ -888,13 +989,64 @@ async def listed(): ...
             ("flag", "c"),
             ("ann", "u"),
             ("listed", ""),
+            ("ann_last", "u"),
         }
         assert {f.dep for f in result.findings} == {UNREADABLE}
+
+    def test_a_name_it_cannot_place_is_unreadable(self) -> None:
+        # Each of these used to read as a function with that name, so nothing matched.
+        src = """
+from somelib import current_user_optional
+dep = get_db
+async def get_db() -> AsyncIterator[Session]: ...
+class MaybeUser:
+    async def __call__(self) -> User | None: ...
+def make(dep):
+    async def shadowed(u: User = Depends(dep)): ...
+    return shadowed
+def make2(d2):
+    async def closure(u: User = Depends(d2)): ...
+    return closure
+def holder():
+    held = MaybeUser()
+    async def local_var(u: User = Depends(held)): ...
+    return local_var
+async def outside(u: User = Depends(current_user_optional)): ...
+async def attr(c: Creds = Depends(somelib.security)): ...
+"""
+        result = scan({"snippet.py": src})
+        assert {(f.function, f.param) for f in result.findings} == {
+            ("shadowed", "u"),
+            ("closure", "u"),
+            ("local_var", "u"),
+            ("outside", "u"),
+            ("attr", "c"),
+        }
+        assert {f.dep for f in result.findings} == {UNREADABLE}
+
+    def test_bindings_that_disagree_are_unreadable(self) -> None:
+        # Whichever one runs, the scanner can't pick, so it says so.
+        src = """
+class MaybeUser:
+    async def __call__(self) -> User | None: ...
+class SureUser:
+    async def __call__(self) -> User: ...
+if FLAG:
+    either = SureUser()
+else:
+    either = MaybeUser()
+async def either_way(u: User | None = Depends(either)): ...
+"""
+        result = scan({"snippet.py": src})
+        assert [(f.function, f.param, f.dep) for f in result.findings] == [
+            ("either_way", "u", UNREADABLE)
+        ]
 
     def test_readable_forms_are_not_unreadable(self) -> None:
         # Bare Depends() builds the annotation's class, which is never None.
         src = """
 class Paging: ...
+async def get_db() -> AsyncIterator[Session]: ...
 security = HTTPBearer(auto_error=False)
 bearer = security
 async def a(p: Paging = Depends()): ...
@@ -932,7 +1084,10 @@ class TestScannerModules:
     def test_a_same_named_side_effect_dep_does_not_hide_a_real_one(self) -> None:
         result = scan(
             {
-                "a.py": "async def actor(db: Session = Depends(get_db)) -> None: ...\n",
+                "a.py": (
+                    "async def get_db() -> AsyncIterator[Session]: ...\n"
+                    "async def actor(db: Session = Depends(get_db)) -> None: ...\n"
+                ),
                 "b.py": (
                     "async def actor(u: User | None = Depends(require_auth)) -> User | None:\n"
                     "    return u\n"
@@ -941,6 +1096,26 @@ class TestScannerModules:
             }
         )
         assert {(f.file, f.function) for f in result.findings} == {("b.py", "route")}
+
+    def test_an_instance_read_through_its_module_is_followed(self) -> None:
+        result = scan(
+            {
+                "services/auth.py": "security = HTTPBearer(auto_error=False)\n",
+                "routes.py": (
+                    "from app.services import auth\n"
+                    "async def lies(c: Creds = Depends(auth.security)): ...\n"
+                    "async def honest(c: Creds | None = Depends(auth.security)): ...\n"
+                ),
+                "other.py": (
+                    "import app.services.auth as a\n"
+                    "async def aliased(c: Creds = Depends(a.security)): ...\n"
+                ),
+            }
+        )
+        assert {(f.file, f.function, f.dep) for f in result.findings} == {
+            ("routes.py", "lies", "HTTPBearer(auto_error=False)"),
+            ("other.py", "aliased", "HTTPBearer(auto_error=False)"),
+        }
 
     def test_an_imported_annotated_alias_is_read(self) -> None:
         result = scan(
