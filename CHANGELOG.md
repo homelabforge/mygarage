@@ -20,6 +20,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `bun run i18n:stamp --draft-stale <lang>` marks a stale translation that still fits as a draft against today's English.
 - Confirmations use the app's own dialog instead of the browser's pop-up.
 - Family and user management open as side panels.
+- Driving insights come from one database query instead of reading every speed reading.
+- Unit conversions in forms and price columns go through one helper, and the units check refuses a `units-exempt` pragma that doesn't name a kind.
+- The LiveLink wiki explains how MyGarage reads the units in a Torque upload.
 
 ### Fixed
 - The top navigation folds into the menu button when its links don't fit, instead of scrolling the page sideways.
@@ -34,6 +37,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Drawer forms line up with their header.
 - Dashboard stat captions no longer split words.
 - The dashboard no longer scrolls sideways on phones narrower than 372px.
+- A vehicle's Analytics page loads once, with one spinner, in the vehicle's own distance unit.
+- LiveLink percentage readings get a fuel, engine or electrical category instead of Other; migration 165 files the existing ones.
+- Daily telemetry summaries cover household days instead of UTC days; migration 164 stores their date as a plain date.
+- The offline copy of Analytics is kept per account and cleared at logout.
+- Offline, the Analytics banner names the range the cached copy covers.
+- Restore refusals at startup read more plainly.
 
 ## [3.11.3] - 2026-11-23
 
