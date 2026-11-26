@@ -30,11 +30,12 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 from app.models.drive_session import DriveSession
 from app.models.vehicle_telemetry import VehicleTelemetry
 from app.services import post_commit
-from app.services import telemetry_service as telemetry_module
 from app.services.sd_log_parser import SdRow
 from app.services.session_boundaries import BOUNDARY_ALGORITHM_MOVEMENT
 from app.services.session_service import SessionService
-from app.services.telemetry_service import TelemetryService, queue_session_refresh
+from app.services.telemetry import session_refresh as refresh_module
+from app.services.telemetry.session_refresh import queue_session_refresh
+from app.services.telemetry_service import TelemetryService
 from app.utils.datetime_utils import utc_now
 
 pytestmark = pytest.mark.asyncio
@@ -121,8 +122,8 @@ async def test_a_drain_costs_a_constant_per_frame_and_a_handful_of_refreshes(
     per frame once the drive exists, and refreshes the closed session at most
     once per 30 s plus once at the end. The aggregates are right afterwards."""
     await _pin_movement_mode(db_session, keep_rows)
-    monkeypatch.setattr(telemetry_module, "SESSION_REFRESH_DEBOUNCE_SECONDS", 2.0)
-    monkeypatch.setattr(telemetry_module, "SESSION_REFRESH_MAX_DELAY_SECONDS", 30.0)
+    monkeypatch.setattr(refresh_module, "SESSION_REFRESH_DEBOUNCE_SECONDS", 2.0)
+    monkeypatch.setattr(refresh_module, "SESSION_REFRESH_MAX_DELAY_SECONDS", 30.0)
     vin, device = await make_livelink_vehicle("t4cost", "1")
     device_id = device.device_id
     telemetry = TelemetryService(db_session)
@@ -399,9 +400,7 @@ async def test_a_slow_refresh_cannot_land_after_a_newer_one(
                 parked.set()
             return await super().acquire()
 
-    monkeypatch.setattr(
-        telemetry_module, "_REFRESH_LOCKS", {session_id: _ProbeLock()}, raising=False
-    )
+    monkeypatch.setattr(refresh_module, "_REFRESH_LOCKS", {session_id: _ProbeLock()})
     stalled, release = _stall_first_refresh(monkeypatch)
 
     queue_session_refresh(db_session, session_id)
@@ -473,13 +472,13 @@ async def test_closing_a_session_queues_a_refresh_behind_the_commit(
     goes red (no refresh job runs)."""
     _vin, device = await make_livelink_vehicle("t4cost", "9")
     refreshed: list[int] = []
-    original_now = telemetry_module._refresh_session_now  # noqa: SLF001 - the job under test
+    original_now = refresh_module._refresh_session_now  # noqa: SLF001 - the job under test
 
     async def recorded(db: AsyncSession, session_id: int) -> None:
         refreshed.append(session_id)
         await original_now(db, session_id)
 
-    monkeypatch.setattr(telemetry_module, "_refresh_session_now", recorded)
+    monkeypatch.setattr(refresh_module, "_refresh_session_now", recorded)
     service = SessionService(db_session)
     now = _now()
     session = await service.start_session(device, now - timedelta(minutes=10))
@@ -500,8 +499,8 @@ async def test_a_shutdown_mid_debounce_still_refreshes_once(
     once before it goes, so a restart ten seconds after a drain doesn't lose
     the drain's last thirty seconds. Regression guard; kills dropping the
     cancellation handler."""
-    monkeypatch.setattr(telemetry_module, "SESSION_REFRESH_DEBOUNCE_SECONDS", 10.0)
-    monkeypatch.setattr(telemetry_module, "SESSION_REFRESH_MAX_DELAY_SECONDS", 30.0)
+    monkeypatch.setattr(refresh_module, "SESSION_REFRESH_DEBOUNCE_SECONDS", 10.0)
+    monkeypatch.setattr(refresh_module, "SESSION_REFRESH_MAX_DELAY_SECONDS", 30.0)
     now = _now()
     vin, device_id, session = await make_closed_drive_session(
         "t4cost",

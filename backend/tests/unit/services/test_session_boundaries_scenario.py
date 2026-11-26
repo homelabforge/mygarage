@@ -27,6 +27,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.drive_session import DriveSession
 from app.services import telemetry_service as telemetry_module
 from app.services.session_service import SessionService
+from app.services.telemetry import odometer as odometer_module
 from app.services.telemetry_service import TelemetryService
 
 pytestmark = pytest.mark.asyncio
@@ -69,8 +70,9 @@ class TestAMeasuredDay:
             # `store_telemetry` compares the sample time against its own
             # `utc_now()` to decide whether a reading is live or a replay, so the
             # clock has to move with the scenario or every payload here reads as
-            # a year-old replay.
+            # a year-old replay. The odometer sync it calls reads its own clock.
             monkeypatch.setattr(telemetry_module, "utc_now", lambda: at)
+            monkeypatch.setattr(odometer_module, "utc_now", lambda: at)
             device.last_seen = at
             await telemetry.store_telemetry(
                 vin=vin,
@@ -147,6 +149,7 @@ class TestAMeasuredDay:
 
         async def feed(at: datetime, samples: dict) -> None:
             monkeypatch.setattr(telemetry_module, "utc_now", lambda: at)
+            monkeypatch.setattr(odometer_module, "utc_now", lambda: at)
             device.last_seen = at
             await telemetry.store_telemetry(
                 vin=vin,
@@ -193,6 +196,7 @@ async def test_the_same_day_replayed_two_hours_late_records_the_same_drive(
     async def feed(at: datetime, samples: dict) -> None:
         # The clock sits two hours after every sample, so each one is a replay.
         monkeypatch.setattr(telemetry_module, "utc_now", lambda: at + late)
+        monkeypatch.setattr(odometer_module, "utc_now", lambda: at + late)
         device.last_seen = at + late
         await telemetry.store_telemetry(
             vin=vin,

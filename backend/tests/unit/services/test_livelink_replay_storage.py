@@ -1984,7 +1984,7 @@ async def test_a_clock_in_the_future_is_warned_once_per_device(
     device gets its own, and a clock a minute fast gets none. Red on f2fe0f85."""
     from app.services import telemetry_service as telemetry_module
 
-    monkeypatch.setattr(telemetry_module, "_FUTURE_CLOCK_WARNED", set(), raising=False)
+    monkeypatch.setattr(telemetry_module, "_FUTURE_CLOCK_WARNED", set())
     await _pin_session_settings(db_session, keep_rows)
     _vin_a, device_a, token_a = await _linked(db_session, make_livelink_vehicle, "t4fwa")
     _vin_b, device_b, token_b = await _linked(db_session, make_livelink_vehicle, "t4fwb")

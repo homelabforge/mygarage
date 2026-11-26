@@ -244,7 +244,7 @@ class TestTelemetryWriterSet:
         """
         insert_builders = frozenset({"dialect_insert", "insert"})
         found: dict[str, str] = {}
-        for module in sorted((APP_DIR / "services").glob("*.py")):
+        for module in sorted((APP_DIR / "services").rglob("*.py")):
             tree = ast.parse(module.read_text())
             for node in ast.walk(tree):
                 if not isinstance(node, ast.AsyncFunctionDef | ast.FunctionDef):

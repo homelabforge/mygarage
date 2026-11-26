@@ -113,11 +113,11 @@ def test_no_table_is_a_no_op(engine_for_migration):
 def test_the_frozen_rule_matches_the_runtime_one_today():
     """Drift guard for now: 165 keeps its own copy of the rule, which may fall
     behind the runtime one later. The migration must not change if it does."""
-    from app.services.telemetry_service import TelemetryService
+    from app.services.telemetry.parameters import TelemetryParametersMixin
 
     mod = load_migration(_NAME)
     # The rule never touches the session, so skip building one.
-    svc = TelemetryService.__new__(TelemetryService)
+    svc = TelemetryParametersMixin.__new__(TelemetryParametersMixin)
     for key, klass, _category in _SEED:
         if klass and klass.lower() == "percentage":
             assert mod._category_for(key) == svc._classify_param(klass, key), key

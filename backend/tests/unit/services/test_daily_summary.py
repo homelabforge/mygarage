@@ -36,7 +36,7 @@ pytestmark = pytest.mark.asyncio
 
 NEW_YORK = ZoneInfo("America/New_York")
 # The readiness guard's per-process cache, reset by path so a move only touches this line.
-GUARD_FLAG = "app.services.telemetry_service._summary_date_ready"
+GUARD_FLAG = "app.services.telemetry.queries._summary_date_ready"
 
 
 class _PassthroughSessionContext:
@@ -299,11 +299,11 @@ async def test_a_ready_column_is_remembered(
 ) -> None:
     vin, _device_id = vehicle
     monkeypatch.setattr(GUARD_FLAG, False)
-    from app.services import telemetry_service
+    from app.services.telemetry import queries
 
     await TelemetryService(db_session).generate_daily_summary(date(2026, 3, 10), vin=vin)
 
-    assert telemetry_service._summary_date_ready is True
+    assert queries._summary_date_ready is True
 
 
 # The 032 table as SQLite holds it until 164 runs.
@@ -359,8 +359,8 @@ async def test_the_job_writes_nothing_until_164_has_run(
         # One refusal for the night, naming 164, and nothing else went wrong.
         assert len(errors) == 1, errors
         assert all("164" in message for message in errors), errors
-        from app.services import telemetry_service
+        from app.services.telemetry import queries
 
-        assert telemetry_service._summary_date_ready is False
+        assert queries._summary_date_ready is False
     finally:
         await engine.dispose()

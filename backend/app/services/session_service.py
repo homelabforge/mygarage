@@ -421,7 +421,9 @@ class SessionService:
         # And once more behind the commit, under the session's refresh lock. A
         # queued job that read this drive before a reopen could otherwise land
         # after this close with the narrower figures.
-        from app.services.telemetry_service import queue_session_refresh  # local: avoids a cycle
+        from app.services.telemetry.session_refresh import (  # local: avoids a cycle
+            queue_session_refresh,
+        )
 
         queue_session_refresh(self.db, session.id)
 
@@ -1404,7 +1406,7 @@ class SessionService:
             pointed.duration_seconds = int(
                 (self._naive(pointed.ended_at) - self._naive(pointed.started_at)).total_seconds()
             )
-            from app.services.telemetry_service import (
+            from app.services.telemetry.session_refresh import (
                 queue_session_refresh,
             )  # local: avoids a cycle
 

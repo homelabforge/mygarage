@@ -165,7 +165,7 @@ async def test_a_reading_below_the_maximum_warns_once(db_session, make_livelink_
     """
     import logging
 
-    from app.services.telemetry_service import _DECLARED_ODOMETER_WARNED
+    from app.services.telemetry.odometer import _DECLARED_ODOMETER_WARNED
 
     vin, device = await make_livelink_vehicle(
         P, "07", kind="torque", odometer_param_key="TORQUE_ODOMETER", odometer_unit="km"

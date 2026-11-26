@@ -240,19 +240,19 @@ def _no_session_refresh_debounce() -> Generator[None]:
     window would park in the drain below for 2 to 30 s. A test
     that measures the debounce sets the real values itself.
     """
-    from app.services import telemetry_service
+    from app.services.telemetry import session_refresh
 
     saved = (
-        telemetry_service.SESSION_REFRESH_DEBOUNCE_SECONDS,
-        telemetry_service.SESSION_REFRESH_MAX_DELAY_SECONDS,
+        session_refresh.SESSION_REFRESH_DEBOUNCE_SECONDS,
+        session_refresh.SESSION_REFRESH_MAX_DELAY_SECONDS,
     )
-    telemetry_service.SESSION_REFRESH_DEBOUNCE_SECONDS = 0.0
-    telemetry_service.SESSION_REFRESH_MAX_DELAY_SECONDS = 0.0
-    telemetry_service._REFRESH_DUE.clear()
+    session_refresh.SESSION_REFRESH_DEBOUNCE_SECONDS = 0.0
+    session_refresh.SESSION_REFRESH_MAX_DELAY_SECONDS = 0.0
+    session_refresh._REFRESH_DUE.clear()
     yield
     (
-        telemetry_service.SESSION_REFRESH_DEBOUNCE_SECONDS,
-        telemetry_service.SESSION_REFRESH_MAX_DELAY_SECONDS,
+        session_refresh.SESSION_REFRESH_DEBOUNCE_SECONDS,
+        session_refresh.SESSION_REFRESH_MAX_DELAY_SECONDS,
     ) = saved
 
 

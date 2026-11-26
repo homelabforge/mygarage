@@ -131,7 +131,7 @@ class TestCheckThresholdsCooldown:
 
         # 5 minutes later — still inside the default 30-minute window.
         monkeypatch.setattr(
-            "app.services.telemetry_service.utc_now",
+            "app.services.telemetry.alerts.utc_now",
             lambda: first_stamp + timedelta(minutes=5),
         )
         await svc.check_thresholds(vin=vin, param_key=param.param_key, value=160.0)
@@ -153,7 +153,7 @@ class TestCheckThresholdsCooldown:
 
         # 31 minutes later — outside the default 30-minute window.
         later = first_stamp + timedelta(minutes=31)
-        monkeypatch.setattr("app.services.telemetry_service.utc_now", lambda: later)
+        monkeypatch.setattr("app.services.telemetry.alerts.utc_now", lambda: later)
         await svc.check_thresholds(vin=vin, param_key=param.param_key, value=160.0)
 
         assert mock.await_count == 2
@@ -177,7 +177,7 @@ class TestCheckThresholdsCooldown:
 
         # 4 minutes later — inside the 5-minute window: suppressed.
         monkeypatch.setattr(
-            "app.services.telemetry_service.utc_now",
+            "app.services.telemetry.alerts.utc_now",
             lambda: first_stamp + timedelta(minutes=4),
         )
         await svc.check_thresholds(vin=vin, param_key=param.param_key, value=160.0)
@@ -185,7 +185,7 @@ class TestCheckThresholdsCooldown:
 
         # 6 minutes later — outside the 5-minute window: dispatches again.
         monkeypatch.setattr(
-            "app.services.telemetry_service.utc_now",
+            "app.services.telemetry.alerts.utc_now",
             lambda: first_stamp + timedelta(minutes=6),
         )
         await svc.check_thresholds(vin=vin, param_key=param.param_key, value=160.0)
@@ -247,7 +247,7 @@ class TestCheckThresholdsCooldown:
         param = await make_param()
         mock = _patch_dispatcher(monkeypatch, results={"discord": False})
         failed_at = datetime(2026, 10, 24, 12, 0)
-        monkeypatch.setattr("app.services.telemetry_service.utc_now", lambda: failed_at)
+        monkeypatch.setattr("app.services.telemetry.alerts.utc_now", lambda: failed_at)
 
         svc = TelemetryService(db_session)
         await svc.check_thresholds(vin=vin, param_key=param.param_key, value=150.0)
@@ -256,7 +256,7 @@ class TestCheckThresholdsCooldown:
 
         # 5 minutes on, still breaching, inside the default 30-minute window.
         monkeypatch.setattr(
-            "app.services.telemetry_service.utc_now", lambda: failed_at + timedelta(minutes=5)
+            "app.services.telemetry.alerts.utc_now", lambda: failed_at + timedelta(minutes=5)
         )
         await svc.check_thresholds(vin=vin, param_key=param.param_key, value=160.0)
         assert mock.await_count == 1
@@ -264,7 +264,7 @@ class TestCheckThresholdsCooldown:
         # Past the window: tried again, and this time it lands.
         mock.return_value = {"discord": True}
         later = failed_at + timedelta(minutes=31)
-        monkeypatch.setattr("app.services.telemetry_service.utc_now", lambda: later)
+        monkeypatch.setattr("app.services.telemetry.alerts.utc_now", lambda: later)
         await svc.check_thresholds(vin=vin, param_key=param.param_key, value=160.0)
         assert mock.await_count == 2
         assert param.warning_last_notified_at == later
