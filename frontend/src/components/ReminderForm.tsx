@@ -382,7 +382,7 @@ function ReminderForm({ vin, reminder, currentMileage, currentHours, onClose, on
     // it is what the field shows and what the target hint quotes; an untouched
     // field matches its origin exactly and returns the stored canonical.
     const intervalKm = canonicalFromUnitField(
-      String(mileageInterval ?? ''),
+      mileageInterval,
       mileageIntervalOrigin,
       u.distance,
     )

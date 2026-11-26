@@ -712,20 +712,26 @@ export function seedUnitField(
  * The empty-origin guard is load bearing: `Number('')` is 0, so without it a
  * field that started empty would read a typed `0` as unchanged and store null.
  *
- * @param typed What the input currently holds.
+ * Takes a number too, since that's what a form's number field hands back, and
+ * null or undefined read as an empty box. NaN, Infinity and junk text come
+ * back null so none of it ever reaches the wire.
+ *
+ * @param typed What the input currently holds, as text or as a number.
  * @param origin What `seedUnitField` recorded for this field.
  * @param quantity The formatter for the field's quantity.
  * @returns The canonical value to store, or null when the field is empty or
- *   holds something that is not a number.
+ *   holds something that is not a finite number.
  */
 export function canonicalFromUnitField(
-  typed: string,
+  typed: string | number | null | undefined,
   origin: UnitFieldOrigin,
   quantity: QuantityFormat
 ): number | null {
-  if (unitFieldUnchanged(typed, origin)) return origin.canonical
-  if (typed.trim() === '') return null
-  return quantity.toCanonical(Number(typed))
+  const text = typed == null ? '' : String(typed)
+  if (unitFieldUnchanged(text, origin)) return origin.canonical
+  if (text.trim() === '') return null
+  const value = Number(text)
+  return Number.isFinite(value) ? quantity.toCanonical(value) : null
 }
 
 /**
@@ -750,7 +756,7 @@ export function canonicalFromTypedUnitField(
   const parsed = parseDecimalInput(typed, getActiveLocale())
   if (parsed.kind !== 'value') return null
   // Hand the parsed number on, so an untouched value spelled differently still keeps its origin.
-  return canonicalFromUnitField(String(parsed.value), origin, quantity)
+  return canonicalFromUnitField(parsed.value, origin, quantity)
 }
 
 /**

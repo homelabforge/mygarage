@@ -13,6 +13,7 @@ import {
   canonicalFromUnitField,
   costPerDistanceUnitLabel,
   formatAtPrecision,
+  formatForAdapter,
   formatCostPerDistance,
   formatVolumePerDistance,
   fuelRateLabel,
@@ -475,5 +476,67 @@ describe('canonicalFromUnitField', () => {
     const origin = seedUnitField(7.5, cu.tread)
     expect(origin.display).toBe('9')
     expect(canonicalFromUnitField('10', origin, cu.tread)).toBe(7.9375)
+  })
+
+  it('accepts a number and keeps an untouched origin', () => {
+    // A number field hands back 20, never '20.00', so this is the spelling gap
+    // again without the String() the forms used to wrap it in.
+    const um = makeUnitFormat({ ...METRIC, mass: 'lb' })
+    const origin = seedUnitField(9.07, um.mass)
+    expect(origin.display).toBe('20.00')
+    expect(canonicalFromUnitField(20, origin, um.mass)).toBe(9.07)
+    // A real edit still converts: 21 lb x 0.45359237 = 9.52543977 kg.
+    expect(canonicalFromUnitField(21, origin, um.mass)).toBe(9.52543977)
+  })
+
+  it('treats null and undefined as an empty field', () => {
+    const metric = makeUnitFormat(METRIC)
+    const origin = seedUnitField(7.5, metric.tread)
+    expect(origin.display).toBe('7.50')
+    expect(canonicalFromUnitField(null, origin, metric.tread)).toBeNull()
+    expect(canonicalFromUnitField(undefined, origin, metric.tread)).toBeNull()
+    // The case that tells '' from 'undefined': a blank MPG box holding a real 0
+    // only keeps it if an absent value reads as the empty string.
+    const imperial = makeUnitFormat(IMPERIAL)
+    const zero = seedUnitField(0, imperial.consumption)
+    expect(zero).toStrictEqual({ canonical: 0, display: '' })
+    expect(canonicalFromUnitField(null, zero, imperial.consumption)).toBe(0)
+    expect(canonicalFromUnitField(undefined, zero, imperial.consumption)).toBe(0)
+  })
+
+  it('never returns NaN', () => {
+    // Every table adapter nulls NaN on its own, so this one passes junk straight
+    // through. That way the helper's guard is the only thing standing.
+    const passThrough = formatForAdapter(
+      {
+        unit: 'kg',
+        label: 'kg',
+        precision: 2,
+        toCanonical: (typed) => (typed === undefined ? null : typed),
+        toDisplay: (canonical) => (canonical === undefined ? null : canonical),
+      },
+      null,
+      false
+    )
+    const blank: UnitFieldOrigin = { canonical: null, display: '' }
+    const seeded = seedUnitField(5, passThrough)
+    expect(passThrough.toCanonical(Number.NaN)).toBeNaN()
+    for (const origin of [blank, seeded]) {
+      expect(canonicalFromUnitField(Number.NaN, origin, passThrough)).toBeNull()
+      expect(canonicalFromUnitField(Number.POSITIVE_INFINITY, origin, passThrough)).toBeNull()
+      expect(canonicalFromUnitField(Number.NEGATIVE_INFINITY, origin, passThrough)).toBeNull()
+      expect(canonicalFromUnitField('abc', origin, passThrough)).toBeNull()
+      expect(canonicalFromUnitField('NaN', origin, passThrough)).toBeNull()
+      expect(canonicalFromUnitField('Infinity', origin, passThrough)).toBeNull()
+    }
+    // A real linear adapter carries Infinity straight through, so pin it there too.
+    expect(u.distance.toCanonical(Number.POSITIVE_INFINITY)).toBe(Number.POSITIVE_INFINITY)
+    expect(canonicalFromUnitField(Number.POSITIVE_INFINITY, blank, u.distance)).toBeNull()
+    expect(canonicalFromUnitField('Infinity', blank, u.distance)).toBeNull()
+  })
+
+  it('a typed 0 into an empty origin is 0, not null', () => {
+    const blank: UnitFieldOrigin = { canonical: null, display: '' }
+    expect(canonicalFromUnitField(0, blank, u.distance)).toBe(0)
   })
 })

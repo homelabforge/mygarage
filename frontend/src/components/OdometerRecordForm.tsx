@@ -56,7 +56,7 @@ function OdometerRecordForm({ vin, record, onClose, onSuccess }: OdometerRecordF
       vin,
       date: data.date,
       odometer_km:
-        canonicalFromUnitField(String(odometerTyped ?? ''), odometerOrigin, u.distance) ??
+        canonicalFromUnitField(odometerTyped, odometerOrigin, u.distance) ??
         undefined,
       notes: data.notes,
     }

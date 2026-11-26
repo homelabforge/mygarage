@@ -267,7 +267,7 @@ function PropaneRecordForm({
         propane_liters:
           toLitersWirePrecision(
             canonicalFromUnitField(
-              String(readNumber(data.propane_liters) ?? ''),
+              readNumber(data.propane_liters),
               propaneLitersOrigin,
               u.volume
             )
@@ -276,7 +276,7 @@ function PropaneRecordForm({
         // canonical value it was seeded from rather than a re-conversion.
         tank_size_kg:
           canonicalFromUnitField(
-            String(readNumber(data.tank_size_kg) ?? ''),
+            readNumber(data.tank_size_kg),
             tankSizeOrigin,
             u.mass
           ) ?? cleared,

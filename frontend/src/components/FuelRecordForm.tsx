@@ -830,11 +830,6 @@ function FuelRecordForm({ vin, record, onClose, onSuccess }: FuelRecordFormProps
 
     // The three `registerDecimal` fields the origin arbitrates. `readNumber`
     // absorbs the INVALID_NUMBER symbol, which throws on implicit coercion.
-    // The verbose `canonicalFromUnitField(String(x ?? ''), ...)` shape below is
-    // repeated rather than wrapped on purpose: nine call sites across seven
-    // forms spell the boundary exactly that way, and a local shorthand here
-    // would make this the one form that reads differently. The shape's real
-    // fix is a number-accepting overload on the helper, swept across all nine.
     const odometerTyped = readNumber(data.odometer_km)
     const obcConsumptionTyped = readNumber(data.obc_l_per_100km)
     const obcSpeedTyped = readNumber(data.obc_avg_speed_kmh)
@@ -857,14 +852,9 @@ function FuelRecordForm({ vin, record, onClose, onSuccess }: FuelRecordFormProps
         // canonical value it was seeded from rather than a re-conversion of a
         // rounded display. `readNumber` also absorbs `registerDecimal`'s
         // INVALID_NUMBER symbol, which throws on every implicit coercion.
-        // `?? ''` and not a separate undefined branch: an absent value then
-        // takes `canonicalFromUnitField`'s own blank path instead of arriving
-        // as the string "undefined" and reaching null by way of NaN. Same
-        // result either way, which is why no test can tell them apart, so the
-        // one that says what it means wins.
         odometer_km:
           canonicalFromUnitField(
-            String(odometerTyped ?? ''),
+            odometerTyped,
             unitOrigins.odometer_km,
             u.distance
           ) ?? cleared,
@@ -880,12 +870,12 @@ function FuelRecordForm({ vin, record, onClose, onSuccess }: FuelRecordFormProps
         // protocol deliberately leaves to the caller: pydantic 422s a fourth.
         liters:
           toLitersWirePrecision(
-            canonicalFromUnitField(String(litersTyped ?? ''), unitOrigins.liters, u.volume)
+            canonicalFromUnitField(litersTyped, unitOrigins.liters, u.volume)
           ) ?? cleared,
         propane_liters:
           toLitersWirePrecision(
             canonicalFromUnitField(
-              String(propaneTyped ?? ''),
+              propaneTyped,
               unitOrigins.propane_liters,
               u.volume
             )
@@ -942,13 +932,13 @@ function FuelRecordForm({ vin, record, onClose, onSuccess }: FuelRecordFormProps
         // average speed every time.
         obc_l_per_100km:
           canonicalFromUnitField(
-            String(obcConsumptionTyped ?? ''),
+            obcConsumptionTyped,
             unitOrigins.obc_l_per_100km,
             u.consumption
           ) ?? cleared,
         obc_avg_speed_kmh:
           canonicalFromUnitField(
-            String(obcSpeedTyped ?? ''),
+            obcSpeedTyped,
             unitOrigins.obc_avg_speed_kmh,
             u.speed
           ) ?? cleared,

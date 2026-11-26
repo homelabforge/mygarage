@@ -58,12 +58,12 @@ const unseededPrice = (basis: PriceBasis | string | null): PriceFieldOrigin => (
  * What a form posts for a volume the user TYPED, spelled as the forms spell it.
  *
  * The three writers all compose these two calls in this order, so exercising
- * the composition is exercising what ships. `String(x ?? '')` is the forms'
- * own shape: an absent value takes `canonicalFromUnitField`'s blank path.
+ * the composition is exercising what ships. The forms hand the number over
+ * as is, and an absent value takes `canonicalFromUnitField`'s blank path.
  */
 const enteredVolume = (typed: number | null | undefined, units: UnitSet): number | null =>
   toLitersWirePrecision(
-    canonicalFromUnitField(String(typed ?? ''), UNSEEDED, makeUnitFormat(units).volume)
+    canonicalFromUnitField(typed, UNSEEDED, makeUnitFormat(units).volume)
   )
 
 /** The same for a price the user typed, under a basis they did not change. */
