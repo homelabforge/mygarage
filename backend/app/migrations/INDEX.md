@@ -173,3 +173,4 @@ migrations must swallow their own operational errors.
 | `161_price_unpriced_supply_usages` | Price the supply usages that were logged before their supply had a cost (#301). |
 | `162_add_supply_usage_cost_estimated` | **FATAL**: Add supply_usages.cost_estimated: a usage priced from the all-time average (#307). |
 | `163_price_visit_usages_as_of` | Price stranded visit usages as of their visit's date (#307). |
+| `165_categorize_percentage_parameters` | Give percentage parameters a real category instead of other (B-9). |

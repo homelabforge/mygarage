@@ -342,11 +342,11 @@ class TelemetryService:
                 # "other" default — category is user-editable in the admin
                 # UI, and a hand-tuned value must survive the class backfill.
                 if not existing.category or existing.category == "other":
-                    existing.category = self._classify_param(resolved_class)
+                    existing.category = self._classify_param(resolved_class, param_key)
             return existing
 
         # Create new parameter
-        category = self._classify_param(resolved_class)
+        category = self._classify_param(resolved_class, param_key)
         display_name = display_name or self._format_display_name(param_key)
 
         # Defaults for brand-new rows only; existing rows keep whatever a user
@@ -389,8 +389,12 @@ class TelemetryService:
         logger.info("Auto-registered new parameter: %s", param_key)
         return param
 
-    def _classify_param(self, param_class: str | None) -> str:
-        """Classify a parameter into a category based on its class."""
+    def _classify_param(self, param_class: str | None, param_key: str) -> str:
+        """Classify a parameter into a category based on its class.
+
+        WiCAN files every % reading under `percentage`, so that class goes by
+        key instead: fuel, then state of charge or battery, else engine.
+        """
         if not param_class:
             return "other"
 
@@ -407,6 +411,13 @@ class TelemetryService:
             return "engine"
         elif class_lower in ("power_factor",):  # Throttle, load
             return "engine"
+        elif class_lower == "percentage":
+            key = canonical_param_key(param_key)
+            if "FUEL" in key:
+                return "fuel"
+            if "SOC" in key or "BATT" in key:
+                return "electrical"
+            return "engine"  # throttle, pedal, load
         else:
             return "other"
 
