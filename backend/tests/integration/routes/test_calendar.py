@@ -422,11 +422,12 @@ class TestCalendarRoutes:
         assert events[0]["date"] == (date.today() + timedelta(days=20)).isoformat()
 
     @pytest.mark.parametrize(
-        ("reminder_type", "due_in_days", "due_km", "km_until_due"),
+        ("reminder_type", "due_in_days", "due_km", "now_km", "km_until_due"),
         [
-            ("date", -200, None, None),
-            ("smart", 180, "50000", "-1200"),
-            ("mileage", None, "50000", "-1200"),
+            # No reading at all: the date alone has to pin it.
+            ("date", -200, None, None, None),
+            ("smart", 180, "50000", "51200", "-1200"),
+            ("mileage", None, "50000", "51200", "-1200"),
         ],
         ids=["date-long-overdue", "smart-mileage-first", "mileage-only"],
     )
@@ -438,6 +439,7 @@ class TestCalendarRoutes:
         reminder_type: str,
         due_in_days: int | None,
         due_km: str | None,
+        now_km: str | None,
         km_until_due: str | None,
     ):
         """#195, three ways an overdue reminder went missing. A long-past date
@@ -445,22 +447,19 @@ class TestCalendarRoutes:
         one overdue by mileage sat on its future date as on_track. A mileage-only
         one was pinned to today but read due_soon, as the ladder only knew dates."""
         vin, headers = await _isolated_vehicle(db_session, made_users)
-        db_session.add_all(
-            [
-                OdometerRecord(vin=vin, date=date.today(), odometer_km=Decimal("51200")),
-                Reminder(
-                    vin=vin,
-                    title="Overdue Pinned Today",
-                    reminder_type=reminder_type,
-                    due_date=(
-                        date.today() + timedelta(days=due_in_days)
-                        if due_in_days is not None
-                        else None
-                    ),
-                    due_mileage_km=Decimal(due_km) if due_km is not None else None,
-                    status="pending",
+        if now_km is not None:
+            db_session.add(OdometerRecord(vin=vin, date=date.today(), odometer_km=Decimal(now_km)))
+        db_session.add(
+            Reminder(
+                vin=vin,
+                title="Overdue Pinned Today",
+                reminder_type=reminder_type,
+                due_date=(
+                    date.today() + timedelta(days=due_in_days) if due_in_days is not None else None
                 ),
-            ]
+                due_mileage_km=Decimal(due_km) if due_km is not None else None,
+                status="pending",
+            )
         )
         await db_session.commit()
 
