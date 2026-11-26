@@ -48,6 +48,17 @@ const RADIUS_OPTIONS: Readonly<Record<UnitSet['distance'], readonly number[]>> =
 /** The radius pre-selected for each distance unit. */
 const DEFAULT_RADIUS: Readonly<Record<UnitSet['distance'], number>> = { km: 10, mi: 5 }
 
+/** The saved-place shortlist, or null when it couldn't load (logged, never shown). */
+async function fetchRecommendations(): Promise<POIRecommendation[] | null> {
+  try {
+    const response = await api.get<POIRecommendationsResponse>('/poi/recommendations?limit=5')
+    return response.data.recommendations
+  } catch (err) {
+    console.error('Failed to load recommendations:', err)
+    return null
+  }
+}
+
 export default function POIFinder() {
   const { t } = useTranslation('common')
   // Both hooks: `useUnitFormat` composes the label, and the resolved set itself
@@ -85,18 +96,16 @@ export default function POIFinder() {
     propane: false,
   })
 
-  // Load recommendations on mount
+  // Load recommendations on mount. The set sits in a then, so it's plainly after the fetch.
   useEffect(() => {
-    loadRecommendations()
+    void fetchRecommendations().then((next) => {
+      if (next !== null) setRecommendations(next)
+    })
   }, [])
 
-  const loadRecommendations = async () => {
-    try {
-      const response = await api.get<POIRecommendationsResponse>('/poi/recommendations?limit=5')
-      setRecommendations(response.data.recommendations)
-    } catch (err) {
-      console.error('Failed to load recommendations:', err)
-    }
+  const loadRecommendations = async (): Promise<void> => {
+    const next = await fetchRecommendations()
+    if (next !== null) setRecommendations(next)
   }
 
   const handleCategoryToggle = (category: POICategory, enabled: boolean) => {

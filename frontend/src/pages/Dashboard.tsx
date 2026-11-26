@@ -112,21 +112,22 @@ export default function Dashboard() {
     loadDashboard()
   }
 
+  const vehicles = dashboard?.vehicles
   const ownedVehicles = useMemo(() => {
-    if (!dashboard?.vehicles) return []
+    if (!vehicles) return []
     return sortVehicles(
-      dashboard.vehicles.filter((v) => !v.is_shared_with_me),
+      vehicles.filter((v) => !v.is_shared_with_me),
       sortBy,
     )
-  }, [dashboard?.vehicles, sortBy])
+  }, [vehicles, sortBy])
 
   const sharedVehicles = useMemo(() => {
-    if (!dashboard?.vehicles) return []
+    if (!vehicles) return []
     return sortVehicles(
-      dashboard.vehicles.filter((v) => v.is_shared_with_me),
+      vehicles.filter((v) => v.is_shared_with_me),
       sortBy,
     )
-  }, [dashboard?.vehicles, sortBy])
+  }, [vehicles, sortBy])
 
   const referenceVehicles = useMemo(
     () => (familyFriendsEnabled ? externalVehicles : []),

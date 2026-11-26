@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type MouseEvent, type PointerEvent, type ReactElement, type ReactNode } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState, type MouseEvent, type PointerEvent, type ReactElement, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { FOCUSABLE_SELECTOR, FORM_FIELD_SELECTOR, isRendered, trapTab } from './focusTrap'
@@ -64,10 +64,14 @@ export default function Dialog({
 
   // Same deal as Drawer: callers pass inline arrows, and re-running the
   // effect on every render would bounce focus around.
+  // Synced in a layout effect so render never touches them, and it still
+  // lands before the open effect below reads them.
   const onCloseRef = useRef(onClose)
-  onCloseRef.current = onClose
   const initialFocusRef = useRef(initialFocus)
-  initialFocusRef.current = initialFocus
+  useLayoutEffect(() => {
+    onCloseRef.current = onClose
+    initialFocusRef.current = initialFocus
+  })
 
   useEffect(() => {
     if (!open) {

@@ -1,8 +1,9 @@
 import { useTranslation } from 'react-i18next'
-import { useState, useEffect, useMemo, useRef, type SyntheticEvent } from 'react'
+import { useState, useEffect, useMemo, type SyntheticEvent } from 'react'
 import { Eye, EyeOff, UserCog, UserPlus } from 'lucide-react'
 import { toast } from 'sonner'
 import api from '@/services/api'
+import { useLastWhile } from '@/hooks/useLastWhile'
 import { getActionErrorMessage } from '@/utils/httpErrorHandler'
 import { Button, Drawer, Select } from '@/components/ui'
 import { makePasswordSchema } from '@/schemas/auth'
@@ -24,9 +25,7 @@ export default function AddEditUserModal({ isOpen, onClose, user: userProp, onSa
   const { t } = useTranslation('forms')
   // Family nulls the user in the same render that closes this, so hang on to
   // whoever was showing. Otherwise the slide-out flashes a blank Add user form.
-  const shownUserRef = useRef(userProp ?? null)
-  if (isOpen) shownUserRef.current = userProp ?? null
-  const user = isOpen ? userProp ?? null : shownUserRef.current
+  const user = useLastWhile(userProp ?? null, isOpen)
   const isEditMode = !!user
   const isOidc = isEditMode && user?.auth_method === 'oidc'
   // The last active admin can't be disabled, whoever it is, not only you.

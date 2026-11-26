@@ -31,7 +31,9 @@ export default function ArchivedVehiclesList() {
   // a new identity on language switch would re-run the effect and refetch the
   // list. Same shape as the mid-edit reset bug fixed in VehicleEdit.
   const tRef = useRef(t)
-  tRef.current = t
+  useEffect(() => {
+    tRef.current = t
+  }, [t])
 
   // Load archived vehicles
   const loadArchivedVehicles = useCallback(async () => {

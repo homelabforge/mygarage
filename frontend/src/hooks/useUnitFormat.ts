@@ -31,7 +31,7 @@ import { useMemo } from 'react'
 import { useAccountUnitPreference, useUnitPreference } from './useUnitPreference'
 import { makeUnitFormat, type UnitFormat, type QuantityFormat } from '../utils/unitFormat'
 import { oilCapacityFormat } from '../utils/oilCapacityUnit'
-import { unitsForVehicle } from '../types/units'
+import { unitsForVehicle, type UnitSet } from '../types/units'
 import type { VehicleDistanceUnit } from '../contexts/VehicleUnitScope'
 
 /**
@@ -78,15 +78,21 @@ export function useOilCapacityFormat(): QuantityFormat {
  */
 export function useUnitFormatFor(): (distanceUnit: VehicleDistanceUnit) => UnitFormat {
   const { units, showBoth } = useAccountUnitPreference()
-  return useMemo(() => {
-    const byUnit = new Map<string, UnitFormat>()
-    return (distanceUnit: VehicleDistanceUnit): UnitFormat => {
-      const key = distanceUnit ?? ''
-      const cached = byUnit.get(key)
-      if (cached) return cached
-      const made = makeUnitFormat(unitsForVehicle(units, distanceUnit), showBoth)
-      byUnit.set(key, made)
-      return made
-    }
-  }, [units, showBoth])
+  return useMemo(() => cachedFormatFor(units, showBoth), [units, showBoth])
+}
+
+/**
+ * The per-vehicle lookup `useUnitFormatFor` memoises. Lives outside the hook
+ * because it fills its cache when called, after render.
+ */
+function cachedFormatFor(units: UnitSet, showBoth: boolean): (distanceUnit: VehicleDistanceUnit) => UnitFormat {
+  const byUnit = new Map<string, UnitFormat>()
+  return (distanceUnit: VehicleDistanceUnit): UnitFormat => {
+    const key = distanceUnit ?? ''
+    const cached = byUnit.get(key)
+    if (cached) return cached
+    const made = makeUnitFormat(unitsForVehicle(units, distanceUnit), showBoth)
+    byUnit.set(key, made)
+    return made
+  }
 }

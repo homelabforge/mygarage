@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import type { IconType } from './types'
@@ -105,9 +105,11 @@ export default function Drawer({
   // re-run on each keystroke in any controlled input, and its release focuses
   // the trigger, so focus would jump back to it after every character
   // typed in all 15 record forms. The gallery can't catch this: its demo Input
-  // is uncontrolled.
+  // is uncontrolled. Synced in a layout effect so render never touches it.
   const onCloseRef = useRef(onClose)
-  onCloseRef.current = onClose
+  useLayoutEffect(() => {
+    onCloseRef.current = onClose
+  })
 
   useEffect(() => {
     if (!open) {

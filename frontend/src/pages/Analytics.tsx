@@ -2,7 +2,7 @@
  * Analytics Page - Vehicle Reports and Analytics
  */
 
-import { useState, useEffect, useCallback, useRef, type ReactElement } from 'react'
+import { useState, useEffect, useCallback, useLayoutEffect, useRef, type ReactElement } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useParams, Link } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -131,8 +131,11 @@ export default function Analytics(): ReactElement {
   const { vin } = useParams<{ vin: string }>()
   const [scope, setScope] = useState<DistanceUnitReport | null>(null)
   // A late answer for the vehicle we just left must not set this one's unit.
+  // A layout effect, so it's current before the child's fetch effect can answer.
   const vinRef = useRef(vin)
-  vinRef.current = vin
+  useLayoutEffect(() => {
+    vinRef.current = vin
+  }, [vin])
   const report = useCallback((next: DistanceUnitReport): void => {
     setScope((prev) => (next.vin === vinRef.current ? next : prev))
   }, [])
