@@ -161,6 +161,7 @@ function baseAnalytics(overrides: Partial<VehicleAnalytics> = {}): VehicleAnalyt
   return {
     vehicle_name: 'Test Car',
     vehicle_type: 'Car',
+    distance_unit: null,
     vin: 'V1',
     days_owned: 100,
     total_km_driven: null,

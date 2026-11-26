@@ -92,7 +92,7 @@ const BELOW: AnomalyAlert = {
 
 function analyticsWith(anomalies: AnomalyAlert[]): VehicleAnalytics {
   return {
-    vehicle_name: 'Ram', vehicle_type: 'Truck', vin: 'V1', days_owned: 100,
+    vehicle_name: 'Ram', vehicle_type: 'Truck', distance_unit: null, vin: 'V1', days_owned: 100,
     total_km_driven: null, average_km_per_month: null,
     cost_analysis: {
       total_cost: '0.00', average_monthly_cost: '0.00', months_tracked: 0,

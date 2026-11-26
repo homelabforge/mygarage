@@ -2,13 +2,14 @@
  * Analytics Page - Vehicle Reports and Analytics
  */
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef, type ReactElement } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useParams, Link } from 'react-router-dom'
 import { toast } from 'sonner'
 import api from '../services/api'
 import { getActionErrorMessage } from '../utils/httpErrorHandler'
 import { useAccountUnitPreference, useUnitPreference } from '../hooks/useUnitPreference'
+import { VehicleUnitScope, type VehicleDistanceUnit } from '../contexts/VehicleUnitScope'
 import { useUnitFormat } from '../hooks/useUnitFormat'
 import {
   costPerDistanceUnitLabel,
@@ -112,7 +113,39 @@ const DEFAULT_ANOMALY_RANGE: AnomalyRange = '12m'
 const hasRunningCostActivity = (m: MonthlyCostSummary): boolean =>
   m.service_count + m.fuel_count + m.def_count + m.spot_rental_count > 0
 
-export default function Analytics() {
+/** The odometer unit one vehicle's analytics came back with. */
+interface DistanceUnitReport {
+  vin: string
+  unit: VehicleDistanceUnit
+}
+
+/**
+ * Scopes the page to the vehicle's odometer unit (#172), read off the analytics
+ * response so the page loads once behind one spinner.
+ */
+export default function Analytics(): ReactElement {
+  const { vin } = useParams<{ vin: string }>()
+  const [scope, setScope] = useState<DistanceUnitReport | null>(null)
+  // A late answer for the vehicle we just left must not set this one's unit.
+  const vinRef = useRef(vin)
+  vinRef.current = vin
+  const report = useCallback((next: DistanceUnitReport): void => {
+    setScope((prev) => (next.vin === vinRef.current ? next : prev))
+  }, [])
+
+  return (
+    <VehicleUnitScope distanceUnit={scope && scope.vin === vin ? scope.unit : undefined}>
+      {/* key remounts per vehicle, so no analytics, vendor or comparison state leaks across. */}
+      <AnalyticsContent key={vin} onDistanceUnit={report} />
+    </VehicleUnitScope>
+  )
+}
+
+function AnalyticsContent({
+  onDistanceUnit,
+}: {
+  onDistanceUnit: (report: DistanceUnitReport) => void
+}): ReactElement {
   const { t } = useTranslation('analytics')
   const { vin } = useParams<{ vin: string }>()
   // ★ No `system` here any more. The last two consumers were
@@ -186,6 +219,7 @@ export default function Analytics() {
       const response = await api.get(`/analytics/vehicles/${vin}`, { params })
       const data: VehicleAnalytics = response.data
       setAnalytics(data)
+      onDistanceUnit({ vin, unit: data.distance_unit ?? null })
       if (isDefaultWindow) {
         try {
           localStorage.setItem(cacheKey, JSON.stringify({ timestamp: Date.now(), data }))
@@ -201,8 +235,11 @@ export default function Analytics() {
         if (cached) {
           const parsed = JSON.parse(cached)
           setAnalytics(parsed.data)
+          // A copy cached before distance_unit rode along has none: account units.
+          onDistanceUnit({ vin, unit: parsed.data?.distance_unit ?? null })
+          // The banner says it's cached. Setting error here hid the whole snapshot
+          // behind the error panel.
           setFromCache(true)
-          setError(t('vehicle.offlineCached'))
           setLoading(false)
           return
         }
@@ -211,7 +248,7 @@ export default function Analytics() {
     } finally {
       setLoading(false)
     }
-  }, [vin, t, anomalyRange, anomalyStart, anomalyEnd])
+  }, [vin, t, anomalyRange, anomalyStart, anomalyEnd, onDistanceUnit])
 
   useEffect(() => {
     fetchAnalytics()

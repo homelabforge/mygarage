@@ -36,7 +36,6 @@ const POIFinder = lazy(() => import('./pages/POIFinder'))
 const Calendar = lazy(() => import('./pages/Calendar'))
 const VehicleDetail = lazy(() => import('./pages/VehicleDetail'))
 const WindowStickerTest = lazy(() => import('./pages/WindowStickerTest'))
-const VehicleRouteUnitScope = lazy(() => import('./components/VehicleRouteUnitScope'))
 const Analytics = lazy(() => import('./pages/Analytics'))
 const GarageAnalytics = lazy(() => import('./pages/GarageAnalytics'))
 const Settings = lazy(() => import('./pages/Settings'))
@@ -110,14 +109,7 @@ function App() {
                     <Route path="vin-demo" element={<Navigate to="/about" replace />} />
                     <Route path="vehicles/:vin" element={<VehicleDetail />} />
                     <Route path="vehicles/:vin/window-sticker-test" element={<WindowStickerTest />} />
-                    <Route
-                      path="vehicles/:vin/analytics"
-                      element={
-                        <VehicleRouteUnitScope>
-                          <Analytics />
-                        </VehicleRouteUnitScope>
-                      }
-                    />
+                    <Route path="vehicles/:vin/analytics" element={<Analytics />} />
                     <Route path="settings" element={<Settings />} />
                     <Route path="about" element={<About />} />
                     <Route path="family" element={<FamilyRedirect />} />
