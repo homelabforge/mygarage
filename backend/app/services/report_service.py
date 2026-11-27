@@ -53,10 +53,15 @@ def _visit_lines(visit: ServiceVisit) -> list[tuple[str, Decimal | None]]:
     """(description, cost) for each row a visit puts in a report.
 
     One per line item. A visit with no line items still gets one row: its
-    notes (or "Service") and its whole cost, fees included.
+    notes (or "Service") and its whole cost, fees included. With no tax or
+    fees either it has no cost at all, so the cell stays blank, not 0.00.
     """
     if visit.line_items:
         return [(item.description or "", item.cost) for item in visit.line_items]
+    # Supplies hang off line items, so an itemless visit has none.
+    charges = (visit.tax_amount, visit.shop_supplies, visit.misc_fees)
+    if all(charge is None for charge in charges):
+        return [(visit.notes or "Service", None)]
     return [(visit.notes or "Service", visit.calculated_total_cost)]
 
 
@@ -96,7 +101,7 @@ async def service_history_pdf(
         "license_plate": vehicle.license_plate,
     }
 
-    # Prepare service records data, one row per line item for detail
+    # One row per line item for detail, or one for a visit with none
     records_data: list[dict[str, Any]] = []
     for visit in visits:
         vendor_name = visit.vendor.name if visit.vendor else None

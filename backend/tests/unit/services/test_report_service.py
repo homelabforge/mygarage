@@ -381,7 +381,8 @@ def _history_row(
 # Newest first, as the route orders them. The window is [2025-02-01, 2025-11-30].
 _PAST_WINDOW = [
     _history_row(date(2026, 1, 15), "19000", "Maintenance", "Alignment", "90.00", _VENDOR_A),
-    _history_row(date(2025, 12, 20), None, None, "Service", "0", None),
+    # No items, supplies, tax or fees: no cost at all, not a zero.
+    _history_row(date(2025, 12, 20), None, None, "Service", None, None),
 ]
 _IN_WINDOW = [
     _history_row(date(2025, 11, 30), "18000", "Upgrades", "=1+1", "300.00", _VENDOR_A),
@@ -618,7 +619,7 @@ class TestTaxDeductionPdf:
                 {
                     "vehicle_info": _VEHICLE_INFO,
                     # Oldest first. Free inspection (0) and Wiper check (None) are gone,
-                    # the fee-only visit is one row, and the empty 12-20 visit costs 0 so it drops.
+                    # the fee-only visit is one row, and the empty 12-20 visit has no cost so it drops.
                     "deductible_records": [
                         row(date(2025, 2, 1), "Maintenance", "Oil change", "49.99"),
                         row(date(2025, 5, 10), "Maintenance", "Disposal fee, $15 cash", "15.00"),
@@ -694,6 +695,38 @@ class TestBadParams:
         assert response.status_code == 422, response.text
         assert param in response.text
         assert "valid date" in response.text
+
+    @pytest.mark.parametrize("param", ["start_date", "end_date"])
+    async def test_an_empty_date_means_no_filter(
+        self, client: AsyncClient, seeded: dict[str, str], frozen_clock: None, param: str
+    ) -> None:
+        # What a form sends for a date left blank. Same answer as leaving it out.
+        response = await client.get(
+            f"/api/vehicles/{_VIN}/reports/service-history-csv",
+            headers=seeded,
+            params={param: ""},
+        )
+        assert response.status_code == 200, response.text
+        _assert_golden("service_history_all.csv", response.content)
+
+    @pytest.mark.parametrize("param", ["start_date", "end_date"])
+    async def test_an_empty_date_on_the_pdf_means_no_filter(
+        self,
+        client: AsyncClient,
+        seeded: dict[str, str],
+        pdf_calls: list,
+        frozen_clock: None,
+        param: str,
+    ) -> None:
+        response = await client.get(
+            f"/api/vehicles/{_VIN}/reports/service-history-pdf",
+            headers=seeded,
+            params={param: ""},
+        )
+        assert response.status_code == 200, response.text
+        (_, call) = pdf_calls[-1]
+        assert (call["start_date"], call["end_date"]) == (None, None)
+        assert call["service_records"] == _PAST_WINDOW + _IN_WINDOW + _BEFORE_WINDOW
 
     @pytest.mark.parametrize("report", ["cost-summary-pdf", "tax-deduction-pdf", "all-records-csv"])
     async def test_year_zero_is_a_422(

@@ -6,6 +6,6 @@ Date,Type,Category,Description,Cost,Odometer (mi),Vendor,Volume (gal_us)
 2025-07-04,Service,Maintenance,Car wash,12.00,0.000,,
 2025-08-20,Collision,Collision,Bumper,500.00,9320.568,RptSvc Body Shop B,
 2025-11-30,Upgrade,Upgrades,'=1+1,300.00,11184.681,RptSvc Garage A,
-2025-12-20,Service,Maintenance,Service,0.00,,,
+2025-12-20,Service,Maintenance,Service,,,,
 2025-03-03,Fuel,Fuel,Premium,55.00,6835.083,,10.5669
 2025-09-09,Fuel,Fuel,Fuel,,9941.939,,2.6417

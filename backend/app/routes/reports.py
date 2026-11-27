@@ -1,9 +1,11 @@
 """API routes for report generation and export."""
 
 from datetime import date, datetime
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
+from pydantic import BeforeValidator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -18,12 +20,20 @@ from app.utils.vehicle_key import download_tag, filename_fragment
 router = APIRouter(prefix="/api/vehicles", tags=["Reports"])
 
 
+def _blank_is_none(value: object) -> object:
+    """An empty query value, what a form sends for a date left blank, is no filter."""
+    return None if value == "" else value
+
+
+# Typed as a date, so a malformed one is a 422 naming the param instead of a 500.
+OptionalDate = Annotated[date | None, BeforeValidator(_blank_is_none)]
+
+
 @router.get("/{vin}/reports/service-history-pdf")
 async def download_service_history_pdf(
     vin: str,
-    # Typed as dates, so a malformed one is a 422 naming the param instead of a 500.
-    start_date: date | None = Query(None, description="Start date (YYYY-MM-DD)"),
-    end_date: date | None = Query(None, description="End date (YYYY-MM-DD)"),
+    start_date: Annotated[OptionalDate, Query(description="Start date (YYYY-MM-DD)")] = None,
+    end_date: Annotated[OptionalDate, Query(description="End date (YYYY-MM-DD)")] = None,
     currency_code: str = Query("USD", description="ISO 4217 code; defaults to USD."),
     locale: str = Query("en-US", description="BCP 47 locale; defaults to en-US."),
     date_format: str | None = Query(
@@ -155,9 +165,8 @@ async def download_tax_deduction_pdf(
 @router.get("/{vin}/reports/service-history-csv")
 async def download_service_history_csv(
     vin: str,
-    # Typed as dates, so a malformed one is a 422 naming the param instead of a 500.
-    start_date: date | None = Query(None, description="Start date (YYYY-MM-DD)"),
-    end_date: date | None = Query(None, description="End date (YYYY-MM-DD)"),
+    start_date: Annotated[OptionalDate, Query(description="Start date (YYYY-MM-DD)")] = None,
+    end_date: Annotated[OptionalDate, Query(description="End date (YYYY-MM-DD)")] = None,
     db: AsyncSession = Depends(get_db),
     current_user: User | None = Depends(require_auth),
 ):
