@@ -180,11 +180,10 @@ function ServiceVisitForm({
     for (const s of supplies) map.set(s.id, s)
     return map
   }, [supplies])
-  // Each supply's unit is pinned the first time this form sees it and never
-  // rebuilt, so a unit change from another tab can't relabel what's already
-  // typed. New ids still get in, or a supply created mid-edit would drop on submit.
-  // Grown during render (copied, so memos notice) so hydration never reads it empty.
-  // State set during render, so React re-renders with the grown map before committing.
+  // Each supply's unit is pinned the first time this form sees it, so a unit
+  // change from another tab can't relabel what's typed. New ids still get in, or
+  // a supply created mid-edit drops on submit. It grows during render, as a
+  // copy so memos notice, so hydration never reads it empty.
   const [unitsBySupplyId, setUnitsBySupplyId] = useState(() => new Map<number, SupplyUnit>())
   const unseen = supplies.filter((s) => !unitsBySupplyId.has(s.id))
   if (unseen.length > 0) {

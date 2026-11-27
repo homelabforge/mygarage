@@ -104,7 +104,9 @@ async def test_engine():
     pool_kwargs: dict[str, Any] = {}
     if "asyncpg" in TEST_DATABASE_URL:
         # Pooled like the app's engine. NullPool reconnected on every commit,
-        # ~40k connects a run. Safe now every test runs on the session loop (#77).
+        # ~40k connects a run. Safe because this fixture and both pytest loop
+        # defaults (pytest.ini) are session-scoped, so a pooled connection
+        # never crosses event loops (#77).
         pool_kwargs = {"pool_size": 5, "max_overflow": 10, "pool_pre_ping": False}
     engine = create_utc_async_engine(TEST_DATABASE_URL, echo=False, **pool_kwargs)
     if "sqlite" in TEST_DATABASE_URL:
