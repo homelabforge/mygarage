@@ -279,18 +279,14 @@ class TestCalculateHoursDrivingRate:
     """Mirrors calculate_driving_rate: average engine-hours/day over the
     last 90 days, substituting engine_hours for odometer_km."""
 
-    async def test_none_with_fewer_than_two_records(
-        self, db_session: AsyncSession, test_vehicle, clean_hours_records
-    ):
-        vin = test_vehicle["vin"]
+    async def test_none_with_fewer_than_two_records(self, db_session: AsyncSession, own_vehicle):
+        vin = own_vehicle.vin
         await _add_hours_record(db_session, vin, date.today(), Decimal("100.0"))
         rate = await calculate_hours_driving_rate(vin, db_session)
         assert rate is None
 
-    async def test_computes_average_hours_per_day(
-        self, db_session: AsyncSession, test_vehicle, clean_hours_records
-    ):
-        vin = test_vehicle["vin"]
+    async def test_computes_average_hours_per_day(self, db_session: AsyncSession, own_vehicle):
+        vin = own_vehicle.vin
         start = date.today() - timedelta(days=20)
         end = date.today() - timedelta(days=0)
         await _add_hours_record(db_session, vin, start, Decimal("100.0"))
@@ -301,10 +297,8 @@ class TestCalculateHoursDrivingRate:
         # (300 - 100) / 20 days = 10.0 hr/day
         assert rate == pytest.approx(10.0)
 
-    async def test_outside_90_day_window_excluded(
-        self, db_session: AsyncSession, test_vehicle, clean_hours_records
-    ):
-        vin = test_vehicle["vin"]
+    async def test_outside_90_day_window_excluded(self, db_session: AsyncSession, own_vehicle):
+        vin = own_vehicle.vin
         # Only one record inside the 90-day window -> None.
         await _add_hours_record(
             db_session, vin, date.today() - timedelta(days=200), Decimal("1000.0")
@@ -999,9 +993,9 @@ class TestLoadReminderStarts:
 @pytest.mark.asyncio
 class TestCountPendingRemindersFallback:
     async def test_an_unprojectable_one_off_is_due_soon_at_ninety_percent(
-        self, db_session, test_vehicle, clean_odometer_records, clean_reminders
+        self, db_session, own_vehicle
     ):
-        vin = test_vehicle["vin"]
+        vin = own_vehicle.vin
         today = household_today()
         # Only one reading falls inside the 90-day window, so there's no rate and no projection.
         await _add_odometer_record(db_session, vin, today - timedelta(days=100), Decimal("50000"))
@@ -1204,9 +1198,9 @@ class TestOrderReminders:
 @pytest.mark.asyncio
 class TestListRemindersFetchesOnce:
     async def test_readings_and_rates_are_fetched_once_for_the_list(
-        self, db_session, test_vehicle, clean_odometer_records, clean_reminders, monkeypatch
+        self, db_session, own_vehicle, monkeypatch
     ):
-        vin = test_vehicle["vin"]
+        vin = own_vehicle.vin
         await _add_odometer_record(
             db_session, vin, date.today() - timedelta(days=20), Decimal("10000")
         )
@@ -1234,10 +1228,10 @@ class TestListRemindersFetchesOnce:
         assert reading.await_count == 1
 
     async def test_enrich_reminders_shares_one_context_across_rows(
-        self, db_session, test_vehicle, clean_odometer_records, clean_reminders, monkeypatch
+        self, db_session, own_vehicle, monkeypatch
     ):
         # Applying a pack and reconciling duplicates return several rows at once.
-        vin = test_vehicle["vin"]
+        vin = own_vehicle.vin
         await _add_odometer_record(
             db_session, vin, date.today() - timedelta(days=20), Decimal("10000")
         )
@@ -1482,15 +1476,13 @@ class TestCheckDueRemindersHours:
     async def test_hours_reminder_overdue_when_current_hours_meets_target(
         self,
         db_session: AsyncSession,
-        test_vehicle,
-        clean_hours_records,
-        clean_reminders,
+        own_vehicle,
         monkeypatch,
     ):
         """An 'hours' reminder is overdue when current hours >= due_hours,
         and the dispatched notification message reflects due_hours (not
         mileage)."""
-        vin = test_vehicle["vin"]
+        vin = own_vehicle.vin
         await _add_hours_record(db_session, vin, date.today(), Decimal("600.0"))
 
         reminder = Reminder(
@@ -1536,12 +1528,10 @@ class TestCheckDueRemindersHours:
     async def test_hours_reminder_not_yet_due(
         self,
         db_session: AsyncSession,
-        test_vehicle,
-        clean_hours_records,
-        clean_reminders,
+        own_vehicle,
         monkeypatch,
     ):
-        vin = test_vehicle["vin"]
+        vin = own_vehicle.vin
         await _add_hours_record(db_session, vin, date.today(), Decimal("100.0"))
 
         reminder = Reminder(
@@ -1579,9 +1569,7 @@ class TestCheckDueRemindersHours:
     async def test_mileage_reminder_overdue_path_unaffected(
         self,
         db_session: AsyncSession,
-        test_vehicle,
-        clean_odometer_records,
-        clean_reminders,
+        own_vehicle,
         monkeypatch,
     ):
         """A 'mileage' reminder's overdue behavior is unchanged by the hours
@@ -1593,10 +1581,10 @@ class TestCheckDueRemindersHours:
         carry when this file runs. Which context the scheduler resolves is
         `test_reminder_notification_units.py`'s subject, not this test's.
         """
-        vin = test_vehicle["vin"]
+        vin = own_vehicle.vin
         await _add_odometer_record(db_session, vin, date.today(), Decimal("60000"))
 
-        owner = await db_session.get(User, test_vehicle["user_id"])
+        owner = await db_session.get(User, own_vehicle.user_id)
         assert owner is not None
         original_preference = owner.unit_preference
         original_distance = owner.unit_distance
@@ -1666,12 +1654,10 @@ class TestCheckDueRemindersNaiveLastNotifiedAt:
     async def test_naive_last_notified_at_within_cooldown_is_not_renotified(
         self,
         db_session: AsyncSession,
-        test_vehicle,
-        clean_hours_records,
-        clean_reminders,
+        own_vehicle,
         monkeypatch,
     ):
-        vin = test_vehicle["vin"]
+        vin = own_vehicle.vin
         # Overdue by hours target, but already notified 1 hour ago, well
         # inside the cooldown (`in_cooldown`).
         await _add_hours_record(db_session, vin, date.today(), Decimal("600.0"))

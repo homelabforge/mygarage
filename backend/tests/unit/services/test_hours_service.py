@@ -236,7 +236,7 @@ class TestSetManualCurrentHours:
         assert synced_row.engine_hours == Decimal("50.0"), "synced row must be untouched"
 
     async def test_tolerates_multiple_same_day_manual_rows(
-        self, db_session: AsyncSession, test_vehicle, clean_hours_records
+        self, db_session: AsyncSession, own_vehicle
     ):
         """Regression: the manual-hours CRUD endpoint (POST
         /api/vehicles/{vin}/hours) has no same-day uniqueness guard, so a
@@ -246,7 +246,7 @@ class TestSetManualCurrentHours:
         moment it saw both rows — an unhandled 500 on a core vehicle CRUD
         path. It must instead deterministically pick the NEWEST (highest
         id) of the two, update it in place, and not create a third row."""
-        vin = test_vehicle["vin"]
+        vin = own_vehicle.vin
         older = await _add_hours_record(db_session, vin, date.today(), Decimal("10.0"))
         newer = await _add_hours_record(db_session, vin, date.today(), Decimal("20.0"))
         assert newer.id > older.id

@@ -102,6 +102,18 @@ describe('choosing what goes in', () => {
     expect(saveMock.mock.calls[0][0].vehicle_types).toEqual(['Truck'])
   })
 
+  it('ticks no type for a vehicle that has none, so the pack is for all types', async () => {
+    rulesMock.mockReturnValue({ data: [rule(1, 'engine_oil_filter', 'Oil & Filter')], isLoading: false })
+    render(<SavePackDialog vin={VIN} vehicleType={null} onClose={vi.fn()} onSaved={vi.fn()} />)
+    fireEvent.change(screen.getByLabelText('savePack.name'), { target: { value: 'Mine' } })
+
+    fireEvent.click(saveButton())
+
+    // Pins out a dialog that guesses a type for a null one.
+    await waitFor(() => expect(saveMock).toHaveBeenCalled())
+    expect(saveMock.mock.calls[0][0].vehicle_types).toEqual([])
+  })
+
   it('drops a rule the user unticks', async () => {
     renderDialog([rule(1, 'engine_oil_filter', 'Oil & Filter'), rule(2, 'tire_rotation', 'Tires')])
     fireEvent.change(screen.getByLabelText('savePack.name'), { target: { value: 'Truck Standard' } })

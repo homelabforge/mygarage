@@ -383,11 +383,87 @@ def test_a_unit_file_with_a_database_handle_cant_spell_the_shared_vin() -> None:
     ]
 
 
-def _today_helpers(tree: ast.Module) -> set[str]:
+Fn = ast.FunctionDef | ast.AsyncFunctionDef
+
+
+def _bound_args(call: ast.Call, fn: Fn) -> dict[str, ast.expr]:
+    """What each of `fn`'s params gets from `call`, positional or by keyword.
+
+    A method called as `self._x(...)` doesn't pass its `self`. Anything after a
+    `*args` can't be placed, so it's left out.
+    """
+    params = [a.arg for a in [*fn.args.posonlyargs, *fn.args.args]]
+    if isinstance(call.func, ast.Attribute) and params[:1] in (["self"], ["cls"]):
+        params = params[1:]
+    bound: dict[str, ast.expr] = {}
+    for param, arg in zip(params, call.args, strict=False):
+        if isinstance(arg, ast.Starred):
+            break
+        bound[param] = arg
+    bound.update({kw.arg: kw.value for kw in call.keywords if kw.arg is not None})
+    return bound
+
+
+#: A module's helpers by name, each with the params that end up as a row's date.
+DateParams = dict[str, list[tuple[Fn, frozenset[str]]]]
+
+
+def _called_name(call: ast.Call) -> str | None:
+    """`_add` for both `_add(...)` and `self._add(...)`."""
+    if isinstance(call.func, ast.Name):
+        return call.func.id
+    if isinstance(call.func, ast.Attribute):
+        return call.func.attr
+    return None
+
+
+def _passes_today(fn: ast.AST, names: Set[str], date_params: DateParams) -> bool:
+    """A call that hands today to a helper param the helper dates a row with:
+    `_add_hours_record(db, vin, date.today(), 10)`."""
+    for call in ast.walk(fn):
+        if not isinstance(call, ast.Call) or (name := _called_name(call)) is None:
+            continue
+        for helper, params in date_params.get(name, []):
+            bound = _bound_args(call, helper)
+            if any(p in bound and _is_today(bound[p], names) for p in params):
+                return True
+    return False
+
+
+def _date_params(tree: ast.Module) -> DateParams:
+    """Each non-test function's params that end up as a row's date, directly or
+    by being handed on to another helper's."""
+    fns = [fn for fn in _functions(tree) if not fn.name.startswith("test_")]
+    found: dict[int, frozenset[str]] = {}
+    while True:
+        table: DateParams = {}
+        for fn in fns:
+            table.setdefault(fn.name, []).append((fn, found.get(id(fn), frozenset())))
+        changed = False
+        for fn in fns:
+            params = {a.arg for a in [*fn.args.posonlyargs, *fn.args.args, *fn.args.kwonlyargs]}
+            dated = frozenset(
+                p
+                for p in params
+                if _dates_a_row_today(fn, {p}) or _passes_today(fn, _today_names(fn, {p}), table)
+            )
+            if dated != found.get(id(fn), frozenset()):
+                found[id(fn)] = dated
+                changed = True
+        if not changed:
+            return {name: [(fn, ps) for fn, ps in pairs if ps] for name, pairs in table.items()}
+
+
+def _today_helpers(tree: ast.Module, date_params: DateParams | None = None) -> set[str]:
     """This module's non-test functions that date a row today, followed through
     helpers that call them."""
+    date_params = _date_params(tree) if date_params is None else date_params
     fns = [fn for fn in _functions(tree) if not fn.name.startswith("test_")]
-    helpers = {fn.name for fn in fns if _dates_a_row_today(fn)}
+    helpers = {
+        fn.name
+        for fn in fns
+        if _dates_a_row_today(fn) or _passes_today(fn, _today_names(fn), date_params)
+    }
     while True:
         found = {fn.name for fn in fns if _calls_any(fn, helpers)}
         if found <= helpers:
@@ -405,9 +481,6 @@ def _calls_any(fn: ast.AST, names: set[str]) -> bool:
         )
         for node in ast.walk(fn)
     )
-
-
-Fn = ast.FunctionDef | ast.AsyncFunctionDef
 
 
 def _fixture_name(fn: Fn) -> str:
@@ -487,7 +560,8 @@ def _conftest_sources() -> TodaySources:
 def _shared_vehicle_today_writers(tree: ast.Module, known: TodaySources = NO_SOURCES) -> list[str]:
     """Tests, and fixtures, that take test_vehicle and date a row today: themselves,
     through a helper, or with a fixture that hands them today."""
-    helpers = _today_helpers(tree)
+    date_params = _date_params(tree)
+    helpers = _today_helpers(tree, date_params)
     sources = _today_sources(_fixtures(tree), known)
     found = []
     for fn in _functions(tree):
@@ -501,6 +575,7 @@ def _shared_vehicle_today_writers(tree: ast.Module, known: TodaySources = NO_SOU
             found.append(f"{name} ({UNNAMED_FIXTURE})")
         elif (
             _dates_a_row_today(fn, params & sources.values)
+            or _passes_today(fn, _today_names(fn, params & sources.values), date_params)
             or _calls_any(fn, helpers)
             or params & sources.rows
         ):
@@ -584,6 +659,32 @@ TODAY_WRITERS = {
         "    async def test_w(self, test_vehicle):\n"
         "        await self._remind(test_vehicle['vin'])\n"
     ),
+    # A helper that takes the day: today handed in positionally or by keyword.
+    "positional to a helper": (
+        "async def _add(db, vin, day, km):\n    add(Odo(vin=vin, date=day, km=km))\n"
+        "async def test_w(test_vehicle):\n    await _add(db, test_vehicle['vin'], date.today(), 1)\n"
+    ),
+    "keyword to a helper": (
+        "async def _add(db, vin, day, km):\n    add(Odo(vin=vin, date=day, km=km))\n"
+        "async def test_w(test_vehicle):\n    await _add(db, test_vehicle['vin'], km=1, day=date.today())\n"
+    ),
+    "today name to a helper": (
+        "async def _add(db, vin, day, km):\n    add(Odo(vin=vin, date=day, km=km))\n"
+        "async def test_w(test_vehicle):\n"
+        "    d = household_today()\n    await _add(db, test_vehicle['vin'], d - timedelta(days=0), 1)\n"
+    ),
+    "positional to a method helper": (
+        "class T:\n"
+        "    async def _add(self, vin, day):\n"
+        "        add(Odo(vin=vin, date=day))\n"
+        "    async def test_w(self, test_vehicle):\n"
+        "        await self._add(test_vehicle['vin'], date.today())\n"
+    ),
+    "handed on through a helper": (
+        "async def _add(db, vin, day, km):\n    add(Odo(vin=vin, date=day, km=km))\n"
+        "async def _outer(vin, when):\n    await _add(db, vin, when, 1)\n"
+        "async def test_w(test_vehicle):\n    await _outer(test_vehicle['vin'], date.today())\n"
+    ),
 }
 
 # And what it must leave alone.
@@ -596,6 +697,18 @@ NOT_TODAY_WRITERS = {
     "helper never called": (
         "async def _remind(vin):\n    add(Reminder(vin=vin, due_date=date.today()))\n"
         "async def test_w(test_vehicle):\n    pass\n"
+    ),
+    "fixed date to a helper": (
+        "async def _add(db, vin, day, km):\n    add(Odo(vin=vin, date=day, km=km))\n"
+        "async def test_w(test_vehicle):\n    await _add(db, test_vehicle['vin'], date(2024, 3, 1), 1)\n"
+    ),
+    "today to a helper param that isn't a date": (
+        "async def _note(db, vin, text):\n    add(Note(vin=vin, body=text))\n"
+        "async def test_w(test_vehicle):\n    await _note(db, test_vehicle['vin'], str(date.today()))\n"
+    ),
+    "today to a helper on own_vehicle": (
+        "async def _add(db, vin, day, km):\n    add(Odo(vin=vin, date=day, km=km))\n"
+        "async def test_w(own_vehicle):\n    await _add(db, own_vehicle.vin, date.today(), 1)\n"
     ),
 }
 
