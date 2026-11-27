@@ -82,7 +82,11 @@ class Finding(NamedTuple):
         """One line for the failure message."""
         where = f"{self.file}:{self.line} {self.function}"
         if self.dep == UNREADABLE:
-            return f"{where}({self.param}) has a Depends the scanner can't read"
+            return (
+                f"{where}({self.param}) has a Depends the scanner can't read. An outside "
+                f"class by name reads fine as `x: Annotated[Cls, Depends()]`; an outside "
+                f"instance goes in EXTERNAL_INSTANCES"
+            )
         if self.param == "return":
             return f"{where}() takes {self.dep} but its return type drops None"
         return f"{where}({self.param}) is fed by {self.dep}"
@@ -105,6 +109,18 @@ def _name(node: ast.expr | None) -> str | None:
     if isinstance(node, ast.Attribute):
         return node.attr
     return None
+
+
+def _root(node: ast.expr) -> ast.expr:
+    """`svc` for `svc.a.b`: the name an attribute chain hangs off."""
+    while isinstance(node, ast.Attribute):
+        node = node.value
+    return node
+
+
+def _is_outside(level: int, module: str | None) -> bool:
+    """Whether an import reads a module outside app/ (not relative, not `app.`)."""
+    return not level and module is not None and module != "app" and not module.startswith("app.")
 
 
 def _module_level(stmts: list[ast.stmt]) -> Iterator[ast.stmt]:
@@ -207,6 +223,9 @@ class _Scanner:
         # A scanned module bound to a name: `from app.services import auth` or
         # `import app.services.auth as auth`, so `auth.security` reads in auth.py.
         self.modules: dict[tuple[str, str], str] = {}
+        # Names bound by an import from outside app/: `from somelib import check`,
+        # `import somelib`. They aren't the app's defs, whatever they're called.
+        self.outside: set[tuple[str, str]] = set()
         for label, tree in self.trees.items():
             for stmt in _module_level(tree.body):
                 if isinstance(stmt, ast.ImportFrom):
@@ -220,10 +239,15 @@ class _Scanner:
                         dotted = f"{stmt.module}.{alias.name}" if stmt.module else alias.name
                         if module := self._module_label(label, stmt.level, dotted):
                             self.modules[(label, local)] = module
+                        elif _is_outside(stmt.level, stmt.module):
+                            self.outside.add((label, local))
                 elif isinstance(stmt, ast.Import):
                     for alias in stmt.names:
+                        local = alias.asname or alias.name.split(".")[0]
                         if alias.asname and (module := self._module_label(label, 0, alias.name)):
                             self.modules[(label, alias.asname)] = module
+                        elif _is_outside(0, alias.name):
+                            self.outside.add((label, local))
                 elif (
                     isinstance(stmt, ast.Assign)
                     and len(stmt.targets) == 1
@@ -264,23 +288,32 @@ class _Scanner:
         # Depends calls we managed to tie to a param, by node id.
         self.bound: set[int] = set()
 
-    def _mark_local_loads(self, node: ast.AST, local: frozenset[str]) -> None:
-        """Note every Name read inside a scope that binds that name itself."""
+    def _mark_local_loads(
+        self, node: ast.AST, local: frozenset[str], class_body: frozenset[str] = frozenset()
+    ) -> None:
+        """Note every Name read inside a scope that binds that name itself.
+
+        `class_body` is what the class we're directly in binds. Its methods can't
+        see those names, as in Python, so a def or lambda drops them.
+        """
         if isinstance(node, ast.Name):
-            if isinstance(node.ctx, ast.Load) and node.id in local:
+            if isinstance(node.ctx, ast.Load) and node.id in local | class_body:
                 self.local_loads.add(id(node))
             return
         inner: list[ast.AST] = []
-        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef | ast.Lambda):
+        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef | ast.Lambda):
             # Defaults, annotations and decorators run outside; only the body runs inside.
             inner = list(node.body) if isinstance(node.body, list) else [node.body]
-            scope = local | _own_binds(node)
             for child in inner:
-                self._mark_local_loads(child, scope)
+                self._mark_local_loads(child, local | _own_binds(node))
+        elif isinstance(node, ast.ClassDef):
+            inner = list(node.body)
+            for child in inner:
+                self._mark_local_loads(child, local, _own_binds(node))
         inner_ids = {id(n) for n in inner}
         for child in ast.iter_child_nodes(node):
             if id(child) not in inner_ids:
-                self._mark_local_loads(child, local)
+                self._mark_local_loads(child, local, class_body)
 
     def _dep_name(self, fn: _Func) -> str:
         """What a Depends on this function reads as: its name, or `Cls.__call__`."""
@@ -326,20 +359,35 @@ class _Scanner:
         self, label: str, name: str, seen: frozenset[tuple[str, str]] = frozenset()
     ) -> str:
         """The function a name stands for: through `import f as g`, re-exports and `g = f`."""
+        return self._target(label, name, seen)[0]
+
+    def _target(
+        self, label: str, name: str, seen: frozenset[tuple[str, str]] = frozenset()
+    ) -> tuple[str, bool]:
+        """`_target_name`, plus whether that name came in from outside app/."""
         key = (label, name)
         if key in seen:
-            return name
+            return name, False
         seen = seen | {key}
         if key in self.imports:
             # Imported from a scanned module: ask that module what its name is.
-            return self._target_name(*self.imports[key], seen)
+            return self._target(*self.imports[key], seen)
         if key in self.renames:
-            # `from outside import f as g`: g is f.
-            return self.renames[key]
+            # `from elsewhere import f as g`: g is f.
+            return self.renames[key], key in self.outside
+        if key in self.outside:
+            return name, True
         for value in self.aliases.get(key, []):
             if isinstance(value, ast.Name | ast.Attribute) and (inner := _name(value)):
-                return self._target_name(label, inner, seen)
-        return name
+                if isinstance(value, ast.Attribute) and self._from_outside(label, value):
+                    return inner, True
+                return self._target(label, inner, seen)
+        return name, False
+
+    def _from_outside(self, label: str, node: ast.Attribute) -> bool:
+        """`somelib.check` with somelib imported from outside app/."""
+        root = _root(node)
+        return isinstance(root, ast.Name) and (label, root.id) in self.outside
 
     def _depends_call(self, label: str, node: ast.expr | None) -> ast.Call | None:
         """`node` if it's a `Depends(...)` / `Security(...)` call, renamed or not."""
@@ -365,9 +413,10 @@ class _Scanner:
         self, label: str, node: ast.expr, seen: frozenset[tuple[str, str]] = frozenset()
     ) -> str | None:
         """What a Depends argument runs: a function, `Cls.__call__` or an outside instance."""
-        if id(node) in self.local_loads or (
-            isinstance(node, ast.Call) and id(node.func) in self.local_loads
-        ):
+        # A closure param or a local, or an attribute hanging off one (`svc.check`):
+        # nobody can say what those hold, whatever the attribute is called.
+        func_or_node = node.func if isinstance(node, ast.Call) else node
+        if id(_root(func_or_node)) in self.local_loads:
             return None
         if (
             isinstance(node, ast.Attribute)
@@ -378,12 +427,14 @@ class _Scanner:
             return self._runs(module, ast.Name(node.attr), seen)
         if isinstance(node, ast.Call):
             func = _name(node.func)
-            func = func and self._target_name(label, func)
             if not func:
                 return None
+            func, outside = self._target(label, func)
+            if isinstance(node.func, ast.Attribute) and self._from_outside(label, node.func):
+                outside = True
             if func == "partial":
                 return self._runs(label, node.args[0], seen) if node.args else None
-            if func in self.callable_classes:
+            if func in self.callable_classes and not outside:
                 return f"{func}.__call__"
             # Anything else built by a call has to be in the table, spelled exactly.
             spelled = ast.unparse(ast.Call(ast.Name(func), node.args, node.keywords))
@@ -397,8 +448,11 @@ class _Scanner:
             if bound := self._resolve(label, name):
                 reads = {self._runs(def_label, value, seen | {key}) for def_label, value in bound}
                 return reads.pop() if len(reads) == 1 else None
-        target = self._target_name(label, name)
-        return target if target in self.defined else None
+        target, outside = self._target(label, name)
+        if isinstance(node, ast.Attribute) and self._from_outside(label, node):
+            outside = True
+        # Something imported from outside app/ isn't the app's def of that name.
+        return target if target in self.defined and not outside else None
 
     def _default_deps(self, label: str, default: ast.expr | None) -> list[str]:
         """Dependencies named by a param's default: `Depends(f)`, or an alias of one."""
@@ -407,6 +461,15 @@ class _Scanner:
             calls = [(label, call)]
         elif isinstance(default, ast.Name):
             for def_label, value in self._resolve(label, default.id):
+                if c := self._depends_call(def_label, value):
+                    calls.append((def_label, c))
+        elif (
+            isinstance(default, ast.Attribute)
+            and isinstance(default.value, ast.Name)
+            and (module := self.modules.get((label, default.value.id)))
+        ):
+            # `deps.auth_dep` with deps a scanned module: its `auth_dep = Depends(...)`.
+            for def_label, value in self._resolve(module, default.attr):
                 if c := self._depends_call(def_label, value):
                     calls.append((def_label, c))
         deps: list[str] = []
@@ -424,7 +487,7 @@ class _Scanner:
                 ann = ast.parse(ann.value, mode="eval").body
             except SyntaxError:
                 return [(label, ann, None)]
-        if isinstance(ann, ast.Subscript) and _name(ann.value) == "Annotated":
+        if isinstance(ann, ast.Subscript) and self._typing_name(label, ann.value) == "Annotated":
             elts = ann.slice.elts if isinstance(ann.slice, ast.Tuple) else [ann.slice]
             dep = None
             for elt in elts[1:]:
@@ -441,6 +504,13 @@ class _Scanner:
                     for r in self._readings(def_label, value, seen | {(label, ann.id)})
                 ]
         return [(label, ann, None)]
+
+    def _typing_name(self, label: str, node: ast.expr) -> str | None:
+        """`Optional` for `Optional`, `typing.Optional` and `Opt` from `import Optional as Opt`."""
+        name = _name(node)
+        if isinstance(node, ast.Name) and name is not None:
+            return self.renames.get((label, name), name)
+        return name
 
     def admits_none(
         self, label: str, ann: ast.expr | None, seen: frozenset[tuple[str, str]] = frozenset()
@@ -462,7 +532,7 @@ class _Scanner:
                 label, ann.right, seen
             )
         if isinstance(ann, ast.Subscript):
-            base = _name(ann.value)
+            base = self._typing_name(label, ann.value)
             elts = ann.slice.elts if isinstance(ann.slice, ast.Tuple) else [ann.slice]
             if base == "Optional":
                 return True
@@ -482,7 +552,7 @@ class _Scanner:
     def returns_none(self, label: str, fn: _Func) -> bool:
         """Whether a dependency's value can be None. A generator's value is what it yields."""
         ret = fn.returns
-        if isinstance(ret, ast.Subscript) and _name(ret.value) in _GENERATORS:
+        if isinstance(ret, ast.Subscript) and self._typing_name(label, ret.value) in _GENERATORS:
             ret = ret.slice.elts[0] if isinstance(ret.slice, ast.Tuple) else ret.slice
         return self.admits_none(label, ret)
 
@@ -1125,4 +1195,98 @@ class TestScannerModules:
             }
         )
         assert {(f.file, f.function) for f in result.findings} == {("routes.py", "r")}
+        assert result.unbound == []
+
+
+class TestScannerNames:
+    """Where a name or an attribute actually comes from, not what it's called."""
+
+    def test_an_attribute_on_a_closure_param_or_local_is_unreadable(self) -> None:
+        # `check` is a real def here, but `svc.check` is whatever svc got handed.
+        src = """
+async def check() -> User | None: ...
+def make(svc):
+    async def closure(u: User | None = Depends(svc.check)): ...
+    return closure
+def holder():
+    svc = Service()
+    async def local_var(u: User | None = Depends(svc.check)): ...
+    return local_var
+"""
+        result = scan({"snippet.py": src})
+        assert {(f.function, f.param, f.dep) for f in result.findings} == {
+            ("closure", "u", UNREADABLE),
+            ("local_var", "u", UNREADABLE),
+        }
+
+    def test_an_outside_import_is_not_the_apps_def_of_that_name(self) -> None:
+        result = scan(
+            {
+                "checks.py": "async def check() -> User | None: ...\n",
+                "routes.py": (
+                    "from somelib import check\n"
+                    "import otherlib\n"
+                    "async def named(u: User | None = Depends(check)): ...\n"
+                    "async def attr(u: User | None = Depends(otherlib.check)): ...\n"
+                ),
+            }
+        )
+        assert {(f.file, f.function, f.dep) for f in result.findings} == {
+            ("routes.py", "named", UNREADABLE),
+            ("routes.py", "attr", UNREADABLE),
+        }
+
+    def test_class_body_names_stay_out_of_its_methods(self) -> None:
+        # Inside build(), `check` is the module's, as in Python. A default on a
+        # method itself runs in the class body, where it's the method.
+        src = """
+async def check() -> User | None: ...
+class Routes:
+    def check(self): ...
+    def build(self):
+        async def route(u: User = Depends(check)): ...
+        return route
+    async def in_class_scope(self, u: User | None = Depends(check)): ...
+"""
+        result = scan({"snippet.py": src})
+        assert {(f.function, f.param, f.dep) for f in result.findings} == {
+            ("route", "u", "check"),
+            ("in_class_scope", "u", UNREADABLE),
+        }
+
+    def test_a_renamed_optional_admits_none(self) -> None:
+        src = """
+from typing import Optional as Opt, Annotated as Ann
+async def ok(u: Opt[User] = Depends(require_auth)): ...
+async def ann(u: Ann[User, Depends(require_auth)]): ...
+async def lies(u: User = Depends(require_auth)): ...
+"""
+        assert _lies(src) == {("ann", "u"), ("lies", "u")}
+
+    def test_an_outside_class_by_name_points_at_the_way_out(self) -> None:
+        src = """
+from fastapi.security import OAuth2PasswordRequestForm
+async def login(form: OAuth2PasswordRequestForm = Depends(OAuth2PasswordRequestForm)): ...
+async def ok(form: Annotated[OAuth2PasswordRequestForm, Depends()]): ...
+"""
+        [finding] = scan({"snippet.py": src}).findings
+        assert finding.function == "login"
+        assert "Annotated[Cls, Depends()]" in str(finding)
+
+
+class TestScannerModuleAttributes:
+    """A Depends alias read off a scanned module."""
+
+    def test_a_depends_alias_read_through_its_module_is_followed(self) -> None:
+        result = scan(
+            {
+                "deps.py": "auth_dep = Depends(require_auth)\n",
+                "routes.py": (
+                    "from app import deps\n"
+                    "async def lies(u: User = deps.auth_dep): ...\n"
+                    "async def honest(u: User | None = deps.auth_dep): ...\n"
+                ),
+            }
+        )
+        assert {(f.file, f.function) for f in result.findings} == {("routes.py", "lies")}
         assert result.unbound == []
