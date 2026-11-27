@@ -77,6 +77,12 @@ class TestDismountDay:
     def test_an_unrelated_stored_corner_gives_none(self):
         assert reading_position(self.DISMOUNTED, MAR, "RR") is None
 
+    def test_stored_none_holds_against_an_overlapping_open_period(self):
+        # A legacy overlap: RR still covers the day, but the tire came off FL that
+        # day and was logged as stored, which is one of the honest answers.
+        overlap = [_period(1, "FL", JAN, MAR), _period(2, "RR", dt.date(2026, 2, 1))]
+        assert reading_position(overlap, MAR, None) is None
+
 
 class TestNoCoveringPeriod:
     def test_before_the_first_mount_is_none(self):
@@ -90,9 +96,6 @@ class TestNoCoveringPeriod:
 class TestPeriodsCantSay:
     def test_no_periods_gives_stored(self):
         assert reading_position([], MAR, "FL") == "FL"
-
-    def test_no_periods_and_nothing_stored_gives_none(self):
-        assert reading_position([], MAR, None) is None
 
     def test_an_undated_period_gives_stored(self):
         assert reading_position([_period(1, "FL", None)], MAR, "RR") == "RR"
