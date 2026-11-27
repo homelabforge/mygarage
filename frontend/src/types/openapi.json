@@ -53854,6 +53854,7 @@
             "schema": {
               "anyOf": [
                 {
+                  "minimum": 1,
                   "type": "integer"
                 },
                 {
@@ -53917,6 +53918,7 @@
             "required": true,
             "schema": {
               "description": "Year for cost summary",
+              "minimum": 1,
               "title": "Year",
               "type": "integer"
             }
@@ -54083,6 +54085,7 @@
             "schema": {
               "anyOf": [
                 {
+                  "format": "date",
                   "type": "string"
                 },
                 {
@@ -54101,6 +54104,7 @@
             "schema": {
               "anyOf": [
                 {
+                  "format": "date",
                   "type": "string"
                 },
                 {
@@ -54165,6 +54169,7 @@
             "schema": {
               "anyOf": [
                 {
+                  "format": "date",
                   "type": "string"
                 },
                 {
@@ -54183,6 +54188,7 @@
             "schema": {
               "anyOf": [
                 {
+                  "format": "date",
                   "type": "string"
                 },
                 {
@@ -54289,6 +54295,7 @@
             "required": true,
             "schema": {
               "description": "Tax year",
+              "minimum": 1,
               "title": "Year",
               "type": "integer"
             }

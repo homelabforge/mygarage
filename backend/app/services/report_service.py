@@ -7,7 +7,7 @@ the response.
 """
 
 import csv
-from datetime import datetime
+from datetime import date
 from decimal import Decimal
 from io import BytesIO, StringIO
 from typing import Any
@@ -64,22 +64,18 @@ async def service_history_pdf(
     db: AsyncSession,
     vehicle: Vehicle,
     gen: PDFReportGenerator,
-    start_date: str | None,
-    end_date: str | None,
+    start_date: date | None,
+    end_date: date | None,
 ) -> BytesIO:
     """Service history PDF: one row per line item, newest first, inside the date window."""
     vin = vehicle.vin
 
-    # Parse dates
-    start_dt = datetime.strptime(start_date, "%Y-%m-%d").date() if start_date else None
-    end_dt = datetime.strptime(end_date, "%Y-%m-%d").date() if end_date else None
-
     # Query service visits with line items + vendor
     query = _service_visits_query(vin)
-    if start_dt:
-        query = query.where(ServiceVisit.date >= start_dt)
-    if end_dt:
-        query = query.where(ServiceVisit.date <= end_dt)
+    if start_date:
+        query = query.where(ServiceVisit.date >= start_date)
+    if end_date:
+        query = query.where(ServiceVisit.date <= end_date)
     query = query.order_by(ServiceVisit.date.desc())
 
     result = await db.execute(query)
@@ -126,7 +122,7 @@ async def service_history_pdf(
                 }
             )
 
-    return gen.generate_service_history_pdf(vehicle_info, records_data, start_dt, end_dt)
+    return gen.generate_service_history_pdf(vehicle_info, records_data, start_date, end_date)
 
 
 async def sale_history_pdf(
@@ -308,22 +304,18 @@ async def service_history_csv(
     db: AsyncSession,
     vehicle: Vehicle,
     context: RenderContext,
-    start_date: str | None,
-    end_date: str | None,
+    start_date: date | None,
+    end_date: date | None,
 ) -> str:
     """Service history CSV body in `context`'s units, one row per line item."""
     distance_token = token_for(ODOMETER_COLUMN, context.units)
 
-    # Parse dates
-    start_dt = datetime.strptime(start_date, "%Y-%m-%d").date() if start_date else None
-    end_dt = datetime.strptime(end_date, "%Y-%m-%d").date() if end_date else None
-
     # Query service visits with line items + vendor
     query = _service_visits_query(vehicle.vin)
-    if start_dt:
-        query = query.where(ServiceVisit.date >= start_dt)
-    if end_dt:
-        query = query.where(ServiceVisit.date <= end_dt)
+    if start_date:
+        query = query.where(ServiceVisit.date >= start_date)
+    if end_date:
+        query = query.where(ServiceVisit.date <= end_date)
     query = query.order_by(ServiceVisit.date.desc())
 
     result = await db.execute(query)
@@ -410,7 +402,7 @@ async def all_records_csv(
 
     # Query and write service visits (an itemless visit still gets a row)
     visit_query = _service_visits_query(vin)
-    if year:
+    if year is not None:
         visit_query = visit_query.where(extract("year", ServiceVisit.date) == year)
     visit_result = await db.execute(visit_query.order_by(ServiceVisit.date))
     for visit in visit_result.scalars():
@@ -445,7 +437,7 @@ async def all_records_csv(
 
     # Query and write fuel records
     fuel_query = select(FuelRecordModel).where(FuelRecordModel.vin == vin)
-    if year:
+    if year is not None:
         fuel_query = fuel_query.where(extract("year", FuelRecordModel.date) == year)
     fuel_result = await db.execute(fuel_query.order_by(FuelRecordModel.date))
     for record in fuel_result.scalars():

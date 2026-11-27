@@ -1,6 +1,6 @@
 """API routes for report generation and export."""
 
-from datetime import datetime
+from datetime import date, datetime
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
@@ -21,8 +21,9 @@ router = APIRouter(prefix="/api/vehicles", tags=["Reports"])
 @router.get("/{vin}/reports/service-history-pdf")
 async def download_service_history_pdf(
     vin: str,
-    start_date: str | None = Query(None, description="Start date (YYYY-MM-DD)"),
-    end_date: str | None = Query(None, description="End date (YYYY-MM-DD)"),
+    # Typed as dates, so a malformed one is a 422 naming the param instead of a 500.
+    start_date: date | None = Query(None, description="Start date (YYYY-MM-DD)"),
+    end_date: date | None = Query(None, description="End date (YYYY-MM-DD)"),
     currency_code: str = Query("USD", description="ISO 4217 code; defaults to USD."),
     locale: str = Query("en-US", description="BCP 47 locale; defaults to en-US."),
     date_format: str | None = Query(
@@ -84,7 +85,7 @@ async def download_sale_history_pdf(
 @router.get("/{vin}/reports/cost-summary-pdf")
 async def download_cost_summary_pdf(
     vin: str,
-    year: int = Query(..., description="Year for cost summary"),
+    year: int = Query(..., ge=1, description="Year for cost summary"),
     currency_code: str = Query("USD", description="ISO 4217 code; defaults to USD."),
     locale: str = Query("en-US", description="BCP 47 locale; defaults to en-US."),
     date_format: str | None = Query(
@@ -119,7 +120,7 @@ async def download_cost_summary_pdf(
 @router.get("/{vin}/reports/tax-deduction-pdf")
 async def download_tax_deduction_pdf(
     vin: str,
-    year: int = Query(..., description="Tax year"),
+    year: int = Query(..., ge=1, description="Tax year"),
     currency_code: str = Query("USD", description="ISO 4217 code; defaults to USD."),
     locale: str = Query("en-US", description="BCP 47 locale; defaults to en-US."),
     date_format: str | None = Query(
@@ -154,8 +155,9 @@ async def download_tax_deduction_pdf(
 @router.get("/{vin}/reports/service-history-csv")
 async def download_service_history_csv(
     vin: str,
-    start_date: str | None = Query(None, description="Start date (YYYY-MM-DD)"),
-    end_date: str | None = Query(None, description="End date (YYYY-MM-DD)"),
+    # Typed as dates, so a malformed one is a 422 naming the param instead of a 500.
+    start_date: date | None = Query(None, description="Start date (YYYY-MM-DD)"),
+    end_date: date | None = Query(None, description="End date (YYYY-MM-DD)"),
     db: AsyncSession = Depends(get_db),
     current_user: User | None = Depends(require_auth),
 ):
@@ -194,7 +196,7 @@ async def download_service_history_csv(
 @router.get("/{vin}/reports/all-records-csv")
 async def download_all_records_csv(
     vin: str,
-    year: int | None = Query(None, description="Filter by year"),
+    year: int | None = Query(None, ge=1, description="Filter by year"),
     db: AsyncSession = Depends(get_db),
     current_user: User | None = Depends(require_auth),
 ):

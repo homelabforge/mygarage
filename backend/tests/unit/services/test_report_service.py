@@ -37,6 +37,7 @@ from app.models.user import User
 from app.models.vehicle import Vehicle
 from app.models.vendor import Vendor
 from app.routes import reports as reports_route
+from app.services import report_service
 from app.services.auth import create_access_token
 from app.utils.pdf_generator import PDFReportGenerator
 from app.utils.render_context import RenderContext
@@ -676,3 +677,40 @@ class TestCsvGoldens:
         response = await _get(client, seeded, f"{_VIN}/reports/all-records-csv", **params)
         assert _disposition(response) == (f"attachment; filename=all_records_{_VIN}_{_STAMP}.csv")
         _assert_golden(golden, response.content)
+
+
+class TestBadParams:
+    @pytest.mark.parametrize("report", ["service-history-pdf", "service-history-csv"])
+    @pytest.mark.parametrize("param", ["start_date", "end_date"])
+    @pytest.mark.parametrize("value", ["2025-13-01", "yesterday"])
+    async def test_a_malformed_date_is_a_422(
+        self, client: AsyncClient, seeded: dict[str, str], report: str, param: str, value: str
+    ) -> None:
+        response = await client.get(
+            f"/api/vehicles/{_VIN}/reports/{report}", headers=seeded, params={param: value}
+        )
+        assert response.status_code == 422, response.text
+        assert param in response.text
+        assert "valid date" in response.text
+
+    @pytest.mark.parametrize("report", ["cost-summary-pdf", "tax-deduction-pdf", "all-records-csv"])
+    async def test_year_zero_is_a_422(
+        self, client: AsyncClient, seeded: dict[str, str], report: str
+    ) -> None:
+        response = await client.get(
+            f"/api/vehicles/{_VIN}/reports/{report}", headers=seeded, params={"year": "0"}
+        )
+        assert response.status_code == 422, response.text
+        assert "greater_than_equal" in response.text
+
+    async def test_the_service_reads_year_zero_as_a_filter(
+        self, db_session: AsyncSession, seeded: dict[str, str]
+    ) -> None:
+        # Past the route's bound, 0 is still a year to filter on, not "every year".
+        vehicle = (
+            await db_session.execute(select(Vehicle).where(Vehicle.vin == _VIN))
+        ).scalar_one()
+        body = await report_service.all_records_csv(db_session, vehicle, _CONTEXT, 0)
+        assert body.splitlines() == [
+            "Date,Type,Category,Description,Cost,Odometer (mi),Vendor,Volume (gal_us)"
+        ]
