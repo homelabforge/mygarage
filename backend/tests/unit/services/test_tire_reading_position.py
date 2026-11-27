@@ -18,7 +18,7 @@ MAY = dt.date(2026, 5, 1)
 
 
 def _period(
-    pid: int, position: str, mounted_on: dt.date | None, dismounted_on: dt.date | None = None
+    pid: int | None, position: str, mounted_on: dt.date | None, dismounted_on: dt.date | None = None
 ) -> TireMountPeriod:
     return TireMountPeriod(
         id=pid,
@@ -42,6 +42,13 @@ class TestInsideAPeriod:
         # Logged today, while the tire sits at RR, but dated back in February.
         assert reading_position(ROTATED, dt.date(2026, 2, 1), "RR") == "FL"
 
+    def test_an_unsaved_period_on_the_same_mount_day_wins_without_raising(self):
+        # A period not flushed yet has no id. It's the newest, and comparing its
+        # None id with a saved one's used to raise.
+        unsaved = [_period(1, "FL", JAN), _period(None, "RR", JAN)]
+        assert reading_position(unsaved, MAR, None) == "RR"
+        assert reading_position(list(reversed(unsaved)), MAR, None) == "RR"
+
     def test_the_newest_covering_period_wins_an_overlap(self):
         # Legacy rows can overlap; the later mount (then the higher id) is the one shown.
         overlap = [_period(1, "FL", JAN), _period(3, "RR", MAR), _period(2, "FR", MAR)]
@@ -62,6 +69,24 @@ class TestRotationDay:
     def test_stored_none_gives_the_new_corner(self):
         # Something opened that day, so "in the garage" isn't one of the answers.
         assert reading_position(ROTATED, MAR, None) == "RR"
+
+
+class TestMountFromStorageDay:
+    # Off FL in February, sat in the garage, fitted to RR on the first of March.
+    FITTED = [_period(1, "FL", JAN, dt.date(2026, 2, 1)), _period(2, "RR", MAR)]
+
+    def test_stored_none_is_kept(self):
+        # Measured in the garage that morning, before it went on.
+        assert reading_position(self.FITTED, MAR, None) is None
+
+    def test_stored_none_is_kept_on_a_first_mount(self):
+        assert reading_position([_period(1, "FL", MAR)], MAR, None) is None
+
+    def test_stored_new_corner_is_kept(self):
+        assert reading_position(self.FITTED, MAR, "RR") == "RR"
+
+    def test_an_unrelated_stored_corner_gives_the_new_corner(self):
+        assert reading_position(self.FITTED, MAR, "FR") == "RR"
 
 
 class TestDismountDay:
@@ -124,3 +149,13 @@ class TestMixedHistory:
 
     def test_after_d2_gives_the_open_corner(self):
         assert reading_position(self.HISTORY, MAY, "FL") == "RR"
+
+    def test_a_gap_after_the_undated_period_ended_is_none(self):
+        # The undated period was over by D1, so it can't say where the tire was
+        # in a gap after it: every period that could is dated, and none covers it.
+        gapped = [_period(1, "FR", None, self.D1), _period(2, "FL", self.D2)]
+        assert reading_position(gapped, MAR, "FR") is None
+
+    def test_before_the_undated_period_ended_still_gives_stored(self):
+        gapped = [_period(1, "FR", None, self.D1), _period(2, "FL", self.D2)]
+        assert reading_position(gapped, JAN, "RR") == "RR"

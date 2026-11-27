@@ -7,7 +7,7 @@ import logging
 from collections.abc import Iterable, Sequence
 from datetime import timedelta
 from decimal import Decimal
-from typing import Literal
+from typing import Literal, cast
 
 from fastapi import HTTPException
 from sqlalchemy import case, delete, select, update
@@ -467,6 +467,16 @@ def last_known_day(periods: Iterable[TireMountPeriod]) -> dt.date | None:
     )
 
 
+def _newest_mount(period: TireMountPeriod) -> tuple[dt.date | None, bool, int]:
+    """Latest mount first, then the newest row.
+
+    One not flushed yet has no id (the column types it as int) and is the
+    newest, so it sorts last instead of raising on a None compare.
+    """
+    pid = cast("int | None", period.id)
+    return (period.mounted_on, pid is None, pid or 0)
+
+
 def reading_position(
     periods: Sequence[TireMountPeriod], day: dt.date, stored: str | None
 ) -> str | None:
@@ -475,29 +485,36 @@ def reading_position(
     `stored` is the snapshot written when the reading was logged, which is
     today's corner even for a backdated reading. The periods decide instead,
     except where they can't: no periods at all, or one with no start date
-    (the assumed ones 097 made), and then the snapshot stands.
+    (the assumed ones 097 made) that hadn't ended by `day`, and then the
+    snapshot stands.
     """
-    # A rotation or dismount day has two honest answers: measured before the
-    # move or after it. The snapshot picks one if it's one of them.
+    # A move day has two honest answers: measured before the move or after it.
+    # The snapshot picks one if it's one of them. Off one corner and onto another
+    # that day, it never sat in the garage; any other move day it did.
     opening = [p.position for p in periods if p.mounted_on == day]
     closing = [p.position for p in periods if p.dismounted_on == day]
     if opening or closing:
         candidates: set[str | None] = {*opening, *closing}
-        if closing and not opening:
+        if not (opening and closing):
             candidates.add(None)
         if stored in candidates:
             return stored
     covering = [
-        (p.mounted_on, p.id, p.position)
+        p
         for p in periods
         if p.mounted_on is not None
         and p.mounted_on <= day
         and (p.dismounted_on is None or day < p.dismounted_on)
     ]
     if covering:
-        return max(covering)[2]
-    if periods and all(p.mounted_on is not None for p in periods):
-        # Every period is dated and none covers the day: it was in the garage.
+        return max(covering, key=_newest_mount).position
+    # An undated period that ended by `day` can't say anything about it.
+    if periods and all(
+        p.mounted_on is not None or (p.dismounted_on is not None and p.dismounted_on <= day)
+        for p in periods
+    ):
+        # Every period that could cover the day is dated and none does: it was
+        # in the garage.
         return None
     return stored
 
