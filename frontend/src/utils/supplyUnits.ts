@@ -50,8 +50,8 @@ const UNIT_LABELS: Readonly<Record<SupplyUnit, string>> = {
 /**
  * The unit a supply is shown in: count wins, then the stored token, then (for
  * rows with no token yet) the old qt/L guess by unit preference. An unknown
- * token reads as legacy too, same as the backend's lenient read. Spec D8
- * amendment (Task B11) covers why this is the one place that still sees `system`.
+ * token reads as legacy too, same as the backend's lenient read. The units
+ * spec amendment covers why this is the one place that still sees `system`.
  */
 // units-exempt(binary-conversion): R3's survivor, at the DECLARATION. A NULL `volume_unit` has nothing resolved to read until the stored token exists, so the legacy qt/L choice follows `system`. Owner: deferred, pending the stored token on every row.
 export function supplyDisplayUnit(

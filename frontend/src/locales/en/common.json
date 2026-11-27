@@ -518,7 +518,8 @@
       "partNumberTooLong": "Part number too long",
       "barcodeTooLong": "Barcode too long (max 64 characters)",
       "categoryTooLong": "Category too long",
-      "notesTooLong": "Notes too long"
+      "notesTooLong": "Notes too long",
+      "volumeUnitInvalid": "Pick a unit from the list."
     },
     "tollTag": {
       "countryRequired": "Choose a country, or Other if yours isn't listed",

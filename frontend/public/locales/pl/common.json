@@ -520,7 +520,8 @@
       "partNumberTooLong": "Numer części jest za długi",
       "barcodeTooLong": "Kod kreskowy jest za długi (maks. 64 znaki)",
       "categoryTooLong": "Kategoria jest za długa",
-      "notesTooLong": "Notatki są za długie"
+      "notesTooLong": "Notatki są za długie",
+      "volumeUnitInvalid": "Wybierz jednostkę z listy."
     },
     "tollTag": {
       "countryRequired": "Wybierz kraj lub Inne, jeśli Twojego nie ma na liście",

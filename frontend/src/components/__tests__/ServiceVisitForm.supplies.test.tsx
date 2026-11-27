@@ -24,10 +24,10 @@ vi.mock('../../services/api', () => ({
   },
 }))
 
-// Requires AuthProvider otherwise — same mock pattern as ServiceVisitForm.test.tsx.
+// Requires AuthProvider otherwise. Same mock pattern as ServiceVisitForm.test.tsx.
 // System is 'imperial' deliberately: the mock supply is unit_type 'volume', so a
 // display-unit (quart) quantity only round-trips to a distinct canonical (liter)
-// value under imperial — proving conversion actually ran, not just passed through.
+// value under imperial, proving conversion actually ran, not just passed through.
 vi.mock('../../hooks/useUnitPreference', async () => {
   const { IMPERIAL_UNITS } = await import('@/__tests__/factories')
   // UnitSession reads the account half too; same answer, nothing to pin here.
@@ -72,7 +72,7 @@ const MOCK_SUPPLY: Supply = {
 }
 
 // Shared across ServiceVisitForm's own lookup fetch (includeArchived=true) and
-// SupplyUsedPicker's dropdown fetch (includeArchived=false) — a single supply
+// SupplyUsedPicker's dropdown fetch (includeArchived=false). A single supply
 // list works for both since this suite has nothing archived.
 vi.mock('../../hooks/queries/useSupplies', () => ({
   useSupplies: vi.fn(() => ({
@@ -111,7 +111,7 @@ function fillRequiredDescription() {
   })
 }
 
-describe('ServiceVisitForm — supplies used (Task 17)', () => {
+describe('ServiceVisitForm: supplies used', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     // Re-establish the happy-path supplies result before each test (clearAllMocks
@@ -129,13 +129,13 @@ describe('ServiceVisitForm — supplies used (Task 17)', () => {
 
     fillRequiredDescription()
 
-    // Add a supply usage row — the only fetched supply is auto-selected.
+    // Add a supply usage row; the only fetched supply is auto-selected.
     fireEvent.click(screen.getByRole('button', { name: /suppliesAddRow/ }))
 
     const quantityInput = screen.getByRole('textbox', { name: 'service.suppliesQuantityOf' })
     fireEvent.change(quantityInput, { target: { value: '2' } })
 
-    // The Total block now formats through the shared formatCurrency (SDQ-3), not a
+    // The Total block now formats through the shared formatCurrency, not a
     // hardcoded `$`+toFixed. USD/en-US (the mocked currency prefs) → "$18.93"; the
     // value is still derived from the canonical quantity, so it discriminates the
     // parts+supplies cost (a dropped canonical conversion or a wrong unit-cost fails).
@@ -190,7 +190,7 @@ describe('ServiceVisitForm — supplies used (Task 17)', () => {
     expect(body.line_items[0].supplies_used).toEqual([])
   })
 
-  describe('edit — hydration is the correctness contract', () => {
+  describe('edit: hydration is the correctness contract', () => {
     // Canonical usage from the server: 1 liter of the mock volume supply.
     const MOCK_VISIT: ServiceVisit = {
       id: 900,
@@ -260,7 +260,7 @@ describe('ServiceVisitForm — supplies used (Task 17)', () => {
       })
     })
 
-    it('resends the hydrated supplies_used (converted back to canonical) even when nothing else was touched — proves editing does not wipe usages', async () => {
+    it('resends the hydrated supplies_used (converted back to canonical) even when nothing else was touched, so editing does not wipe usages', async () => {
       render(<ServiceVisitForm {...DEFAULT_PROPS} visit={MOCK_VISIT} />)
 
       // Wait for hydration before submitting, otherwise the still-empty [] would
@@ -297,7 +297,7 @@ describe('ServiceVisitForm — supplies used (Task 17)', () => {
     })
 
     it('resends a usage of a supply repinned to another vehicle (unfiltered resolution avoids a silent wipe)', async () => {
-      // Supply 2 is pinned to a DIFFERENT vehicle — never OFFERED for a new row here,
+      // Supply 2 is pinned to a DIFFERENT vehicle, never OFFERED for a new row here,
       // but a past usage of it must still hydrate + resend. The form resolves usages
       // from an UNFILTERED supplies fetch precisely so this isn't dropped -> wiped.
       const repinned: Supply = { ...MOCK_SUPPLY, id: 2, name: 'Coolant', vin: 'OTHERVIN' }
@@ -482,7 +482,7 @@ describe('ServiceVisitForm — supplies used (Task 17)', () => {
     })
 
     // Past the money column only the pricer's writes roll back, so a stored
-    // estimate keeps the cost the edit left it; only new or unpriced usages drop (T5-C1).
+    // estimate keeps the cost the edit left it; only new or unpriced usages drop.
     const withSecondUsage = (first: ServiceVisit, second: Record<string, unknown>, labour: number): ServiceVisit => {
       vi.mocked(useSupplies).mockReturnValue({
         data: { supplies: [MOCK_SUPPLY, { ...MOCK_SUPPLY, id: 2, name: 'Coolant' }], total: 2 },
@@ -712,6 +712,28 @@ describe('ServiceVisitForm: each supply converts in its own unit', () => {
     expect(lineItem?.supplies_used[0].quantity).toBeCloseTo(1, 9)
   })
 
+  it('admitting a new supply leaves the units it already pinned alone', async () => {
+    serveSupplies([LITRES])
+    const visit = visitUsing(LITRES, '1')
+    const { rerender } = render(<ServiceVisitForm {...DEFAULT_PROPS} visit={visit} />)
+    await waitFor(() => expect(Number(quantityInputs()[0].value)).toBeCloseTo(1, 9))
+
+    // One refetch brings both: the unit change and a supply the form has never seen.
+    serveSupplies([{ ...LITRES, volume_unit: 'mL' }, FL_OZ])
+    rerender(<ServiceVisitForm {...DEFAULT_PROPS} visit={visit} />)
+
+    const row = rowOf(quantityInputs()[0])
+    expect(within(row).getByText('L')).toBeInTheDocument()
+    expect(within(row).queryByText('mL')).not.toBeInTheDocument()
+
+    fireEvent.submit(drawerForm())
+    await waitFor(() => expect(mockedApiPut).toHaveBeenCalled())
+    const used = putLineItem()?.supplies_used ?? []
+    expect(used).toHaveLength(1)
+    expect(used[0].supply_id).toBe(4)
+    expect(used[0].quantity).toBeCloseTo(1, 9)
+  })
+
   it('admits a supply that shows up after hydration and posts it at the fl oz factor', async () => {
     serveSupplies([MOCK_SUPPLY])
     const visit = visitUsing(MOCK_SUPPLY, '1')
@@ -736,7 +758,7 @@ describe('ServiceVisitForm: each supply converts in its own unit', () => {
   })
 })
 
-describe('ServiceVisitForm — footer lift (P3 Task 5)', () => {
+describe('ServiceVisitForm: footer lift', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.mocked(useSupplies).mockReturnValue({
@@ -756,7 +778,7 @@ describe('ServiceVisitForm — footer lift (P3 Task 5)', () => {
   })
 })
 
-// S-frac: a visit saved with 2.5 of a counted supply (before the check existed)
+// A visit saved with 2.5 of a counted supply (before the check existed)
 // still saves when edited for something else, but no new fraction gets in.
 describe('ServiceVisitForm: an old fractional count', () => {
   const FILTER: Supply = { ...MOCK_SUPPLY, id: 3, name: 'Oil filter', unit_type: 'count' }

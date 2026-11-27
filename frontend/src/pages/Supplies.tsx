@@ -652,8 +652,8 @@ function SupplyFormBody({ supply, onClose, onSuccess, categorySuggestions = [] }
     initialUnit && !flavourUnits.includes(initialUnit) ? [...flavourUnits, initialUnit] : flavourUnits
 
   // Zod bakes its messages in at construction, so the schema is rebuilt when
-  // the language changes. Only the resolver depends on it — no fetch, no
-  // reset() — so a rebuild can't discard what the user typed.
+  // the language changes. Only the resolver depends on it (no fetch, no
+  // reset()), so a rebuild can't discard what the user typed.
   const schema = useMemo(() => makeSupplySchema(t), [t])
 
   const {
@@ -885,5 +885,5 @@ function SupplyFormBody({ supply, onClose, onSuccess, categorySuggestions = [] }
   )
 }
 
-// Its unit picker seeds from the account, so it pins like the record forms (R4).
+// Its unit picker seeds from the account, so it pins like the record forms.
 export const SupplyForm = withUnitSession(SupplyFormBody)

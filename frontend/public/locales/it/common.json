@@ -519,7 +519,8 @@
       "partNumberTooLong": "Codice ricambio troppo lungo",
       "barcodeTooLong": "Codice a barre troppo lungo (massimo 64 caratteri)",
       "categoryTooLong": "Categoria troppo lunga",
-      "notesTooLong": "Note troppo lunghe"
+      "notesTooLong": "Note troppo lunghe",
+      "volumeUnitInvalid": "Scegli un'unità dall'elenco."
     },
     "tollTag": {
       "countryRequired": "Scegli un paese, oppure Altro se il tuo non è nell'elenco",

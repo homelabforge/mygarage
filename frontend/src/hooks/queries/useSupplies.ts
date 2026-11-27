@@ -14,7 +14,7 @@ import type {
 } from '@/types/supplies'
 
 // Every purchase/adjustment/receipt mutation invalidates both the supplies
-// list and (when scoped to a supply) its ledger history — shared here so the
+// list and (when scoped to a supply) its ledger history. Shared here so the
 // 9 mutations below don't each repeat the same invalidateQueries pair.
 function invalidateSupplies(queryClient: QueryClient, supplyId?: number): void {
   queryClient.invalidateQueries({ queryKey: ['supplies'] })

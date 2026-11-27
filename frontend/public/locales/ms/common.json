@@ -517,7 +517,8 @@
       "partNumberTooLong": "Nombor alat ganti terlalu panjang",
       "barcodeTooLong": "Kod bar terlalu panjang (maksimum 64 aksara)",
       "categoryTooLong": "Kategori terlalu panjang",
-      "notesTooLong": "Nota terlalu panjang"
+      "notesTooLong": "Nota terlalu panjang",
+      "volumeUnitInvalid": "Pilih unit daripada senarai."
     },
     "tollTag": {
       "countryRequired": "Pilih negara, atau Lain-lain jika negara anda tiada dalam senarai",

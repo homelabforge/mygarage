@@ -4163,6 +4163,7 @@
   "common:validation.supply.barcodeTooLong": "3f2db68b:e780879c:d",
   "common:validation.supply.categoryTooLong": "957f09f3:91f42b9b:d",
   "common:validation.supply.notesTooLong": "a921099c:7fe6b278:d",
+  "common:validation.supply.volumeUnitInvalid": "19525107:dca1c452:d",
   "common:validation.tollTag.countryRequired": "4ffd4b68:f9836163:d",
   "common:validation.tollTag.systemNameRequired": "bfdb481b:aabb19fe:d",
   "common:validation.tollTag.systemNameTooLong": "bdeb24a1:dc5a1a23:d",

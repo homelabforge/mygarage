@@ -519,7 +519,8 @@
       "partNumberTooLong": "Numéro de pièce trop long",
       "barcodeTooLong": "Code-barres trop long (max. 64 caractères)",
       "categoryTooLong": "Catégorie trop longue",
-      "notesTooLong": "Notes trop longues"
+      "notesTooLong": "Notes trop longues",
+      "volumeUnitInvalid": "Choisissez une unité dans la liste."
     },
     "tollTag": {
       "countryRequired": "Choisissez un pays, ou « Autre » si le vôtre n’est pas dans la liste",

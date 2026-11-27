@@ -54,6 +54,13 @@ describe('Supply Schema', () => {
     expect(result.success).toBe(true)
   })
 
+  it('refuses a volume unit off the list, with its own message', () => {
+    const result = supplySchema.safeParse({ ...validEntry, volume_unit: 'gallons_imp' })
+    expect(result.success).toBe(false)
+    expect(result.error?.issues[0].path).toEqual(['volume_unit'])
+    expect(result.error?.issues[0].message).toBe('common:validation.supply.volumeUnitInvalid')
+  })
+
   it('rejects an invalid unit_type', () => {
     const result = supplySchema.safeParse({ name: 'Air Filter', unit_type: 'weight' })
     expect(result.success).toBe(false)
