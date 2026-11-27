@@ -1173,3 +1173,212 @@ def test_the_sticker_cap_is_the_documents_limit() -> None:
     from app.config import settings
 
     assert window_sticker_route.MAX_FILE_SIZE == settings.max_document_size_bytes
+
+
+# ---------------------------------------------------------------------------
+# What the routes did inline, pinned so moving it can't change it
+# ---------------------------------------------------------------------------
+
+SIZE_CAP_FOR_TESTS = 1024 * 1024  # 1 MB, small enough to send one byte over
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("endpoint", ["upload", "test"])
+@pytest.mark.parametrize(
+    ("name", "content", "mime", "detail"),
+    [
+        (
+            "sticker.gif",
+            NEW_BYTES,
+            "application/pdf",
+            "Invalid file type. Allowed types: .jpeg, .jpg, .pdf, .png",
+        ),
+        (
+            "sticker.pdf",
+            NEW_BYTES,
+            "image/gif",
+            "Invalid content type. Allowed: application/pdf, image/jpeg, image/png",
+        ),
+        (
+            "sticker.pdf",
+            b"MZ\x90\x00 an exe in a pdf coat",
+            "application/pdf",
+            "File content does not match its declared type",
+        ),
+        (
+            "sticker.pdf",
+            b"%PDF-1.4" + b"x" * (SIZE_CAP_FOR_TESTS + 1 - 8),
+            "application/pdf",
+            "File too large. Maximum size is 1MB",
+        ),
+    ],
+    ids=["extension", "content-type", "magic-bytes", "too-large"],
+)
+async def test_a_refused_file_is_never_written_or_scanned(
+    client,
+    auth_headers,
+    own_vehicle,
+    sticker_on_file,
+    tmp_path,
+    endpoint,
+    name,
+    content,
+    mime,
+    detail,
+):
+    """Both endpoints run the same checks before anything touches the disk."""
+    vin = own_vehicle.vin
+    with (
+        patch("app.routes.window_sticker.WindowStickerOCRService") as ocr_class,
+        pytest.MonkeyPatch.context() as mp,
+    ):
+        mp.setattr(window_sticker_route, "MAX_FILE_SIZE", SIZE_CAP_FOR_TESTS)
+        ocr = MagicMock()
+        ocr.extract_data_from_file = AsyncMock(return_value={})
+        ocr.test_extraction = AsyncMock(return_value={})
+        ocr_class.return_value = ocr
+        response = await client.post(
+            f"/api/vehicles/{vin}/window-sticker/{endpoint}",
+            files={"file": (name, content, mime)},
+            headers=auth_headers,
+        )
+
+    assert response.status_code == 400, response.text
+    assert response.json()["detail"] == detail
+    ocr.extract_data_from_file.assert_not_awaited()
+    ocr.test_extraction.assert_not_awaited()
+    assert _files_under(tmp_path) == [sticker_on_file]
+
+
+@pytest.mark.integration
+async def test_the_upload_scans_the_stored_file_for_this_vehicle(
+    client, auth_headers, own_vehicle, test_data_dir, test_sessionmaker
+):
+    """The scan gets the saved copy plus the VIN and make, and the copy lands
+    under the VIN in the test storage, never the real documents folder."""
+    vin = own_vehicle.vin
+
+    uploaded, ocr = await _upload_watching_ocr(client, auth_headers, vin, SCAN)
+
+    assert uploaded.status_code == 201, uploaded.text
+    stored = Path(await _stored(test_sessionmaker, vin, "window_sticker_file_path"))
+    assert stored.is_relative_to(test_data_dir)
+    assert stored.parent == test_data_dir / "documents" / vin
+    assert stored.name.startswith("window_sticker_") and stored.suffix == ".pdf"
+    assert stored.read_bytes() == NEW_BYTES
+    ocr.extract_data_from_file.assert_awaited_once_with(str(stored), vin=vin, make="Honda")
+
+
+@pytest.mark.integration
+async def test_the_test_scan_reads_a_temp_copy_and_removes_it(
+    client, auth_headers, own_vehicle, sticker_on_file, tmp_path
+):
+    """The dry run scans a temp copy under temp/, hands the parser choice
+    through, answers with what the scan said and leaves no file behind."""
+    vin = own_vehicle.vin
+    result = {
+        "success": True,
+        "parser_name": "generic",
+        "manufacturer_detected": "Honda",
+        "raw_text": "MSRP 30000",
+        "extracted_data": {"msrp_total": 30000},
+        "validation_warnings": ["check the MSRP"],
+        "error": None,
+    }
+    seen: list[tuple[Path, bytes]] = []
+
+    async def scan(path: str, **_: Any) -> dict[str, Any]:
+        seen.append((Path(path), Path(path).read_bytes()))
+        return result
+
+    with patch("app.routes.window_sticker.WindowStickerOCRService") as ocr_class:
+        ocr_class.return_value.test_extraction = AsyncMock(side_effect=scan)
+        response = await client.post(
+            f"/api/vehicles/{vin}/window-sticker/test",
+            params={"parser": "toyota"},
+            files={"file": ("sticker.pdf", NEW_BYTES, "application/pdf")},
+            headers=auth_headers,
+        )
+
+    assert response.status_code == 200, response.text
+    assert response.json() == result
+    ((path, read),) = seen
+    assert path.parent == tmp_path / "temp"
+    assert path.name.startswith("temp_test_") and path.suffix == ".pdf"
+    assert read == NEW_BYTES
+    ocr_class.return_value.test_extraction.assert_awaited_once_with(
+        str(path), vin=vin, make="Honda", parser_name="toyota"
+    )
+    assert not path.exists()
+    assert _files_under(tmp_path) == [sticker_on_file]
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    ("suffix", "media_type"),
+    [
+        (".pdf", "application/pdf"),
+        (".PNG", "image/png"),
+        (".jpeg", "image/jpeg"),
+        (".jpg", "image/jpeg"),
+        (".tiff", "application/octet-stream"),
+    ],
+)
+async def test_the_download_is_typed_and_named_by_the_vehicle(
+    client, auth_headers, own_vehicle, sticker_on_file, db_session, suffix, media_type
+):
+    stored = sticker_on_file.with_suffix(suffix)
+    sticker_on_file.rename(stored)
+    own_vehicle.window_sticker_file_path = str(stored)
+    await db_session.commit()
+
+    downloaded = await client.get(
+        f"/api/vehicles/{own_vehicle.vin}/window-sticker/file", headers=auth_headers
+    )
+
+    assert downloaded.status_code == 200, downloaded.text
+    assert downloaded.content == OLD_BYTES
+    assert downloaded.headers["content-type"].split(";")[0] == media_type
+    assert (
+        f'filename="window_sticker_{own_vehicle.vin}{suffix}"'
+        in downloaded.headers["content-disposition"]
+    )
+
+
+@pytest.mark.integration
+async def test_a_download_with_the_file_gone_is_a_404(
+    client, auth_headers, own_vehicle, sticker_on_file
+):
+    sticker_on_file.unlink()
+
+    downloaded = await client.get(
+        f"/api/vehicles/{own_vehicle.vin}/window-sticker/file", headers=auth_headers
+    )
+
+    assert downloaded.status_code == 404, downloaded.text
+    assert downloaded.json()["detail"] == "Window sticker file not found on disk"
+
+
+@pytest.mark.integration
+async def test_the_patch_answers_with_the_saved_row(
+    client, auth_headers, own_vehicle, db_session, test_sessionmaker
+):
+    """Only the fields sent move, and the answer is the row as saved."""
+    vin = own_vehicle.vin
+    own_vehicle.exterior_color = "Blue"
+    await db_session.commit()
+
+    edited = await client.patch(
+        f"/api/vehicles/{vin}/window-sticker/data",
+        json={"msrp_base": "31000.50", "assembly_location": "Ohio"},
+        headers=auth_headers,
+    )
+
+    assert edited.status_code == 200, edited.text
+    body = edited.json()
+    assert Decimal(str(body["msrp_base"])) == Decimal("31000.50")
+    assert body["assembly_location"] == "Ohio"
+    assert body["exterior_color"] == "Blue"
+    assert body["vin"] == vin
+    assert await _stored(test_sessionmaker, vin, "msrp_base") == Decimal("31000.50")
+    assert await _stored(test_sessionmaker, vin, "exterior_color") == "Blue"
