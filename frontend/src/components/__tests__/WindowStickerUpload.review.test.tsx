@@ -436,6 +436,17 @@ describe('WindowStickerUpload upload: a lost answer still reloads', () => {
     await user.click(screen.getByRole('button', { name: 'windowSticker.uploadAndExtract' }))
   }
 
+  // A timeout lands as ECONNABORTED with no response, the path the network case covers.
+  it('the upload gives up after two minutes', async () => {
+    const user = userEvent.setup({ applyAccept: false })
+    render(<WindowStickerUpload vin="V1" onSuccess={vi.fn()} onClose={vi.fn()} />)
+    await startUpload(user)
+    await screen.findByRole('button', { name: 'windowSticker.misc.saveData' })
+    expect(apiPost).toHaveBeenCalledTimes(1)
+    expect(apiPost.mock.calls[0][0]).toBe('/vehicles/V1/window-sticker/upload')
+    expect(apiPost.mock.calls[0][2]).toMatchObject({ timeout: 120_000 })
+  })
+
   it('the drawer stays open while the upload is out, and closes with a reload once it lands', async () => {
     const user = userEvent.setup({ applyAccept: false })
     let land: (value: unknown) => void = () => {}

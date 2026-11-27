@@ -22,6 +22,10 @@ import { withUnitSession } from '../contexts/UnitSession'
 
 type StickerData = components['schemas']['WindowStickerResponse']
 
+// OCR on a big scan is slow, and the server can still commit after we give
+// up, so a timeout reads as maybe-uploaded and close reloads to show it.
+const UPLOAD_TIMEOUT_MS = 120_000
+
 // Widths match the vehicle columns, so an overlong value stops at the input
 // instead of coming back as a 422.
 const TEXT_FIELDS = {
@@ -197,6 +201,7 @@ function WindowStickerUpload({
 
       const response = await api.post(`/vehicles/${vin}/window-sticker/upload`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: UPLOAD_TIMEOUT_MS,
       })
 
       const data = response.data as StickerData
