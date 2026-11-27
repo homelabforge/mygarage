@@ -4,11 +4,14 @@ Integration tests for odometer record routes.
 Tests odometer record CRUD operations and mileage tracking.
 """
 
+from datetime import date as date_type
 from datetime import datetime
+from decimal import Decimal
 
 import pytest
 from httpx import AsyncClient
 
+from app.models.odometer import OdometerRecord
 from app.utils.odometer_sync import auto_sync_marker
 
 
@@ -411,20 +414,66 @@ class TestSyncedRowNoteEdit:
         ["Monthly reading", f"{auto_sync_marker('fuel', 1)} copied by hand"],
     )
     async def test_a_manual_rows_note_still_changes(
-        self, client: AsyncClient, auth_headers, own_vehicle, original
+        self, client: AsyncClient, auth_headers, own_vehicle, db_session, original
     ):
-        """Only a note that IS a marker is held; one that just mentions one isn't."""
+        """Only a note that IS a marker is held; one that just mentions one isn't.
+
+        Seeded directly, since the API strips markers now; older rows can still hold one.
+        """
         vin = own_vehicle.vin
-        made = await client.post(
-            f"/api/vehicles/{vin}/odometer",
-            json={"vin": vin, "date": "2026-08-01", "odometer_km": 4000, "notes": original},
-            headers=auth_headers,
+        row = OdometerRecord(
+            vin=vin, date=date_type(2026, 8, 1), odometer_km=Decimal(4000), notes=original
         )
-        assert made.status_code == 201, made.text
+        db_session.add(row)
+        await db_session.commit()
         edited = await client.put(
-            f"/api/vehicles/{vin}/odometer/{made.json()['id']}",
+            f"/api/vehicles/{vin}/odometer/{row.id}",
             json={"notes": "fixed typo"},
             headers=auth_headers,
         )
         assert edited.status_code == 200, edited.text
         assert edited.json()["notes"] == "fixed typo"
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+class TestTheApiCantSetAMarker:
+    """Only a source writes a marker. A pasted one would hand the row to that source."""
+
+    @pytest.mark.parametrize(
+        ("notes", "stored"),
+        [
+            (auto_sync_marker("service_visit", 1), None),
+            (f"see {auto_sync_marker('fuel', 2)}", "see"),
+            ("Monthly reading", "Monthly reading"),
+        ],
+    )
+    async def test_a_create_stores_no_marker(
+        self, client: AsyncClient, auth_headers, own_vehicle, notes, stored
+    ):
+        vin = own_vehicle.vin
+        made = await client.post(
+            f"/api/vehicles/{vin}/odometer",
+            json={"vin": vin, "date": "2026-08-01", "odometer_km": 4000, "notes": notes},
+            headers=auth_headers,
+        )
+        assert made.status_code == 201, made.text
+        assert made.json()["notes"] == stored
+
+    async def test_a_put_on_a_manual_row_stores_no_marker(
+        self, client: AsyncClient, auth_headers, own_vehicle
+    ):
+        vin = own_vehicle.vin
+        made = await client.post(
+            f"/api/vehicles/{vin}/odometer",
+            json={"vin": vin, "date": "2026-08-01", "odometer_km": 4000, "notes": "mine"},
+            headers=auth_headers,
+        )
+        assert made.status_code == 201, made.text
+        edited = await client.put(
+            f"/api/vehicles/{vin}/odometer/{made.json()['id']}",
+            json={"notes": auto_sync_marker("service_visit", 1)},
+            headers=auth_headers,
+        )
+        assert edited.status_code == 200, edited.text
+        assert edited.json()["notes"] is None

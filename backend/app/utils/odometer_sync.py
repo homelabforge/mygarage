@@ -49,6 +49,23 @@ def is_sync_marked(notes: str | None) -> bool:
     return notes is not None and _WHOLE_MARKER.fullmatch(notes) is not None
 
 
+#: A sync marker anywhere in a note. The create claim treats a note holding
+#: one as automatic, so a manual row carrying one can be taken over.
+_ANY_MARKER = re.compile(r"\[AUTO-SYNC from [^\]]*\]")
+
+
+def without_sync_marker(notes: str | None) -> str | None:
+    """A note with every sync marker taken out, None when nothing else is left.
+
+    Only a source writes a marker. A copied one made a reading look owned: the
+    next same-day fill-up took it over, and a delete of the marker's record
+    removed it. A note with no marker comes back untouched.
+    """
+    if notes is None or _ANY_MARKER.search(notes) is None:
+        return notes
+    return _ANY_MARKER.sub("", notes).strip() or None
+
+
 def is_tire_marked(record: OdometerRecord) -> bool:
     """Whether a tire event wrote this odometer record."""
     return record.notes is not None and record.notes.startswith(TIRE_MARKER_PREFIX)

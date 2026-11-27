@@ -9,8 +9,10 @@ from httpx import AsyncClient
 from sqlalchemy import func, select
 
 from app.models.fuel import FuelRecord
+from app.models.odometer import OdometerRecord
 from app.models.settings import Setting
 from app.models.vehicle import Vehicle
+from app.utils.odometer_sync import auto_sync_marker
 
 # The app's complete reminder vocabulary. routes/reminders.py filters on these
 # and the UI renders exactly these three tabs, so any other value makes a
@@ -171,6 +173,27 @@ class TestWebhookIngest:
         )
         assert response.status_code == 200
         assert float(response.json()["odometer_km"]) == pytest.approx(46000)
+
+    async def test_odometer_webhook_stores_no_marker(
+        self, client: AsyncClient, test_vehicle, db_session
+    ):
+        """A pasted marker would hand the reading to that record's delete."""
+        await _set_setting(db_session, "webhook_ingest_token", "secret-webhook")
+        response = await client.post(
+            "/api/v1/webhooks/odometer",
+            json={
+                "vin": test_vehicle["vin"],
+                "odometer_km": "46001",
+                "notes": auto_sync_marker("service_visit", 1),
+            },
+            headers={"X-Webhook-Token": "secret-webhook"},
+        )
+        assert response.status_code == 200, response.text
+        stored = await db_session.get(OdometerRecord, response.json()["id"])
+        assert stored is not None
+        assert stored.notes is None
+        await db_session.delete(stored)
+        await db_session.commit()
 
     async def test_complete_reminder_webhook(
         self, client: AsyncClient, auth_headers, test_vehicle, db_session

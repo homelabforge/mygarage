@@ -21,7 +21,7 @@ from app.schemas.hours import (
 from app.services.auth import get_vehicle_or_403, require_auth
 from app.services.hours_service import latest_engine_hours_and_date, nearest_hours_record
 from app.utils.logging_utils import sanitize_for_log
-from app.utils.odometer_sync import is_sync_marked
+from app.utils.odometer_sync import is_sync_marked, without_sync_marker
 
 logger = logging.getLogger(__name__)
 
@@ -182,6 +182,7 @@ async def create_hours_record(
         # Create hours record
         record_dict = record_data.model_dump()
         record_dict["vin"] = vin
+        record_dict["notes"] = without_sync_marker(record_dict["notes"])
         record = HoursRecord(**record_dict)
 
         db.add(record)
@@ -258,6 +259,9 @@ async def update_hours_record(
             # a note edit can't replace it. Fuel and service rows have an FK and just
             # keep theirs too. Goes away once tire rows get a real FK.
             update_data.pop("notes", None)
+        elif "notes" in update_data:
+            # Only a source writes a marker. A pasted one would hand the row to it.
+            update_data["notes"] = without_sync_marker(update_data["notes"])
         for field, value in update_data.items():
             setattr(record, field, value)
 

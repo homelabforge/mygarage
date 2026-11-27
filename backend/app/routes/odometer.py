@@ -21,7 +21,7 @@ from app.schemas.odometer import (
 from app.services.auth import get_vehicle_or_403, require_auth
 from app.services.odometer_service import nearest_odometer
 from app.utils.logging_utils import sanitize_for_log
-from app.utils.odometer_sync import is_sync_marked
+from app.utils.odometer_sync import is_sync_marked, without_sync_marker
 
 logger = logging.getLogger(__name__)
 
@@ -197,6 +197,7 @@ async def create_odometer_record(
         # Create odometer record
         record_dict = record_data.model_dump()
         record_dict["vin"] = vin
+        record_dict["notes"] = without_sync_marker(record_dict["notes"])
         record = OdometerRecord(**record_dict)
 
         db.add(record)
@@ -274,6 +275,9 @@ async def update_odometer_record(
             # The marker is how its source finds this row to delete it, so a note
             # edit can't replace it. Goes away once these rows get a real FK.
             update_data.pop("notes", None)
+        elif "notes" in update_data:
+            # Only a source writes a marker. A pasted one would hand the row to it.
+            update_data["notes"] = without_sync_marker(update_data["notes"])
         for field, value in update_data.items():
             setattr(record, field, value)
 

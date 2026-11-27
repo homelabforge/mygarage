@@ -549,3 +549,42 @@ class TestTireRowNoteEdit:
         assert gone.status_code == 204, gone.text
         listed = await client.get(f"/api/vehicles/{vin}/hours", headers=auth_headers)
         assert [r for r in listed.json()["records"] if r["id"] == rows[0]["id"]] == []
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+class TestTheApiCantSetAnHoursMarker:
+    """Only a source writes a marker. A pasted tire one would hand the row to that tire."""
+
+    async def test_a_create_stores_no_marker(self, client: AsyncClient, auth_headers, own_vehicle):
+        vin = own_vehicle.vin
+        made = await client.post(
+            f"/api/vehicles/{vin}/hours",
+            json={
+                "vin": vin,
+                "date": "2026-06-21",
+                "engine_hours": 120.0,
+                "notes": auto_sync_marker("tire", 1),
+            },
+            headers=auth_headers,
+        )
+        assert made.status_code == 201, made.text
+        assert made.json()["notes"] is None
+
+    async def test_a_put_on_a_manual_row_stores_no_marker(
+        self, client: AsyncClient, auth_headers, own_vehicle
+    ):
+        vin = own_vehicle.vin
+        made = await client.post(
+            f"/api/vehicles/{vin}/hours",
+            json={"vin": vin, "date": "2026-06-21", "engine_hours": 120.0, "notes": "mine"},
+            headers=auth_headers,
+        )
+        assert made.status_code == 201, made.text
+        edited = await client.put(
+            f"/api/vehicles/{vin}/hours/{made.json()['id']}",
+            json={"notes": auto_sync_marker("tire", 1)},
+            headers=auth_headers,
+        )
+        assert edited.status_code == 200, edited.text
+        assert edited.json()["notes"] is None
