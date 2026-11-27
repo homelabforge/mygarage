@@ -25,7 +25,8 @@ jobs:
       # this: 12m23s end to end. See the shared-workflows README, "Test shards".
       backend-test-shards: 2
       frontend-test-shards: 3
-      e2e-test-shards: 2
+      # At 2, Playwright's count-based split left the shards at 286-336 s vs 118-132 s.
+      e2e-test-shards: 3
       # PG went from 3 to 5: on main runs 45331436250 and 45156566851 the 3
       # shards took 315/387/553s and 459/386/562s, about 9.5 min wall time.
       pg-migrations-shards: 5
