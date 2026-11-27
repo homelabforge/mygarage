@@ -7,6 +7,8 @@ Tests DEF record CRUD operations and analytics.
 import pytest
 from httpx import AsyncClient
 
+from app.utils.odometer_sync import auto_sync_marker
+
 
 @pytest.mark.integration
 @pytest.mark.def_records
@@ -274,3 +276,70 @@ class TestDEFAnalytics:
         assert data["record_count"] >= 3
         assert data["total_liters"] is not None
         assert data["total_cost"] is not None
+
+
+async def _def_rows(client: AsyncClient, headers: dict, vin: str, def_id: int) -> list[dict]:
+    """The odometer rows a DEF record synced."""
+    listed = await client.get(f"/api/vehicles/{vin}/odometer", headers=headers)
+    assert listed.status_code == 200, listed.text
+    marker = auto_sync_marker("def", def_id)
+    return [r for r in listed.json()["records"] if r["notes"] == marker]
+
+
+@pytest.mark.integration
+@pytest.mark.def_records
+@pytest.mark.asyncio
+@pytest.mark.own_vehicle(fuel_type="diesel")
+class TestDeletingDEFTakesItsReading:
+    """A deleted DEF record takes the odometer reading it synced with it."""
+
+    async def test_deleting_the_record_removes_its_reading(
+        self, client: AsyncClient, auth_headers, own_vehicle, sample_def_payload
+    ):
+        vin = own_vehicle.vin
+        made = await client.post(
+            f"/api/vehicles/{vin}/def",
+            json={**sample_def_payload, "vin": vin},
+            headers=auth_headers,
+        )
+        assert made.status_code == 201, made.text
+        def_id = made.json()["id"]
+        assert len(await _def_rows(client, auth_headers, vin, def_id)) == 1
+
+        gone = await client.delete(f"/api/vehicles/{vin}/def/{def_id}", headers=auth_headers)
+        assert gone.status_code == 204, gone.text
+        assert await _def_rows(client, auth_headers, vin, def_id) == []
+
+    async def test_deleting_the_fill_up_removes_its_edited_def_records_reading(
+        self, client: AsyncClient, auth_headers, own_vehicle
+    ):
+        """A DEF record a fill-up wrote syncs its own reading once edited, and goes with the fill-up."""
+        vin = own_vehicle.vin
+        fuel = await client.post(
+            f"/api/vehicles/{vin}/fuel",
+            json={
+                "vin": vin,
+                "date": "2026-08-06",
+                "odometer_km": 50000,
+                "liters": 45.0,
+                "def_fill_level": 0.75,
+            },
+            headers=auth_headers,
+        )
+        assert fuel.status_code == 201, fuel.text
+        listed = await client.get(f"/api/vehicles/{vin}/def", headers=auth_headers)
+        assert listed.status_code == 200, listed.text
+        [def_record] = listed.json()["records"]
+        edited = await client.put(
+            f"/api/vehicles/{vin}/def/{def_record['id']}",
+            json={"odometer_km": 50010},
+            headers=auth_headers,
+        )
+        assert edited.status_code == 200, edited.text
+        assert len(await _def_rows(client, auth_headers, vin, def_record["id"])) == 1
+
+        gone = await client.delete(
+            f"/api/vehicles/{vin}/fuel/{fuel.json()['id']}", headers=auth_headers
+        )
+        assert gone.status_code == 204, gone.text
+        assert await _def_rows(client, auth_headers, vin, def_record["id"]) == []

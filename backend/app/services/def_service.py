@@ -268,6 +268,8 @@ class DEFRecordService:
             if not record:
                 raise HTTPException(status_code=404, detail=f"DEF record {record_id} not found")
 
+            # The reading it synced has no FK to cascade from, so it goes by marker.
+            await remove_synced_odometer(self.db, vin, "def", record_id)
             await self.db.execute(
                 delete(DEFRecord).where(DEFRecord.id == record_id).where(DEFRecord.vin == vin)
             )

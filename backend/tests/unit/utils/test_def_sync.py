@@ -185,7 +185,9 @@ class TestDeleteDEFForFuelRecord:
             fuel_record_id=fuel_record_ids[0],
         )
 
-        count = await delete_def_for_fuel_record(db=db_session, fuel_record_id=fuel_record_ids[0])
+        count = await delete_def_for_fuel_record(
+            db=db_session, vin=test_vehicle["vin"], fuel_record_id=fuel_record_ids[0]
+        )
         await db_session.commit()  # Caller must commit
 
         assert count == 1
@@ -199,7 +201,9 @@ class TestDeleteDEFForFuelRecord:
     async def test_delete_returns_zero_when_no_linked(self, db_session: AsyncSession):
         """Test that delete returns 0 when no linked records exist."""
         # Deleting by a nonexistent id is legal (no FK check on DELETE) - stays literal.
-        count = await delete_def_for_fuel_record(db=db_session, fuel_record_id=99999)
+        count = await delete_def_for_fuel_record(
+            db=db_session, vin="NOSUCHVIN", fuel_record_id=99999
+        )
         await db_session.commit()
 
         assert count == 0
@@ -218,7 +222,9 @@ class TestDeleteDEFForFuelRecord:
             fuel_record_id=fuel_record_ids[0],
         )
 
-        count = await delete_def_for_fuel_record(db=db_session, fuel_record_id=fuel_record_ids[0])
+        count = await delete_def_for_fuel_record(
+            db=db_session, vin=test_vehicle["vin"], fuel_record_id=fuel_record_ids[0]
+        )
         assert count == 1
 
         # Rollback instead of commit — record should still exist

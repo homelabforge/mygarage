@@ -26,7 +26,11 @@ from app.schemas.fuel import (
     FuelRecordUpdate,
     check_reading_and_amount,
 )
-from app.utils.def_sync import ensure_def_capable, sync_def_from_fuel_record
+from app.utils.def_sync import (
+    delete_def_for_fuel_record,
+    ensure_def_capable,
+    sync_def_from_fuel_record,
+)
 from app.utils.fuel_station_sync import resolve_fuel_station
 from app.utils.hours_sync import sync_hours_from_record
 from app.utils.logging_utils import sanitize_for_log
@@ -1171,11 +1175,7 @@ class FuelRecordService:
                             commit=False,
                         )
                     else:
-                        from app.models.def_record import DEFRecord
-
-                        await self.db.execute(
-                            delete(DEFRecord).where(DEFRecord.origin_fuel_record_id == record_id)
-                        )
+                        await delete_def_for_fuel_record(self.db, vin, record_id)
                 except Exception as e:
                     logger.warning(
                         "Failed to auto-sync DEF for fuel record %s (rolling back): %s",
@@ -1234,12 +1234,9 @@ class FuelRecordService:
             if not record:
                 raise HTTPException(status_code=404, detail=f"Fuel record {record_id} not found")
 
-            from app.models.def_record import DEFRecord
             from app.models.odometer import OdometerRecord
 
-            await self.db.execute(
-                delete(DEFRecord).where(DEFRecord.origin_fuel_record_id == record_id)
-            )
+            await delete_def_for_fuel_record(self.db, vin, record_id)
             # Clean up the synced odometer row. PG enforces this via the FK
             # ``fk_odometer_records_fuel_record`` (ON DELETE CASCADE) added
             # in migration 055, but SQLite doesn't enforce FKs without
