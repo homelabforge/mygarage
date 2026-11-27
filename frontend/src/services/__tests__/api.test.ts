@@ -1,5 +1,10 @@
-import { describe, it, expect, beforeEach } from 'vitest'
-import { shouldRedirectToLogin } from '../api'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { AxiosError, type AxiosAdapter, type AxiosResponse } from 'axios'
+import api, { setApiAuthMode, setAuthStaleHandler, setCSRFToken, shouldRedirectToLogin } from '../api'
+
+// setup.ts stubs axios out; the interceptor cases need the real one. Every
+// request below brings its own adapter, so nothing goes on the wire.
+vi.unmock('axios')
 
 function setBase(href: string) {
   document.head.querySelector('base')?.remove()
@@ -45,5 +50,69 @@ describe('shouldRedirectToLogin under a subpath', () => {
 
   it('still redirects from an app route under the prefix', () => {
     expect(shouldRedirectToLogin('local', '/mygarage/vehicles')).toBe(true)
+  })
+})
+
+// An adapter that answers every request with this status and body, so the
+// real response interceptor sees it.
+function answer(status: number, data: unknown): AxiosAdapter {
+  return (config) => {
+    const response = { status, statusText: '', headers: {}, config, data } as AxiosResponse
+    return Promise.reject(new AxiosError('refused', 'ERR_BAD_REQUEST', config, null, response))
+  }
+}
+
+const SIGN_IN = { detail: { detail: 'requires_sign_in', message: 'Sharing requires auth_mode=local or oidc.' } }
+
+describe('a refused write tells a stale tab that auth is off', () => {
+  beforeEach(() => {
+    // A token on hand, so the write doesn't go looking for one.
+    setCSRFToken('token')
+  })
+
+  afterEach(() => {
+    setAuthStaleHandler(null)
+    setApiAuthMode(null)
+    sessionStorage.clear()
+  })
+
+  it('calls the handler once when this tab still thinks auth is on', async () => {
+    const handler = vi.fn()
+    setAuthStaleHandler(handler)
+    setApiAuthMode('local')
+
+    const write = api.post('/vehicles/1/shares', {}, { adapter: answer(400, SIGN_IN) })
+
+    await expect(write).rejects.toMatchObject({ response: { status: 400, data: SIGN_IN } })
+    expect(handler).toHaveBeenCalledTimes(1)
+  })
+
+  it('leaves the handler alone when this tab already knows auth is off', async () => {
+    const handler = vi.fn()
+    setAuthStaleHandler(handler)
+    setApiAuthMode('none')
+
+    await expect(api.post('/x', {}, { adapter: answer(400, SIGN_IN) })).rejects.toBeInstanceOf(AxiosError)
+    expect(handler).not.toHaveBeenCalled()
+  })
+
+  it('ignores any other 400', async () => {
+    const handler = vi.fn()
+    setAuthStaleHandler(handler)
+    setApiAuthMode('local')
+
+    const other = { detail: { detail: 'something_else', message: 'nope' } }
+    await expect(api.post('/x', {}, { adapter: answer(400, other) })).rejects.toBeInstanceOf(AxiosError)
+    await expect(api.post('/x', {}, { adapter: answer(400, { detail: 'requires_sign_in' }) })).rejects.toBeInstanceOf(AxiosError)
+    await expect(api.post('/x', {}, { adapter: answer(422, SIGN_IN) })).rejects.toBeInstanceOf(AxiosError)
+    expect(handler).not.toHaveBeenCalled()
+  })
+
+  it('still rejects with the original error when no handler is set', async () => {
+    setApiAuthMode('local')
+
+    await expect(api.post('/x', {}, { adapter: answer(400, SIGN_IN) })).rejects.toMatchObject({
+      response: { status: 400, data: SIGN_IN },
+    })
   })
 })

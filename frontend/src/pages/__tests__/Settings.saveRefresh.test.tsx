@@ -30,6 +30,7 @@ vi.mock('@/services/api', () => ({
   getCSRFToken: vi.fn(),
   clearCSRFToken: vi.fn(),
   setApiAuthMode: vi.fn(),
+  setAuthStaleHandler: vi.fn(),
 }))
 vi.mock('sonner', () => ({
   toast: { loading: vi.fn(() => 'toast'), success: vi.fn(), error: vi.fn() },

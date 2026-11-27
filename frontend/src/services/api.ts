@@ -36,6 +36,24 @@ export const setApiAuthMode = (mode: string | null): void => {
   currentAuthMode = mode
 }
 
+// Called when a write comes back requires_sign_in while this tab still thinks
+// auth is on: somebody turned it off, so AuthContext rereads the public settings.
+let authStaleHandler: (() => void) | null = null
+
+export const setAuthStaleHandler = (handler: (() => void) | null): void => {
+  authStaleHandler = handler
+}
+
+// The server's 400 for a write that needs a signed-in user, with auth off.
+function isRequiresSignIn(data: unknown): boolean {
+  const detail = (data as { detail?: unknown } | null | undefined)?.detail
+  return (
+    typeof detail === 'object' &&
+    detail !== null &&
+    (detail as { detail?: unknown }).detail === 'requires_sign_in'
+  )
+}
+
 /**
  * Decide whether a 401 response should redirect the browser to /login.
  *
@@ -141,6 +159,15 @@ api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config
+
+    // This tab thinks auth is on, the server says it's off. Let AuthContext catch up.
+    if (
+      error.response?.status === 400 &&
+      currentAuthMode !== 'none' &&
+      isRequiresSignIn(error.response.data)
+    ) {
+      authStaleHandler?.()
+    }
 
     // Handle 403 CSRF errors with retry
     if (error.response?.status === 403) {

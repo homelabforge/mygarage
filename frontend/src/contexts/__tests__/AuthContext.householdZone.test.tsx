@@ -17,6 +17,7 @@ vi.mock('../../services/api', () => ({
   getCSRFToken: vi.fn(),
   clearCSRFToken: vi.fn(),
   setApiAuthMode: vi.fn(),
+  setAuthStaleHandler: vi.fn(),
 }))
 
 import api from '../../services/api'
