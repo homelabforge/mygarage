@@ -39,8 +39,9 @@ export default function NotificationBell() {
   const items = useMemo(() => data ?? [], [data])
 
   // Prune dismissals to what the inbox still carries, so the set can't grow
-  // forever. Only off a real answer: pruning against an empty list while the
-  // first fetch is out, or after it failed, would bring back everything.
+  // forever, and an alert that leaves and comes back is new and shows again.
+  // Only off a real answer: pruning against an empty list while the first
+  // fetch is out, or after it failed, would bring back everything.
   useEffect(() => {
     if (!isSuccess) return
     const live = new Set(data.map((item) => item.id))

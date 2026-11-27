@@ -130,8 +130,8 @@ class SupplyReceiptSummary(BaseModel):
 class SupplyReceiptResponse(SupplyReceiptSummary):
     """The receipt a purchase has after an upload."""
 
-    # Same fields as the summary, but an upload always says what it stored,
-    # so file_type is required here.
+    # Same fields as the summary, but an upload always sends file_type, even
+    # when it's null, so it's required here.
     file_type: str | None = Field(...)
 
 

@@ -222,7 +222,9 @@ class WindowStickerService:
         """Store the file, scan it unless OCR is off, fill the empty fields and commit.
 
         The commit happens here, before the route builds its response. With
-        `replace` and a sticker on file, the old sticker's fields clear first.
+        `replace`, a sticker on file, OCR on and a scan that read something, the
+        old sticker's fields clear first. Otherwise nothing clears, since nothing
+        would take their place.
         """
         vin = vehicle.vin
         ocr_skipped = not ocr_enabled

@@ -140,7 +140,7 @@ function ReadingEditor({
       open={open}
       onClose={onClose}
       /* The corner the tire had on the reading's date, from the server; null means
-         it was in storage that day. Plain `string` in the schema, same cast as the
+         it was in storage that day. No Literal in the schema, same cast as the
          period editor. */
       title={t('tireList.editReadingTitle', {
         position: labelFor((reading.position ?? null) as TirePosition),

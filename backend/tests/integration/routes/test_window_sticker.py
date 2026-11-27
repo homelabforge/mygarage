@@ -391,7 +391,7 @@ async def _upload_watching_ocr(
         if isinstance(parsed, Exception):
             ocr.extract_data_from_file = AsyncMock(side_effect=parsed)
         else:
-            # A copy: the route drops misread numbers from the dict it gets.
+            # A copy: the service drops misread numbers from the dict it gets.
             ocr.extract_data_from_file = AsyncMock(return_value=dict(parsed))
         ocr_class.return_value = ocr
         response = await client.post(
@@ -404,7 +404,7 @@ async def _upload_watching_ocr(
 
 
 async def _stored(sessionmaker: async_sessionmaker[AsyncSession], vin: str, column: str) -> Any:
-    """What the row holds, read through a session the route never touched."""
+    """What the row holds, read through a session the request never touched."""
     async with sessionmaker() as session:
         stmt = select(Vehicle.__table__.c[column]).where(Vehicle.vin == vin)
         return (await session.execute(stmt)).scalar()
@@ -461,7 +461,7 @@ async def test_a_cut_is_logged_once_without_the_text(client, auth_headers, own_v
         "window_sticker_parser_used": "generic",
     }
 
-    # Everything the route logs, so the text check covers every level.
+    # Everything the service logs, so the text check covers every level.
     with caplog.at_level(logging.DEBUG, logger=STICKER_LOGGER):
         uploaded = await _upload_with_ocr(client, auth_headers, vin, parsed)
 

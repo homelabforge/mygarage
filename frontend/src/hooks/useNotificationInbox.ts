@@ -6,7 +6,7 @@ export type InboxItem = components['schemas']['InboxItem']
 
 type InboxResponse = components['schemas']['InboxResponse']
 
-/** A reading write moves reminders, so it marks this stale too. */
+/** invalidateReadingViews marks this stale too, since a reading can make a reminder due. */
 export const NOTIFICATION_INBOX_QUERY_KEY = ['notifications', 'inbox'] as const
 
 /**
