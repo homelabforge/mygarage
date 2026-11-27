@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Driving insights come from one database query instead of reading every speed reading.
 - Unit conversions in forms and price columns go through one helper, and the units check refuses a `units-exempt` pragma that doesn't name a kind.
 - The LiveLink wiki explains how MyGarage reads the units in a Torque upload.
+- E2E installs no longer stall on font downloads.
 
 ### Fixed
 - The top navigation folds into the menu button when its links don't fit, instead of scrolling the page sideways.
