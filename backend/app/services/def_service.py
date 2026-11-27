@@ -123,7 +123,8 @@ class DEFRecordService:
                 sanitize_for_log(vin),
             )
 
-            # Auto-sync odometer if odometer_km provided
+            # A DEF purchase is a side reading: it never takes over another
+            # source's row, and adds nothing when the day already reads that high.
             if record.date and record.odometer_km:
                 try:
                     await sync_odometer_from_record(
@@ -133,6 +134,7 @@ class DEFRecordService:
                         odometer_km=record.odometer_km,
                         source_type="def",
                         source_id=record.id,
+                        claim_other_records=False,
                     )
                 except Exception as e:
                     logger.warning(
@@ -197,7 +199,8 @@ class DEFRecordService:
                 "Updated DEF record %s for %s", sanitize_for_log(record_id), sanitize_for_log(vin)
             )
 
-            # Auto-sync odometer if odometer_km and date are present
+            # Same rule as create: never another source's row. A fill-up's DEF
+            # record edited here would otherwise add a second reading on its date.
             if record.date and record.odometer_km:
                 try:
                     await sync_odometer_from_record(
@@ -208,6 +211,7 @@ class DEFRecordService:
                         source_type="def",
                         source_id=record.id,
                         operation="update",
+                        claim_other_records=False,
                     )
                 except Exception as e:
                     logger.warning(

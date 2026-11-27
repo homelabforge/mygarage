@@ -343,3 +343,113 @@ class TestDeletingDEFTakesItsReading:
         )
         assert gone.status_code == 204, gone.text
         assert await _def_rows(client, auth_headers, vin, def_record["id"]) == []
+
+
+async def _readings_on(client: AsyncClient, headers: dict, vin: str, day: str) -> list[dict]:
+    """Every odometer reading on one date."""
+    listed = await client.get(f"/api/vehicles/{vin}/odometer", headers=headers)
+    assert listed.status_code == 200, listed.text
+    return [r for r in listed.json()["records"] if r["date"] == day]
+
+
+async def _fill_up_with_def(client: AsyncClient, headers: dict, vin: str, day: str) -> dict:
+    """A fill-up at 50000 km that logged a DEF level, so it wrote a DEF record too."""
+    fuel = await client.post(
+        f"/api/vehicles/{vin}/fuel",
+        json={
+            "vin": vin,
+            "date": day,
+            "odometer_km": 50000,
+            "liters": 45.0,
+            "def_fill_level": 0.75,
+        },
+        headers=headers,
+    )
+    assert fuel.status_code == 201, fuel.text
+    return fuel.json()
+
+
+@pytest.mark.integration
+@pytest.mark.def_records
+@pytest.mark.asyncio
+@pytest.mark.own_vehicle(fuel_type="diesel")
+class TestDEFNeverTakesAnotherReading:
+    """A DEF record only adds a reading when the day doesn't already read that high."""
+
+    async def test_deleting_a_same_day_def_purchase_keeps_the_fill_ups_reading(
+        self, client: AsyncClient, auth_headers, own_vehicle
+    ):
+        vin = own_vehicle.vin
+        fuel = await client.post(
+            f"/api/vehicles/{vin}/fuel",
+            json={"vin": vin, "date": "2026-08-06", "odometer_km": 50000, "liters": 45.0},
+            headers=auth_headers,
+        )
+        assert fuel.status_code == 201, fuel.text
+        made = await client.post(
+            f"/api/vehicles/{vin}/def",
+            json={"vin": vin, "date": "2026-08-06", "odometer_km": 50000, "liters": 9.5},
+            headers=auth_headers,
+        )
+        assert made.status_code == 201, made.text
+
+        gone = await client.delete(
+            f"/api/vehicles/{vin}/def/{made.json()['id']}", headers=auth_headers
+        )
+        assert gone.status_code == 204, gone.text
+        readings = await _readings_on(client, auth_headers, vin, "2026-08-06")
+        assert [(r["notes"], float(r["odometer_km"])) for r in readings] == [
+            (auto_sync_marker("fuel", fuel.json()["id"]), 50000.0)
+        ]
+
+    async def test_editing_a_fill_ups_def_record_adds_no_second_reading(
+        self, client: AsyncClient, auth_headers, own_vehicle
+    ):
+        vin = own_vehicle.vin
+        await _fill_up_with_def(client, auth_headers, vin, "2026-08-06")
+        listed = await client.get(f"/api/vehicles/{vin}/def", headers=auth_headers)
+        assert listed.status_code == 200, listed.text
+        [def_record] = listed.json()["records"]
+
+        edited = await client.put(
+            f"/api/vehicles/{vin}/def/{def_record['id']}",
+            json={"fill_level": 0.8},
+            headers=auth_headers,
+        )
+        assert edited.status_code == 200, edited.text
+        assert len(await _readings_on(client, auth_headers, vin, "2026-08-06")) == 1
+
+
+@pytest.mark.integration
+@pytest.mark.def_records
+@pytest.mark.asyncio
+@pytest.mark.own_vehicle(fuel_type="diesel")
+class TestClearingTheDEFLevelTakesItsReading:
+    """Clearing a fill-up's DEF level drops its DEF record and the reading that record synced."""
+
+    async def test_clearing_the_level_removes_the_edited_def_records_reading(
+        self, client: AsyncClient, auth_headers, own_vehicle
+    ):
+        vin = own_vehicle.vin
+        fuel = await _fill_up_with_def(client, auth_headers, vin, "2026-08-06")
+        listed = await client.get(f"/api/vehicles/{vin}/def", headers=auth_headers)
+        assert listed.status_code == 200, listed.text
+        [def_record] = listed.json()["records"]
+        edited = await client.put(
+            f"/api/vehicles/{vin}/def/{def_record['id']}",
+            json={"odometer_km": 50010},
+            headers=auth_headers,
+        )
+        assert edited.status_code == 200, edited.text
+        assert len(await _def_rows(client, auth_headers, vin, def_record["id"])) == 1
+
+        cleared = await client.put(
+            f"/api/vehicles/{vin}/fuel/{fuel['id']}",
+            json={"def_fill_level": None},
+            headers=auth_headers,
+        )
+        assert cleared.status_code == 200, cleared.text
+        assert (await client.get(f"/api/vehicles/{vin}/def", headers=auth_headers)).json()[
+            "records"
+        ] == []
+        assert await _def_rows(client, auth_headers, vin, def_record["id"]) == []
