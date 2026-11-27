@@ -16,6 +16,7 @@ thing that reacts to them.
 from __future__ import annotations
 
 import asyncio
+import re
 import uuid
 from datetime import date, timedelta
 from decimal import Decimal
@@ -24,7 +25,7 @@ import pytest
 import pytest_asyncio
 from dateutil.relativedelta import relativedelta
 from httpx import AsyncClient
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, event, func, select
 
 from app.models.maintenance_rule import MaintenanceRule
 from app.models.reminder import Reminder
@@ -2157,3 +2158,68 @@ class TestT13EdgeCasePins:
         preview = await _preview(client, auth_headers, vin, "oil_and_filter")
         item = next(i for i in preview["items"] if i["key"] == "oil_filter")
         assert item["newer_service"] is None
+
+
+# ============================================================================
+#  V. A pack reads the vehicle's current readings once
+# ============================================================================
+
+# The two "current reading" statements, by shape. The nearest-reading lookups
+# filter on a date as well, so they never match these.
+_CURRENT_KM_SQL = re.compile(
+    r"^SELECT odometer_records\.odometer_km FROM odometer_records"
+    r" WHERE odometer_records\.vin = \S+ ORDER BY odometer_records\.date DESC"
+)
+_CURRENT_HOURS_SQL = re.compile(
+    r"^SELECT hours_records\.engine_hours, hours_records\.date FROM hours_records"
+    r" WHERE hours_records\.vin = \S+ ORDER BY hours_records\.engine_hours DESC"
+)
+
+
+class TestVPackReadsCurrentReadingsOnce:
+    """One odometer row, one hours row, no history: every item is a baseline,
+    so the only current-reading reads are the ones the pack itself makes."""
+
+    async def test_preview_and_apply_read_each_current_reading_once(
+        self, client, auth_headers, test_engine, test_sessionmaker
+    ):
+        vin = await _vehicle(client, auth_headers, vehicle_type="ATV")
+        on = (date.today() - timedelta(days=10)).isoformat()
+        await _odometer(client, auth_headers, vin, on, 1234.0)
+        await _hours(client, auth_headers, vin, on, 56.0)
+        pack = builtin_pack("small_engine_service")
+        assert len(pack.reminders) == 4
+
+        statements: list[str] = []
+
+        def record(_conn, _cursor, statement: str, *_args) -> None:
+            flat = " ".join(statement.split())
+            if _CURRENT_KM_SQL.match(flat) or _CURRENT_HOURS_SQL.match(flat):
+                statements.append(flat)
+
+        def counts(seen: list[str]) -> tuple[int, int]:
+            km = sum(1 for s in seen if _CURRENT_KM_SQL.match(s))
+            return km, len(seen) - km
+
+        event.listen(test_engine.sync_engine, "before_cursor_execute", record)
+        try:
+            async with test_sessionmaker() as db:
+                preview = await maintenance_service.plan_pack(db, vin, pack, None)
+            previewed = list(statements)
+            statements.clear()
+            async with test_sessionmaker() as db:
+                applied = await maintenance_service.apply_pack(db, vin, pack, None)
+            applying = list(statements)
+        finally:
+            event.remove(test_engine.sync_engine, "before_cursor_execute", record)
+
+        # The fixture really is the baseline path with both readings on hand.
+        assert [i.anchor.origin for i in preview.items if i.anchor] == ["baseline"] * 4
+        assert {(i.anchor.odometer_km, i.anchor.hours) for i in preview.items if i.anchor} == {
+            (Decimal("1234.00"), Decimal("56.0"))
+        }
+        assert len(applied) == 4
+        assert {r.anchor_kind for r in applied} == {"baseline"}
+
+        # (odometer reads, hours reads) for the preview, then for the apply.
+        assert (counts(previewed), counts(applying)) == ((1, 1), (1, 1)), (previewed, applying)

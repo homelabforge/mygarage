@@ -555,11 +555,29 @@ async def resolve_readings(
     return Anchor(anchor.kind, anchor.date, odometer, hours, anchor.line_item_id)
 
 
-async def baseline_anchor(db: AsyncSession, vin: str, today: date) -> Anchor:
-    """Nothing on record: today's date and the current readings, stored once."""
-    return Anchor(
-        "baseline", today, await get_current_mileage(vin, db), await get_current_hours(vin, db)
-    )
+@dataclass(frozen=True)
+class CurrentReadings:
+    """The vehicle's current odometer and hours, read once and handed around."""
+
+    km: Decimal | None
+    hours: Decimal | None
+
+
+async def current_readings(db: AsyncSession, vin: str) -> CurrentReadings:
+    """The vehicle's current odometer (km) and engine hours, either may be None."""
+    return CurrentReadings(await get_current_mileage(vin, db), await get_current_hours(vin, db))
+
+
+async def baseline_anchor(
+    db: AsyncSession, vin: str, today: date, readings: CurrentReadings | None = None
+) -> Anchor:
+    """Nothing on record: today's date and the current readings, stored once.
+
+    Pass `readings` when the caller already has them; otherwise they're read here.
+    """
+    if readings is None:
+        readings = await current_readings(db, vin)
+    return Anchor("baseline", today, readings.km, readings.hours)
 
 
 def anchor_of(reminder: Reminder) -> Anchor | None:
@@ -737,12 +755,14 @@ async def reconcile_rule(
     *,
     candidate: Anchor | None = None,
     today: date | None = None,
+    readings: CurrentReadings | None = None,
 ) -> Reminder | None:
     """Bring the rule's pending reminder in line with the history (section 5.3).
 
     Returns the pending reminder afterwards (None when the rule cannot
     produce one). `candidate` overrides `best_anchor` for a caller that
     already knows the event, e.g. a typeless rule created from a line item.
+    `readings` feeds a baseline so a caller looping over rules reads them once.
     Writes only what differs, so calling it again is a no-op.
     """
     if today is None:
@@ -780,14 +800,14 @@ async def reconcile_rule(
             db,
             pending,
             rule,
-            best if best is not None else await baseline_anchor(db, rule.vin, today),
+            best if best is not None else await baseline_anchor(db, rule.vin, today, readings),
         )
         return pending
 
     if best is None:
         if pending is None:
             return await create_reminder_for_rule(
-                db, rule, await baseline_anchor(db, rule.vin, today)
+                db, rule, await baseline_anchor(db, rule.vin, today, readings)
             )
         current = anchor_of(pending)
         if current is not None:
@@ -1403,12 +1423,14 @@ async def _plan_item(
     item: ReminderPackItem,
     choice: _Choice | None,
     today: date,
+    readings: CurrentReadings,
     *,
     for_preview: bool,
     override: IntervalOverride | None = None,
 ) -> PackItemPlan:
     """What applying `item` would do. Reads only.
 
+    `readings` are the vehicle's current ones, read once for the whole pack.
     `for_preview` adds the lists only the dialog shows (the typed history and
     the untyped candidates); `apply_pack` plans without them.
 
@@ -1502,12 +1524,7 @@ async def _plan_item(
     origin: str
     note: str | None = None
     if choice is not None and choice.done_today:
-        proposal = Anchor(
-            "completion",
-            today,
-            await get_current_mileage(vin, db),
-            await get_current_hours(vin, db),
-        )
+        proposal = Anchor("completion", today, readings.km, readings.hours)
         origin = "reminder"
         note = "treated as done today at the current readings"
     elif current is not None:
@@ -1539,7 +1556,7 @@ async def _plan_item(
         origin = "reminder"
         note = "keeps its current due values until the first service is logged"
     else:
-        proposal = await baseline_anchor(db, vin, today)
+        proposal = await baseline_anchor(db, vin, today, readings)
         origin = "baseline"
         note = "no matching service on record; counting from today"
 
@@ -1586,6 +1603,7 @@ async def plan_pack(
         today = household_today()
     chosen = await _validate_anchor_choices(db, vin, pack, anchors)
     typed = _by_pack_key(pack, overrides)
+    readings = await current_readings(db, vin)
     items = [
         await _plan_item(
             db,
@@ -1593,6 +1611,7 @@ async def plan_pack(
             item,
             chosen.get(item.key or ""),
             today,
+            readings,
             for_preview=True,
             override=typed.get(item.key or ""),
         )
@@ -1620,12 +1639,16 @@ async def apply_pack(
     await lock_vehicle_for_write(db, vin)
     chosen = await _validate_anchor_choices(db, vin, pack, anchors)
     typed = _by_pack_key(pack, overrides)
+    # Read once under the lock. Nothing below writes a reading, only rules and reminders.
+    readings = await current_readings(db, vin)
     results: list[Reminder] = []
     for item in pack.reminders:
         assert item.key is not None
         choice = chosen.get(item.key)
         override = typed.get(item.key)
-        plan = await _plan_item(db, vin, item, choice, today, for_preview=False, override=override)
+        plan = await _plan_item(
+            db, vin, item, choice, today, readings, for_preview=False, override=override
+        )
         if plan.rule_action == "skip":
             continue
         # 1. A chosen untyped line item is typed: that is what makes the choice durable.
@@ -1677,7 +1700,7 @@ async def apply_pack(
                 await _reanchor(db, pending, rule, completion)
             await db.flush()
         # 5. Reconcile: creates when absent, otherwise only moves forward.
-        reminder = await reconcile_rule(db, rule, today=today)
+        reminder = await reconcile_rule(db, rule, today=today, readings=readings)
         if reminder is not None:
             results.append(reminder)
     await db.commit()
