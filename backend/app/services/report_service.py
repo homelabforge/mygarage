@@ -8,6 +8,7 @@ the response.
 
 import csv
 from datetime import datetime
+from decimal import Decimal
 from io import BytesIO, StringIO
 from typing import Any
 
@@ -46,6 +47,17 @@ def _service_visits_query(vin: str) -> Select[ServiceVisit]:
         .options(*service_visit_cost_load_options())
         .where(ServiceVisit.vin == vin)
     )
+
+
+def _csv_lines(visit: ServiceVisit) -> list[tuple[str, Decimal | None]]:
+    """(description, cost) for each CSV row a visit writes.
+
+    A visit with no line items still gets one row, the same one the history
+    PDF prints: its notes (or "Service") and its whole cost, fees included.
+    """
+    if visit.line_items:
+        return [(item.description or "", item.cost) for item in visit.line_items]
+    return [(visit.notes or "Service", visit.calculated_total_cost)]
 
 
 async def service_history_pdf(
@@ -325,7 +337,7 @@ async def service_history_csv(
     # `csv_units.SERVICE_HISTORY_REPORT_HEADERS`.
     writer.writerow(report_header_row(SERVICE_HISTORY_REPORT_HEADERS, {DISTANCE: distance_token}))
 
-    # Write data - one row per line item.
+    # Write data - one row per line item, or one for a visit with none.
     #
     # Every numeric cell on both reports tests `is None`, never truthiness.
     # The odometer used to be `visit.odometer_km or ""` and the cost
@@ -354,15 +366,15 @@ async def service_history_csv(
     # is no test to write.
     for visit in visits:
         vendor_name = visit.vendor.name if visit.vendor else ""
-        for item in visit.line_items:
+        for description, cost in _csv_lines(visit):
             writer.writerow(
                 sanitize_csv_row(
                     [
                         visit.date.strftime("%Y-%m-%d") if visit.date else "",
                         cell_for(ODOMETER_COLUMN, distance_token, visit.odometer_km),
                         visit.service_category or "",
-                        item.description or "",
-                        f"{item.cost:.2f}" if item.cost is not None else "",
+                        description,
+                        f"{cost:.2f}" if cost is not None else "",
                         vendor_name,
                         visit.notes or "",
                     ]
@@ -396,7 +408,7 @@ async def all_records_csv(
         )
     )
 
-    # Query and write service visits with line items
+    # Query and write service visits (an itemless visit still gets a row)
     visit_query = _service_visits_query(vin)
     if year:
         visit_query = visit_query.where(extract("year", ServiceVisit.date) == year)
@@ -412,15 +424,15 @@ async def all_records_csv(
         elif category == "Upgrades":
             type_label = "Upgrade"
 
-        for item in visit.line_items:
+        for description, cost in _csv_lines(visit):
             writer.writerow(
                 sanitize_csv_row(
                     [
                         visit.date.strftime("%Y-%m-%d") if visit.date else "",
                         type_label,
                         category,
-                        item.description or "",
-                        f"{item.cost:.2f}" if item.cost is not None else "",
+                        description,
+                        f"{cost:.2f}" if cost is not None else "",
                         cell_for(ODOMETER_COLUMN, distance_token, visit.odometer_km),
                         vendor_name,
                         # A service visit has no fuel volume. The quantity is
