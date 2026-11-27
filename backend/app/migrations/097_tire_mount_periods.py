@@ -134,8 +134,8 @@ def _preflight_reminder_checks(cur: DBAPICursor) -> list[tuple[str, str]]:
         if violations:
             print(
                 f"  → P2: SKIPPING {name}; {len(violations)} row(s) violate it: "
-                f"{violations}. The constraint is not installed. Repair those rows "
-                f"and a later release will add it."
+                f"{violations}. The constraint isn't installed; the app still "
+                f"validates these fields on write."
             )
             continue
         keep.append((name, expression))
@@ -584,7 +584,9 @@ def _run_postgres(engine: Engine) -> None:
             violations = [r[0] for r in conn.execute(text(scan)).fetchall()]
             if violations:
                 print(
-                    f"  → P2: SKIPPING {name}; {len(violations)} row(s) violate it: {violations}."
+                    f"  → P2: SKIPPING {name}; {len(violations)} row(s) violate it: "
+                    f"{violations}. The constraint isn't installed; the app still "
+                    f"validates these fields on write."
                 )
                 continue
             conn.execute(
