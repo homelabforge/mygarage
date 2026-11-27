@@ -89,6 +89,11 @@ export const clearCSRFToken = () => {
   sessionStorage.removeItem(CSRF_TOKEN_KEY)
 }
 
+// A write waits on this fetch before its own timeout even starts, so an
+// unanswered one held the write (and a drawer waiting on it) forever. Two of
+// these still fit inside the shortest write deadline (30 s).
+const CSRF_TIMEOUT_MS = 10_000
+
 // Track CSRF refresh state to prevent multiple simultaneous refreshes
 let isRefreshingCSRF = false
 let csrfRefreshPromise: Promise<string | null> | null = null
@@ -101,7 +106,10 @@ let csrfRefreshPromise: Promise<string | null> | null = null
 const refreshCSRFToken = async (): Promise<string | null> => {
   try {
     // Use a fresh axios instance to avoid interceptor recursion
-    const response = await axios.get(withBase('/api/auth/csrf-token'), { withCredentials: true })
+    const response = await axios.get(withBase('/api/auth/csrf-token'), {
+      withCredentials: true,
+      timeout: CSRF_TIMEOUT_MS,
+    })
     const token = response.data.csrf_token
     if (token) {
       setCSRFToken(token)

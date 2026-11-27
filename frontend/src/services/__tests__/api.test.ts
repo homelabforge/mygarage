@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { AxiosError, type AxiosAdapter, type AxiosResponse } from 'axios'
+import axios, { AxiosError, type AxiosAdapter, type AxiosResponse } from 'axios'
 import api, { setApiAuthMode, setAuthStaleHandler, setCSRFToken, shouldRedirectToLogin } from '../api'
 
 // setup.ts stubs axios out; the interceptor cases need the real one. Every
@@ -133,5 +133,48 @@ describe('a refused write tells a stale tab that auth is off', () => {
     })
     expect(handler).toHaveBeenCalledTimes(1)
     logged.mockRestore()
+  })
+})
+
+describe('a stalled CSRF fetch never outlasts the write waiting on it', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+    setApiAuthMode(null)
+    sessionStorage.clear()
+  })
+
+  it('the write still fails inside its own deadline', async () => {
+    vi.useFakeTimers()
+    setApiAuthMode('none')
+    sessionStorage.clear()
+    // The token fetch goes through bare axios. This one never answers, and like
+    // the real adapter it only gives up when the request carries a timeout.
+    const stall: AxiosAdapter = (config) =>
+      new Promise((_resolve, reject) => {
+        if (config.timeout) {
+          setTimeout(() => reject(new AxiosError('timeout', 'ECONNABORTED', config)), config.timeout)
+        }
+      })
+    const bareAdapter = axios.defaults.adapter
+    axios.defaults.adapter = stall
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const noise = vi.spyOn(console, 'log').mockImplementation(() => {})
+    try {
+      let outcome: unknown = 'pending'
+      api
+        .patch('/x', {}, { timeout: 30_000, adapter: answer(403, { detail: 'CSRF token missing' }) })
+        .then(
+          () => (outcome = 'resolved'),
+          (error: unknown) => (outcome = error)
+        )
+
+      await vi.advanceTimersByTimeAsync(30_000)
+
+      expect(outcome).toMatchObject({ response: { status: 403 } })
+    } finally {
+      axios.defaults.adapter = bareAdapter
+      logged.mockRestore()
+      noise.mockRestore()
+    }
   })
 })
