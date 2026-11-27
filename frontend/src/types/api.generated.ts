@@ -7864,6 +7864,9 @@ export interface paths {
          *     `window_sticker_ocr_enabled` off the file is stored without a scan: no
          *     field is filled or cleared, the scan metadata empties, and the response
          *     says so in `ocr_skipped`.
+         *
+         *     A 500 whose detail has `code: sticker_not_saved` saved nothing. Any other
+         *     500 may have, since the sticker commits before the response is built.
          */
         post: operations["upload_window_sticker_api_vehicles__vin__window_sticker_upload_post"];
         delete?: never;

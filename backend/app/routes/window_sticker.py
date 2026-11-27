@@ -81,6 +81,9 @@ async def upload_window_sticker(
     `window_sticker_ocr_enabled` off the file is stored without a scan: no
     field is filled or cleared, the scan metadata empties, and the response
     says so in `ocr_skipped`.
+
+    A 500 whose detail has `code: sticker_not_saved` saved nothing. Any other
+    500 may have, since the sticker commits before the response is built.
     """
     # Window-sticker upload mutates the vehicle row (incl. vehicle.color) -> OWNER-only (D-8).
     vehicle = await get_vehicle_for_owner_or_403(vin, current_user, db)

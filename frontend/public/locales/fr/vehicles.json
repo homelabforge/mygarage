@@ -1835,7 +1835,7 @@
       "fileTooLargeLimit": "La taille du fichier ne doit pas dépasser {{size}} Mo",
       "uploadSuccess": "Fiche constructeur téléversée avec succès ! Vérifiez les données extraites ci-dessous.",
       "saveSuccess": "Données de la fiche constructeur enregistrées avec succès !",
-      "uploadUnconfirmed": "Nous n’avons pas pu confirmer le téléversement. Fermez ce panneau et la page se rechargera pour afficher ce qui est enregistré.",
+      "uploadUnconfirmed": "Nous n’avons pas pu confirmer le téléversement : il a peut-être été enregistré. Fermez ce panneau pour recharger la page, puis vérifiez la fiche constructeur avant de la téléverser à nouveau.",
       "dragDropPrompt": "Glissez-déposez votre fiche constructeur ici ou cliquez pour le sélectionner",
       "selectFile": "Sélectionner un fichier",
       "cancel": "Annuler",

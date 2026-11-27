@@ -540,16 +540,72 @@ describe('WindowStickerUpload upload: a lost answer still reloads', () => {
         response: { status: 500, data: { detail: 'Internal server error' } },
       },
     ],
-  ])('%s: the error says it may have gone through and Cancel reloads', async (_label, failure) => {
+    [
+      'a 500 with some other code',
+      {
+        isAxiosError: true,
+        message: 'Request failed with status code 500',
+        response: { status: 500, data: { detail: { code: 'something_else' } } },
+      },
+    ],
+  ])('%s: the error says it may have gone through, offers no retry, and close reloads', async (_label, failure) => {
     const user = userEvent.setup({ applyAccept: false })
     apiPost.mockRejectedValueOnce(failure)
     const onClose = vi.fn()
     render(<WindowStickerUpload vin="V1" onSuccess={vi.fn()} onClose={onClose} />)
     await startUpload(user)
     expect(await screen.findByRole('alert')).toHaveTextContent('windowSticker.misc.uploadUnconfirmed')
-    await user.click(screen.getByRole('button', { name: 'windowSticker.misc.cancel' }))
+    // A second upload could race the first one's late commit.
+    expect(screen.queryByRole('button', { name: 'windowSticker.uploadAndExtract' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'windowSticker.misc.selectFile' })).not.toBeInTheDocument()
+    expect(document.querySelector('input[type="file"]')).toBeNull()
+    const closes = screen.getAllByRole('button', { name: 'common:close' })
+    expect(closes).toHaveLength(2)
+    await user.click(closes[1])
+    expect(apiPost).toHaveBeenCalledTimes(1)
     expect(onClose).toHaveBeenCalledTimes(1)
     expect(onClose).toHaveBeenCalledWith(true)
+  })
+
+  it('a 500 that says nothing was saved keeps the usual error, allows a retry, and closes without a reload', async () => {
+    const user = userEvent.setup({ applyAccept: false })
+    apiPost.mockRejectedValueOnce({
+      isAxiosError: true,
+      message: 'Request failed with status code 500',
+      response: {
+        status: 500,
+        data: { detail: { code: 'sticker_not_saved', message: 'Failed to save window sticker' } },
+      },
+    })
+    const onClose = vi.fn()
+    render(<WindowStickerUpload vin="V1" onSuccess={vi.fn()} onClose={onClose} />)
+    await startUpload(user)
+    const alert = await screen.findByRole('alert')
+    expect(alert).not.toHaveTextContent('windowSticker.misc.uploadUnconfirmed')
+    // The retry is the same file, sent again.
+    await user.click(screen.getByRole('button', { name: 'windowSticker.uploadAndExtract' }))
+    await screen.findByRole('button', { name: 'windowSticker.misc.saveData' })
+    expect(apiPost).toHaveBeenCalledTimes(2)
+    await user.click(screen.getByRole('button', { name: 'windowSticker.misc.cancel' }))
+    expect(onClose).toHaveBeenCalledTimes(1)
+    // The retry landed, so this close reloads; the first answer alone wouldn't have.
+    expect(onClose).toHaveBeenCalledWith(true)
+  })
+
+  it('a 500 that says nothing was saved closes without a reload when not retried', async () => {
+    const user = userEvent.setup({ applyAccept: false })
+    apiPost.mockRejectedValueOnce({
+      isAxiosError: true,
+      message: 'Request failed with status code 500',
+      response: { status: 500, data: { detail: { code: 'sticker_not_saved', message: 'Failed to save file' } } },
+    })
+    const onClose = vi.fn()
+    render(<WindowStickerUpload vin="V1" onSuccess={vi.fn()} onClose={onClose} />)
+    await startUpload(user)
+    await screen.findByRole('alert')
+    await user.click(screen.getByRole('button', { name: 'windowSticker.misc.cancel' }))
+    expect(onClose).toHaveBeenCalledTimes(1)
+    expect(onClose).toHaveBeenCalledWith(false)
   })
 
   it('a 4xx with a response keeps the usual error and closes without a reload', async () => {

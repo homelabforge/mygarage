@@ -676,6 +676,11 @@ async def test_a_failed_write_keeps_the_sticker_on_file(
         uploaded = await _upload_with_ocr(client, auth_headers, vin, SCAN, replace=True)
 
     assert uploaded.status_code == 500, uploaded.text
+    # The code tells the drawer nothing was saved, so it can offer a retry.
+    assert uploaded.json()["detail"] == {
+        "code": "sticker_not_saved",
+        "message": "Failed to save file",
+    }
     assert sticker_on_file.exists()
     assert sticker_on_file.read_bytes() == OLD_BYTES
     assert {c: await _stored(test_sessionmaker, vin, c) for c in columns} == before
@@ -702,7 +707,11 @@ async def test_a_failed_commit_keeps_the_sticker_on_file(
         uploaded = await _upload_with_ocr(client, auth_headers, vin, SCAN, replace=True)
 
     assert uploaded.status_code == 500, uploaded.text
-    # It was the route's commit that failed, with the new file beside the old.
+    assert uploaded.json()["detail"] == {
+        "code": "sticker_not_saved",
+        "message": "Failed to save window sticker",
+    }
+    # It was the service's commit that failed, with the new file beside the old.
     assert len(on_disk_at_commit) == 1, on_disk_at_commit
     assert len(on_disk_at_commit[0]) == 2, on_disk_at_commit
     assert sticker_on_file.read_bytes() == OLD_BYTES

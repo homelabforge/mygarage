@@ -42,6 +42,10 @@ MAX_FILE_SIZE = settings.max_document_size_bytes
 
 ALLOWED_STICKER_MIMES = {"application/pdf", "image/jpeg", "image/png"}
 
+#: The code on an upload 500 raised before the commit or after the rollback. The
+#: drawer reads it as "nothing was saved"; any other 500 may still have saved it.
+STICKER_NOT_SAVED = "sticker_not_saved"
+
 # The parsed numbers and the largest each column holds. OCR can misread a
 # price, and nothing validates what a parser returns before it is written.
 _PARSED_NUMBER_MAX = {
@@ -254,7 +258,10 @@ class WindowStickerService:
         except Exception:
             logger.exception("Failed to save window sticker for %s", sanitize_for_log(vin))
             _unlink_quietly(file_path)  # whatever got written before it failed
-            raise HTTPException(status_code=500, detail="Failed to save file")
+            raise HTTPException(
+                status_code=500,
+                detail={"code": STICKER_NOT_SAVED, "message": "Failed to save file"},
+            )
 
         try:
             extracted_data: dict[str, Any] = {}
@@ -307,7 +314,10 @@ class WindowStickerService:
             logger.exception("Window sticker upload failed for %s", sanitize_for_log(vin))
             # Starlette answers anything else with a 500 and then re-raises it,
             # which the test client turns into an exception. Same 500 as the write.
-            raise HTTPException(status_code=500, detail="Failed to save window sticker") from e
+            raise HTTPException(
+                status_code=500,
+                detail={"code": STICKER_NOT_SAVED, "message": "Failed to save window sticker"},
+            ) from e
         # Only now is the old file unreferenced.
         if old_path and old_path != str(file_path):
             _unlink_quietly(Path(old_path))

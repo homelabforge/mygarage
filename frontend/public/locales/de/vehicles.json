@@ -1828,7 +1828,7 @@
       "fileTooLargeLimit": "Die Datei darf höchstens {{size}} MB groß sein",
       "uploadSuccess": "Window Sticker erfolgreich hochgeladen! Überprüfe die extrahierten Daten unten.",
       "saveSuccess": "Window-Sticker-Daten erfolgreich gespeichert!",
-      "uploadUnconfirmed": "Wir konnten den Upload nicht bestätigen. Schließ das hier, dann lädt die Seite neu und zeigt, was gespeichert ist.",
+      "uploadUnconfirmed": "Wir konnten den Upload nicht bestätigen, er ist vielleicht trotzdem gespeichert. Schließ das hier, damit die Seite neu lädt, und prüf dann den Window Sticker, bevor du noch einmal hochlädst.",
       "dragDropPrompt": "Ziehe deinen Window Sticker hierher oder klicke zum Auswählen",
       "selectFile": "Datei auswählen",
       "cancel": "Abbrechen",

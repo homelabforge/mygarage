@@ -25,6 +25,15 @@ type StickerData = components['schemas']['WindowStickerResponse']
 // OCR on a big scan is slow, and the server can still commit after we give
 // up, so a timeout reads as maybe-uploaded and the reload on close may show it.
 const UPLOAD_TIMEOUT_MS = 120_000
+// WindowStickerService.STICKER_NOT_SAVED: the upload's 500 when it failed
+// before its commit or rolled back, so nothing is on file and a retry is safe.
+const STICKER_NOT_SAVED = 'sticker_not_saved'
+
+function failedBeforeSaving(err: unknown): boolean {
+  const detail = (err as { response?: { data?: { detail?: unknown } } } | null)?.response?.data?.detail
+  return typeof detail === 'object' && detail !== null && (detail as { code?: unknown }).code === STICKER_NOT_SAVED
+}
+
 // The review save is one small write, so 30 s is plenty. Past that the drawer
 // lets go, and close reloads since the upload is already on file.
 const SAVE_TIMEOUT_MS = 30_000
@@ -118,9 +127,10 @@ function WindowStickerUpload({
   // reload has fired a late Escape can't ask for a second one.
   const mounted = useRef(true)
   const reloaded = useRef(false)
-  // The upload failed with no answer or a 5xx. WindowStickerService.upload
-  // commits before the route builds the response, so the sticker may be on
-  // file anyway.
+  // The upload failed with no answer or a 5xx that doesn't say it saved
+  // nothing. The service commits before the route answers, so the sticker may
+  // be on file anyway, and a retry could race that late commit. So no retry:
+  // close reloads and shows what's there.
   const [maybeUploaded, setMaybeUploaded] = useState(false)
 
   useEffect(() => {
@@ -239,7 +249,7 @@ function WindowStickerUpload({
         err,
         WINDOW_STICKER_KNOWN_FIELDS
       )
-      if (parsed.isNetworkError || parsed.status >= 500) {
+      if (parsed.isNetworkError || (parsed.status >= 500 && !failedBeforeSaving(err))) {
         setMaybeUploaded(true)
         setError(t('windowSticker.misc.uploadUnconfirmed'))
         return
@@ -425,7 +435,19 @@ function WindowStickerUpload({
           </>
         )}
 
-        {!seed && stickersOn && (
+        {!seed && stickersOn && maybeUploaded && (
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={close}
+              className="px-4 py-2 bg-garage-bg border border-garage-border text-garage-text rounded-lg hover:bg-garage-border/50 transition-colors"
+            >
+              {t('common:close')}
+            </button>
+          </div>
+        )}
+
+        {!seed && stickersOn && !maybeUploaded && (
           <>
             {!ocrOn && (
               <div className="bg-warning-500/10 border border-warning-500 rounded-lg p-3">
