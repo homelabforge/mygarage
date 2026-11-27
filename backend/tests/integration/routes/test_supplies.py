@@ -425,6 +425,34 @@ async def test_receipt_upload_and_reflected_in_purchase(client: AsyncClient, aut
     assert entry["receipt"]["id"] == up.json()["id"]
 
 
+# A real 1x1 PNG, so the magic-byte check passes.
+_PNG = (
+    b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01"
+    b"\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00"
+    b"\x00\x0cIDATx\x9cc\x00\x01\x00\x00\x05\x00\x01\r\n-"
+    b"\xb4\x00\x00\x00\x00IEND\xaeB`\x82"
+)
+
+
+async def test_receipt_upload_answers_with_the_receipt_response(client: AsyncClient, auth_headers):
+    """The 201 is just the new receipt's id and type, and the API says so."""
+    from app.main import app
+
+    sid, pid = await _create_supply_and_purchase(client, auth_headers, "Gear oil")
+    files = {"file": ("receipt.png", io.BytesIO(_PNG), "image/png")}
+    up = await client.post(
+        f"/api/supplies/{sid}/purchases/{pid}/receipt", files=files, headers=auth_headers
+    )
+    assert up.status_code == 201
+    body = up.json()
+    assert isinstance(body["id"], int)
+    assert body == {"id": body["id"], "file_type": "image/png"}
+
+    operation = app.openapi()["paths"]["/api/supplies/{supply_id}/purchases/{purchase_id}/receipt"]
+    created = operation["post"]["responses"]["201"]["content"]["application/json"]["schema"]
+    assert created == {"$ref": "#/components/schemas/SupplyReceiptResponse"}
+
+
 async def test_receipt_upload_requires_auth(client: AsyncClient):
     files = {"file": ("receipt.pdf", io.BytesIO(b"%PDF-1.4 fake"), "application/pdf")}
     r = await client.post("/api/supplies/1/purchases/1/receipt", files=files)

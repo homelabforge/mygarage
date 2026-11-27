@@ -127,6 +127,15 @@ class SupplyReceiptSummary(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class SupplyReceiptResponse(BaseModel):
+    """The receipt a purchase has after an upload."""
+
+    id: int
+    file_type: str | None
+
+    model_config = {"from_attributes": True}
+
+
 def _storable_quantity(value: Decimal) -> Decimal:
     """The quantity at the column's 13 places, so the response echoes what's
     stored. Anything under 1 mL (0.001) is refused: too small to be a real
@@ -189,7 +198,7 @@ class SupplyUsageResponse(BaseModel):
     supply_id: int
     supply_name: str
     unit_type: SupplyUnitType = Field(
-        description="Owning supply's unit_type — lets read-only views convert the "
+        description="Owning supply's unit_type, so read-only views can convert the "
         "canonical quantity to display units (L↔qt) instead of showing raw liters"
     )
     quantity: Decimal
@@ -201,7 +210,7 @@ class SupplyUsageResponse(BaseModel):
     )
     service_line_item_id: int | None = None
     service_visit_id: int | None = Field(
-        default=None, description="Owning service visit (null for standalone adjustments) — R1-H3"
+        default=None, description="Owning service visit (null for standalone adjustments)"
     )
     service_visit_date: date_type | None = Field(
         default=None, description="Owning visit's date; the real consumption date (not created_at)"
@@ -220,7 +229,7 @@ class SupplyLedgerEntry(BaseModel):
     at: datetime = Field(
         description="Effective ledger time on the household clock, with its offset: "
         "purchase.date (midnight), a job usage's OWNING VISIT date (midnight), or a "
-        "standalone adjustment's created_at (R1-H3 ordering)"
+        "standalone adjustment's created_at"
     )
     ledger_date: date_type = Field(
         description="The household calendar day the entry falls on (the date of `at`)"
@@ -238,7 +247,7 @@ class SupplyLedgerEntry(BaseModel):
     service_visit_id: int | None = Field(default=None, description="Owning visit for a job usage")
     service_visit_date: date_type | None = None
     receipt: SupplyReceiptSummary | None = Field(
-        default=None, description="Receipt metadata for a purchase entry (R1-H4)"
+        default=None, description="Receipt metadata for a purchase entry"
     )
 
 

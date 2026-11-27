@@ -3,7 +3,7 @@
 Authorization model: supplies are a shared household catalog, exactly like
 ``address_book``. Every route is authenticated (``require_auth``). There is no
 per-vehicle authorization here because a supply is NOT a vehicle-owned child
-record — it is a household-level item with an optional, non-authoritative ``vin``
+record; it is a household-level item with an optional, non-authoritative ``vin``
 pin (see ``Supply.created_by_user_id`` "provenance only, not an access wall").
 Routes therefore key on the supply ``id``; the ``vin`` query param is a display
 filter, never an access boundary.
@@ -21,12 +21,10 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile, status
 from fastapi.responses import FileResponse
 from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models.attachment import Attachment
-from app.models.supply import SupplyPurchase
 from app.models.user import User
 from app.schemas.supply import (
     SupplyAdjustmentCreate,
@@ -35,33 +33,17 @@ from app.schemas.supply import (
     SupplyListResponse,
     SupplyPurchaseCreate,
     SupplyPurchaseResponse,
+    SupplyReceiptResponse,
     SupplyResponse,
     SupplyUpdate,
     SupplyUsageResponse,
     VehicleSupplyUsagesResponse,
 )
 from app.services.auth import require_auth
-from app.services.file_upload_service import ATTACHMENT_UPLOAD_CONFIG, FileUploadService
 from app.services.supply_pricing import price_after_purchase, price_after_purchase_delete
 from app.services.supply_service import SupplyService
 
 router = APIRouter(prefix="/api/supplies", tags=["supplies"])
-
-
-async def _get_purchase_or_404(
-    db: AsyncSession, supply_id: int, purchase_id: int
-) -> SupplyPurchase:
-    """Resolve a purchase, 404ing if missing OR if it belongs to a different supply."""
-    purchase = (
-        await db.execute(
-            select(SupplyPurchase)
-            .where(SupplyPurchase.id == purchase_id)
-            .where(SupplyPurchase.supply_id == supply_id)
-        )
-    ).scalar_one_or_none()
-    if not purchase:
-        raise HTTPException(status_code=404, detail=f"Purchase {purchase_id} not found")
-    return purchase
 
 
 @router.get("", response_model=SupplyListResponse)
@@ -115,7 +97,7 @@ async def delete_supply(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[User | None, Depends(require_auth)],
 ) -> Response:
-    """Delete a catalog supply — hard-delete if unused, soft-archive if it has ledger history."""
+    """Delete a catalog supply: hard-delete if unused, soft-archive if it has ledger history."""
     await SupplyService(db).delete_supply(supply_id, current_user)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -210,6 +192,7 @@ async def supply_history(
 
 @router.post(
     "/{supply_id}/purchases/{purchase_id}/receipt",
+    response_model=SupplyReceiptResponse,
     status_code=status.HTTP_201_CREATED,
 )
 async def upload_receipt(
@@ -218,44 +201,10 @@ async def upload_receipt(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[User | None, Depends(require_auth)],
     file: UploadFile = File(...),
-) -> dict:
-    """Upload (or REPLACE) the single receipt for a purchase — one-per-purchase (R1-H4)."""
-    await _get_purchase_or_404(db, supply_id, purchase_id)
-    svc = SupplyService(db)
-    old_files = await svc._purge_receipt(purchase_id)  # atomic replace: drop any existing row
-    # Flush the DELETE now, before the new row is even created. SQLAlchemy's unit-of-work
-    # otherwise emits pending INSERTs before pending DELETEs within a single flush, which
-    # would land the new row while the old one (same purchase_id) still exists and trip the
-    # partial unique index (uq_supply_purchase_receipt) on a plain same-request replace —
-    # not just a genuine cross-session race. Still inside the same transaction, so a later
-    # rollback undoes this delete too.
-    await db.flush()
-    upload = await FileUploadService.upload_file(
-        file, ATTACHMENT_UPLOAD_CONFIG, subdirectory=f"supply_purchase/{purchase_id}"
-    )
-    attachment = Attachment(
-        record_type="supply_purchase",
-        record_id=purchase_id,
-        file_path=str(upload.file_path),
-        file_type=upload.content_type,
-        file_size=upload.file_size,
-    )
-    db.add(attachment)
-    try:
-        await db.commit()
-    except IntegrityError:
-        # A concurrent upload won the one-per-purchase race (partial unique index, R1-H4).
-        await db.rollback()
-        SupplyService._unlink_files([str(upload.file_path)])
-        raise HTTPException(status_code=409, detail="A receipt for this purchase already exists")
-    except Exception:
-        # Any other DB failure after the file landed — don't orphan the new file.
-        await db.rollback()
-        SupplyService._unlink_files([str(upload.file_path)])
-        raise
-    svc._unlink_files(old_files)  # remove replaced file(s) only after a successful commit
-    await db.refresh(attachment)
-    return {"id": attachment.id, "file_type": attachment.file_type}
+) -> SupplyReceiptResponse:
+    """Upload (or replace) the single receipt for a purchase. A purchase gets one."""
+    attachment = await SupplyService(db).replace_receipt(supply_id, purchase_id, file)
+    return SupplyReceiptResponse.model_validate(attachment)
 
 
 @router.get("/{supply_id}/purchases/{purchase_id}/receipt")
@@ -266,7 +215,7 @@ async def download_receipt(
     current_user: Annotated[User | None, Depends(require_auth)],
 ) -> FileResponse:
     """Download the receipt file for a purchase."""
-    await _get_purchase_or_404(db, supply_id, purchase_id)
+    await SupplyService(db).get_purchase(supply_id, purchase_id)
     attachment = (
         await db.execute(
             select(Attachment)
@@ -292,13 +241,7 @@ async def delete_receipt(
     current_user: Annotated[User | None, Depends(require_auth)],
 ) -> Response:
     """Delete the receipt for a purchase, if any."""
-    await _get_purchase_or_404(db, supply_id, purchase_id)
-    svc = SupplyService(db)
-    paths = await svc._purge_receipt(purchase_id)
-    if not paths:
-        raise HTTPException(status_code=404, detail="No receipt for this purchase")
-    await db.commit()
-    svc._unlink_files(paths)  # unlink files only after the row deletion commits (R1-H4)
+    await SupplyService(db).delete_receipt(supply_id, purchase_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

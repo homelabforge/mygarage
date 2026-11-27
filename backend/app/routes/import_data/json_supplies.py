@@ -1,4 +1,4 @@
-"""Supplies in a JSON backup: the pinned ones whole, and what each line item used (K12).
+"""Supplies in a JSON backup: the pinned ones whole, and what each line item used.
 
 A pinned supply brings its whole ledger: its purchases, its standalone usages,
 and a reference to each use on another vehicle's visit (`used_elsewhere`), so
@@ -72,7 +72,7 @@ _UNIT_COST_BOUNDS: list[Any] = Field(ge=0, le=UNIT_COST_MAX).metadata
 
 @dataclass(frozen=True)
 class SupplyKey:
-    """How a supply is found by name: what tells two supplies apart here (K12)."""
+    """How a supply is found by name: what tells two supplies apart here."""
 
     name: str
     part_number: str | None
@@ -141,7 +141,7 @@ class LineItemUsage:
 
 
 def _supply_key(row: Mapping[str, Any], name_missing: str) -> SupplyKey:
-    """A supply's key, held to SupplyCreate's vocabularies and its count rule (S4)."""
+    """A supply's key, held to SupplyCreate's vocabularies and its count rule."""
     name = _json_text(row, "name")
     if name is None:
         raise _RowError(name_missing)
@@ -208,7 +208,7 @@ def _standalone_usage_from_json(row: Mapping[str, Any]) -> SupplyUsage:
     _within_api_bounds(SupplyAdjustmentCreate, quantity=quantity)
     unit_cost, cost = _snapshots(row)
     # Never an estimate, whatever the file says: an adjustment has no visit to
-    # date it, so it's priced date-blind and only while it has no cost (D3).
+    # date it, so it's priced date-blind and only while it has no cost.
     usage = SupplyUsage(
         quantity=quantity, unit_cost_snapshot=unit_cost, cost_snapshot=cost, cost_estimated=False
     )
@@ -318,7 +318,7 @@ async def write_supplies(db: AsyncSession, plan: SupplyPlan, user: User | None) 
 
     A supplier is the address book entry with that business name, lowest id
     first. One that isn't here leaves the purchase without one, with a warning:
-    making an entry from an import would put it on the map (D-6). Each use on
+    making an entry from an import would put it on the map. Each use on
     another vehicle's visit is then put back on that visit, or warned about.
     """
     db.add_all([pinned.supply for pinned in plan.supplies])
@@ -384,7 +384,7 @@ async def _can_edit(db: AsyncSession, vin: str, user: User | None) -> bool:
 
 
 def _key_matches(key: SupplyKey) -> list[ColumnElement[bool]]:
-    """A supply with the key's name, part number and units (K12)."""
+    """A supply with the key's name, part number and units."""
     return [
         Supply.name == key.name,
         # A blank stored part number is none, as the file's reads.
@@ -409,7 +409,7 @@ async def _place_used_elsewhere(db: AsyncSession, pinned: PinnedSupply, use: Use
     ]
     # A use exported with no cost may be priced since (#301), and an estimate
     # moves when it settles (#307): either side estimated takes any price, as
-    # `_usages_match` does (D7). A move keeps the stored snapshot.
+    # `_usages_match` does. A move keeps the stored snapshot.
     priced = use.cost_snapshot is not None and not use.cost_estimated
     exact = and_(
         _same_figure(SupplyUsage.unit_cost_snapshot, use.unit_cost_snapshot),
@@ -421,7 +421,7 @@ async def _place_used_elsewhere(db: AsyncSession, pinned: PinnedSupply, use: Use
     # and the two items swap snapshots. A None figure matches a stored NULL.
     exact_first = case((exact, 0), else_=1)
     # Shared only: nothing else is pinned here yet, and a supply pinned to
-    # another vehicle is a different supply (K12). A moved one leaves the pool.
+    # another vehicle is a different supply. A moved one leaves the pool.
     usage_id = (
         await db.execute(
             select(SupplyUsage.id)
@@ -575,7 +575,7 @@ class SupplyResolver:
 
     What a visit found or added sits in its own layer until its savepoint
     commits. A visit that rolls back takes its added supplies with it, so their
-    cache entries and warnings go too (R1-H1): on SQLite the next supply added
+    cache entries and warnings go too: on SQLite the next supply added
     reuses the id, so a stale entry would point at the wrong one.
     """
 
@@ -608,14 +608,14 @@ class SupplyResolver:
         if self._family.outcome == "written" and self._family.plan is not None:
             return self._family.plan.supplies[ref].supply.id
         if self._family.outcome == "refused":
-            # Nothing is added, so the fixed file's family still finds the vehicle without it (R1-H2).
+            # Nothing is added, so the fixed file's family still finds the vehicle without it.
             row = self._file_supplies[ref]
             name = as_object(row).get("name") if isinstance(row, Mapping) else None
             what = (
                 f'the pinned supply "{name}"' if isinstance(name, str) else f"pinned supply {ref}"
             )
             raise _RowError(f"{what} was refused with its family")
-        # Skipped: the vehicle has its own pinned supplies, so look the row up (D-5).
+        # Skipped: the vehicle has its own pinned supplies, so look the row up.
         # Never empty here: file_index already refused an index into no supplies.
         return await self._find(db, "pinned", file_supply_key(self._file_supplies, ref))
 
@@ -668,8 +668,8 @@ class SupplyResolver:
             # This vehicle's own first, then the shared ones.
             places = [Supply.vin == self._vin, Supply.vin.is_(None)]
         else:
-            # Shared first, then pinned to another vehicle (D-15). A key only ever
-            # means "not pinned here", so this vehicle's own is never it (F-5).
+            # Shared first, then pinned to another vehicle. A key only ever
+            # means "not pinned here", so this vehicle's own is never it.
             places = [Supply.vin.is_(None), and_(Supply.vin.isnot(None), Supply.vin != self._vin)]
             # The file says whose it is, so a shared one with the same key can't
             # take its use.
@@ -720,7 +720,7 @@ class SupplyResolver:
 
     @staticmethod
     async def _lookup(db: AsyncSession, key: SupplyKey, place: ColumnElement[bool]) -> int | None:
-        """The lowest-id supply in `place` with the key's name, part number and units (K12)."""
+        """The lowest-id supply in `place` with the key's name, part number and units."""
         return (
             await db.execute(
                 select(Supply.id).where(*_key_matches(key), place).order_by(Supply.id).limit(1)

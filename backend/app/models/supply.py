@@ -48,7 +48,7 @@ class Supply(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=true())
     # server_default (not just Python default=True): create_all runs BEFORE the migration
     # runner on a fresh boot, so the deployed schema must carry the default itself. true()
-    # is dialect-safe — renders DEFAULT 1 on SQLite, DEFAULT true on PostgreSQL (R1-F3).
+    # is dialect-safe: it renders DEFAULT 1 on SQLite and DEFAULT true on PostgreSQL.
     notes: Mapped[str | None] = mapped_column(Text)
     created_by_user_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="SET NULL")

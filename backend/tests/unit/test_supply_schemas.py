@@ -1,6 +1,7 @@
 from collections.abc import Callable
 from datetime import date, datetime
 from decimal import Decimal
+from typing import get_args
 
 import pytest
 from pydantic import BaseModel, ValidationError
@@ -15,6 +16,7 @@ from app.schemas.supply import (
     SupplyUpdate,
     SupplyUsageInput,
     SupplyUsageResponse,
+    SupplyVolumeUnit,
 )
 
 
@@ -79,15 +81,26 @@ def test_a_quantity_takes_what_its_column_holds(
     top = _column_max(column)
     assert top == Decimal("999999999999.9999999999999")
     assert build(top).model_dump()["quantity"] == top
+    # A trailing zero is the same number, so it's taken and echoed as the max.
+    assert build(Decimal("999999999999.99999999999990")).model_dump()["quantity"] == top
 
     with pytest.raises(ValidationError) as refused:
         build(top + Decimal("1E-13"))
     assert [e["type"] for e in refused.value.errors()] == ["less_than_equal"]
 
+    # Over the max by less than the grain. Rounding would bring it back to the
+    # max, so it's only refused if the bound is checked before the rounding.
+    with pytest.raises(ValidationError) as refused:
+        build(Decimal("999999999999.99999999999994"))
+    assert [e["type"] for e in refused.value.errors()] == ["less_than_equal"]
 
-def test_supply_create_accepts_a_volume_unit():
-    s = SupplyCreate(name="Brake fluid", unit_type="volume", volume_unit="fl_oz_us")
-    assert s.volume_unit == "fl_oz_us"
+
+@pytest.mark.parametrize("unit", get_args(SupplyVolumeUnit))
+def test_supply_create_accepts_a_volume_unit(unit: str):
+    s = SupplyCreate.model_validate(
+        {"name": "Brake fluid", "unit_type": "volume", "volume_unit": unit}
+    )
+    assert s.volume_unit == unit
 
 
 def test_supply_create_rejects_an_unknown_token():
@@ -96,7 +109,7 @@ def test_supply_create_rejects_an_unknown_token():
 
 
 def test_count_supply_with_a_volume_unit_is_a_422():
-    with pytest.raises(ValidationError):
+    with pytest.raises(ValidationError, match="A count supply cannot carry a volume unit"):
         SupplyCreate(name="Filters", unit_type="count", volume_unit="qt_us")
 
 

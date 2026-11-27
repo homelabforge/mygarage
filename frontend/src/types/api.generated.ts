@@ -4073,7 +4073,7 @@ export interface paths {
         post?: never;
         /**
          * Delete Supply
-         * @description Delete a catalog supply — hard-delete if unused, soft-archive if it has ledger history.
+         * @description Delete a catalog supply: hard-delete if unused, soft-archive if it has ledger history.
          */
         delete: operations["delete_supply_api_supplies__supply_id__delete"];
         options?: never;
@@ -4206,7 +4206,7 @@ export interface paths {
         put?: never;
         /**
          * Upload Receipt
-         * @description Upload (or REPLACE) the single receipt for a purchase — one-per-purchase (R1-H4).
+         * @description Upload (or replace) the single receipt for a purchase. A purchase gets one.
          */
         post: operations["upload_receipt_api_supplies__supply_id__purchases__purchase_id__receipt_post"];
         /**
@@ -17436,7 +17436,7 @@ export interface components {
             /**
              * At
              * Format: date-time
-             * @description Effective ledger time on the household clock, with its offset: purchase.date (midnight), a job usage's OWNING VISIT date (midnight), or a standalone adjustment's created_at (R1-H3 ordering)
+             * @description Effective ledger time on the household clock, with its offset: purchase.date (midnight), a job usage's OWNING VISIT date (midnight), or a standalone adjustment's created_at
              */
             at: string;
             /**
@@ -17468,7 +17468,7 @@ export interface components {
              * @description signed: + for purchase, − for usage
              */
             quantity: string;
-            /** @description Receipt metadata for a purchase entry (R1-H4) */
+            /** @description Receipt metadata for a purchase entry */
             receipt?: components["schemas"]["SupplyReceiptSummary"] | null;
             /** Running Balance */
             running_balance: string;
@@ -17539,6 +17539,16 @@ export interface components {
             supply_id: number;
             /** Total Cost */
             total_cost?: string | null;
+        };
+        /**
+         * SupplyReceiptResponse
+         * @description The receipt a purchase has after an upload.
+         */
+        SupplyReceiptResponse: {
+            /** File Type */
+            file_type: string | null;
+            /** Id */
+            id: number;
         };
         /** SupplyReceiptSummary */
         SupplyReceiptSummary: {
@@ -17676,7 +17686,7 @@ export interface components {
             service_visit_date?: string | null;
             /**
              * Service Visit Id
-             * @description Owning service visit (null for standalone adjustments) — R1-H3
+             * @description Owning service visit (null for standalone adjustments)
              */
             service_visit_id?: number | null;
             /** Supply Id */
@@ -17687,7 +17697,7 @@ export interface components {
             unit_cost_snapshot?: string | null;
             /**
              * Unit Type
-             * @description Owning supply's unit_type — lets read-only views convert the canonical quantity to display units (L↔qt) instead of showing raw liters
+             * @description Owning supply's unit_type, so read-only views can convert the canonical quantity to display units (L↔qt) instead of showing raw liters
              * @enum {string}
              */
             unit_type: "volume" | "count";
@@ -28794,9 +28804,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["SupplyReceiptResponse"];
                 };
             };
             /** @description Validation Error */
