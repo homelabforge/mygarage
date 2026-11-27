@@ -528,7 +528,7 @@ class TestTireRowNoteEdit:
             json={"recorded_at": "2026-06-21", "tread_depth_mm": "7.0", "engine_hours": "120.0"},
             headers=auth_headers,
         )
-        assert logged.status_code in (200, 201), logged.text
+        assert logged.status_code == 201, logged.text
         marker = auto_sync_marker("tire", tire["id"])
         listed = await client.get(f"/api/vehicles/{vin}/hours", headers=auth_headers)
         rows = [r for r in listed.json()["records"] if r["notes"] == marker]

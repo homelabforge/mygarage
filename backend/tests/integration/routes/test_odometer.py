@@ -387,7 +387,7 @@ class TestSyncedRowNoteEdit:
         gone = await client.delete(
             f"/api/vehicles/{vin}/service-visits/{visit['id']}", headers=auth_headers
         )
-        assert gone.status_code in (200, 204), gone.text
+        assert gone.status_code == 204, gone.text
         assert [
             r for r in await _odometer_rows(client, auth_headers, vin) if r["id"] == row["id"]
         ] == []

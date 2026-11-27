@@ -254,8 +254,9 @@ async def update_hours_record(
         # Update fields
         update_data = record_data.model_dump(exclude_unset=True)
         if is_sync_marked(record.notes):
-            # The marker is how its source finds this row to delete it, so a note
-            # edit can't replace it. Goes away once these rows get a real FK.
+            # Tire rows are found by this marker when their reading or tire goes, so
+            # a note edit can't replace it. Fuel and service rows have an FK and just
+            # keep theirs too. Goes away once tire rows get a real FK.
             update_data.pop("notes", None)
         for field, value in update_data.items():
             setattr(record, field, value)
