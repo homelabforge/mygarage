@@ -202,7 +202,7 @@ async def upload_receipt(
     current_user: Annotated[User | None, Depends(require_auth)],
     file: UploadFile = File(...),
 ) -> SupplyReceiptResponse:
-    """Upload (or replace) the single receipt for a purchase. A purchase gets one."""
+    """Upload a purchase's receipt, replacing any it already has."""
     attachment = await SupplyService(db).replace_receipt(supply_id, purchase_id, file)
     return SupplyReceiptResponse.model_validate(attachment)
 

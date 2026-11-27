@@ -516,7 +516,7 @@ class SupplyService:
         await self.get_purchase(supply_id, purchase_id)
         old_files = await self._purge_receipt(purchase_id)
         # Flush the delete before the new row exists. One flush runs INSERTs before
-        # DELETEs, so a plain replace would trip the one-receipt unique index. It's
+        # DELETEs, so a plain replace would trip `uq_supply_purchase_receipt`. It's
         # still one transaction, so a rollback undoes the delete too.
         await self.db.flush()
         upload = await FileUploadService.upload_file(

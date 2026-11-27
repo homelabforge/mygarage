@@ -127,13 +127,12 @@ class SupplyReceiptSummary(BaseModel):
     model_config = {"from_attributes": True}
 
 
-class SupplyReceiptResponse(BaseModel):
+class SupplyReceiptResponse(SupplyReceiptSummary):
     """The receipt a purchase has after an upload."""
 
-    id: int
-    file_type: str | None
-
-    model_config = {"from_attributes": True}
+    # Same fields as the summary, but an upload always says what it stored,
+    # so file_type is required here.
+    file_type: str | None = Field(...)
 
 
 def _storable_quantity(value: Decimal) -> Decimal:

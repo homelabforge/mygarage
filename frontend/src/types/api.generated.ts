@@ -4206,7 +4206,7 @@ export interface paths {
         put?: never;
         /**
          * Upload Receipt
-         * @description Upload (or replace) the single receipt for a purchase. A purchase gets one.
+         * @description Upload a purchase's receipt, replacing any it already has.
          */
         post: operations["upload_receipt_api_supplies__supply_id__purchases__purchase_id__receipt_post"];
         /**
