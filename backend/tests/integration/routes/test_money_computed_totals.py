@@ -471,11 +471,11 @@ async def test_a_parsed_amount_outside_its_column_is_dropped(
         "fuel_economy_combined_l_per_100km": "twelve",
         "exterior_color": "Blue",
     }
-    with patch("app.routes.window_sticker.WindowStickerOCRService") as ocr_class:
+    with patch("app.services.window_sticker_service.WindowStickerOCRService") as ocr_class:
         ocr = MagicMock()
         ocr.extract_data_from_file = AsyncMock(return_value=parsed)
         ocr_class.return_value = ocr
-        with caplog.at_level(logging.WARNING, logger="app.routes.window_sticker"):
+        with caplog.at_level(logging.WARNING, logger="app.services.window_sticker_service"):
             uploaded = await client.post(
                 f"/api/vehicles/{own_vin}/window-sticker/upload",
                 files={"file": ("sticker.pdf", b"%PDF-1.4 sticker", "application/pdf")},

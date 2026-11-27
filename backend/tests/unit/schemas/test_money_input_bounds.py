@@ -30,7 +30,6 @@ from starlette.routing import BaseRoute
 
 from app.main import app
 from app.routes.import_data import _ImportBoundError, _within_api_bounds
-from app.routes.window_sticker import WindowStickerDataUpdate
 from app.schemas._money import MONEY_MAX, UNIT_PRICE_MAX
 from app.schemas.def_record import DEFRecordCreate, DEFRecordUpdate
 from app.schemas.financing import FinancingRecordCreate, FinancingRecordUpdate
@@ -63,6 +62,7 @@ from app.schemas.vehicle import (
     VehicleCreate,
     VehicleUpdate,
 )
+from app.schemas.window_sticker import WindowStickerDataUpdate
 from app.services.fuel_ingest import WebhookFuelPayload
 from tests._importer_source import importer_modules
 from tests.unit.schemas._money_names import MONEY_COLUMN_NAMES, is_money_name

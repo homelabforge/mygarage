@@ -18,8 +18,8 @@ from sqlalchemy import Column
 from app.models._types import ScaledNumeric
 from app.models.fuel import FuelRecord
 from app.models.vehicle import Vehicle
-from app.routes.window_sticker import WindowStickerDataUpdate
 from app.schemas.fuel import FuelRecordCreate, FuelRecordUpdate
+from app.schemas.window_sticker import WindowStickerDataUpdate
 
 
 def _column_max(column: Column[Any]) -> Decimal:
