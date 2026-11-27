@@ -163,6 +163,37 @@ describe('ReadingEditor', () => {
     expect(mutate).not.toHaveBeenCalled()
   })
 
+  describe('the corner in the title', () => {
+    // The tire went from FL to FR on 2026-03-01; this reading is from February.
+    const rotated = { ...TIRE, position: 'FR' }
+    const renderTitled = (position: string | null) => {
+      const named = vi.fn(labelFor)
+      render(
+        <ReadingEditor
+          vin={VIN}
+          tire={rotated as never}
+          reading={{ ...TYPO, recorded_at: '2026-02-01', position } as never}
+          open
+          onClose={onClose}
+          labelFor={named}
+        />
+      )
+      return named
+    }
+
+    it("names the corner the tire had on the reading's date, not today's", () => {
+      const named = renderTitled('FL')
+      expect(named).toHaveBeenCalledWith('FL')
+      expect(named).not.toHaveBeenCalledWith('FR')
+    })
+
+    it('says storage when the tire was off the car that day', () => {
+      const named = renderTitled(null)
+      expect(named).toHaveBeenCalledWith(null)
+      expect(named).not.toHaveBeenCalledWith('FR')
+    })
+  })
+
   describe('in 32nds of an inch', () => {
     beforeEach(() => {
       units = IMPERIAL_UNITS
