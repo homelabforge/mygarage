@@ -751,12 +751,12 @@ def _report_header_variants(template: ReportHeaderTemplate) -> set[tuple[str, ..
 
 # --- Which report shapes are refused on import, and why ---------------------
 #
-# A report CSV is never importable, in ANY era.
-# `services/report_service.py` writes printable summaries, not backups: both
-# endpoints flatten each service visit into one row per line item and carry
-# columns the service importer does not consume, and
-# `download_all_records_csv` additionally interleaves fuel rows into what that
-# importer reads as a service file.
+# A report CSV is never importable, in ANY era. `services/report_service.py`
+# writes printable summaries, not backups: both endpoints flatten each service
+# visit into one row per line item (one for a visit with none) and carry
+# columns the service importer does not consume, and `download_all_records_csv`
+# additionally interleaves fuel rows into what that importer reads as a
+# service file.
 #
 # That flat rule REPLACES a narrower one that refused only the shapes whose
 # UNITS were ambiguous. The narrower rule left the worst case wide open:

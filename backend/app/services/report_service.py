@@ -49,11 +49,11 @@ def _service_visits_query(vin: str) -> Select[ServiceVisit]:
     )
 
 
-def _csv_lines(visit: ServiceVisit) -> list[tuple[str, Decimal | None]]:
-    """(description, cost) for each CSV row a visit writes.
+def _visit_lines(visit: ServiceVisit) -> list[tuple[str, Decimal | None]]:
+    """(description, cost) for each row a visit puts in a report.
 
-    A visit with no line items still gets one row, the same one the history
-    PDF prints: its notes (or "Service") and its whole cost, fees included.
+    One per line item. A visit with no line items still gets one row: its
+    notes (or "Service") and its whole cost, fees included.
     """
     if visit.line_items:
         return [(item.description or "", item.cost) for item in visit.line_items]
@@ -67,7 +67,10 @@ async def service_history_pdf(
     start_date: date | None,
     end_date: date | None,
 ) -> BytesIO:
-    """Service history PDF: one row per line item, newest first, inside the date window."""
+    """Service history PDF, newest first, inside the date window.
+
+    One row per line item, or one for a visit with none.
+    """
     vin = vehicle.vin
 
     # Query service visits with line items + vendor
@@ -97,27 +100,14 @@ async def service_history_pdf(
     records_data: list[dict[str, Any]] = []
     for visit in visits:
         vendor_name = visit.vendor.name if visit.vendor else None
-        if visit.line_items:
-            for item in visit.line_items:
-                records_data.append(
-                    {
-                        "date": visit.date,
-                        "odometer_km": visit.odometer_km,
-                        "service_category": visit.service_category,
-                        "service_type": item.description,
-                        "cost": item.cost,
-                        "vendor_name": vendor_name,
-                    }
-                )
-        else:
-            # Visit with no line items (fee-only or notes-only)
+        for description, cost in _visit_lines(visit):
             records_data.append(
                 {
                     "date": visit.date,
                     "odometer_km": visit.odometer_km,
                     "service_category": visit.service_category,
-                    "service_type": visit.notes or "Service",
-                    "cost": visit.calculated_total_cost,
+                    "service_type": description,
+                    "cost": cost,
                     "vendor_name": vendor_name,
                 }
             )
@@ -308,7 +298,10 @@ async def service_history_csv(
     start_date: date | None,
     end_date: date | None,
 ) -> str:
-    """Service history CSV body in `context`'s units, one row per line item."""
+    """Service history CSV body in `context`'s units.
+
+    One row per line item, or one for a visit with none.
+    """
     distance_token = token_for(ODOMETER_COLUMN, context.units)
 
     # Query service visits with line items + vendor
@@ -359,7 +352,7 @@ async def service_history_csv(
     # is no test to write.
     for visit in visits:
         vendor_name = visit.vendor.name if visit.vendor else ""
-        for description, cost in _csv_lines(visit):
+        for description, cost in _visit_lines(visit):
             writer.writerow(
                 sanitize_csv_row(
                     [
@@ -384,7 +377,10 @@ async def all_records_csv(
     context: RenderContext,
     year: int | None,
 ) -> str:
-    """All-records CSV body in `context`'s units: service line items, then fuel."""
+    """All-records CSV body in `context`'s units: service rows, then fuel.
+
+    One service row per line item, or one for a visit with none.
+    """
     vin = vehicle.vin
     distance_token = token_for(ODOMETER_COLUMN, context.units)
     volume_token = token_for(VOLUME_COLUMN, context.units)
@@ -417,7 +413,7 @@ async def all_records_csv(
         elif category == "Upgrades":
             type_label = "Upgrade"
 
-        for description, cost in _csv_lines(visit):
+        for description, cost in _visit_lines(visit):
             writer.writerow(
                 sanitize_csv_row(
                     [
