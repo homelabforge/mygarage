@@ -260,6 +260,16 @@ async def _seed(db: AsyncSession) -> dict[str, str]:
     )
     # Past the upper bound: no items, no notes, no category, no total.
     await visit([], vin=_VIN, date=date(2025, 12, 20))
+    # Past the window with a line item, so a CSV that ignores end_date grows a row.
+    await visit(
+        [("Alignment", Decimal("90.00"))],
+        vin=_VIN,
+        vendor_id=vendor_a.id,
+        date=date(2026, 1, 15),
+        odometer_km=Decimal("19000.00"),
+        service_category="Maintenance",
+        total_cost=Decimal("90.00"),
+    )
     # The trailer's one visit.
     await visit(
         [("Bearing repack", Decimal("80.00"))],
@@ -368,7 +378,10 @@ def _history_row(
 
 
 # Newest first, as the route orders them. The window is [2025-02-01, 2025-11-30].
-_PAST_WINDOW = [_history_row(date(2025, 12, 20), None, None, "Service", "0", None)]
+_PAST_WINDOW = [
+    _history_row(date(2026, 1, 15), "19000", "Maintenance", "Alignment", "90.00", _VENDOR_A),
+    _history_row(date(2025, 12, 20), None, None, "Service", "0", None),
+]
 _IN_WINDOW = [
     _history_row(date(2025, 11, 30), "18000", "Upgrades", "=1+1", "300.00", _VENDOR_A),
     _history_row(date(2025, 8, 20), "15000", "Collision", "Bumper", "500.00", _VENDOR_B),
@@ -473,6 +486,7 @@ class TestSaleHistoryPdf:
                 {
                     "vehicle_info": _VEHICLE_INFO,
                     "service_records": [
+                        row(date(2026, 1, 15), "19000", "Alignment"),
                         row(date(2025, 12, 20), None, "Service"),
                         row(date(2025, 11, 30), "18000", "=1+1"),
                         row(date(2025, 8, 20), "15000", "Bumper"),
