@@ -51,8 +51,8 @@ FATAL = True
 
 #: Every CHECK that step 7 restores on `vehicle_reminders`, with the scan that
 #: proves the data can take it. Preflight P2 runs all of them: a violated CHECK
-#: is skipped and logged, because a missing constraint is recoverable and a
-#: crash-looping instance is not.
+#: is skipped and logged, because the app already validates these fields on
+#: write and a crash-looping instance helps nobody.
 #:
 #: Enumerated from the DDL step 7 writes, not from the ones that came to mind.
 #: An earlier draft listed only the two vocabulary CHECKs and missed the range
