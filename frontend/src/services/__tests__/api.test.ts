@@ -110,9 +110,28 @@ describe('a refused write tells a stale tab that auth is off', () => {
 
   it('still rejects with the original error when no handler is set', async () => {
     setApiAuthMode('local')
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
 
     await expect(api.post('/x', {}, { adapter: answer(400, SIGN_IN) })).rejects.toMatchObject({
       response: { status: 400, data: SIGN_IN },
     })
+    // No handler means nothing to call, not a swallowed TypeError.
+    expect(logged).not.toHaveBeenCalled()
+    logged.mockRestore()
+  })
+
+  it('a handler that throws still hands back the original 400', async () => {
+    const handler = vi.fn(() => {
+      throw new Error('handler blew up')
+    })
+    setAuthStaleHandler(handler)
+    setApiAuthMode('local')
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    await expect(api.post('/x', {}, { adapter: answer(400, SIGN_IN) })).rejects.toMatchObject({
+      response: { status: 400, data: SIGN_IN },
+    })
+    expect(handler).toHaveBeenCalledTimes(1)
+    logged.mockRestore()
   })
 })

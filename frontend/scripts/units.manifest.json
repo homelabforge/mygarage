@@ -4220,8 +4220,8 @@
     {
       "path": "src/services/api.ts",
       "disposition": "no unit behaviour",
-      "digest": "0afce5ab3a714fe5c1269981db28150b57064215b6eb423645cc508cc2b5e1ed",
-      "reason": "no unit behaviour: dispositioned under the CORRECTED scan: every unit stem, token, quantity name and canonical field suffix this codebase uses, matched case-insensitively with NO word boundary. The earlier word-boundary version was a floor (it called AnalyticsHelpModal.tsx clean while it renders \"Average MPG:\" to every user) and it was superseded before any disposition in this file was written. This file matched NONE of them. 2026-11-27 (backend-ui-hygiene): a 400 requires_sign_in while the tab thinks auth is on calls a handler AuthContext registers (setAuthStaleHandler). No unit behaviour."
+      "digest": "e5fef07d2f81d04d8e4ef18a6f80bf77c06db38101792681fed5787be78a8f46",
+      "reason": "no unit behaviour: dispositioned under the CORRECTED scan: every unit stem, token, quantity name and canonical field suffix this codebase uses, matched case-insensitively with NO word boundary. The earlier word-boundary version was a floor (it called AnalyticsHelpModal.tsx clean while it renders \"Average MPG:\" to every user) and it was superseded before any disposition in this file was written. This file matched NONE of them. 2026-11-27 (backend-ui-hygiene): a 400 requires_sign_in while the tab thinks auth is on calls a handler AuthContext registers (setAuthStaleHandler). No unit behaviour. 2026-11-27 (backend-ui-hygiene): a handler that throws gets logged, and the caller still gets the original 400. No unit behaviour."
     },
     {
       "path": "src/services/carCatalogService.ts",

@@ -166,7 +166,12 @@ api.interceptors.response.use(
       currentAuthMode !== 'none' &&
       isRequiresSignIn(error.response.data)
     ) {
-      authStaleHandler?.()
+      // A broken handler must not swap the caller's 400 for its own error.
+      try {
+        authStaleHandler?.()
+      } catch (handlerError) {
+        console.error('[Auth] Stale-auth handler failed:', handlerError)
+      }
     }
 
     // Handle 403 CSRF errors with retry
