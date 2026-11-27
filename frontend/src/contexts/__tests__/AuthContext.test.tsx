@@ -1121,13 +1121,16 @@ describe('AuthContext keeps one account from landing on another', () => {
     })
     await waitFor(() => expect(sweeps).toHaveLength(2))
     expect(screen.getByTestId('who')).toHaveTextContent('none')
+    expect(localStorage.getItem(MARKER)).toBeNull()
 
-    // Pins out an adopt that checks for a logout only before its claim.
+    // Pins out an adopt that checks for a logout only before its claim, and a
+    // claim that writes alice's marker back once its sweep finishes.
     await act(async () => {
       sweeps.forEach((sweep) => sweep())
     })
     await settle()
     expect(screen.getByTestId('who')).toHaveTextContent('none')
+    expect(localStorage.getItem(MARKER)).toBeNull()
   })
 
   it('two logouts at once send one POST', async () => {

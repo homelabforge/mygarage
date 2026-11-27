@@ -166,7 +166,8 @@ export function AuthProvider({ children }: { children: ReactNode}) {
     ): Promise<void> => {
       // A logout landed since this started, so this answer is about a session that's over.
       if (gen !== authGenRef.current) return
-      await claimOfflineData(owner)
+      // The claim asks too, so a logout that lands mid-sweep doesn't get the marker put back.
+      await claimOfflineData(owner, () => gen === authGenRef.current && current())
       if (gen !== authGenRef.current || !current()) return
       // Another account's pages are still in memory. Drop them before anyone
       // renders. The public settings aren't anyone's, and a mode switch just wrote them.
