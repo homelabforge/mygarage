@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { useState } from 'react'
+import { useState, type ReactElement } from 'react'
 import { render, screen, waitFor, act } from '@testing-library/react'
 import { onlineManager } from '@tanstack/react-query'
 import { renderWithQueryClient } from '@/__tests__/queryClient'
@@ -35,14 +35,19 @@ import { getHouseholdTimeZone, setHouseholdTimeZone } from '../../constants/i18n
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const mockedApi = api as any
 
+// Whose offline copies these are (utils/offlineData.ts).
+const MARKER = 'offline-data-owner'
+
 // Test component to expose auth context values
 function AuthConsumer() {
   const { user, isAuthenticated, isAdmin, loading, authMode, login, logout, register } = useAuth()
   // Captures whatever login()/register() reject with, unmodified, so tests can
   // inspect its shape (real AxiosError vs a pre-flattened plain Error).
   const [caughtError, setCaughtError] = useState<unknown>(null)
+  const [logoutResult, setLogoutResult] = useState<string>('pending')
   return (
     <div>
+      <span data-testid="logout-result">{logoutResult}</span>
       <span data-testid="loading">{String(loading)}</span>
       <span data-testid="authenticated">{String(isAuthenticated)}</span>
       <span data-testid="admin">{String(isAdmin)}</span>
@@ -61,7 +66,7 @@ function AuthConsumer() {
       <button onClick={() => login('testuser', 'wrongpass').catch(setCaughtError)}>
         Login (bad credentials)
       </button>
-      <button onClick={() => logout()}>Logout</button>
+      <button onClick={() => void logout().then((ok) => setLogoutResult(String(ok)))}>Logout</button>
       <button onClick={() => register('newuser', 'new@test.com', 'pass123')}>Register</button>
       <button onClick={() => register('newuser', 'new@test.com', 'weak').catch(setCaughtError)}>
         Register (weak password)
@@ -74,6 +79,7 @@ describe('AuthContext', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     sessionStorage.clear()
+    localStorage.clear()
   })
 
   it('useAuth throws when used outside AuthProvider', () => {
@@ -246,7 +252,7 @@ describe('AuthContext', () => {
       return Promise.reject(new Error('Not found'))
     })
 
-    renderWithQueryClient(
+    const { client } = renderWithQueryClient(
       <AuthProvider>
         <AuthConsumer />
       </AuthProvider>
@@ -255,13 +261,16 @@ describe('AuthContext', () => {
     await waitFor(() => {
       expect(screen.getByTestId('authenticated')).toHaveTextContent('true')
     })
+    expect(localStorage.getItem(MARKER)).toBe('1')
 
     // Mock logout API call
     mockedApi.post.mockResolvedValueOnce({})
-    // Offline analytics copies, this account's, an old VIN-only one, and something else.
+    // Offline copies: this account's analytics, an old VIN-only one, a vehicle,
+    // and what the pages had in memory.
     localStorage.setItem('analytics-cache-1-V1', '{}')
     localStorage.setItem('analytics-cache-V1', '{}')
     localStorage.setItem('vehicle-cache-V1', '{}')
+    client.setQueryData(['vehicles'], [{ vin: 'V1' }])
 
     await act(async () => {
       screen.getByText('Logout').click()
@@ -270,14 +279,82 @@ describe('AuthContext', () => {
     await waitFor(() => {
       expect(screen.getByTestId('authenticated')).toHaveTextContent('false')
       expect(screen.getByTestId('username')).toHaveTextContent('none')
+      expect(screen.getByTestId('logout-result')).toHaveTextContent('true')
     })
 
     expect(clearCSRFToken).toHaveBeenCalled()
-    // The next account on this browser mustn't read them offline.
+    // The next account on this browser mustn't read any of it, offline or not.
     expect(localStorage.getItem('analytics-cache-1-V1')).toBeNull()
     expect(localStorage.getItem('analytics-cache-V1')).toBeNull()
+    expect(localStorage.getItem('vehicle-cache-V1')).toBeNull()
+    expect(client.getQueryData(['vehicles'])).toBeUndefined()
+    expect(localStorage.getItem(MARKER)).toBeNull()
+  })
+
+  it('a logout the server already forgot (401) still signs out and wipes', async () => {
+    mockedApi.get.mockImplementation((url: string) => {
+      if (url === '/settings/public') {
+        return Promise.resolve({ data: { settings: [{ key: 'auth_mode', value: 'local' }] } })
+      }
+      if (url === '/auth/me') {
+        return Promise.resolve({ data: { id: 1, username: 'testuser', is_admin: false } })
+      }
+      return Promise.reject(new Error('Not found'))
+    })
+    renderWithQueryClient(
+      <AuthProvider>
+        <AuthConsumer />
+      </AuthProvider>
+    )
+    await waitFor(() => expect(screen.getByTestId('authenticated')).toHaveTextContent('true'))
+
+    mockedApi.post.mockRejectedValueOnce({ response: { status: 401 } })
+    localStorage.setItem('vehicle-cache-V1', '{}')
+    await act(async () => {
+      screen.getByText('Logout').click()
+    })
+
+    // Pins out a logout that treats every failure as "still signed in": the
+    // cookie's already dead, so staying would just strand the user.
+    await waitFor(() => expect(screen.getByTestId('logout-result')).toHaveTextContent('true'))
+    expect(screen.getByTestId('authenticated')).toHaveTextContent('false')
+    expect(localStorage.getItem('vehicle-cache-V1')).toBeNull()
+  })
+
+  it('a logout the server never heard keeps you signed in and keeps the copies', async () => {
+    mockedApi.get.mockImplementation((url: string) => {
+      if (url === '/settings/public') {
+        return Promise.resolve({ data: { settings: [{ key: 'auth_mode', value: 'local' }] } })
+      }
+      if (url === '/auth/me') {
+        return Promise.resolve({ data: { id: 1, username: 'testuser', is_admin: false } })
+      }
+      return Promise.reject(new Error('Not found'))
+    })
+    const { client } = renderWithQueryClient(
+      <AuthProvider>
+        <AuthConsumer />
+      </AuthProvider>
+    )
+    await waitFor(() => expect(screen.getByTestId('authenticated')).toHaveTextContent('true'))
+
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
+    mockedApi.post.mockRejectedValueOnce(new Error('Network Error'))
+    localStorage.setItem('vehicle-cache-V1', '{}')
+    client.setQueryData(['vehicles'], [{ vin: 'V1' }])
+    await act(async () => {
+      screen.getByText('Logout').click()
+    })
+
+    // Pins out the old carry-on-anyway logout: the HttpOnly cookie is still
+    // live, so the browser would be this account again once it's back online.
+    await waitFor(() => expect(screen.getByTestId('logout-result')).toHaveTextContent('false'))
+    expect(screen.getByTestId('authenticated')).toHaveTextContent('true')
+    expect(localStorage.getItem(MARKER)).toBe('1')
     expect(localStorage.getItem('vehicle-cache-V1')).toBe('{}')
-    localStorage.clear()
+    expect(client.getQueryData(['vehicles'])).toEqual([{ vin: 'V1' }])
+    expect(clearCSRFToken).not.toHaveBeenCalled()
+    expect(logged).toHaveBeenCalled()
   })
 
   it('register calls API with correct payload', async () => {
@@ -822,5 +899,111 @@ describe('AuthContext reconciles from the freshest public settings', () => {
     await settle()
     expect(screen.getByTestId('state')).toHaveTextContent('none|none|America/Chicago|US')
     expect(client.getQueryData(publicSettingsQuery.queryKey)).toEqual(OLD)
+  })
+})
+
+describe('AuthContext claims the offline copies before anyone sees the user', () => {
+  // Mounts only once there's a user and reads the vehicle copy on that first
+  // render, like a page landing straight after sign-in would.
+  function FirstSight(): ReactElement {
+    const [seen] = useState(() => localStorage.getItem('vehicle-cache-V1') ?? 'gone')
+    return <span data-testid="first-sight">{seen}</span>
+  }
+  function Probe(): ReactElement {
+    const { user, login } = useAuth()
+    return (
+      <div>
+        <span data-testid="who">{user?.username ?? 'none'}</span>
+        {user ? <FirstSight /> : null}
+        <button onClick={() => void login('bob', 'pw').catch(() => {})}>Login</button>
+      </div>
+    )
+  }
+
+  const settings = (mode: string): { data: { settings: { key: string; value: string }[] } } => ({
+    data: { settings: [{ key: 'auth_mode', value: mode }] },
+  })
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    sessionStorage.clear()
+    localStorage.clear()
+    // User 1 was here last.
+    localStorage.setItem(MARKER, '1')
+    localStorage.setItem('vehicle-cache-V1', '{"owner":1}')
+  })
+
+  afterEach(() => {
+    localStorage.clear()
+  })
+
+  it("booting user 2 drops user 1's copies first", async () => {
+    mockedApi.get.mockImplementation((url: string) => {
+      if (url === '/settings/public') return Promise.resolve(settings('local'))
+      if (url === '/auth/me') return Promise.resolve({ data: { id: 2, username: 'bob', is_admin: false } })
+      return Promise.reject(new Error('Not found'))
+    })
+    renderWithQueryClient(
+      <AuthProvider>
+        <Probe />
+      </AuthProvider>,
+    )
+
+    await waitFor(() => expect(screen.getByTestId('who')).toHaveTextContent('bob'))
+    // Pins out a claim that runs after the user is set (in an effect, say):
+    // the first page to mount would read user 1's vehicle.
+    expect(screen.getByTestId('first-sight')).toHaveTextContent('gone')
+    expect(localStorage.getItem('vehicle-cache-V1')).toBeNull()
+    // Pins out a stale auth mode that files everyone under 'local'.
+    expect(localStorage.getItem(MARKER)).toBe('2')
+  })
+
+  it("signing in as user 2 drops user 1's copies first", async () => {
+    // User 1's session expired, so boot finds nobody and leaves the copies.
+    mockedApi.get.mockImplementation((url: string) => {
+      if (url === '/settings/public') return Promise.resolve(settings('local'))
+      if (url === '/auth/me') return Promise.reject({ response: { status: 401 } })
+      return Promise.reject(new Error('Not found'))
+    })
+    renderWithQueryClient(
+      <AuthProvider>
+        <Probe />
+      </AuthProvider>,
+    )
+    await waitFor(() => expect(mockedApi.get).toHaveBeenCalledWith('/auth/me'))
+    expect(localStorage.getItem('vehicle-cache-V1')).toBe('{"owner":1}')
+
+    mockedApi.post.mockResolvedValueOnce({ data: { access_token: 't', csrf_token: 'c' } })
+    vi.mocked(getCSRFToken).mockReturnValue('c')
+    mockedApi.get.mockImplementation((url: string) =>
+      url === '/auth/me'
+        ? Promise.resolve({ data: { id: 2, username: 'bob', is_admin: false } })
+        : Promise.reject(new Error('Not found')),
+    )
+    await act(async () => {
+      screen.getByText('Login').click()
+    })
+
+    // Pins out a claim on the boot path only: form login sets the user itself.
+    await waitFor(() => expect(screen.getByTestId('who')).toHaveTextContent('bob'))
+    expect(screen.getByTestId('first-sight')).toHaveTextContent('gone')
+    expect(localStorage.getItem('vehicle-cache-V1')).toBeNull()
+    expect(localStorage.getItem(MARKER)).toBe('2')
+  })
+
+  it("files the copies under 'local' with sign-in off", async () => {
+    mockedApi.get.mockImplementation((url: string) =>
+      url === '/settings/public' ? Promise.resolve(settings('none')) : Promise.reject(new Error('Not found')),
+    )
+    renderWithQueryClient(
+      <AuthProvider>
+        <Probe />
+      </AuthProvider>,
+    )
+
+    // Pins out a none branch that skips the claim, leaving user 1's copies to
+    // whoever uses the open instance next.
+    await waitFor(() => expect(localStorage.getItem(MARKER)).toBe('local'))
+    expect(localStorage.getItem('vehicle-cache-V1')).toBeNull()
   })
 })

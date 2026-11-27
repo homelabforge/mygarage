@@ -17,6 +17,7 @@
   "appearance": "Penampilan",
   "accent": "Warna aksen",
   "accentError": "Warna aksen anda tidak dapat disimpan",
+  "logoutFailed": "Pelayan tidak dapat dihubungi, anda masih log masuk.",
   "accents": {
     "blue": "Biru",
     "amber": "Ambar",

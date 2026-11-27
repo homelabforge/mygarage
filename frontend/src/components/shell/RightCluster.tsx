@@ -1,6 +1,7 @@
 import { Link, useNavigate } from 'react-router-dom'
 import { LogOut, Moon, Sun, User } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import { Avatar, Badge, IconButton } from '../ui'
 import NavSearch from './NavSearch'
 import NotificationBell from './NotificationBell'
@@ -26,9 +27,11 @@ export default function RightCluster() {
   const { user, isAuthenticated, isAdmin, logout, authMode } = useAuth()
   const navigate = useNavigate()
 
-  const handleLogout = () => {
-    logout()
-    navigate('/login')
+  // Only leave once the server's cleared the session, or the login page would
+  // look signed out while the cookie still works.
+  const handleLogout = async (): Promise<void> => {
+    if (await logout()) navigate('/login')
+    else toast.error(t('logoutFailed'))
   }
 
   return (
@@ -58,7 +61,7 @@ export default function RightCluster() {
               icon={LogOut}
               label={t('logout')}
               variant="ghost"
-              onClick={handleLogout}
+              onClick={() => void handleLogout()}
               className="max-md:hidden"
             />
           </div>

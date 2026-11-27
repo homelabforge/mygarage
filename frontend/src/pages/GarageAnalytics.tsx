@@ -27,6 +27,8 @@ import { useCurrencyPreference } from '../hooks/useCurrencyPreference'
 import { useTimeFormat } from '../hooks/useTimeFormat'
 import { formatDateTime } from '../utils/parseAPITimestamp'
 import { getActiveDateOrder } from '../constants/i18n'
+import { useAuth } from '../contexts/AuthContext'
+import { analyticsCacheOwner, readCachedGarageAnalytics, rememberGarageAnalytics } from '../utils/analyticsCache'
 import { CHART_AVG_LONG, CHART_AVG_SHORT, CHART_AXIS, CHART_GAP_SURFACE, CHART_OTHER, ChartTooltipBox, categoryColor, chartLegendText, hasCategorySlot } from '../components/charts/chartTheme'
 
 // Running-cost total for one month: service, fuel and DEF. Financing has its
@@ -45,6 +47,8 @@ export default function GarageAnalytics() {
   const { t } = useTranslation('analytics')
   const { currencyCode, locale } = useCurrencyPreference()
   const { timeFormat } = useTimeFormat()
+  const { user, authMode } = useAuth()
+  const cacheOwner = analyticsCacheOwner(authMode, user?.id)
   const [analytics, setAnalytics] = useState<GarageAnalytics | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -143,8 +147,6 @@ export default function GarageAnalytics() {
 
   useEffect(() => {
     const fetchAnalytics = async () => {
-      const cacheKey = 'garage-analytics-cache'
-
       try {
         setLoading(true)
         setError(null)
@@ -153,31 +155,19 @@ export default function GarageAnalytics() {
         const response = await api.get('/analytics/garage')
         const data: GarageAnalytics = response.data
         setAnalytics(data)
-
-        // Cache the data
-        localStorage.setItem(
-          cacheKey,
-          JSON.stringify({
-            timestamp: Date.now(),
-            data,
-          })
-        )
+        // Filed under this account, so the next one on the browser can't read it.
+        rememberGarageAnalytics(cacheOwner, data)
       } catch (err) {
         const errorMessage = getActionErrorMessage(err, t('garage.loadAction'))
         setError(errorMessage)
 
-        // If offline, try to load from cache
+        // If offline, fall back to this account's copy
         if (!navigator.onLine) {
-          const cached = localStorage.getItem(cacheKey)
+          const cached = readCachedGarageAnalytics(cacheOwner)
           if (cached) {
-            try {
-              const parsed = JSON.parse(cached)
-              setAnalytics(parsed.data)
-              setFromCache(true)
-              setError(t('garage.offlineCached'))
-            } catch {
-              // Invalid cache
-            }
+            setAnalytics(cached)
+            setFromCache(true)
+            setError(t('garage.offlineCached'))
           }
         }
       } finally {
@@ -186,7 +176,7 @@ export default function GarageAnalytics() {
     }
 
     fetchAnalytics()
-  }, [t])
+  }, [t, cacheOwner])
 
   if (loading) {
     return (

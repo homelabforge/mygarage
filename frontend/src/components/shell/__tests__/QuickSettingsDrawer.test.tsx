@@ -142,10 +142,23 @@ describe('QuickSettingsDrawer', () => {
   })
 
   it('shows a logout row that logs out and routes to /login when authed', async () => {
+    h.logout.mockResolvedValue(true)
     openDrawer()
     fireEvent.click(await screen.findByRole('button', { name: 'logout' }))
     expect(h.logout).toHaveBeenCalledOnce()
-    expect(h.navigate.mock.calls).toStrictEqual([['/login']])
+    await waitFor(() => expect(h.navigate.mock.calls).toStrictEqual([['/login']]))
+    expect(h.toastError).not.toHaveBeenCalled()
+  })
+
+  it("keeps the drawer open and says so when the logout didn't reach the server", async () => {
+    h.logout.mockResolvedValue(false)
+    openDrawer()
+    fireEvent.click(await screen.findByRole('button', { name: 'logout' }))
+
+    // Pins out navigating regardless of the answer: you'd land on /login still signed in.
+    await waitFor(() => expect(h.toastError).toHaveBeenCalledWith('logoutFailed'))
+    expect(h.navigate).not.toHaveBeenCalled()
+    expect(screen.getByRole('dialog', { name: 'quickSettings' })).toBeInTheDocument()
   })
 
   it('hides the logout row when auth is disabled (authMode none)', async () => {

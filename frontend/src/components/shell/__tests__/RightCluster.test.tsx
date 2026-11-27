@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import * as AuthContext from '../../../contexts/AuthContext'
@@ -12,6 +12,13 @@ vi.mock('../../../hooks/useThemePreference', () => ({
   useThemePreference: () => ({ theme: 'dark', toggleTheme: themeMocks.toggleTheme, setTheme: themeMocks.setTheme }),
 }))
 vi.mock('../../../contexts/AuthContext')
+// Stub only useNavigate, so where logout sends you is observable.
+const nav = vi.hoisted(() => ({ navigate: vi.fn(), toastError: vi.fn() }))
+vi.mock('react-router-dom', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('react-router-dom')>()),
+  useNavigate: () => nav.navigate,
+}))
+vi.mock('sonner', () => ({ toast: { error: nav.toastError } }))
 // QuickSettingsDrawer (a child) reads useAccent; stub it — not under test here.
 vi.mock('../../../contexts/AccentContext', () => ({
   useAccent: () => ({ accent: 'blue', setAccent: vi.fn() }),
@@ -85,6 +92,26 @@ describe('RightCluster', () => {
     setup({ authMode: 'local', isAuthenticated: false, user: null })
     expect(screen.queryByRole('img', { name: 'jamey' })).toBeNull()
     expect(screen.getByRole('link', { name: /login/ })).toHaveAttribute('href', '/login')
+  })
+
+  it('logs out and goes to /login once the server says so', async () => {
+    const logout = vi.fn().mockResolvedValue(true)
+    setup({ logout })
+    fireEvent.click(screen.getByRole('button', { name: 'logout' }))
+    await waitFor(() => expect(nav.navigate.mock.calls).toStrictEqual([['/login']]))
+    expect(logout).toHaveBeenCalledOnce()
+    expect(nav.toastError).not.toHaveBeenCalled()
+  })
+
+  it("stays put and says so when the logout didn't reach the server", async () => {
+    const logout = vi.fn().mockResolvedValue(false)
+    setup({ logout })
+    fireEvent.click(screen.getByRole('button', { name: 'logout' }))
+
+    // Pins out navigating before (or regardless of) the answer: the login page
+    // would look signed out while the session cookie is still live.
+    await waitFor(() => expect(nav.toastError).toHaveBeenCalledWith('logoutFailed'))
+    expect(nav.navigate).not.toHaveBeenCalled()
   })
 
   it('hides the whole auth cluster (no avatar, no login) when auth is disabled', () => {

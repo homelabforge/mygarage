@@ -32,6 +32,7 @@ vi.mock('../../hooks/useCurrencyPreference', () => ({
 }))
 vi.mock('../../hooks/useTimeFormat', () => ({ useTimeFormat: () => ({ timeFormat: '12h' }) }))
 vi.mock('../../components/GarageAnalyticsHelpDrawer', () => ({ default: () => null }))
+vi.mock('../../contexts/AuthContext', () => ({ useAuth: () => ({ user: { id: 1 }, authMode: 'local' }) }))
 // Real react-i18next keeps `t` stable. A new one per render re-runs the page's
 // [t] fetch effect, which flips it back to loading and remounts the header.
 vi.mock('react-i18next', () => {

@@ -16,8 +16,9 @@ const TONE: Record<string, Tone> = {
 export function FuelCommandStatus(): ReactElement | null {
   const { t } = useTranslation('settings')
   const { data, isError } = useTelegramFuelStatus()
-  // TanStack keeps the last good `data` after a failed refetch, and nothing
-  // clears the cache on logout: a refusal must hide what an admin was shown.
+  // TanStack keeps the last good `data` after a failed refetch. Logout clears
+  // the cache, but a refetch refused mid-session (a role change) still has to
+  // hide what an admin was shown.
   if (!data || isError) return null
 
   // Literal keys, so the i18n gate can check each one.

@@ -17,6 +17,7 @@
   "appearance": "Appearance",
   "accent": "Accent",
   "accentError": "Couldn't save your accent",
+  "logoutFailed": "Couldn't reach the server, so you're still signed in.",
   "accents": {
     "blue": "Blue",
     "amber": "Amber",
