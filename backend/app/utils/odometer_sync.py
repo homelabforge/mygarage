@@ -49,9 +49,15 @@ def is_sync_marked(notes: str | None) -> bool:
     return notes is not None and _WHOLE_MARKER.fullmatch(notes) is not None
 
 
-#: A sync marker anywhere in a note. The create claim treats a note holding
-#: one as automatic, so a manual row carrying one can be taken over.
-_ANY_MARKER = re.compile(r"\[AUTO-SYNC from [^\]]*\]")
+#: A sync marker anywhere in a note, closed or not: the opening is enough. The
+#: create claim and the strip both use this, so whatever the strip leaves can't
+#: make a row claimable.
+_ANY_MARKER = re.compile(r"\[AUTO-SYNC from[^\]]*\]?")
+
+
+def holds_sync_marker(notes: str | None) -> bool:
+    """Whether a note holds a sync marker anywhere, the create claim's test."""
+    return notes is not None and _ANY_MARKER.search(notes) is not None
 
 
 def without_sync_marker(notes: str | None) -> str | None:
@@ -59,9 +65,10 @@ def without_sync_marker(notes: str | None) -> str | None:
 
     Only a source writes a marker. A copied one made a reading look owned: the
     next same-day fill-up took it over, and a delete of the marker's record
-    removed it. A note with no marker comes back untouched.
+    removed it. An unclosed one goes to the end of the note. A note with no
+    marker comes back untouched.
     """
-    if notes is None or _ANY_MARKER.search(notes) is None:
+    if notes is None or not holds_sync_marker(notes):
         return notes
     return _ANY_MARKER.sub("", notes).strip() or None
 
@@ -259,7 +266,7 @@ async def sync_odometer_from_record(
                 same_day = await same_day_records(db, vin, date)
                 candidate = next((row for row in same_day if not is_tire_marked(row)), None)
                 if candidate is not None:
-                    is_auto_synced = candidate.notes and "[AUTO-SYNC from" in candidate.notes
+                    is_auto_synced = holds_sync_marker(candidate.notes)
                     is_livelink = candidate.source == "livelink"
                     if not (is_auto_synced or is_livelink):
                         return None

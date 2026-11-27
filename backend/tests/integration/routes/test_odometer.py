@@ -445,6 +445,9 @@ class TestTheApiCantSetAMarker:
         [
             (auto_sync_marker("service_visit", 1), None),
             (f"see {auto_sync_marker('fuel', 2)}", "see"),
+            # Unclosed: the claim only looks for the opening, so the strip does too.
+            ("[AUTO-SYNC from fuel #2", None),
+            ("see [AUTO-SYNC from fuel", "see"),
             ("Monthly reading", "Monthly reading"),
         ],
     )
@@ -459,6 +462,32 @@ class TestTheApiCantSetAMarker:
         )
         assert made.status_code == 201, made.text
         assert made.json()["notes"] == stored
+
+    async def test_a_same_day_fill_up_leaves_a_row_with_an_unclosed_marker_alone(
+        self, client: AsyncClient, auth_headers, own_vehicle
+    ):
+        vin = own_vehicle.vin
+        made = await client.post(
+            f"/api/vehicles/{vin}/odometer",
+            json={
+                "vin": vin,
+                "date": "2026-08-01",
+                "odometer_km": 4000,
+                "notes": "[AUTO-SYNC from fuel #2",
+            },
+            headers=auth_headers,
+        )
+        assert made.status_code == 201, made.text
+        fuel = await client.post(
+            f"/api/vehicles/{vin}/fuel",
+            json={"vin": vin, "date": "2026-08-01", "odometer_km": 4010, "liters": 40.0},
+            headers=auth_headers,
+        )
+        assert fuel.status_code == 201, fuel.text
+        rows = await _odometer_rows(client, auth_headers, vin)
+        [manual] = [r for r in rows if r["id"] == made.json()["id"]]
+        # Still the hand-entered reading, not the fill-up's.
+        assert (float(manual["odometer_km"]), manual["notes"]) == (4000.0, None)
 
     async def test_a_put_on_a_manual_row_stores_no_marker(
         self, client: AsyncClient, auth_headers, own_vehicle
