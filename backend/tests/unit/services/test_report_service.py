@@ -617,9 +617,11 @@ class TestTaxDeductionPdf:
                 "generate_tax_deduction_pdf",
                 {
                     "vehicle_info": _VEHICLE_INFO,
-                    # Oldest first. Free inspection (0) and Wiper check (None) are gone.
+                    # Oldest first. Free inspection (0) and Wiper check (None) are gone,
+                    # the fee-only visit is one row, and the empty 12-20 visit costs 0 so it drops.
                     "deductible_records": [
                         row(date(2025, 2, 1), "Maintenance", "Oil change", "49.99"),
+                        row(date(2025, 5, 10), "Maintenance", "Disposal fee, $15 cash", "15.00"),
                         row(date(2025, 7, 4), "Service", "Car wash", "12.00"),
                         row(date(2025, 8, 20), "Collision", "Bumper", "500.00"),
                         row(date(2025, 11, 30), "Upgrades", "=1+1", "300.00"),

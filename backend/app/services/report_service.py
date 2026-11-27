@@ -254,7 +254,10 @@ async def tax_deduction_pdf(
     gen: PDFReportGenerator,
     year: int,
 ) -> BytesIO:
-    """Tax deduction PDF: every line item with a cost in `year`, oldest first."""
+    """Tax deduction PDF: every costed row in `year`, oldest first.
+
+    One row per line item, or one for a visit with none.
+    """
     # Prepare vehicle info
     vehicle_info = {
         "vin": vehicle.vin,
@@ -274,17 +277,18 @@ async def tax_deduction_pdf(
     )
     visits = visit_result.scalars().all()
 
-    # Prepare deductible records, one row per line item
+    # One row per line item, or one for a visit with none, so a fee-only visit
+    # counts. Anything costing nothing (or nothing recorded) still drops.
     deductible_records: list[dict[str, Any]] = []
     for visit in visits:
-        for item in visit.line_items:
-            if item.cost:
+        for description, cost in _visit_lines(visit):
+            if cost:
                 deductible_records.append(
                     {
                         "date": visit.date,
                         "category": visit.service_category or "Service",
-                        "description": item.description,
-                        "cost": item.cost,
+                        "description": description,
+                        "cost": cost,
                     }
                 )
 
