@@ -638,15 +638,17 @@ def build_csv_unit_context(
 
 # --- The report exports, and why they are not importable --------------------
 #
-# `services/report_service.py` builds two CSVs that are printable summaries rather than
-# backups. Both are rejected on import, and both spell their unit-bearing
-# columns with the same v6 vocabulary tokens the backup exports use.
+# `services/report_service.py` builds two CSVs that are printable summaries
+# rather than backups. Both are rejected on import, and both spell their
+# unit-bearing columns with the same v6 vocabulary tokens the backup exports
+# use.
 #
-# The templates below are the ONE source for those header rows: `report_service.py`
-# emits from them via `report_header_row`, and `REJECTED_HEADER_TUPLES` is
-# derived from them by `_report_header_variants`. Renaming a report column
-# therefore updates the guard by construction, instead of leaving a
-# hand-maintained literal to fall out of step with the emitter.
+# The templates below are the ONE source for those header rows:
+# `report_service.py` emits from them via `report_header_row`, and
+# `REJECTED_HEADER_TUPLES` is derived from them by `_report_header_variants`.
+# Renaming a report column therefore updates the guard by construction,
+# instead of leaving a hand-maintained literal to fall out of step with the
+# emitter.
 
 
 @dataclass(frozen=True)
@@ -749,11 +751,12 @@ def _report_header_variants(template: ReportHeaderTemplate) -> set[tuple[str, ..
 
 # --- Which report shapes are refused on import, and why ---------------------
 #
-# A report CSV is never importable, in ANY era. `services/report_service.py` writes
-# printable summaries, not backups: both endpoints flatten each service visit
-# into one row per line item and carry columns the service importer does not
-# consume, and `download_all_records_csv` additionally interleaves fuel rows
-# into what that importer reads as a service file.
+# A report CSV is never importable, in ANY era.
+# `services/report_service.py` writes printable summaries, not backups: both
+# endpoints flatten each service visit into one row per line item and carry
+# columns the service importer does not consume, and
+# `download_all_records_csv` additionally interleaves fuel rows into what that
+# importer reads as a service file.
 #
 # That flat rule REPLACES a narrower one that refused only the shapes whose
 # UNITS were ambiguous. The narrower rule left the worst case wide open:

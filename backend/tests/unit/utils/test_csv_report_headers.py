@@ -1,17 +1,17 @@
 """The two report CSV header rows, and the guard derived from them.
 
-Issue #152 phase 2b task 5. `routes/reports.py` emits two printable summaries
+Issue #152. `services/report_service.py` builds two printable summaries
 that are NOT importable, and whose unit-bearing columns now carry v6
 vocabulary tokens like every other CSV the app writes.
 
 Why the guard is derived rather than listed
 -------------------------------------------
-Hand-maintaining the rejected tuples next to a separate emitter is the exact
-failure shape task 3 flagged: a future column lands in the emitter, nobody
-adds it to the list, and the guard silently stops matching. So
+Hand-maintaining the rejected tuples next to a separate emitter invites the
+obvious failure: a future column lands in the emitter, nobody adds it to the
+list, and the guard silently stops matching. So
 `csv_units.SERVICE_HISTORY_REPORT_HEADERS` / `ALL_RECORDS_REPORT_HEADERS` are
-the one source, `reports.py` emits from them, and `REJECTED_HEADER_TUPLES`
-expands them over every unit set the app can resolve.
+the one source, `report_service.py` emits from them, and
+`REJECTED_HEADER_TUPLES` expands them over every unit set the app can resolve.
 
 The historical half cannot be derived, because the emitters that wrote those
 four shapes no longer exist. `test_the_pre_v6_mileage_report_is_still_rejected`
@@ -400,7 +400,7 @@ class TestTheReportColumnsAreTheExportColumns:
 
     @pytest.mark.parametrize("units", [METRIC_PRESET, IMPERIAL_PRESET])
     def test_a_resolved_unit_set_spells_a_row_the_guard_holds(self, units: UnitSet) -> None:
-        """The path `reports.py` actually walks: resolve a unit set, read the
+        """The path `report_service.py` actually walks: resolve a unit set, read the
         token off the shared column, spell the header. The result must be a
         row the guard already knows about.
         """

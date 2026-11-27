@@ -180,11 +180,11 @@ _UNITLESS_PRICE_DECIMALS = 4
 # dimensionless and passes through untouched (an allowlist, not a suffix
 # parser -- `SOC Start (%)` and `OBC Trip Duration (s)` are real v4 headers
 # whose parentheses hold no unit token).
-# Named separately from the map below because `services/report_service.py` needs these
-# two by name: the report CSVs build their rows by hand rather than through
-# `apply_unit_set`, but their odometer and volume cells are the SAME columns
-# the backup exports write, so they resolve their token and their decimal
-# places from these definitions rather than from a second copy.
+# Named separately from the map below because `services/report_service.py`
+# needs these two by name: the report CSVs build their rows by hand rather
+# than through `apply_unit_set`, but their odometer and volume cells are the
+# SAME columns the backup exports write, so they resolve their token and their
+# decimal places from these definitions rather than from a second copy.
 ODOMETER_COLUMN = EmittedColumn(DISTANCE, "distance", "Odometer", _DISTANCE_DECIMALS)
 VOLUME_COLUMN = EmittedColumn(VOLUME, "volume", "Volume", _VOLUME_DECIMALS)
 _FUEL_PRICE_COLUMN = EmittedColumn(PRICE_PER_VOLUME, "volume", "Price Per Unit", _PRICE_DECIMALS)

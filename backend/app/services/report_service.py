@@ -196,7 +196,8 @@ async def cost_summary_pdf(
     # Query cost data for the year
     cost_data: dict[str, Any] = {}
 
-    # Service visits, using total_cost (backfilled by migration 039)
+    # total_cost caches calculated_total_cost (every visit write and import
+    # recomputes it), so summing it in SQL matches what the history PDF shows.
     service_result = await db.execute(
         select(
             func.count(ServiceVisit.id).label("count"),
