@@ -11,12 +11,13 @@ the rule instead:
   `X is None or X.is_admin` or `X is not None and not X.is_admin and ...`
 * `if X is None: return ...` right before `if X.is_admin: return ...`
 * a None test of X beside `acts_as_admin(X)`, which already covers None
-* any `.is_admin` read in app/services or app/routes outside the two helpers
-  and `ALLOWED_FILES`. That's what catches a check where None was refused just
-  above (`if X is None: raise sign_in_required(...)`), which is fine and stays.
+* any `.is_admin` read in app/ outside models, schemas, the two helpers and
+  `ALLOWED_FILES`. That's what catches a check where None was refused just
+  above (`if X is None: raise sign_in_required(...)`), which is fine and stays,
+  and any spelling the patterns above don't know, like a nested BoolOp.
 
 Every site reports once, keyed on its `.is_admin` read (or the BoolOp when
-there isn't one).
+there isn't one) by line and column, so two checks on one line both show.
 """
 
 import ast
@@ -30,8 +31,9 @@ APP_DIR = Path(__file__).resolve().parents[2] / "app"
 HELPER_FILE = PurePosixPath("services/auth.py")
 HELPERS = frozenset({"restricted_user", "acts_as_admin"})
 
-#: Bare `.is_admin` reads only count under these, relative to app/.
-READ_SCOPES = (PurePosixPath("services"), PurePosixPath("routes"))
+#: Bare `.is_admin` reads count everywhere but here, relative to app/: the
+#: column and the API field are declared in these, never checked.
+UNREAD_SCOPES = (PurePosixPath("models"), PurePosixPath("schemas"))
 
 #: Files whose `.is_admin` reads aren't caller checks: admin bookkeeping in user
 #: management and OIDC provisioning.
@@ -50,11 +52,12 @@ class Finding(NamedTuple):
 
     file: str
     line: int
+    col: int
     form: str
 
     def __str__(self) -> str:
         """One line for the failure message."""
-        return f"{self.file}:{self.line} ({self.form})"
+        return f"{self.file}:{self.line}:{self.col} ({self.form})"
 
 
 def _key(node: ast.expr) -> str:
@@ -118,18 +121,16 @@ def _exits(body: list[ast.stmt]) -> bool:
 
 
 def _bodies(tree: ast.AST) -> Iterator[list[ast.stmt]]:
-    """Every statement list, so an if pair is matched wherever it sits."""
+    """Every statement list, so an if pair is matched wherever it sits.
+
+    The walk reaches except handlers and match cases too, and their `body` is
+    a statement list like any other.
+    """
     for node in ast.walk(tree):
         for field in ("body", "orelse", "finalbody"):
             stmts = getattr(node, field, None)
             if isinstance(stmts, list) and stmts and isinstance(stmts[0], ast.stmt):
                 yield stmts
-        if isinstance(node, ast.Try | ast.TryStar):
-            for handler in node.handlers:
-                yield handler.body
-        if isinstance(node, ast.Match):
-            for case in node.cases:
-                yield case.body
 
 
 def _helper_nodes(tree: ast.Module) -> set[int]:
@@ -145,11 +146,11 @@ def scan_source(source: str, rel: PurePosixPath) -> list[Finding]:
     """Every hand-written admin check in one module, `rel` relative to app/."""
     tree = ast.parse(source)
     skip = _helper_nodes(tree) if rel == HELPER_FILE else set()
-    found: dict[int, str] = {}
+    found: dict[tuple[int, int], str] = {}
 
-    def report(line: int, form: str) -> None:
+    def report(node: ast.expr, form: str) -> None:
         # The first form wins, so a pattern beats the bare read on the same site.
-        found.setdefault(line, form)
+        found.setdefault((node.lineno, node.col_offset), form)
 
     for node in ast.walk(tree):
         if id(node) in skip or not isinstance(node, ast.BoolOp):
@@ -158,10 +159,10 @@ def scan_source(source: str, rel: PurePosixPath) -> list[Finding]:
         for value in node.values:
             admin = _admin_subject(value)
             if admin is not None and admin[0] in none_tested:
-                report(admin[1].lineno, BOOLOP)
+                report(admin[1], BOOLOP)
             subject = _acts_as_admin_subject(value)
             if subject is not None and subject in none_tested:
-                report(node.lineno, REDUNDANT)
+                report(node, REDUNDANT)
 
     for stmts in _bodies(tree):
         for first, second in zip(stmts, stmts[1:], strict=False):
@@ -171,15 +172,11 @@ def scan_source(source: str, rel: PurePosixPath) -> list[Finding]:
                 continue
             subject = _none_only_subject(first.test)
             admin = _admin_subject(second.test)
-            if (
-                subject is not None
-                and admin is not None
-                and admin[0] == subject
-                and not isinstance(second.test, ast.UnaryOp)
-            ):
-                report(admin[1].lineno, IF_PAIR)
+            # `if not X.is_admin: return` is the same rule from the other side.
+            if subject is not None and admin is not None and admin[0] == subject:
+                report(admin[1], IF_PAIR)
 
-    if any(rel.is_relative_to(scope) for scope in READ_SCOPES) and rel not in ALLOWED_FILES:
+    if not any(rel.is_relative_to(scope) for scope in UNREAD_SCOPES) and rel not in ALLOWED_FILES:
         for node in ast.walk(tree):
             if (
                 id(node) not in skip
@@ -187,9 +184,9 @@ def scan_source(source: str, rel: PurePosixPath) -> list[Finding]:
                 and node.attr == "is_admin"
                 and isinstance(node.ctx, ast.Load)
             ):
-                report(node.lineno, BARE_READ)
+                report(node, BARE_READ)
 
-    return [Finding(str(rel), line, form) for line, form in sorted(found.items())]
+    return [Finding(str(rel), line, col, form) for (line, col), form in sorted(found.items())]
 
 
 def scan_tree(app_dir: Path = APP_DIR) -> list[Finding]:
@@ -205,11 +202,13 @@ def scan_tree(app_dir: Path = APP_DIR) -> list[Finding]:
 
 # --------------------------------------------------------------- self-tests
 
+#: Bare reads don't count here, so the pattern tests see only the patterns.
+_MODEL = PurePosixPath("models/x.py")
 _UTILS = PurePosixPath("utils/x.py")
 _SERVICE = PurePosixPath("services/x.py")
 
 
-def _forms(source: str, rel: PurePosixPath = _UTILS) -> list[tuple[int, str]]:
+def _forms(source: str, rel: PurePosixPath = _MODEL) -> list[tuple[int, str]]:
     return [(f.line, f.form) for f in scan_source(source, rel)]
 
 
@@ -274,7 +273,7 @@ def test_reports_none_or_acts_as_admin() -> None:
     assert _forms(src) == [(2, REDUNDANT)]
 
 
-def test_reports_bare_read_in_services_only() -> None:
+def test_reports_bare_read_outside_models_and_schemas() -> None:
     src = (
         "def f(u):\n"
         "    if u is None:\n"
@@ -282,7 +281,9 @@ def test_reports_bare_read_in_services_only() -> None:
         "    if not u.is_admin:\n"
         "        raise E\n"
     )
-    assert _forms(src, _UTILS) == []
+    assert _forms(src, _MODEL) == []
+    assert _forms(src, PurePosixPath("schemas/x.py")) == []
+    assert _forms(src, _UTILS) == [(4, BARE_READ)]
     assert _forms(src, _SERVICE) == [(4, BARE_READ)]
     assert _forms(src, PurePosixPath("routes/x.py")) == [(4, BARE_READ)]
     assert _forms(src, PurePosixPath("routes/auth.py")) == []
@@ -314,6 +315,50 @@ def test_helper_bodies_are_skipped_in_auth_only() -> None:
     )
     assert _forms(src, HELPER_FILE) == []
     assert _forms(src, _SERVICE) == [(2, BOOLOP)]
+
+
+def test_reports_two_checks_on_one_line() -> None:
+    src = "def f(u, v):\n    return (u is None or u.is_admin, v is None or v.is_admin)\n"
+    assert _forms(src, _MODEL) == [(2, BOOLOP), (2, BOOLOP)]
+
+
+def test_reports_if_pair_with_a_not_admin_second_arm() -> None:
+    src = (
+        "def f(u, v):\n"
+        "    if u is None:\n"
+        "        return v\n"
+        "    if not u.is_admin:\n"
+        "        return None\n"
+        "    return v\n"
+    )
+    assert _forms(src, _MODEL) == [(4, IF_PAIR)]
+
+
+def test_reports_a_nested_boolop_outside_services_and_routes() -> None:
+    # The BoolOp pattern only looks one level down; the bare read catches the rest.
+    src = "def f(u, v):\n    return u is None or (u.is_admin and v)\n"
+    assert _forms(src, _MODEL) == []
+    assert _forms(src, _UTILS) == [(2, BARE_READ)]
+
+
+def test_reports_if_pairs_in_except_handlers_and_match_cases() -> None:
+    src = (
+        "def f(u, v, w):\n"
+        "    try:\n"
+        "        pass\n"
+        "    except E:\n"
+        "        if u is None:\n"
+        "            return v\n"
+        "        if u.is_admin:\n"
+        "            return v\n"
+        "    match w:\n"
+        "        case 1:\n"
+        "            if u is None:\n"
+        "                return v\n"
+        "            if u.is_admin:\n"
+        "                return v\n"
+    )
+    assert _forms(src, _MODEL) == [(7, IF_PAIR), (13, IF_PAIR)]
 
 
 def test_app_has_no_hand_written_admin_checks() -> None:
