@@ -406,6 +406,62 @@ describe('WindowStickerUpload review: a save reloads the page once', () => {
     expect(apiPatch.mock.calls[0][1]).toStrictEqual({ exterior_color: 'Red' })
   })
 
+  it('the review save gives up after 30 seconds', async () => {
+    const user = userEvent.setup({ applyAccept: false })
+    render(<WindowStickerUpload vin="V1" onSuccess={vi.fn()} onClose={vi.fn()} />)
+    await reachReview(user)
+    await editColour(user)
+    await save(user)
+    await patched()
+    expect(apiPatch.mock.calls[0][2]).toMatchObject({ timeout: 30_000 })
+  })
+
+  it('unmounting while the PATCH is out reloads nothing when it lands', async () => {
+    const user = userEvent.setup({ applyAccept: false })
+    const patch = holdPatch()
+    const onSuccess = vi.fn()
+    const { unmount } = render(<WindowStickerUpload vin="V1" onSuccess={onSuccess} onClose={vi.fn()} />)
+    await reachReview(user)
+    await editColour(user)
+    fakeTimers()
+    fireEvent.click(button('windowSticker.misc.saveData'))
+    expect(apiPatch).toHaveBeenCalledTimes(1)
+    unmount()
+    await act(async () => {
+      patch.land({ data: { ...extracted, exterior_color: 'Red' } })
+      await vi.advanceTimersByTimeAsync(2000)
+    })
+    expect(onSuccess).not.toHaveBeenCalled()
+  })
+
+  // StrictMode mounts, unmounts and mounts again, as the app does in dev.
+  it('a save under StrictMode still reloads', async () => {
+    const user = userEvent.setup({ applyAccept: false })
+    const onSuccess = vi.fn()
+    render(<WindowStickerUpload vin="V1" onSuccess={onSuccess} onClose={vi.fn()} />, { reactStrictMode: true })
+    await reachReview(user)
+    fakeTimers()
+    fireEvent.click(button('windowSticker.misc.saveData'))
+    await runTimers()
+    expect(onSuccess).toHaveBeenCalledTimes(1)
+  })
+
+  it('Escape after the reload fired but before the drawer unmounts does not reload again', async () => {
+    const user = userEvent.setup({ applyAccept: false })
+    const onSuccess = vi.fn()
+    const onClose = vi.fn()
+    render(<WindowStickerUpload vin="V1" onSuccess={onSuccess} onClose={onClose} />)
+    await reachReview(user)
+    fakeTimers()
+    fireEvent.click(button('windowSticker.misc.saveData'))
+    await runTimers()
+    expect(onSuccess).toHaveBeenCalledTimes(1)
+    fireEvent.keyDown(window, { key: 'Escape' })
+    fireEvent.click(button('windowSticker.misc.cancel'))
+    expect(onClose).not.toHaveBeenCalled()
+    expect(onSuccess).toHaveBeenCalledTimes(1)
+  })
+
   it('Escape or the close button while the PATCH is out does not close ahead of it', async () => {
     const user = userEvent.setup({ applyAccept: false })
     const patch = holdPatch()

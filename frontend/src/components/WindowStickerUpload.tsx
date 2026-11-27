@@ -23,8 +23,11 @@ import { withUnitSession } from '../contexts/UnitSession'
 type StickerData = components['schemas']['WindowStickerResponse']
 
 // OCR on a big scan is slow, and the server can still commit after we give
-// up, so a timeout reads as maybe-uploaded and close reloads to show it.
+// up, so a timeout reads as maybe-uploaded and the reload on close may show it.
 const UPLOAD_TIMEOUT_MS = 120_000
+// The review save is one small write, so 30 s is plenty. Past that the drawer
+// lets go, and close reloads since the upload is already on file.
+const SAVE_TIMEOUT_MS = 30_000
 
 // Widths match the vehicle columns, so an overlong value stops at the input
 // instead of coming back as a 422.
@@ -111,21 +114,32 @@ function WindowStickerUpload({
   // so a save only ever reloads the page once.
   const finishTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [finishing, setFinishing] = useState(false)
+  // A save that lands after the drawer is gone reloads nothing, and once the
+  // reload has fired a late Escape can't ask for a second one.
+  const mounted = useRef(true)
+  const reloaded = useRef(false)
   // The upload failed with no answer or a 5xx. WindowStickerService.upload
   // commits before the route builds the response, so the sticker may be on
   // file anyway.
   const [maybeUploaded, setMaybeUploaded] = useState(false)
 
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    mounted.current = true
+    return () => {
+      mounted.current = false
       if (finishTimer.current !== null) clearTimeout(finishTimer.current)
-    },
-    []
-  )
+    }
+  }, [])
+
+  const reload = (): void => {
+    reloaded.current = true
+    onSuccess()
+  }
 
   // The upload commits before the review, so a cancelled review still left a
   // new sticker on the vehicle, and the page has to know to reload.
   const close = (): void => {
+    if (reloaded.current) return
     // The upload or the save is still out and either can commit, so stay open
     // until it answers. A failed answer frees this again.
     if (uploading) return
@@ -133,7 +147,7 @@ function WindowStickerUpload({
     if (finishTimer.current !== null) {
       clearTimeout(finishTimer.current)
       finishTimer.current = null
-      onSuccess()
+      reload()
       return
     }
     onClose(seed !== null || maybeUploaded)
@@ -283,13 +297,14 @@ function WindowStickerUpload({
   }
 
   const finish = () => {
+    if (!mounted.current) return
     setNotice(null)
     setSuccess(t('windowSticker.misc.saveSuccess'))
     setFinishing(true)
     if (finishTimer.current !== null) clearTimeout(finishTimer.current)
     finishTimer.current = setTimeout(() => {
       finishTimer.current = null
-      onSuccess()
+      reload()
     }, 1000)
   }
 
@@ -312,7 +327,7 @@ function WindowStickerUpload({
 
     setUploading(true)
     try {
-      await api.patch(`/vehicles/${vin}/window-sticker/data`, changes)
+      await api.patch(`/vehicles/${vin}/window-sticker/data`, changes, { timeout: SAVE_TIMEOUT_MS })
       finish()
     } catch (err) {
       const { parsed, attached, unhandled, errorsByField } = applyControlledFieldErrors(
