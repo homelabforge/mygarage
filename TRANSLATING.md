@@ -152,7 +152,7 @@ cd frontend
 bun run test:run src/constants/__tests__/tollSystems.test.ts
 ```
 
-The file is listed in `frontend/scripts/units.manifest.json`, so the Unit Manifest check fails on your PR until its digest is re-stamped. A maintainer does that when merging.
+The file is in the units manifest, so you'll need to re-stamp it: see [Re-stamping the Units Manifest](#re-stamping-the-units-manifest).
 
 ## Submitting Translations
 
@@ -160,6 +160,20 @@ The file is listed in `frontend/scripts/units.manifest.json`, so the Unit Manife
 2. Add/update your language files in `frontend/public/locales/{lang}/`
 3. Run `bun run validate:translations` to verify
 4. Open a Pull Request with your changes
+
+If Frontend Tests fails with a `[digest]` line, see [Re-stamping the Units Manifest](#re-stamping-the-units-manifest).
+
+## Re-stamping the Units Manifest
+
+`frontend/scripts/units.manifest.json` pins each listed file, the locale files and toll systems among them, to a digest of its content. Change one and Frontend Tests fails with a `[digest]` line until you re-stamp it. From the repo root:
+
+```bash
+cd frontend
+bun run scripts/validate-units-manifest.ts --update
+git add scripts/units.manifest.json
+```
+
+Commit that with your change. A maintainer reviews the re-stamped row: the manifest's `[weakened]` check skips rows whose file changed, so nothing automated checks that the row's disposition and findings still hold.
 
 ## Machine-Drafted Strings
 

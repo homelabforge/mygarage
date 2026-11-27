@@ -206,6 +206,17 @@ describe('ReminderList: the vehicle comes from its parent (G5a-10)', () => {
     expect(useReminderPacksMock).toHaveBeenCalledWith('Motorcycle')
     expect(useReminderPacksMock).not.toHaveBeenCalledWith(null)
   })
+
+  // A type the app doesn't know reads as null. The list still renders, and the
+  // packs get null, not a guessed type.
+  it('renders for a null-type vehicle and asks for packs with null', () => {
+    render(<ReminderList vehicle={makeVehicle({ vehicle_type: null })} />)
+    expect(screen.getByText('Oil change')).toBeInTheDocument()
+    expect(useReminderPacksMock).toHaveBeenCalled()
+    expect(useReminderPacksMock.mock.calls.map(([type]) => type)).toEqual(
+      useReminderPacksMock.mock.calls.map(() => null),
+    )
+  })
 })
 
 describe('ReminderList: deleting a saved pack asks first', () => {

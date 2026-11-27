@@ -17,6 +17,7 @@
   "appearance": "Aspetto",
   "accent": "Colore primario",
   "accentError": "Impossibile salvare il colore primario",
+  "logoutFailed": "Impossibile disconnettersi. Sei ancora connesso.",
   "accents": {
     "blue": "Blu",
     "amber": "Ambra",

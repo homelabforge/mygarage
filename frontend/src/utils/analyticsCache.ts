@@ -1,17 +1,18 @@
 /**
- * The offline copy of a vehicle's analytics that the Analytics page falls back
- * to when the network is down.
+ * The offline copies of analytics that the Analytics and Garage Analytics
+ * pages fall back to when the network is down.
  *
- * Kept per account as well as per vehicle. A VIN-only key let the next account
- * on the same browser read the last one's analytics offline, even for a vehicle
- * the server would never show it. Logout clears every copy, and the old
- * VIN-only keys are never read. Every access is guarded: storage throws in a
- * private window or with site data blocked.
+ * Kept per account (and per vehicle for the Analytics page). An unscoped key
+ * let the next account on the same browser read the last one's analytics
+ * offline, even for a vehicle the server would never show it. Logout clears
+ * every copy (offlineData.ts), and the old unscoped keys are never read. Every
+ * access is guarded: storage throws in a private window or with site data blocked.
  */
 
-import type { VehicleAnalytics } from '../types/analytics'
+import type { GarageAnalytics, VehicleAnalytics } from '../types/analytics'
 
 const PREFIX = 'analytics-cache-'
+const GARAGE_PREFIX = 'garage-analytics-cache-'
 
 /** Whose copy this is: the user's id, `local` with sign-in off, null while nobody's known. */
 export type AnalyticsCacheOwner = string | null
@@ -68,16 +69,39 @@ export function readCachedAnalytics(owner: AnalyticsCacheOwner, vin: string): Ve
   }
 }
 
-/** Drop every offline analytics copy, any account's and the old VIN-only ones. */
-export function forgetAllAnalytics(): void {
+const garageKeyFor = (owner: string): string => `${GARAGE_PREFIX}${owner}`
+
+/**
+ * Store `data` as the owner's offline copy of the garage-wide analytics.
+ *
+ * @param owner From {@link analyticsCacheOwner}; null stores nothing.
+ * @param data The garage analytics to remember.
+ */
+export function rememberGarageAnalytics(owner: AnalyticsCacheOwner, data: GarageAnalytics): void {
+  if (owner === null) return
   try {
-    const keys: string[] = []
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i)
-      if (key?.startsWith(PREFIX)) keys.push(key)
-    }
-    keys.forEach((key) => localStorage.removeItem(key))
+    localStorage.setItem(garageKeyFor(owner), JSON.stringify({ timestamp: Date.now(), data }))
   } catch {
-    // Storage we can't reach holds nothing we could leak.
+    // Same as rememberAnalytics, a full or blocked store isn't a load error.
+  }
+}
+
+/**
+ * The owner's offline copy of the garage-wide analytics, or null when there's
+ * none or it won't parse.
+ *
+ * @param owner From {@link analyticsCacheOwner}; null finds nothing.
+ * @returns The cached garage analytics, or null.
+ */
+export function readCachedGarageAnalytics(owner: AnalyticsCacheOwner): GarageAnalytics | null {
+  if (owner === null) return null
+  try {
+    const raw = localStorage.getItem(garageKeyFor(owner))
+    if (!raw) return null
+    const parsed: unknown = JSON.parse(raw)
+    const data = (parsed as { data?: unknown } | null)?.data
+    return typeof data === 'object' && data !== null ? (data as GarageAnalytics) : null
+  } catch {
+    return null
   }
 }

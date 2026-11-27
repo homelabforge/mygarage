@@ -523,7 +523,7 @@ function PurchaseForm({
 
   return (
     <form
-      onSubmit={handleSubmit(onSubmit)}
+      onSubmit={(event) => void handleSubmit(onSubmit)(event)}
       className="border border-garage-border rounded-lg p-4 space-y-3 bg-garage-surface"
     >
       <h4 className="text-sm font-semibold text-garage-text">{t('supplies.history.logPurchase')}</h4>

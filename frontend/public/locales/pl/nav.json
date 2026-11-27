@@ -17,6 +17,7 @@
   "appearance": "Wygląd",
   "accent": "Kolor akcentu",
   "accentError": "Nie udało się zapisać koloru akcentu",
+  "logoutFailed": "Nie udało się wylogować. Nadal jesteś zalogowany.",
   "accents": {
     "blue": "Niebieski",
     "amber": "Bursztynowy",

@@ -38,7 +38,6 @@ from httpx import ASGITransport, AsyncClient
 from slowapi import Limiter
 from sqlalchemy import Engine, create_engine, delete, select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
-from sqlalchemy.pool import NullPool
 
 from app.config import settings
 from app.database import Base, get_db
@@ -99,13 +98,16 @@ TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL", "sqlite+aiosqlite:///./test_m
 async def test_engine():
     """Create async engine for tests.
 
-    Uses NullPool for PostgreSQL/asyncpg to avoid event loop binding issues
-    with starlette middleware sub-tasks in pytest. PG sessions are pinned to
-    UTC like the app's, so a test reads what production would store.
+    PG sessions are pinned to UTC like the app's, so a test reads what
+    production would store.
     """
-    pool_kwargs = {}
+    pool_kwargs: dict[str, Any] = {}
     if "asyncpg" in TEST_DATABASE_URL:
-        pool_kwargs["poolclass"] = NullPool
+        # Pooled like the app's engine. NullPool reconnected on every commit,
+        # ~40k connects a run. Safe because this fixture and both pytest loop
+        # defaults (pytest.ini) are session-scoped, so a pooled connection
+        # never crosses event loops (#77).
+        pool_kwargs = {"pool_size": 5, "max_overflow": 10, "pool_pre_ping": False}
     engine = create_utc_async_engine(TEST_DATABASE_URL, echo=False, **pool_kwargs)
     if "sqlite" in TEST_DATABASE_URL:
         # Mirror production connection pragmas (WAL + foreign_keys=ON) so FK

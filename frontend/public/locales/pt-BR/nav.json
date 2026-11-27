@@ -17,6 +17,7 @@
   "appearance": "Aparência",
   "accent": "Cor de destaque",
   "accentError": "Não foi possível salvar sua cor de destaque",
+  "logoutFailed": "Não foi possível sair. Você continua conectado.",
   "accents": {
     "blue": "Azul",
     "amber": "Âmbar",

@@ -43,8 +43,12 @@ export default function QuickSettingsDrawer({ className = '' }: QuickSettingsDra
   const { isAuthenticated, refreshUser, logout, authMode } = useAuth()
   const navigate = useNavigate()
 
-  const handleLogout = (): void => {
-    logout()
+  // Same as RightCluster: stay put if the server never cleared the session.
+  const handleLogout = async (): Promise<void> => {
+    if (!(await logout())) {
+      toast.error(t('logoutFailed'))
+      return
+    }
     setOpen(false)
     navigate('/login')
   }
@@ -118,7 +122,7 @@ export default function QuickSettingsDrawer({ className = '' }: QuickSettingsDra
 
           {authMode !== 'none' && isAuthenticated ? (
             <div className="border-t border-border pt-4">
-              <button type="button" onClick={handleLogout} className={`${ROW} w-full text-left`}>
+              <button type="button" onClick={() => void handleLogout()} className={`${ROW} w-full text-left`}>
                 <LogOut aria-hidden="true" className="h-4 w-4" />
                 {t('logout')}
               </button>

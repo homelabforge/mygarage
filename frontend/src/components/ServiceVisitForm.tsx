@@ -180,18 +180,17 @@ function ServiceVisitForm({
     for (const s of supplies) map.set(s.id, s)
     return map
   }, [supplies])
-  // Each supply's unit is pinned the first time this form sees it and never
-  // rebuilt, so a unit change from another tab can't relabel what's already
-  // typed. New ids still get in, or a supply created mid-edit would drop on submit.
-  // Grown during render (copied, so memos notice) so hydration never reads it empty.
-  const supplyUnitsRef = useRef(new Map<number, SupplyUnit>())
-  const unseen = supplies.filter((s) => !supplyUnitsRef.current.has(s.id))
+  // Each supply's unit is pinned the first time this form sees it, so a unit
+  // change from another tab can't relabel what's typed. New ids still get in, or
+  // a supply created mid-edit drops on submit. It grows during render, as a
+  // copy so memos notice, so hydration never reads it empty.
+  const [unitsBySupplyId, setUnitsBySupplyId] = useState(() => new Map<number, SupplyUnit>())
+  const unseen = supplies.filter((s) => !unitsBySupplyId.has(s.id))
   if (unseen.length > 0) {
-    const grown = new Map(supplyUnitsRef.current)
+    const grown = new Map(unitsBySupplyId)
     for (const s of unseen) grown.set(s.id, supplyDisplayUnit(s, system))
-    supplyUnitsRef.current = grown
+    setUnitsBySupplyId(grown)
   }
-  const unitsBySupplyId = supplyUnitsRef.current
   // Every recall (open and resolved) and warranty, for the line items' pickers.
   // Same cache entries as the Recalls and Warranties tabs.
   const { data: recallData } = useRecallRecords(vin)
@@ -202,7 +201,9 @@ function ServiceVisitForm({
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [submitting, setSubmitting] = useState(false)
   const [attachmentRefreshKey, setAttachmentRefreshKey] = useState(0)
-  const nextTempIdRef = useRef(-1)
+  // A new visit's first item takes -1 in the initializer below, so the counter
+  // starts past it. The initializer can't call assignTempId: that's a ref write in render.
+  const nextTempIdRef = useRef(visit ? -1 : -2)
 
   const assignTempId = () => {
     const id = nextTempIdRef.current
@@ -270,7 +271,7 @@ function ServiceVisitForm({
       }
     }
 
-    const initialLineItem = createEmptyLineItem(assignTempId())
+    const initialLineItem = createEmptyLineItem(-1)
 
     return {
       vendor_id: undefined,
@@ -386,7 +387,8 @@ function ServiceVisitForm({
   const partsEstimate = useMemo(() => {
     let unpriced = false
     let hasBackfill = false
-    const items = formData.line_items.map((item) => {
+    const items: { edit: number; backfill: number; editEstimated: boolean; backfillEstimated: boolean }[] = []
+    for (const item of formData.line_items) {
       const saved = item.id != null
         ? visit?.line_items.find((li) => li.id === item.id)?.supply_usages ?? []
         : []
@@ -412,8 +414,8 @@ function ServiceVisitForm({
         }
         unpriced ||= estimate.unpriced
       }
-      return { edit, backfill, editEstimated, backfillEstimated }
-    })
+      items.push({ edit, backfill, editEstimated, backfillEstimated })
+    }
     return { items, unpriced, hasBackfill }
   }, [formData.line_items, suppliesById, unitsBySupplyId, visit, dateChanged])
 

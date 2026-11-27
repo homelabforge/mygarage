@@ -187,7 +187,10 @@ self.addEventListener('fetch', (event) => {
       // stale/empty result survive across logins and get served on a cold-launch
       // network hiccup, showing "No vehicles" for an account that has them
       // (#114). Always fetch it fresh; the app handles the offline error itself.
-      url.pathname.endsWith('/quick-entry/vehicles')
+      url.pathname.endsWith('/quick-entry/vehicles') ||
+      // A cached /auth/me is somebody's identity. On a network blip it got
+      // handed to whoever signed in next, so auth answers never go in here.
+      url.pathname.startsWith(SCOPE + 'api/auth/')
     );
 
     event.respondWith(

@@ -17,6 +17,7 @@
   "appearance": "Erscheinungsbild",
   "accent": "Akzentfarbe",
   "accentError": "Deine Akzentfarbe konnte nicht gespeichert werden",
+  "logoutFailed": "Abmelden fehlgeschlagen. Du bist weiterhin angemeldet.",
   "accents": {
     "blue": "Blau",
     "amber": "Bernstein",

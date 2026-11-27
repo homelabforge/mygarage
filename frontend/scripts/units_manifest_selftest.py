@@ -996,6 +996,37 @@ def round_trip_probe(root: Path, manifest: Path) -> list[str]:
     return failures
 
 
+# The finding says where to run it from, or a paste from inside frontend/ breaks.
+REMEDY_COMMAND = (
+    "from the repo root run `cd frontend && bun run scripts/validate-units-manifest.ts --update`"
+)
+REMEDY_COMMIT = "commit frontend/scripts/units.manifest.json"
+
+
+def remedy_probe(root: Path, manifest: Path) -> list[str]:
+    """A contributor who trips [digest] gets the exact command to fix it.
+
+    Only the finding itself is searched, not the legend after it, so the
+    legend can't pass this on the finding's behalf.
+    """
+    failures: list[str] = []
+    _edit_beta(root)
+    try:
+        _rc, rules, _pairs, out = run(root, manifest)
+    finally:
+        _restore_beta(root)
+    findings = out.split(LEGEND_SENTINEL)[0]
+    missing = [text for text in (REMEDY_COMMAND, REMEDY_COMMIT) if text not in findings]
+    ok = rules == {"digest"} and not missing
+    print(
+        f"  {'a [digest] finding names its remedy':<38} "
+        + ("command and commit both printed" if ok else f"*** missing {missing} ***")
+    )
+    if not ok:
+        failures.append(f"remedy: rules={sorted(rules)} missing={missing}")
+    return failures
+
+
 def main() -> int:
     failures: list[str] = []
     tmp = Path(tempfile.mkdtemp(prefix="units-manifest-selftest-"))
@@ -1085,6 +1116,10 @@ def main() -> int:
         print("-" * 78)
         failures += round_trip_probe(root, manifest)
 
+        print("\na contributor can fix a [digest] failure from its own text")
+        print("-" * 78)
+        failures += remedy_probe(root, manifest)
+
         print("\nthe named runtime roots, which the import walker cannot reach")
         print("-" * 78)
         for label, path in (
@@ -1130,8 +1165,8 @@ def main() -> int:
         "half ONLY, so a disposition lowered across a version bump is still caught and "
         "so is an erasure inside one version; --update is a fixed point, over a fixture "
         "CHECKED to carry every field the checker preserves rather than assumed to; "
-        "and every named runtime root is enforced, the entry document and a binary "
-        "asset among them."
+        "every named runtime root is enforced, the entry document and a binary "
+        "asset among them; and a [digest] finding prints the command that fixes it."
     )
     return 0
 

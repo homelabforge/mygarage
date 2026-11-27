@@ -1,8 +1,9 @@
 import { useTranslation } from 'react-i18next'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { AlertTriangle } from 'lucide-react'
 import { toast } from 'sonner'
 import api from '@/services/api'
+import { useLastWhile } from '@/hooks/useLastWhile'
 import { getActionErrorMessage } from '@/utils/httpErrorHandler'
 import { Button, Drawer } from '@/components/ui'
 
@@ -53,9 +54,7 @@ export default function DeleteUserModal({ isOpen, onClose, user, onConfirm }: De
   const [confirmText, setConfirmText] = useState('')
   const [loading, setLoading] = useState(false)
   // Family nulls the user as it closes this, so the slide-out shows the last one.
-  const lastUserRef = useRef(user)
-  if (user) lastUserRef.current = user
-  const shownUser = user ?? lastUserRef.current
+  const shownUser = useLastWhile(user, user != null)
 
   // This stays mounted between users, so a typed DELETE for one must never arm
   // the button for the next. Every close goes through here, and a new user resets it too.

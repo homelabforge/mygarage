@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 
@@ -57,6 +57,9 @@ vi.mock('../../hooks/useCurrencyPreference', () => ({
 }))
 vi.mock('../../hooks/useTimeFormat', () => ({ useTimeFormat: () => ({ timeFormat: '12h' }) }))
 vi.mock('../../components/GarageAnalyticsHelpDrawer', () => ({ default: () => null }))
+// The offline copy is filed by account, so a test can switch who's signed in.
+const auth = vi.hoisted(() => ({ value: { user: { id: 1 } as { id: number } | null, authMode: 'local' } }))
+vi.mock('../../contexts/AuthContext', () => ({ useAuth: () => auth.value }))
 vi.mock('../../components/ExportMenu', () => ({
   default: ({ onExportPDF }: { onExportPDF: () => void }) => (
     <button type="button" onClick={onExportPDF}>
@@ -126,6 +129,7 @@ const GARAGE = {
 }
 
 beforeEach(() => {
+  auth.value = { user: { id: 1 }, authMode: 'local' }
   captured.barCharts = []
   captured.pies = []
   captured.tooltips = {}
@@ -562,5 +566,54 @@ describe('GarageAnalytics: category colours and the Other fold', () => {
       DEF: 'var(--color-chart-3)',
       Financing: 'var(--color-chart-6)',
     })
+  })
+})
+
+describe('GarageAnalytics offline: the cached copy stays with its account', () => {
+  const setOnline = (value: boolean): void => {
+    Object.defineProperty(navigator, 'onLine', { value, configurable: true })
+  }
+
+  beforeEach(() => {
+    localStorage.clear()
+    mockedGet.mockRejectedValue(new Error('offline'))
+    setOnline(false)
+  })
+
+  afterEach(() => {
+    setOnline(true)
+    localStorage.clear()
+  })
+
+  it("owner 1 reads its own copy and owner 2 doesn't see it", async () => {
+    // Owner 1 loads online, which writes the copy.
+    setOnline(true)
+    mockedGet.mockResolvedValue({ data: GARAGE })
+    const first = render(<GarageAnalytics />)
+    await screen.findByText('$13,200.00')
+    first.unmount()
+
+    // Offline, owner 1 gets it back.
+    setOnline(false)
+    mockedGet.mockRejectedValue(new Error('offline'))
+    const again = render(<GarageAnalytics />)
+    expect(await screen.findByText('$13,200.00')).toBeInTheDocument()
+    expect(screen.getByText('garage.offlineCached')).toBeInTheDocument()
+    again.unmount()
+
+    // Pins out the old unscoped key: owner 2 on the same browser got owner 1's garage.
+    auth.value = { user: { id: 2 }, authMode: 'local' }
+    render(<GarageAnalytics />)
+    expect(await screen.findByText('garage.empty.title')).toBeInTheDocument()
+    expect(screen.queryByText('$13,200.00')).not.toBeInTheDocument()
+  })
+
+  it('never reads a lone copy under the old unscoped key', async () => {
+    localStorage.setItem('garage-analytics-cache', JSON.stringify({ timestamp: Date.now(), data: GARAGE }))
+
+    // Pins out a fallback to the legacy key when the scoped one is missing.
+    render(<GarageAnalytics />)
+    expect(await screen.findByText('garage.empty.title')).toBeInTheDocument()
+    expect(screen.queryByText('$13,200.00')).not.toBeInTheDocument()
   })
 })
