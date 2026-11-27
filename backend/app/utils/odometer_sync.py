@@ -7,6 +7,7 @@ extended fuel-tracking flow) can compose this into a single outer
 transaction with other side effects.
 """
 
+import re
 from collections.abc import Iterable, Sequence
 from datetime import date as date_type
 from decimal import Decimal
@@ -32,6 +33,20 @@ TIRE_MARKER_PREFIX = "[AUTO-SYNC from tire"
 #: (issue #171). Tire markers are keyed by tire/period/event and mark one row
 #: per reading date, so they must never get the vin-wide identity lookup.
 SINGLE_ROW_SOURCES = frozenset({"fuel", "service_visit", "def"})
+
+
+#: A note that is exactly one `auto_sync_marker` (the legacy service one included).
+_WHOLE_MARKER = re.compile(r"\[AUTO-SYNC from [a-z_]+ #\d+\]")
+
+
+def is_sync_marked(notes: str | None) -> bool:
+    """Whether a note is a whole sync marker, the thing its source finds the row by.
+
+    Every owner lookup compares the whole note (`_own_records`, the visit and tire
+    deletes), so this does too. A hand-written note that only mentions a marker
+    was never findable, so it stays editable.
+    """
+    return notes is not None and _WHOLE_MARKER.fullmatch(notes) is not None
 
 
 def is_tire_marked(record: OdometerRecord) -> bool:

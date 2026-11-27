@@ -21,6 +21,7 @@ from app.schemas.hours import (
 from app.services.auth import get_vehicle_or_403, require_auth
 from app.services.hours_service import latest_engine_hours_and_date, nearest_hours_record
 from app.utils.logging_utils import sanitize_for_log
+from app.utils.odometer_sync import is_sync_marked
 
 logger = logging.getLogger(__name__)
 
@@ -252,6 +253,10 @@ async def update_hours_record(
 
         # Update fields
         update_data = record_data.model_dump(exclude_unset=True)
+        if is_sync_marked(record.notes):
+            # The marker is how its source finds this row to delete it, so a note
+            # edit can't replace it. Goes away once these rows get a real FK.
+            update_data.pop("notes", None)
         for field, value in update_data.items():
             setattr(record, field, value)
 

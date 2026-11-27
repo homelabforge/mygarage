@@ -14,7 +14,13 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import OdometerRecord
-from app.utils.odometer_sync import sync_odometer_from_record
+from app.services import tire_service
+from app.utils.odometer_sync import (
+    auto_sync_marker,
+    is_sync_marked,
+    legacy_service_marker,
+    sync_odometer_from_record,
+)
 
 
 @pytest_asyncio.fixture
@@ -342,3 +348,38 @@ class TestOdometerSync:
         assert result1.id != result2.id
         assert result1.date == date1
         assert result2.date == date2
+
+
+#: Every source that writes a marker: the single-row ones plus each tire event.
+_MARKER_SOURCES = ("fuel", "service_visit", "def") + tuple(
+    value for name, value in vars(tire_service).items() if name.startswith("ODOMETER_SOURCE_")
+)
+
+
+def test_the_scan_finds_the_tire_sources():
+    tire = {"tire", "tire_rotation", "tire_set", "tire_mount", "tire_dismount", "tire_retire"}
+    assert tire | {"tire_lone_dismount"} <= set(_MARKER_SOURCES)
+
+
+@pytest.mark.parametrize("source_type", _MARKER_SOURCES)
+def test_every_marker_is_sync_marked(source_type):
+    assert is_sync_marked(auto_sync_marker(source_type, 4021))
+
+
+def test_the_legacy_service_marker_is_sync_marked():
+    assert is_sync_marked(legacy_service_marker(7))
+
+
+@pytest.mark.parametrize(
+    "notes",
+    [
+        None,
+        "",
+        "fixed typo",
+        f"{auto_sync_marker('fuel', 1)} copied by hand",
+        f"see {auto_sync_marker('fuel', 1)}",
+    ],
+)
+def test_a_note_that_isnt_a_whole_marker_is_not_sync_marked(notes):
+    """The owner lookups compare the whole note, so only a whole marker counts."""
+    assert not is_sync_marked(notes)

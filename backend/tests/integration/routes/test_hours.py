@@ -13,6 +13,8 @@ from datetime import datetime
 import pytest
 from httpx import AsyncClient
 
+from app.utils.odometer_sync import auto_sync_marker
+
 
 @pytest.mark.integration
 @pytest.mark.asyncio
@@ -499,3 +501,51 @@ class TestHoursRecordAuthz:
             f"/api/vehicles/{owned_vehicle.vin}/hours/999999", headers=owner_headers
         )
         assert resp.status_code == 404
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+@pytest.mark.own_vehicle(vehicle_type="ATV", usage_unit="hours")
+class TestTireRowNoteEdit:
+    """A note edit on a tire-published hours row keeps the marker the tire deletes it by.
+
+    Service-visit and fuel hours rows are owned by FK, so their marker isn't load-bearing.
+    """
+
+    async def test_deleting_the_reading_still_removes_the_edited_row(
+        self, client: AsyncClient, auth_headers, own_vehicle
+    ):
+        vin = own_vehicle.vin
+        made = await client.post(
+            f"/api/vehicles/{vin}/tires/create-and-mount",
+            json={"vin": vin, "position": "FL", "mounted_on": "2026-06-01"},
+            headers=auth_headers,
+        )
+        assert made.status_code == 201, made.text
+        tire = made.json()
+        logged = await client.post(
+            f"/api/vehicles/{vin}/tires/{tire['id']}/readings",
+            json={"recorded_at": "2026-06-21", "tread_depth_mm": "7.0", "engine_hours": "120.0"},
+            headers=auth_headers,
+        )
+        assert logged.status_code in (200, 201), logged.text
+        marker = auto_sync_marker("tire", tire["id"])
+        listed = await client.get(f"/api/vehicles/{vin}/hours", headers=auth_headers)
+        rows = [r for r in listed.json()["records"] if r["notes"] == marker]
+        assert len(rows) == 1, listed.text
+
+        edited = await client.put(
+            f"/api/vehicles/{vin}/hours/{rows[0]['id']}",
+            json={"notes": "fixed typo"},
+            headers=auth_headers,
+        )
+        assert edited.status_code == 200, edited.text
+        assert edited.json()["notes"] == marker
+
+        reading_id = logged.json()["readings"][0]["id"]
+        gone = await client.delete(
+            f"/api/vehicles/{vin}/tires/{tire['id']}/readings/{reading_id}", headers=auth_headers
+        )
+        assert gone.status_code == 204, gone.text
+        listed = await client.get(f"/api/vehicles/{vin}/hours", headers=auth_headers)
+        assert [r for r in listed.json()["records"] if r["id"] == rows[0]["id"]] == []

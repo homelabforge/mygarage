@@ -9,6 +9,8 @@ from datetime import datetime
 import pytest
 from httpx import AsyncClient
 
+from app.utils.odometer_sync import auto_sync_marker
+
 
 @pytest.mark.integration
 @pytest.mark.asyncio
@@ -327,3 +329,102 @@ class TestOdometerRecordRoutes:
         data = response.json()
         assert float(data["odometer_km"]) == 120700.5  # Unchanged
         assert data["notes"] == "Updated notes only"
+
+
+async def _synced_row(client: AsyncClient, headers: dict, vin: str) -> tuple[dict, dict]:
+    """A service visit and the odometer row it synced."""
+    made = await client.post(
+        f"/api/vehicles/{vin}/service-visits",
+        json={"date": "2026-08-06", "odometer_km": 5000, "line_items": [{"description": "Oil"}]},
+        headers=headers,
+    )
+    assert made.status_code == 201, made.text
+    visit = made.json()
+    rows = await _odometer_rows(client, headers, vin)
+    marker = auto_sync_marker("service_visit", visit["id"])
+    owned = [r for r in rows if r["notes"] == marker]
+    assert len(owned) == 1, rows
+    return visit, owned[0]
+
+
+async def _odometer_rows(client: AsyncClient, headers: dict, vin: str) -> list[dict]:
+    listed = await client.get(f"/api/vehicles/{vin}/odometer", headers=headers)
+    assert listed.status_code == 200, listed.text
+    return listed.json()["records"]
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+class TestSyncedRowNoteEdit:
+    """A note edit on a synced row keeps the marker its source deletes it by."""
+
+    @pytest.mark.parametrize("notes", ["fixed typo", "", None])
+    async def test_a_note_edit_keeps_the_marker(
+        self, client: AsyncClient, auth_headers, own_vehicle, notes
+    ):
+        vin = own_vehicle.vin
+        visit, row = await _synced_row(client, auth_headers, vin)
+        marker = auto_sync_marker("service_visit", visit["id"])
+
+        edited = await client.put(
+            f"/api/vehicles/{vin}/odometer/{row['id']}", json={"notes": notes}, headers=auth_headers
+        )
+        assert edited.status_code == 200, edited.text
+        assert edited.json()["notes"] == marker
+
+    async def test_deleting_the_visit_still_removes_the_edited_row(
+        self, client: AsyncClient, auth_headers, own_vehicle
+    ):
+        vin = own_vehicle.vin
+        visit, row = await _synced_row(client, auth_headers, vin)
+        edited = await client.put(
+            f"/api/vehicles/{vin}/odometer/{row['id']}",
+            json={"notes": "fixed typo"},
+            headers=auth_headers,
+        )
+        assert edited.status_code == 200, edited.text
+
+        gone = await client.delete(
+            f"/api/vehicles/{vin}/service-visits/{visit['id']}", headers=auth_headers
+        )
+        assert gone.status_code in (200, 204), gone.text
+        assert [
+            r for r in await _odometer_rows(client, auth_headers, vin) if r["id"] == row["id"]
+        ] == []
+
+    async def test_a_figure_and_note_edit_changes_the_figure_and_keeps_the_marker(
+        self, client: AsyncClient, auth_headers, own_vehicle
+    ):
+        vin = own_vehicle.vin
+        visit, row = await _synced_row(client, auth_headers, vin)
+        edited = await client.put(
+            f"/api/vehicles/{vin}/odometer/{row['id']}",
+            json={"odometer_km": 5100, "notes": "fixed typo"},
+            headers=auth_headers,
+        )
+        assert edited.status_code == 200, edited.text
+        assert float(edited.json()["odometer_km"]) == 5100
+        assert edited.json()["notes"] == auto_sync_marker("service_visit", visit["id"])
+
+    @pytest.mark.parametrize(
+        "original",
+        ["Monthly reading", f"{auto_sync_marker('fuel', 1)} copied by hand"],
+    )
+    async def test_a_manual_rows_note_still_changes(
+        self, client: AsyncClient, auth_headers, own_vehicle, original
+    ):
+        """Only a note that IS a marker is held; one that just mentions one isn't."""
+        vin = own_vehicle.vin
+        made = await client.post(
+            f"/api/vehicles/{vin}/odometer",
+            json={"vin": vin, "date": "2026-08-01", "odometer_km": 4000, "notes": original},
+            headers=auth_headers,
+        )
+        assert made.status_code == 201, made.text
+        edited = await client.put(
+            f"/api/vehicles/{vin}/odometer/{made.json()['id']}",
+            json={"notes": "fixed typo"},
+            headers=auth_headers,
+        )
+        assert edited.status_code == 200, edited.text
+        assert edited.json()["notes"] == "fixed typo"
