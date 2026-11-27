@@ -467,6 +467,41 @@ def last_known_day(periods: Iterable[TireMountPeriod]) -> dt.date | None:
     )
 
 
+def reading_position(
+    periods: Sequence[TireMountPeriod], day: dt.date, stored: str | None
+) -> str | None:
+    """The corner a tire was on for a reading dated `day`.
+
+    `stored` is the snapshot written when the reading was logged, which is
+    today's corner even for a backdated reading. The periods decide instead,
+    except where they can't: no periods at all, or one with no start date
+    (the assumed ones 097 made), and then the snapshot stands.
+    """
+    # A rotation or dismount day has two honest answers: measured before the
+    # move or after it. The snapshot picks one if it's one of them.
+    opening = [p.position for p in periods if p.mounted_on == day]
+    closing = [p.position for p in periods if p.dismounted_on == day]
+    if opening or closing:
+        candidates: set[str | None] = {*opening, *closing}
+        if closing and not opening:
+            candidates.add(None)
+        if stored in candidates:
+            return stored
+    covering = [
+        (p.mounted_on, p.id, p.position)
+        for p in periods
+        if p.mounted_on is not None
+        and p.mounted_on <= day
+        and (p.dismounted_on is None or day < p.dismounted_on)
+    ]
+    if covering:
+        return max(covering)[2]
+    if periods and all(p.mounted_on is not None for p in periods):
+        # Every period is dated and none covers the day: it was in the garage.
+        return None
+    return stored
+
+
 async def apply_mount_moves(
     db: AsyncSession,
     *,
@@ -1436,7 +1471,14 @@ class TireService:
             )
         ]
         if include_readings:
-            payload.readings = [TireReadingResponse.model_validate(r) for r in readings]
+            payload.readings = []
+            for r in readings:
+                # Worked out on the response, never on the row: the row keeps its snapshot.
+                shown = TireReadingResponse.model_validate(r)
+                shown.position = reading_position(
+                    tire.mount_periods or [], r.recorded_at, r.position
+                )
+                payload.readings.append(shown)
         else:
             payload.readings = []
         return payload
