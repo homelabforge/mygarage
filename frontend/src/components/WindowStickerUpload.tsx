@@ -122,8 +122,9 @@ function WindowStickerUpload({
   // The upload commits before the review, so a cancelled review still left a
   // new sticker on the vehicle, and the page has to know to reload.
   const close = (): void => {
-    // Closing now would reload ahead of the edits still on their way.
-    if (uploading && seed !== null) return
+    // The upload or the save is still out and either can commit, so stay open
+    // until it answers. A failed answer frees this again.
+    if (uploading) return
     // The save landed, so reload now instead of waiting out the second.
     if (finishTimer.current !== null) {
       clearTimeout(finishTimer.current)
@@ -478,7 +479,8 @@ function WindowStickerUpload({
               <button
                 type="button"
                 onClick={close}
-                className="px-4 py-2 bg-garage-bg border border-garage-border text-garage-text rounded-lg hover:bg-garage-border/50 transition-colors"
+                disabled={uploading}
+                className="px-4 py-2 bg-garage-bg border border-garage-border text-garage-text rounded-lg hover:bg-garage-border/50 transition-colors disabled:opacity-50"
               >
                 {t('windowSticker.misc.cancel')}
               </button>

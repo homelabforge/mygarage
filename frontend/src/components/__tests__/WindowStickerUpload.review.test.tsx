@@ -436,6 +436,31 @@ describe('WindowStickerUpload upload: a lost answer still reloads', () => {
     await user.click(screen.getByRole('button', { name: 'windowSticker.uploadAndExtract' }))
   }
 
+  it('the drawer stays open while the upload is out, and closes with a reload once it lands', async () => {
+    const user = userEvent.setup({ applyAccept: false })
+    let land: (value: unknown) => void = () => {}
+    apiPost.mockImplementationOnce(() => new Promise((resolve) => (land = resolve)))
+    const onClose = vi.fn()
+    render(<WindowStickerUpload vin="V1" onSuccess={vi.fn()} onClose={onClose} />)
+    await startUpload(user)
+    const cancel = screen.getByRole('button', { name: 'windowSticker.misc.cancel' })
+    expect(cancel).toBeDisabled()
+    fireEvent.click(cancel)
+    fireEvent.keyDown(window, { key: 'Escape' })
+    fireEvent.click(screen.getByRole('button', { name: 'common:close' }))
+    expect(onClose).not.toHaveBeenCalled()
+
+    await act(async () => {
+      land({ data: extracted })
+    })
+    await screen.findByRole('button', { name: 'windowSticker.misc.saveData' })
+    expect(onClose).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: 'windowSticker.misc.cancel' }))
+    expect(onClose).toHaveBeenCalledTimes(1)
+    expect(onClose).toHaveBeenCalledWith(true)
+    expect(onClose).not.toHaveBeenCalledWith(false)
+  })
+
   // The service commits before the route builds its answer, so a 500 can
   // still mean the sticker is on file.
   it.each([
