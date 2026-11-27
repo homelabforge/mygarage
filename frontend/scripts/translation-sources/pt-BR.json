@@ -1683,6 +1683,7 @@
   "vehicles:windowSticker.misc.fileTooLargeLimit": "9e966f20:952dc2dc:d",
   "vehicles:windowSticker.misc.uploadSuccess": "703ee9fb:9b7877ee:d",
   "vehicles:windowSticker.misc.saveSuccess": "9751836f:b1c22f17:d",
+  "vehicles:windowSticker.misc.uploadUnconfirmed": "cbde33d6:c0da0195:d",
   "vehicles:windowSticker.misc.dragDropPrompt": "dcf89e20:941a5a85:d",
   "vehicles:windowSticker.misc.selectFile": "79f376f9:38596253:d",
   "vehicles:windowSticker.misc.cancel": "19766ed6:bb9dbb40:d",

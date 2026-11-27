@@ -1828,6 +1828,7 @@
       "fileTooLargeLimit": "File size must be {{size}} MB or less",
       "uploadSuccess": "Window sticker uploaded successfully! Review the extracted data below.",
       "saveSuccess": "Window sticker data saved successfully!",
+      "uploadUnconfirmed": "We couldn't confirm the upload. Close this and the page reloads to show what's saved.",
       "dragDropPrompt": "Drag and drop your window sticker here, or click to select",
       "selectFile": "Select File",
       "cancel": "Cancel",

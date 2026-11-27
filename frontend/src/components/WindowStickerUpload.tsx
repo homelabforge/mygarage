@@ -1,4 +1,4 @@
-import { useState, useRef, type ReactElement, type SyntheticEvent } from 'react'
+import { useEffect, useState, useRef, type ReactElement, type SyntheticEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Upload, FileText, DollarSign, Fuel, Edit2, Save, Palette, Shield, Leaf, Cog, Car } from 'lucide-react'
 import api from '../services/api'
@@ -103,9 +103,36 @@ function WindowStickerUpload({
   const [editMode, setEditMode] = useState(false)
   const [dragActive, setDragActive] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  // The second between a saved review and the reload. One timer at a time,
+  // so a save only ever reloads the page once.
+  const finishTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [finishing, setFinishing] = useState(false)
+  // The upload failed with no answer or a 5xx. WindowStickerService.upload
+  // commits before the route builds the response, so the sticker may be on
+  // file anyway.
+  const [maybeUploaded, setMaybeUploaded] = useState(false)
+
+  useEffect(
+    () => () => {
+      if (finishTimer.current !== null) clearTimeout(finishTimer.current)
+    },
+    []
+  )
+
   // The upload commits before the review, so a cancelled review still left a
   // new sticker on the vehicle, and the page has to know to reload.
-  const close = (): void => onClose(seed !== null)
+  const close = (): void => {
+    // Closing now would reload ahead of the edits still on their way.
+    if (uploading && seed !== null) return
+    // The save landed, so reload now instead of waiting out the second.
+    if (finishTimer.current !== null) {
+      clearTimeout(finishTimer.current)
+      finishTimer.current = null
+      onSuccess()
+      return
+    }
+    onClose(seed !== null || maybeUploaded)
+  }
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault()
@@ -192,6 +219,11 @@ function WindowStickerUpload({
         err,
         WINDOW_STICKER_KNOWN_FIELDS
       )
+      if (parsed.isNetworkError || parsed.status >= 500) {
+        setMaybeUploaded(true)
+        setError(t('windowSticker.misc.uploadUnconfirmed'))
+        return
+      }
       if (attached.length > 0) {
         setFieldErrors(errorsByField)
       }
@@ -247,7 +279,10 @@ function WindowStickerUpload({
   const finish = () => {
     setNotice(null)
     setSuccess(t('windowSticker.misc.saveSuccess'))
-    setTimeout(() => {
+    setFinishing(true)
+    if (finishTimer.current !== null) clearTimeout(finishTimer.current)
+    finishTimer.current = setTimeout(() => {
+      finishTimer.current = null
       onSuccess()
     }, 1000)
   }
@@ -653,14 +688,15 @@ function WindowStickerUpload({
               <button
                 type="button"
                 onClick={close}
-                className="px-4 py-2 bg-garage-bg border border-garage-border text-garage-text rounded-lg hover:bg-garage-border/50 transition-colors"
+                disabled={uploading}
+                className="px-4 py-2 bg-garage-bg border border-garage-border text-garage-text rounded-lg hover:bg-garage-border/50 transition-colors disabled:opacity-50"
               >
                 {t('windowSticker.misc.cancel')}
               </button>
               <button
                 type="button"
                 onClick={handleSaveEdits}
-                disabled={uploading}
+                disabled={uploading || finishing}
                 className="flex items-center gap-2 px-4 py-2 bg-primary text-(--accent-on-solid) rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50"
               >
                 <Save className="w-4 h-4" />

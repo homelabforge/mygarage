@@ -1835,6 +1835,7 @@
       "fileTooLargeLimit": "La dimensione del file non deve superare {{size}} MB",
       "uploadSuccess": "Scheda tecnica caricata con successo! Verifica i dati estratti qui sotto.",
       "saveSuccess": "Dati della scheda tecnica salvati con successo!",
+      "uploadUnconfirmed": "Non è stato possibile confermare il caricamento. Chiudi questo pannello e la pagina si ricaricherà per mostrare ciò che è stato salvato.",
       "dragDropPrompt": "Trascina qui la tua scheda tecnica oppure fai clic per selezionarla",
       "selectFile": "Seleziona file",
       "cancel": "Annulla",

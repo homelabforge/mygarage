@@ -1835,6 +1835,7 @@
       "fileTooLargeLimit": "O arquivo deve ter no máximo {{size}} MB",
       "uploadSuccess": "Etiqueta do vidro enviada! Revise os dados extraídos abaixo.",
       "saveSuccess": "Dados da etiqueta do vidro salvos!",
+      "uploadUnconfirmed": "Não foi possível confirmar o envio. Feche isto e a página será recarregada para mostrar o que foi salvo.",
       "dragDropPrompt": "Arraste e solte a etiqueta do vidro aqui ou clique para selecionar",
       "selectFile": "Selecionar arquivo",
       "cancel": "Cancelar",

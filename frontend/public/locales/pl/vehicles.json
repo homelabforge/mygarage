@@ -1842,6 +1842,7 @@
       "fileTooLargeLimit": "Rozmiar pliku nie może przekraczać {{size}} MB",
       "uploadSuccess": "Przesłano naklejkę na szybę! Sprawdź poniżej wyodrębnione dane.",
       "saveSuccess": "Zapisano dane naklejki na szybę!",
+      "uploadUnconfirmed": "Nie udało się potwierdzić przesłania. Zamknij to okno, a strona odświeży się i pokaże, co zostało zapisane.",
       "dragDropPrompt": "Przeciągnij i upuść tutaj naklejkę na szybę lub kliknij, aby wybrać plik",
       "selectFile": "Wybierz plik",
       "cancel": "Anuluj",

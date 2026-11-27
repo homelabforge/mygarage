@@ -1821,6 +1821,7 @@
       "fileTooLargeLimit": "Saiz fail mestilah {{size}} MB atau kurang",
       "uploadSuccess": "Pelekat tingkap berjaya dimuat naik! Semak data yang diekstrak di bawah.",
       "saveSuccess": "Data pelekat tingkap berjaya disimpan!",
+      "uploadUnconfirmed": "Kami tidak dapat mengesahkan muat naik. Tutup ini dan halaman akan dimuat semula untuk menunjukkan apa yang telah disimpan.",
       "dragDropPrompt": "Seret dan lepaskan pelekat tingkap anda di sini, atau klik untuk memilih",
       "selectFile": "Pilih Fail",
       "cancel": "Batal",

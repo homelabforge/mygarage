@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '../../__tests__/test-utils'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { act, fireEvent, render, screen } from '../../__tests__/test-utils'
 import userEvent from '@testing-library/user-event'
 
 const apiGet = vi.fn()
@@ -298,5 +298,183 @@ describe('WindowStickerUpload review: money in the user\'s currency', () => {
       expect(input!.placeholder, key).not.toBe('')
       expect(input!.placeholder, key).not.toContain(',')
     }
+  })
+})
+
+// The reload timer runs on fake timers. user-event drains on a real
+// setTimeout, so once they're on, clicks go through fireEvent.
+describe('WindowStickerUpload review: a save reloads the page once', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  const fakeTimers = () => vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+  const button = (name: string) => screen.getByRole('button', { name })
+  const runTimers = () =>
+    act(async () => {
+      await vi.advanceTimersByTimeAsync(2000)
+    })
+
+  it('Cancel inside the second after a save reloads once and never as a cancel', async () => {
+    const user = userEvent.setup({ applyAccept: false })
+    const onSuccess = vi.fn()
+    const onClose = vi.fn()
+    render(<WindowStickerUpload vin="V1" onSuccess={onSuccess} onClose={onClose} />)
+    await reachReview(user)
+    fakeTimers()
+    fireEvent.click(button('windowSticker.misc.saveData'))
+    fireEvent.click(button('windowSticker.misc.cancel'))
+    await runTimers()
+    expect(onSuccess).toHaveBeenCalledTimes(1)
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('closing the drawer before the second is up reloads nothing afterwards', async () => {
+    const user = userEvent.setup({ applyAccept: false })
+    const onSuccess = vi.fn()
+    const { unmount } = render(<WindowStickerUpload vin="V1" onSuccess={onSuccess} onClose={vi.fn()} />)
+    await reachReview(user)
+    fakeTimers()
+    fireEvent.click(button('windowSticker.misc.saveData'))
+    unmount()
+    await runTimers()
+    expect(onSuccess).not.toHaveBeenCalled()
+  })
+
+  it('saving an untouched review twice then cancelling still reloads once', async () => {
+    const user = userEvent.setup({ applyAccept: false })
+    const onSuccess = vi.fn()
+    const onClose = vi.fn()
+    render(<WindowStickerUpload vin="V1" onSuccess={onSuccess} onClose={onClose} />)
+    await reachReview(user)
+    fakeTimers()
+    fireEvent.click(button('windowSticker.misc.saveData'))
+    expect(button('windowSticker.misc.saveData')).toBeDisabled()
+    fireEvent.click(button('windowSticker.misc.saveData'))
+    fireEvent.click(button('windowSticker.misc.cancel'))
+    await runTimers()
+    expect(onSuccess).toHaveBeenCalledTimes(1)
+    expect(onClose).not.toHaveBeenCalled()
+    expect(apiPatch).not.toHaveBeenCalled()
+  })
+
+  // Holds the PATCH open and records whether it had landed when the page reloaded.
+  const holdPatch = () => {
+    const state = { landed: false, land: (_value: unknown): void => {} }
+    apiPatch.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          state.land = (value) => {
+            state.landed = true
+            resolve(value)
+          }
+        })
+    )
+    return state
+  }
+
+  const editColour = async (user: ReturnType<typeof userEvent.setup>) => {
+    await user.clear(screen.getByLabelText('detail.misc.exteriorColor'))
+    await user.type(screen.getByLabelText('detail.misc.exteriorColor'), 'Red')
+  }
+
+  it('Cancel while the PATCH is out waits for it: one reload, after the edits land', async () => {
+    const user = userEvent.setup({ applyAccept: false })
+    const patch = holdPatch()
+    const reloadedAfterPatch: boolean[] = []
+    const onSuccess = vi.fn(() => {
+      reloadedAfterPatch.push(patch.landed)
+    })
+    const onClose = vi.fn()
+    render(<WindowStickerUpload vin="V1" onSuccess={onSuccess} onClose={onClose} />)
+    await reachReview(user)
+    await editColour(user)
+    fakeTimers()
+    fireEvent.click(button('windowSticker.misc.saveData'))
+    expect(apiPatch).toHaveBeenCalledTimes(1)
+    expect(button('windowSticker.misc.cancel')).toBeDisabled()
+    fireEvent.click(button('windowSticker.misc.cancel'))
+    expect(onClose).not.toHaveBeenCalled()
+    expect(onSuccess).not.toHaveBeenCalled()
+
+    await act(async () => {
+      patch.land({ data: { ...extracted, exterior_color: 'Red' } })
+      await vi.advanceTimersByTimeAsync(2000)
+    })
+    expect(reloadedAfterPatch).toEqual([true])
+    expect(onClose).not.toHaveBeenCalled()
+    expect(apiPatch.mock.calls[0][1]).toStrictEqual({ exterior_color: 'Red' })
+  })
+
+  it('Escape or the close button while the PATCH is out does not close ahead of it', async () => {
+    const user = userEvent.setup({ applyAccept: false })
+    const patch = holdPatch()
+    const onSuccess = vi.fn()
+    const onClose = vi.fn()
+    render(<WindowStickerUpload vin="V1" onSuccess={onSuccess} onClose={onClose} />)
+    await reachReview(user)
+    await editColour(user)
+    fakeTimers()
+    fireEvent.click(button('windowSticker.misc.saveData'))
+    fireEvent.keyDown(window, { key: 'Escape' })
+    fireEvent.click(button('common:close'))
+    expect(onClose).not.toHaveBeenCalled()
+
+    await act(async () => {
+      patch.land({ data: { ...extracted, exterior_color: 'Red' } })
+      await vi.advanceTimersByTimeAsync(2000)
+    })
+    expect(onSuccess).toHaveBeenCalledTimes(1)
+    expect(onClose).not.toHaveBeenCalled()
+  })
+})
+
+describe('WindowStickerUpload upload: a lost answer still reloads', () => {
+  const startUpload = async (user: ReturnType<typeof userEvent.setup>) => {
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement
+    await user.upload(input, new File(['%PDF-1.4'], 'sticker.pdf', { type: 'application/pdf' }))
+    await user.click(screen.getByRole('button', { name: 'windowSticker.uploadAndExtract' }))
+  }
+
+  // The service commits before the route builds its answer, so a 500 can
+  // still mean the sticker is on file.
+  it.each([
+    ['no response (network or timeout)', { isAxiosError: true, message: 'Network Error', code: 'ERR_NETWORK' }],
+    [
+      'a 500',
+      {
+        isAxiosError: true,
+        message: 'Request failed with status code 500',
+        response: { status: 500, data: { detail: 'Internal server error' } },
+      },
+    ],
+  ])('%s: the error says it may have gone through and Cancel reloads', async (_label, failure) => {
+    const user = userEvent.setup({ applyAccept: false })
+    apiPost.mockRejectedValueOnce(failure)
+    const onClose = vi.fn()
+    render(<WindowStickerUpload vin="V1" onSuccess={vi.fn()} onClose={onClose} />)
+    await startUpload(user)
+    expect(await screen.findByRole('alert')).toHaveTextContent('windowSticker.misc.uploadUnconfirmed')
+    await user.click(screen.getByRole('button', { name: 'windowSticker.misc.cancel' }))
+    expect(onClose).toHaveBeenCalledTimes(1)
+    expect(onClose).toHaveBeenCalledWith(true)
+  })
+
+  it('a 4xx with a response keeps the usual error and closes without a reload', async () => {
+    const user = userEvent.setup({ applyAccept: false })
+    apiPost.mockRejectedValueOnce({
+      isAxiosError: true,
+      message: 'Request failed with status code 400',
+      response: { status: 400, data: { detail: 'Invalid file type' } },
+    })
+    const onClose = vi.fn()
+    render(<WindowStickerUpload vin="V1" onSuccess={vi.fn()} onClose={onClose} />)
+    await startUpload(user)
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('Invalid file type')
+    expect(alert).not.toHaveTextContent('windowSticker.misc.uploadUnconfirmed')
+    await user.click(screen.getByRole('button', { name: 'windowSticker.misc.cancel' }))
+    expect(onClose).toHaveBeenCalledTimes(1)
+    expect(onClose).toHaveBeenCalledWith(false)
   })
 })
