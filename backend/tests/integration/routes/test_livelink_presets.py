@@ -735,6 +735,27 @@ async def test_an_owner_who_is_not_an_admin_cannot_delete_a_preset_sensor(
 
 
 @pytest.mark.asyncio
+async def test_an_admin_can_delete_a_preset_sensor_on_someone_elses_vehicle(
+    client, auth_headers, db_session, owned_by_non_admin, no_reload
+):
+    """The other side of the admin-only rule. Seeded straight in, so the only
+    admin check on the way is the one on delete."""
+    db_session.add(
+        LiveLinkDevice(
+            device_id="sensor-admin-delete",
+            kind="generic_mqtt",
+            preset_key="mopeka",
+            vin=owned_by_non_admin,
+        )
+    )
+    await db_session.commit()
+
+    resp = await client.delete("/api/livelink/devices/sensor-admin-delete", headers=auth_headers)
+
+    assert resp.status_code == 204, resp.text
+
+
+@pytest.mark.asyncio
 async def test_an_owner_can_still_delete_a_handmade_device(
     client, non_admin_headers, db_session, owned_by_non_admin, no_reload
 ):

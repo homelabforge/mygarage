@@ -58,6 +58,7 @@ from app.schemas.livelink_topic_map import (
     TopicMapUpdate,
 )
 from app.services.auth import (
+    acts_as_admin,
     get_current_admin_user,
     get_vehicle_for_owner_or_403,
     require_auth,
@@ -415,9 +416,9 @@ async def delete_device(
       readings on every vehicle it ever reported to, not just this one.
     """
     device = await _get_device_for_owner_or_404(db, device_id, current_user)
-    # Same predicate `delete_sensor_readings` acts on (R6). None is auth off.
+    # Same predicate `delete_sensor_readings` acts on.
     is_sensor = PRESETS.get(device.preset_key or "") is not None
-    if is_sensor and current_user is not None and not current_user.is_admin:
+    if is_sensor and not acts_as_admin(current_user):
         raise HTTPException(status_code=403, detail="Only an admin can delete a preset sensor")
 
     service = LiveLinkService(db)
@@ -1196,7 +1197,7 @@ async def _get_device_for_owner_or_404(db: AsyncSession, device_id: str, current
     if device.vin:
         # Raises 403 unless caller owns the linked vehicle (or is admin / none-mode).
         await get_vehicle_for_owner_or_403(device.vin, current_user, db)
-    elif current_user is not None and not current_user.is_admin:
+    elif not acts_as_admin(current_user):
         raise HTTPException(status_code=403, detail="Only an admin can manage an unlinked device")
     return device
 

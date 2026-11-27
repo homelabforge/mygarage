@@ -241,6 +241,27 @@ async def get_current_active_user(
     return current_user
 
 
+def restricted_user(user: User | None) -> User | None:
+    """The user to scope access by, or None when nothing is restricted.
+
+    Auth off (no user) and an admin both get the whole garage, so both come back
+    None. Use it as `if (me := restricted_user(current_user)) is None:` and read
+    `me` after that, so pyright knows it's a real user.
+    """
+    if user is None or user.is_admin:
+        return None
+    return user
+
+
+def acts_as_admin(user: User | None) -> bool:
+    """Whether this caller gets admin reach: auth off, or an actual admin.
+
+    For checks that never read the user again. When you need `.id` afterwards,
+    use `restricted_user` so the narrowing comes along.
+    """
+    return restricted_user(user) is None
+
+
 async def get_current_admin_user(
     request: Request,
     db: AsyncSession = Depends(get_db),
@@ -263,7 +284,7 @@ async def get_current_admin_user(
     current_user = await get_current_user(request, db, token)
 
     # Check admin privileges
-    if not current_user.is_admin:
+    if not acts_as_admin(current_user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="User does not have admin privileges",
@@ -426,14 +447,12 @@ def visible_vehicles_filter(current_user: User | None) -> ColumnElement[bool] | 
     prefer calling it over restating the condition, even where restating it looks
     shorter.
     """
-    if current_user is None or current_user.is_admin:
+    if (me := restricted_user(current_user)) is None:
         return None
     shared_vins = (
-        select(VehicleShare.vehicle_vin)
-        .where(VehicleShare.user_id == current_user.id)
-        .scalar_subquery()
+        select(VehicleShare.vehicle_vin).where(VehicleShare.user_id == me.id).scalar_subquery()
     )
-    return or_(Vehicle.user_id == current_user.id, Vehicle.vin.in_(shared_vins))
+    return or_(Vehicle.user_id == me.id, Vehicle.vin.in_(shared_vins))
 
 
 def writable_vehicles_filter(current_user: User | None) -> ColumnElement[bool] | None:
@@ -449,14 +468,14 @@ def writable_vehicles_filter(current_user: User | None) -> ColumnElement[bool] |
     page, but Quick Entry hid unowned ones (anything created under
     `auth_mode='none'`) and other users' (#308).
     """
-    if current_user is None or current_user.is_admin:
+    if (me := restricted_user(current_user)) is None:
         return None
     write_shared_vins = (
         select(VehicleShare.vehicle_vin)
-        .where(VehicleShare.user_id == current_user.id, VehicleShare.permission == "write")
+        .where(VehicleShare.user_id == me.id, VehicleShare.permission == "write")
         .scalar_subquery()
     )
-    return or_(Vehicle.user_id == current_user.id, Vehicle.vin.in_(write_shared_vins))
+    return or_(Vehicle.user_id == me.id, Vehicle.vin.in_(write_shared_vins))
 
 
 async def accessible_vehicles(db: AsyncSession, current_user: User | None) -> list[Vehicle]:
@@ -503,23 +522,19 @@ async def get_vehicle_or_403(
     if not vehicle:
         raise HTTPException(status_code=404, detail="Vehicle not found")
 
-    # If auth is disabled (auth_mode='none'), allow access to all vehicles
-    if current_user is None:
-        return vehicle
-
-    # Admin users can access all vehicles
-    if current_user.is_admin:
+    # Auth off or an admin: every vehicle.
+    if (me := restricted_user(current_user)) is None:
         return vehicle
 
     # Check if vehicle belongs to user (owner has full access)
-    if hasattr(vehicle, "user_id") and vehicle.user_id == current_user.id:
+    if hasattr(vehicle, "user_id") and vehicle.user_id == me.id:
         return vehicle
 
     # Check if user has share access
     share_result = await db.execute(
         select(VehicleShare).where(
             VehicleShare.vehicle_vin == vin,
-            VehicleShare.user_id == current_user.id,
+            VehicleShare.user_id == me.id,
         )
     )
     share = share_result.scalar_one_or_none()
@@ -580,14 +595,10 @@ def check_vehicle_ownership(vehicle: Vehicle, current_user: User | None) -> None
     Raises:
         HTTPException 403: User does not have access to this vehicle
     """
-    # If auth is disabled (auth_mode='none'), allow access to all vehicles
-    if current_user is None:
-        return
-
-    # Admin users can access all vehicles
-    if current_user.is_admin:
+    # Auth off or an admin: every vehicle.
+    if (me := restricted_user(current_user)) is None:
         return
 
     # Check if vehicle belongs to user
-    if not hasattr(vehicle, "user_id") or vehicle.user_id != current_user.id:
+    if not hasattr(vehicle, "user_id") or vehicle.user_id != me.id:
         raise HTTPException(status_code=403, detail="Not authorized to access this vehicle")

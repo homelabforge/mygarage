@@ -24,6 +24,7 @@ from app.schemas.family import (
     FamilyMemberUpdateRequest,
     FamilyVehicleSummary,
 )
+from app.services.auth import acts_as_admin
 from app.services.hours_service import latest_engine_hours_and_date
 from app.services.reminder_service import (
     classify_pending_reminders,
@@ -71,8 +72,8 @@ class FamilyDashboardService:
         Raises:
             HTTPException 403: If user is not admin
         """
-        # None is auth off, treated like an admin.
-        if current_user is not None and not current_user.is_admin:
+        # Auth off passes like an admin.
+        if not acts_as_admin(current_user):
             raise HTTPException(
                 status_code=403,
                 detail="Admin privileges required for family dashboard",
@@ -276,7 +277,7 @@ class FamilyDashboardService:
             HTTPException 403: If user is not admin
             HTTPException 404: If user not found
         """
-        if current_user is not None and not current_user.is_admin:
+        if not acts_as_admin(current_user):
             raise HTTPException(
                 status_code=403,
                 detail="Admin privileges required to update dashboard settings",
@@ -338,7 +339,7 @@ class FamilyDashboardService:
         Raises:
             HTTPException 403: If user is not admin
         """
-        if current_user is not None and not current_user.is_admin:
+        if not acts_as_admin(current_user):
             raise HTTPException(
                 status_code=403,
                 detail="Admin privileges required for dashboard management",

@@ -19,7 +19,7 @@ from app.schemas.family import (
     VehicleShareResponse,
     VehicleShareUpdate,
 )
-from app.services.auth import sign_in_required
+from app.services.auth import acts_as_admin, restricted_user, sign_in_required
 from app.utils.datetime_utils import utc_now
 from app.utils.logging_utils import sanitize_for_log
 
@@ -72,7 +72,7 @@ class SharingService:
                 raise HTTPException(status_code=404, detail="Vehicle not found")
 
             # Check authorization (owner or admin)
-            if not current_user.is_admin and vehicle.user_id != current_user.id:
+            if not acts_as_admin(current_user) and vehicle.user_id != current_user.id:
                 raise HTTPException(
                     status_code=403,
                     detail="Only the owner or an admin can share this vehicle",
@@ -195,11 +195,9 @@ class SharingService:
             result = await self.db.execute(select(Vehicle).where(Vehicle.vin == share.vehicle_vin))
             vehicle = result.scalar_one_or_none()
 
-            # Check authorization (owner or admin). None is auth off, treated like an admin.
-            if (
-                current_user is not None
-                and not current_user.is_admin
-                and (not vehicle or vehicle.user_id != current_user.id)
+            # Check authorization (owner or admin). Auth off passes like an admin.
+            if (me := restricted_user(current_user)) is not None and (
+                not vehicle or vehicle.user_id != me.id
             ):
                 raise HTTPException(
                     status_code=403,
@@ -273,11 +271,9 @@ class SharingService:
             result = await self.db.execute(select(Vehicle).where(Vehicle.vin == share.vehicle_vin))
             vehicle = result.scalar_one_or_none()
 
-            # Check authorization (owner or admin). None is auth off, treated like an admin.
-            if (
-                current_user is not None
-                and not current_user.is_admin
-                and (not vehicle or vehicle.user_id != current_user.id)
+            # Check authorization (owner or admin). Auth off passes like an admin.
+            if (me := restricted_user(current_user)) is not None and (
+                not vehicle or vehicle.user_id != me.id
             ):
                 raise HTTPException(
                     status_code=403,
@@ -330,12 +326,8 @@ class SharingService:
             if not vehicle:
                 raise HTTPException(status_code=404, detail="Vehicle not found")
 
-            # Check authorization (owner or admin). None is auth off, treated like an admin.
-            if (
-                current_user is not None
-                and not current_user.is_admin
-                and vehicle.user_id != current_user.id
-            ):
+            # Check authorization (owner or admin). Auth off passes like an admin.
+            if (me := restricted_user(current_user)) is not None and vehicle.user_id != me.id:
                 raise HTTPException(
                     status_code=403,
                     detail="Only the owner or an admin can view shares",

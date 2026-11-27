@@ -999,6 +999,37 @@ class TestDashboardRoutes:
             await db_session.execute(delete(Vehicle).where(Vehicle.vin == owned_vin))
             await db_session.commit()
 
+    async def test_an_admin_sees_a_vehicle_they_do_not_own(
+        self,
+        client: AsyncClient,
+        auth_headers,
+        db_session: AsyncSession,
+        made_users: list[str],
+    ):
+        """An admin gets the whole garage, not just owned plus shared."""
+        vin, _ = await _isolated_fleet(db_session, made_users)
+
+        response = await client.get("/api/dashboard", headers=auth_headers)
+
+        assert response.status_code == 200, response.text
+        assert vin in {v["vin"] for v in response.json()["vehicles"]}
+
+    async def test_with_auth_off_every_vehicle_shows(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        made_users: list[str],
+        set_auth_mode,
+    ):
+        """Auth off has no user to scope by, so it's the whole garage too."""
+        vin, _ = await _isolated_fleet(db_session, made_users)
+        await set_auth_mode("none")
+
+        response = await client.get("/api/dashboard")
+
+        assert response.status_code == 200, response.text
+        assert vin in {v["vin"] for v in response.json()["vehicles"]}
+
 
 @pytest.mark.integration
 @pytest.mark.asyncio

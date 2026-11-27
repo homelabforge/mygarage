@@ -39,7 +39,7 @@ from app.schemas.reminder_pack import (
     is_custom_pack_id,
 )
 from app.services import maintenance_service, reminder_service
-from app.services.auth import get_vehicle_or_403
+from app.services.auth import get_vehicle_or_403, restricted_user
 from app.utils.logging_utils import sanitize_for_log
 
 logger = logging.getLogger(__name__)
@@ -321,11 +321,9 @@ def may_edit(row: ReminderPack, current_user: User | None) -> bool:
       off). Admin only: nobody can prove they made it, so nobody inherits it.
     * Auth on, creator set. The creator or an admin.
     """
-    if current_user is None:
+    if (me := restricted_user(current_user)) is None:
         return True
-    if current_user.is_admin:
-        return True
-    return row.created_by_user_id is not None and row.created_by_user_id == current_user.id
+    return row.created_by_user_id is not None and row.created_by_user_id == me.id
 
 
 async def _saved_summaries(
