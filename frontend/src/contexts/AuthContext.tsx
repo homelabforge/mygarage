@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
+import { hashKey, useQueryClient } from '@tanstack/react-query'
 import api, { setCSRFToken, getCSRFToken, clearCSRFToken, setApiAuthMode } from '../services/api'
 import { fetchPublicSettingRows, publicSettingsQuery } from '../hooks/queries/usePublicSettings'
 import type { components } from '../types/api.generated'
@@ -8,7 +8,7 @@ import { readPublicUnitDefaults, type PublicSetting } from '../utils/publicUnitD
 import { readPublicDefaultCountry } from '../utils/publicCountryDefault'
 import { setHouseholdTimeZone } from '../constants/i18n'
 import { analyticsCacheOwner, type AnalyticsCacheOwner } from '../utils/analyticsCache'
-import { claimOfflineData, forgetOfflineData, releaseOfflineData } from '../utils/offlineData'
+import { claimOfflineData, forgetOfflineData, releaseOfflineData, watchOfflineOwner } from '../utils/offlineData'
 
 /**
  * The user shape comes from the generated schema, not from a hand-maintained
@@ -107,43 +107,86 @@ export function AuthProvider({ children }: { children: ReactNode}) {
     [queryClient],
   )
 
+  // Bumped by every logout. A load or login that started before one is stale
+  // and mustn't put anybody back.
+  const authGenRef = useRef(0)
+  // Whose data the query cache holds, so a different account can't read it.
+  const cacheOwnerRef = useRef<AnalyticsCacheOwner>(null)
+  // A second click on Sign out joins the first instead of posting again.
+  const logoutInFlightRef = useRef<Promise<boolean> | null>(null)
+
   // Logout function - calls backend to clear cookie and CSRF token
-  const logout = useCallback(async (): Promise<boolean> => {
-    try {
-      await api.post('/auth/logout')
-    } catch (error: unknown) {
-      // Only the server can clear the HttpOnly cookie. If it never heard us,
-      // we're still signed in, and pretending otherwise hands the browser back
-      // to this account once it's online. A 401 means the session's gone already.
-      if ((error as { response?: { status?: number } }).response?.status !== 401) {
-        console.error('Logout error:', error)
-        return false
+  const logout = useCallback((): Promise<boolean> => {
+    if (logoutInFlightRef.current) return logoutInFlightRef.current
+    authGenRef.current += 1
+    const run = async (): Promise<boolean> => {
+      try {
+        await api.post('/auth/logout')
+      } catch (error: unknown) {
+        // Only the server can clear the HttpOnly cookie. If it never heard us,
+        // we're still signed in, and pretending otherwise hands the browser back
+        // to this account once it's online. A 401 means the session's gone already.
+        if ((error as { response?: { status?: number } }).response?.status !== 401) {
+          console.error('Logout error:', error)
+          return false
+        }
       }
+      // Clear QE session flag before nulling user so user.id is still available
+      if (user?.id) {
+        sessionStorage.removeItem(`qe_redirected:${user.id}`)
+      }
+      setToken(null)
+      setUser(null)
+      clearCSRFToken() // Clear CSRF token on logout (Security Enhancement v2.10.0)
+      // The next account on this browser mustn't find any of this one's data.
+      // Marker first, so a tab closed halfway leaves copies nobody owns.
+      releaseOfflineData()
+      queryClient.clear()
+      cacheOwnerRef.current = null
+      await forgetOfflineData()
+      return true
     }
-    // Clear QE session flag before nulling user so user.id is still available
-    if (user?.id) {
-      sessionStorage.removeItem(`qe_redirected:${user.id}`)
-    }
-    setToken(null)
-    setUser(null)
-    clearCSRFToken() // Clear CSRF token on logout (Security Enhancement v2.10.0)
-    // The next account on this browser mustn't find any of this one's data.
-    // Marker first, so a tab closed halfway leaves copies nobody owns.
-    releaseOfflineData()
-    queryClient.clear()
-    await forgetOfflineData()
-    return true
+    const pending = run().finally(() => {
+      logoutInFlightRef.current = null
+    })
+    logoutInFlightRef.current = pending
+    return pending
   }, [user, queryClient])
 
   // Every place a user gets set goes through here, so the offline copies are
-  // claimed for that account before any page can read them. `current` is asked
-  // after the claim, since the await can outlive the reason for setting this user.
+  // claimed for that account before any page can read them. `gen` is the
+  // logout count when the caller started, and `current` is asked after the
+  // claim, since the await can outlive the reason for setting this user.
   const adoptUser = useCallback(
-    async (owner: AnalyticsCacheOwner, next: User | null, current: () => boolean = () => true): Promise<void> => {
+    async (
+      owner: AnalyticsCacheOwner,
+      next: User | null,
+      gen: number,
+      current: () => boolean = () => true,
+    ): Promise<void> => {
+      // A logout landed since this started, so this answer is about a session that's over.
+      if (gen !== authGenRef.current) return
       await claimOfflineData(owner)
-      if (!current()) return
+      if (gen !== authGenRef.current || !current()) return
+      // Another account's pages are still in memory. Drop them before anyone
+      // renders. The public settings aren't anyone's, and a mode switch just wrote them.
+      if (cacheOwnerRef.current !== null && owner !== null && owner !== cacheOwnerRef.current) {
+        const shared = hashKey(publicSettingsQuery.queryKey)
+        queryClient.removeQueries({ predicate: (query) => query.queryHash !== shared })
+      }
+      if (owner !== null) cacheOwnerRef.current = owner
       setUser(next)
     },
+    [queryClient],
+  )
+
+  // Another tab signed out or in as someone else: this one's showing a
+  // session that's gone, so start over from the server.
+  useEffect(
+    () =>
+      watchOfflineOwner((next) => {
+        if (next !== cacheOwnerRef.current) window.location.reload()
+      }),
     [],
   )
 
@@ -207,6 +250,7 @@ export function AuthProvider({ children }: { children: ReactNode}) {
   // shave bootstrap latency; that reintroduced the 401-on-fresh-load redirect,
   // so the gating is deliberate and load-bearing, not an accident.
   const loadUserFor = useCallback(async (rows: PublicSetting[]): Promise<void> => {
+    const gen = authGenRef.current
     const mode = rows.find((s) => s.key === 'auth_mode')?.value || 'none'
     authModeRef.current = mode
     setAuthMode(mode)
@@ -220,7 +264,7 @@ export function AuthProvider({ children }: { children: ReactNode}) {
     if (mode === 'none') {
       setToken(null)
       // A newer load that turned sign-in back on owns the user now.
-      await adoptUser(analyticsCacheOwner(mode, null), null, () => authModeRef.current === 'none')
+      await adoptUser(analyticsCacheOwner(mode, null), null, gen, () => authModeRef.current === 'none')
       return
     }
 
@@ -229,7 +273,7 @@ export function AuthProvider({ children }: { children: ReactNode}) {
       const loaded: User = response.data
       // Claimed before the check below, so the await can't sneak past it.
       // Sign-in got turned off while this was out, so there's no one to show.
-      await adoptUser(analyticsCacheOwner(mode, loaded.id), loaded, () => authModeRef.current !== 'none')
+      await adoptUser(analyticsCacheOwner(mode, loaded.id), loaded, gen, () => authModeRef.current !== 'none')
     } catch (error: unknown) {
       const err = error as { response?: { status?: number } }
       if (err.response?.status === 401) {
@@ -342,6 +386,7 @@ export function AuthProvider({ children }: { children: ReactNode}) {
   // the per-field error path permanently dead code, since `parseApiError` only
   // parses `fieldErrors` from a real AxiosError.
   const login = async (username: string, password: string): Promise<User> => {
+    const gen = authGenRef.current
     const response = await api.post('/auth/login', { username, password })
     const newToken = response.data.access_token
     const csrfToken = response.data.csrf_token // Security Enhancement v2.10.0
@@ -374,7 +419,7 @@ export function AuthProvider({ children }: { children: ReactNode}) {
       loadedUser = userResponse.data
     }
     // Form login never goes through loadUser, so it claims here.
-    await adoptUser(analyticsCacheOwner(authModeRef.current ?? 'local', loadedUser.id), loadedUser)
+    await adoptUser(analyticsCacheOwner(authModeRef.current ?? 'local', loadedUser.id), loadedUser, gen)
     return loadedUser
   }
 

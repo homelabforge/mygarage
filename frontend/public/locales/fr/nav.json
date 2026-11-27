@@ -17,7 +17,7 @@
   "appearance": "Apparence",
   "accent": "Couleur d’accentuation",
   "accentError": "Impossible d’enregistrer votre couleur d’accentuation",
-  "logoutFailed": "Impossible de joindre le serveur, vous êtes toujours connecté.",
+  "logoutFailed": "Impossible de se déconnecter. Vous êtes toujours connecté.",
   "accents": {
     "blue": "Bleu",
     "amber": "Ambre",

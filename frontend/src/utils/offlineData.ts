@@ -105,3 +105,26 @@ export function releaseOfflineData(): void {
     // Nothing stored, nothing to release.
   }
 }
+
+/**
+ * Call `onChange` when another tab moves the owner marker (a sign-in, a
+ * switch, a logout). This tab's own writes don't fire it.
+ *
+ * @param onChange Gets the new owner, or null when the marker was removed.
+ * @returns A function that stops listening.
+ */
+export function watchOfflineOwner(onChange: (owner: string | null) => void): () => void {
+  const onStorage = (event: StorageEvent): void => {
+    // A null key is a clear() of the whole store, which takes the marker too.
+    if (event.key !== null && event.key !== OWNER_KEY) return
+    try {
+      // sessionStorage fires these too, and that's not where the marker lives.
+      if (event.storageArea !== null && event.storageArea !== localStorage) return
+    } catch {
+      return
+    }
+    onChange(event.key === null ? null : event.newValue)
+  }
+  window.addEventListener('storage', onStorage)
+  return () => window.removeEventListener('storage', onStorage)
+}

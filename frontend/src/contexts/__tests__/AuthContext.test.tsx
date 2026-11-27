@@ -1007,3 +1007,229 @@ describe('AuthContext claims the offline copies before anyone sees the user', ()
     expect(localStorage.getItem('vehicle-cache-V1')).toBeNull()
   })
 })
+
+describe('AuthContext keeps one account from landing on another', () => {
+  function Probe(): ReactElement {
+    const { user, login, logout, refreshUser, refreshPublicSettings } = useAuth()
+    const [results, setResults] = useState<string>('')
+    return (
+      <div>
+        <span data-testid="who">{user?.username ?? 'none'}</span>
+        <span data-testid="results">{results}</span>
+        <button onClick={() => void login('bob', 'pw').catch(() => {})}>Login</button>
+        <button onClick={() => void refreshUser()}>refresh user</button>
+        <button onClick={() => void refreshPublicSettings()}>refresh settings</button>
+        <button
+          onClick={() => {
+            const first = logout()
+            const second = logout()
+            void Promise.all([first, second]).then((oks) => setResults(oks.join(',')))
+          }}
+        >
+          Logout twice
+        </button>
+      </div>
+    )
+  }
+
+  const ALICE = { id: 1, username: 'alice', is_admin: false }
+  const BOB = { id: 2, username: 'bob', is_admin: false }
+  const settings = (mode: string): { data: { settings: { key: string; value: string }[] } } => ({
+    data: { settings: [{ key: 'auth_mode', value: mode }] },
+  })
+  const meCalls = (): number =>
+    mockedApi.get.mock.calls.filter((call: unknown[]) => call[0] === '/auth/me').length
+
+  function serve(mode: string, me: () => Promise<unknown>): void {
+    mockedApi.get.mockImplementation((url: string) => {
+      if (url === '/settings/public') return Promise.resolve(settings(mode))
+      if (url === '/auth/me') return me()
+      return Promise.reject(new Error('Not found'))
+    })
+  }
+
+  async function bootAsAlice(): Promise<ReturnType<typeof renderWithQueryClient>> {
+    serve('local', () => Promise.resolve({ data: ALICE }))
+    const rendered = renderWithQueryClient(
+      <AuthProvider>
+        <Probe />
+      </AuthProvider>,
+    )
+    await waitFor(() => expect(screen.getByTestId('who')).toHaveTextContent('alice'))
+    return rendered
+  }
+
+  async function settle(): Promise<void> {
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    sessionStorage.clear()
+    localStorage.clear()
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    localStorage.clear()
+  })
+
+  it('a refresh that lands after logout signs nobody back in', async () => {
+    await bootAsAlice()
+
+    // The refresh's /auth/me goes out and stays out...
+    let answerMe: () => void = () => {}
+    serve('local', () => new Promise((resolve) => (answerMe = () => resolve({ data: ALICE }))))
+    screen.getByText('refresh user').click()
+    await waitFor(() => expect(meCalls()).toBe(2))
+
+    // ...a logout goes all the way through...
+    mockedApi.post.mockResolvedValueOnce({})
+    await act(async () => {
+      screen.getByText('Logout twice').click()
+    })
+    await waitFor(() => expect(screen.getByTestId('results')).toHaveTextContent('true,true'))
+    expect(localStorage.getItem(MARKER)).toBeNull()
+
+    // ...and the late answer changes nothing. Pins out an adopt that only asks
+    // about the auth mode: it reclaimed the marker and put alice back.
+    await act(async () => {
+      answerMe()
+    })
+    await settle()
+    expect(screen.getByTestId('who')).toHaveTextContent('none')
+    expect(localStorage.getItem(MARKER)).toBeNull()
+  })
+
+  it('a refresh whose claim is still out when logout lands signs nobody back in', async () => {
+    await bootAsAlice()
+    const sweeps: (() => void)[] = []
+    vi.stubGlobal('caches', {
+      keys: (): Promise<string[]> => new Promise((resolve) => sweeps.push(() => resolve([]))),
+    })
+    // No marker, so the refresh's claim has to sweep and waits on it.
+    localStorage.removeItem(MARKER)
+    screen.getByText('refresh user').click()
+    await waitFor(() => expect(sweeps).toHaveLength(1))
+
+    mockedApi.post.mockResolvedValueOnce({})
+    await act(async () => {
+      screen.getByText('Logout twice').click()
+    })
+    await waitFor(() => expect(sweeps).toHaveLength(2))
+    expect(screen.getByTestId('who')).toHaveTextContent('none')
+
+    // Pins out an adopt that checks for a logout only before its claim.
+    await act(async () => {
+      sweeps.forEach((sweep) => sweep())
+    })
+    await settle()
+    expect(screen.getByTestId('who')).toHaveTextContent('none')
+  })
+
+  it('two logouts at once send one POST', async () => {
+    await bootAsAlice()
+    let finish: () => void = () => {}
+    mockedApi.post.mockReturnValueOnce(new Promise((resolve) => (finish = () => resolve({}))))
+    mockedApi.post.mockResolvedValue({})
+
+    await act(async () => {
+      screen.getByText('Logout twice').click()
+    })
+    await act(async () => {
+      finish()
+    })
+
+    await waitFor(() => expect(screen.getByTestId('results')).toHaveTextContent('true,true'))
+    // Pins out an uncoalesced logout, which posted once per click.
+    expect(mockedApi.post.mock.calls.filter((call: unknown[]) => call[0] === '/auth/logout')).toHaveLength(1)
+  })
+
+  it("signing in as someone else drops the last account's queries, a same-user reload keeps them", async () => {
+    const { client } = await bootAsAlice()
+    client.setQueryData(['vehicles'], [{ vin: 'ALICE1' }])
+
+    // Same account again: nothing to drop.
+    screen.getByText('refresh user').click()
+    await waitFor(() => expect(meCalls()).toBe(2))
+    await settle()
+    expect(client.getQueryData(['vehicles'])).toEqual([{ vin: 'ALICE1' }])
+
+    // Bob signs in on top, without a logout in between.
+    mockedApi.post.mockResolvedValueOnce({ data: { access_token: 't', csrf_token: 'c' } })
+    vi.mocked(getCSRFToken).mockReturnValue('c')
+    serve('local', () => Promise.resolve({ data: BOB }))
+    await act(async () => {
+      screen.getByText('Login').click()
+    })
+
+    await waitFor(() => expect(screen.getByTestId('who')).toHaveTextContent('bob'))
+    // Pins out an adopt that never touches the query cache: bob read alice's vehicles.
+    expect(client.getQueryData(['vehicles'])).toBeUndefined()
+    // Instance settings aren't alice's, so they stay.
+    expect(client.getQueryData(publicSettingsQuery.queryKey)).toEqual(settings('local').data.settings)
+  })
+
+  it('reloads when another tab signs in as someone else or signs out', async () => {
+    const reload = vi.fn()
+    vi.stubGlobal('location', { ...window.location, reload })
+    await bootAsAlice()
+    expect(localStorage.getItem(MARKER)).toBe('1')
+
+    const fire = (newValue: string | null, storageArea: Storage = localStorage): void => {
+      act(() => {
+        window.dispatchEvent(
+          new StorageEvent('storage', { key: MARKER, oldValue: '1', newValue, storageArea }),
+        )
+      })
+    }
+
+    // Same account, or the other store: nothing to follow.
+    fire('1')
+    fire('2', sessionStorage)
+    expect(reload).not.toHaveBeenCalled()
+
+    // Pins out a tab that never listens: it kept showing alice under bob's marker.
+    fire('2')
+    expect(reload).toHaveBeenCalledTimes(1)
+    fire(null)
+    expect(reload).toHaveBeenCalledTimes(2)
+  })
+
+  it("a sign-in-off load that lands after sign-in came back on doesn't drop the user", async () => {
+    // Each claim's cache sweep waits on its own answer, so the order can be picked.
+    const sweeps: (() => void)[] = []
+    vi.stubGlobal('caches', {
+      keys: (): Promise<string[]> => new Promise((resolve) => sweeps.push(() => resolve([]))),
+    })
+
+    // Boot finds sign-in off and its claim stays out...
+    serve('none', () => Promise.reject(new Error('Not found')))
+    renderWithQueryClient(
+      <AuthProvider>
+        <Probe />
+      </AuthProvider>,
+    )
+    await waitFor(() => expect(sweeps).toHaveLength(1))
+
+    // ...a refresh finds it on again and alice's claim goes out too...
+    serve('local', () => Promise.resolve({ data: ALICE }))
+    screen.getByText('refresh settings').click()
+    await waitFor(() => expect(sweeps).toHaveLength(2))
+
+    // ...alice's lands first...
+    await act(async () => {
+      sweeps[1]()
+    })
+    await waitFor(() => expect(screen.getByTestId('who')).toHaveTextContent('alice'))
+
+    // ...then the sign-in-off one. Pins out the 'none' guard: it nulled alice.
+    await act(async () => {
+      sweeps[0]()
+    })
+    await settle()
+    expect(screen.getByTestId('who')).toHaveTextContent('alice')
+  })
+})
