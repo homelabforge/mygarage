@@ -514,7 +514,7 @@ class TestCostSummaryPdf:
             seeded,
             f"{_VIN}/reports/cost-summary-pdf",
             year=2025,
-            # Lowercase isn't ISO shape, so it falls back to USD; the locale still passes.
+            # Lowercase still means pounds, so it comes out GBP.
             currency_code="gbp",
             locale="en-GB",
         )
@@ -524,7 +524,7 @@ class TestCostSummaryPdf:
                 "__init__",
                 {
                     "render_context": _CONTEXT,
-                    "currency_code": "USD",
+                    "currency_code": "GBP",
                     "locale": "en-GB",
                     "date_order": "mdy",
                 },

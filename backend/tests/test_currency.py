@@ -80,6 +80,12 @@ class TestNormalizePdfCurrencyParams:
         assert code == "EUR"
         assert locale == "de-DE"
 
+    @pytest.mark.parametrize(("given", "expected"), [("gbp", "GBP"), ("Eur", "EUR")])
+    def test_lowercase_code_is_uppercased_not_dropped(self, given: str, expected: str) -> None:
+        # A lowercase code is still the right currency, so it shouldn't fall back to USD.
+        code, _ = normalize_pdf_currency_params(given, "en-GB")
+        assert code == expected
+
     def test_malformed_currency_defaults_usd(self) -> None:
         code, _ = normalize_pdf_currency_params("bogus", "en-US")
         assert code == "USD"
@@ -99,7 +105,8 @@ class TestNormalizePdfCurrencyParams:
         assert locale == "de-DE"
 
     def test_both_invalid_defaults_to_usd_en_us(self) -> None:
-        code, locale = normalize_pdf_currency_params("bad", "bad_locale")
+        # Not "bad": uppercased that's BAD, which is ISO shape now that case doesn't matter.
+        code, locale = normalize_pdf_currency_params("b4d", "bad_locale")
         assert code == "USD"
         assert locale == "en-US"
 

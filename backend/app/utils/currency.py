@@ -103,10 +103,12 @@ def normalize_pdf_currency_params(currency_code: str | None, locale: str | None)
 
     Returns a tuple of safe values suitable for passing directly into
     get_currency_symbol() and ReportLab templates. Unknown/invalid input
-    falls back to ("USD", "en-US") — matching the pre-hotfix behaviour so
+    falls back to ("USD", "en-US"), matching the pre-hotfix behaviour so
     stale clients keep working.
     """
-    code = (currency_code or "").upper() if is_valid_currency_code(currency_code) else "USD"
+    # Uppercase first, so "gbp" is still pounds instead of quietly becoming USD.
+    upper = (currency_code or "").upper()
+    code = upper if is_valid_currency_code(upper) else "USD"
 
     # Locale only needs BCP-47 shape validation; the current PDF stack uses
     # the code-derived symbol regardless of locale. Restricting to
