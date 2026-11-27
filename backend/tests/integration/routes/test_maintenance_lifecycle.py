@@ -32,7 +32,7 @@ from app.models.reminder import Reminder
 from app.models.service_line_item import ServiceLineItem
 from app.models.service_visit import ServiceVisit
 from app.models.vehicle import Vehicle
-from app.schemas.maintenance import ReminderCompleteRequest
+from app.schemas.maintenance import AnchorChoice, ReminderCompleteRequest
 from app.services import maintenance_service
 from app.services.reminder_pack_service import builtin_pack
 
@@ -2223,3 +2223,40 @@ class TestVPackReadsCurrentReadingsOnce:
 
         # (odometer reads, hours reads) for the preview, then for the apply.
         assert (counts(previewed), counts(applying)) == ((1, 1), (1, 1)), (previewed, applying)
+
+    async def test_a_done_today_preview_reads_each_current_reading_once(
+        self, client, auth_headers, test_engine, test_sessionmaker
+    ):
+        """Every item done today: the completion anchors take the pack's one read."""
+        vin = await _vehicle(client, auth_headers, vehicle_type="ATV")
+        on = (date.today() - timedelta(days=10)).isoformat()
+        await _odometer(client, auth_headers, vin, on, 1234.0)
+        await _hours(client, auth_headers, vin, on, 56.0)
+        pack = builtin_pack("small_engine_service")
+        done: dict[str, AnchorChoice | None] = {
+            item.key or "": AnchorChoice(done_today=True) for item in pack.reminders
+        }
+
+        statements: list[str] = []
+
+        def record(_conn, _cursor, statement: str, *_args) -> None:
+            flat = " ".join(statement.split())
+            if _CURRENT_KM_SQL.match(flat) or _CURRENT_HOURS_SQL.match(flat):
+                statements.append(flat)
+
+        event.listen(test_engine.sync_engine, "before_cursor_execute", record)
+        try:
+            async with test_sessionmaker() as db:
+                preview = await maintenance_service.plan_pack(db, vin, pack, done)
+        finally:
+            event.remove(test_engine.sync_engine, "before_cursor_execute", record)
+
+        # Really the done-today arm, at the readings the pack read.
+        assert [i.anchor.note for i in preview.items if i.anchor] == [
+            "treated as done today at the current readings"
+        ] * 4
+        assert {(i.anchor.odometer_km, i.anchor.hours) for i in preview.items if i.anchor} == {
+            (Decimal("1234.00"), Decimal("56.0"))
+        }
+        km = sum(1 for s in statements if _CURRENT_KM_SQL.match(s))
+        assert (km, len(statements) - km) == (1, 1), statements

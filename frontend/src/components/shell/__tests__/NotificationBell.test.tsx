@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
+import { cleanup, render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider, focusManager } from '@tanstack/react-query'
 import NotificationBell from '../NotificationBell'
@@ -54,6 +54,8 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  // Unmount first, so the focus reset below can't wake a mounted bell's query.
+  cleanup()
   vi.useRealTimers()
   // Back to "ask the document", so the focus state can't leak into other suites.
   focusManager.setFocused(undefined)

@@ -324,6 +324,8 @@ describe('WindowStickerUpload review: a save reloads the page once', () => {
     fakeTimers()
     fireEvent.click(button('windowSticker.misc.saveData'))
     fireEvent.click(button('windowSticker.misc.cancel'))
+    // That Cancel was the reload, so a late Escape has nothing left to close.
+    fireEvent.keyDown(window, { key: 'Escape' })
     await runTimers()
     expect(onSuccess).toHaveBeenCalledTimes(1)
     expect(onClose).not.toHaveBeenCalled()

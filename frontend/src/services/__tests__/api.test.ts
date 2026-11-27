@@ -111,13 +111,15 @@ describe('a refused write tells a stale tab that auth is off', () => {
   it('still rejects with the original error when no handler is set', async () => {
     setApiAuthMode('local')
     const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
-
-    await expect(api.post('/x', {}, { adapter: answer(400, SIGN_IN) })).rejects.toMatchObject({
-      response: { status: 400, data: SIGN_IN },
-    })
-    // No handler means nothing to call, not a swallowed TypeError.
-    expect(logged).not.toHaveBeenCalled()
-    logged.mockRestore()
+    try {
+      await expect(api.post('/x', {}, { adapter: answer(400, SIGN_IN) })).rejects.toMatchObject({
+        response: { status: 400, data: SIGN_IN },
+      })
+      // No handler means nothing to call, not a swallowed TypeError.
+      expect(logged).not.toHaveBeenCalled()
+    } finally {
+      logged.mockRestore()
+    }
   })
 
   it('a handler that throws still hands back the original 400', async () => {
@@ -127,12 +129,17 @@ describe('a refused write tells a stale tab that auth is off', () => {
     setAuthStaleHandler(handler)
     setApiAuthMode('local')
     const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
-
-    await expect(api.post('/x', {}, { adapter: answer(400, SIGN_IN) })).rejects.toMatchObject({
-      response: { status: 400, data: SIGN_IN },
-    })
-    expect(handler).toHaveBeenCalledTimes(1)
-    logged.mockRestore()
+    try {
+      await expect(api.post('/x', {}, { adapter: answer(400, SIGN_IN) })).rejects.toMatchObject({
+        response: { status: 400, data: SIGN_IN },
+      })
+      expect(handler).toHaveBeenCalledTimes(1)
+      // The catch said what broke, with the handler's own error.
+      expect(logged).toHaveBeenCalledTimes(1)
+      expect(logged).toHaveBeenCalledWith('[Auth] Stale-auth handler failed:', expect.objectContaining({ message: 'handler blew up' }))
+    } finally {
+      logged.mockRestore()
+    }
   })
 })
 
