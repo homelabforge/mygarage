@@ -56,6 +56,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Signing out while a page was loading your account no longer marks this browser's offline data as yours.
 - Editing the note on an odometer or hour meter reading a fill-up, service visit or tire event created no longer detaches it, and a note can't fake that link.
 - Deleting a DEF record removes the odometer reading it synced, never a fill-up's, and editing a fill-up's DEF record no longer adds a second reading.
+- The notification bell says when it couldn't load your notifications, with a retry, instead of showing an empty inbox.
 
 ## [3.11.3] - 2026-11-23
 
