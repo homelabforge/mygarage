@@ -2,6 +2,20 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 
 import { IMPERIAL_UNITS, METRIC_UNITS, type UnitSet } from '../../../__tests__/factories'
+import { formatDateForDisplay } from '../../../utils/dateUtils'
+
+// Keys only, with the interpolation options appended so a test can read the
+// title as rendered. One t for the whole file, like the global mock.
+vi.mock('react-i18next', () => {
+  const t = (key: string, options?: Record<string, unknown>) =>
+    options && Object.keys(options).length > 0 ? `${key}|${JSON.stringify(options)}` : key
+  const i18n = { language: 'en', changeLanguage: () => Promise.resolve() }
+  return {
+    useTranslation: () => ({ t, i18n }),
+    Trans: ({ children }: { children: React.ReactNode }) => children,
+    initReactI18next: { type: '3rdParty', init: () => {} },
+  }
+})
 
 const useUpdateMock = vi.fn()
 vi.mock('../../../hooks/queries/useTires', () => ({
@@ -163,6 +177,37 @@ describe('ReadingEditor', () => {
     expect(mutate).not.toHaveBeenCalled()
   })
 
+  describe('the corner in the title', () => {
+    // The tire went from FL to FR on 2026-03-01; this reading is from February.
+    const rotated = { ...TIRE, position: 'FR' }
+    const renderTitled = (position: string | null): void => {
+      render(
+        <ReadingEditor
+          vin={VIN}
+          tire={rotated as never}
+          reading={{ ...TYPO, recorded_at: '2026-02-01', position } as never}
+          open
+          onClose={onClose}
+          labelFor={labelFor}
+        />
+      )
+    }
+    const title = (corner: string): string =>
+      `tireList.editReadingTitle|${JSON.stringify({ position: corner, date: formatDateForDisplay('2026-02-01') })}`
+
+    it("names the corner the tire had on the reading's date, not today's", () => {
+      renderTitled('FL')
+      expect(screen.getByText(title('pos-FL'))).toBeInTheDocument()
+      expect(screen.queryByText(title('pos-FR'))).not.toBeInTheDocument()
+    })
+
+    it('says storage when the tire was off the car that day', () => {
+      renderTitled(null)
+      expect(screen.getByText(title('pos-null'))).toBeInTheDocument()
+      expect(screen.queryByText(title('pos-FR'))).not.toBeInTheDocument()
+    })
+  })
+
   describe('in 32nds of an inch', () => {
     beforeEach(() => {
       units = IMPERIAL_UNITS
@@ -178,11 +223,12 @@ describe('ReadingEditor', () => {
 
     it('rewrites the field on blur and says what it converted', () => {
       renderEditor()
-      expect(drawer().queryByText('tireList.treadConverted')).toBeNull()
+      const converted = `tireList.treadConverted|${JSON.stringify({ inches: '.346', thirtySeconds: '11' })}`
+      expect(drawer().queryByText(converted)).toBeNull()
       fireEvent.change(input('reading-edit-tread'), { target: { value: '.346' } })
       fireEvent.blur(input('reading-edit-tread'))
       expect(input('reading-edit-tread')).toHaveValue('11')
-      expect(drawer().getByText('tireList.treadConverted')).toBeInTheDocument()
+      expect(drawer().getByText(converted)).toBeInTheDocument()
     })
 
     /** 8.40 mm seeds the field as 11, the 32nd a gauge's 0.346 in rounds to. */

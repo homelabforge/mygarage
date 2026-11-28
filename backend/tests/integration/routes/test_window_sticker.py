@@ -22,11 +22,15 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.types import TypeDecorator
 
 from app.models.vehicle import Vehicle
-from app.routes import window_sticker as window_sticker_route
+from app.services import window_sticker_service
 from app.services.settings_service import SettingsService
+from app.services.window_sticker_ocr import WindowStickerOCRService
 from tests._keep_rows import Keep
 from tests._logged import problems
 from tests.integration.routes._legacy_reads import read_ok
+
+# Where the sticker code logs.
+STICKER_LOGGER = "app.services.window_sticker_service"
 
 
 @pytest.mark.integration
@@ -95,7 +99,7 @@ class TestWindowStickerRoutes:
         # Create fake PDF content
         pdf_content = b"%PDF-1.4 fake pdf content"
 
-        with patch("app.routes.window_sticker.WindowStickerOCRService") as mock_ocr_class:
+        with patch("app.services.window_sticker_service.WindowStickerOCRService") as mock_ocr_class:
             mock_ocr = MagicMock()
             mock_ocr.extract_data_from_file = AsyncMock(
                 return_value={
@@ -123,7 +127,7 @@ class TestWindowStickerRoutes:
         # Create fake PNG content (minimal valid PNG header)
         png_content = b"\x89PNG\r\n\x1a\n" + b"\x00" * 100
 
-        with patch("app.routes.window_sticker.WindowStickerOCRService") as mock_ocr_class:
+        with patch("app.services.window_sticker_service.WindowStickerOCRService") as mock_ocr_class:
             mock_ocr = MagicMock()
             mock_ocr.extract_data_from_file = AsyncMock(return_value={})
             mock_ocr_class.return_value = mock_ocr
@@ -154,7 +158,7 @@ class TestWindowStickerRoutes:
         """Test extraction endpoint returns extraction results."""
         pdf_content = b"%PDF-1.4 test content"
 
-        with patch("app.routes.window_sticker.WindowStickerOCRService") as mock_ocr_class:
+        with patch("app.services.window_sticker_service.WindowStickerOCRService") as mock_ocr_class:
             mock_ocr = MagicMock()
             mock_ocr.test_extraction = AsyncMock(
                 return_value={
@@ -265,17 +269,15 @@ class TestWindowStickerRoutes:
 
     async def test_list_parsers_success(self, client: AsyncClient, auth_headers):
         """Test listing available parsers."""
-        with patch("app.routes.window_sticker.WindowStickerOCRService") as mock_ocr_class:
-            mock_ocr = MagicMock()
-            mock_ocr.list_available_parsers.return_value = [
-                {
-                    "manufacturer": "Generic",
-                    "parser_class": "GenericWindowStickerParser",
-                    "supported_makes": ["all"],
-                }
-            ]
-            mock_ocr_class.return_value = mock_ocr
-
+        # On the class: the route and the service each import it.
+        parsers = [
+            {
+                "manufacturer": "Generic",
+                "parser_class": "GenericWindowStickerParser",
+                "supported_makes": ["all"],
+            }
+        ]
+        with patch.object(WindowStickerOCRService, "list_available_parsers", return_value=parsers):
             response = await client.get(
                 "/api/vehicles/window-sticker/parsers",
                 headers=auth_headers,
@@ -296,16 +298,13 @@ class TestWindowStickerRoutes:
 
     async def test_ocr_status_success(self, client: AsyncClient, auth_headers):
         """Test getting OCR engine status."""
-        with patch("app.routes.window_sticker.WindowStickerOCRService") as mock_ocr_class:
-            mock_ocr = MagicMock()
-            mock_ocr.get_ocr_status.return_value = {
-                "pymupdf_available": True,
-                "tesseract_available": True,
-                "paddleocr_enabled": False,
-                "paddleocr_available": False,
-            }
-            mock_ocr_class.return_value = mock_ocr
-
+        ocr_status = {
+            "pymupdf_available": True,
+            "tesseract_available": True,
+            "paddleocr_enabled": False,
+            "paddleocr_available": False,
+        }
+        with patch.object(WindowStickerOCRService, "get_ocr_status", return_value=ocr_status):
             response = await client.get(
                 "/api/vehicles/window-sticker/ocr-status",
                 headers=auth_headers,
@@ -387,12 +386,12 @@ async def _upload_watching_ocr(
     replace: bool = False,
 ) -> tuple[Response, MagicMock]:
     """`_upload_with_ocr`, also handing back the OCR mock to ask what it was called with."""
-    with patch("app.routes.window_sticker.WindowStickerOCRService") as ocr_class:
+    with patch("app.services.window_sticker_service.WindowStickerOCRService") as ocr_class:
         ocr = MagicMock()
         if isinstance(parsed, Exception):
             ocr.extract_data_from_file = AsyncMock(side_effect=parsed)
         else:
-            # A copy: the route drops misread numbers from the dict it gets.
+            # A copy: the service drops misread numbers from the dict it gets.
             ocr.extract_data_from_file = AsyncMock(return_value=dict(parsed))
         ocr_class.return_value = ocr
         response = await client.post(
@@ -405,7 +404,7 @@ async def _upload_watching_ocr(
 
 
 async def _stored(sessionmaker: async_sessionmaker[AsyncSession], vin: str, column: str) -> Any:
-    """What the row holds, read through a session the route never touched."""
+    """What the row holds, read through a session the request never touched."""
     async with sessionmaker() as session:
         stmt = select(Vehicle.__table__.c[column]).where(Vehicle.vin == vin)
         return (await session.execute(stmt)).scalar()
@@ -462,15 +461,15 @@ async def test_a_cut_is_logged_once_without_the_text(client, auth_headers, own_v
         "window_sticker_parser_used": "generic",
     }
 
-    # Everything the route logs, so the text check covers every level.
-    with caplog.at_level(logging.DEBUG, logger="app.routes.window_sticker"):
+    # Everything the service logs, so the text check covers every level.
+    with caplog.at_level(logging.DEBUG, logger=STICKER_LOGGER):
         uploaded = await _upload_with_ocr(client, auth_headers, vin, parsed)
 
     assert uploaded.status_code == 201, uploaded.text
     warnings = [
         r.getMessage()
         for r in caplog.records
-        if r.name == "app.routes.window_sticker" and r.levelno == logging.WARNING
+        if r.name == STICKER_LOGGER and r.levelno == logging.WARNING
     ]
     assert warnings == ["Window sticker: cut parsed assembly_location from 140 to 100 characters"]
     assert "OCRTEXT" not in caplog.text
@@ -488,7 +487,6 @@ SCAN: dict[str, Any] = {
     "standard_equipment": {"Safety": ["ABS"]},
 }
 OLD_BYTES = b"%PDF-1.4 the sticker already on file"
-ROUTE_LOGGER = "app.routes.window_sticker"
 
 
 # What DELETE cleared before the lists became module constants, copied off
@@ -534,7 +532,7 @@ async def sticker_on_file(
     ever see this test's files. Needs `client` so its own storage swap goes
     first and is put back last."""
     with pytest.MonkeyPatch.context() as mp:
-        mp.setattr(window_sticker_route, "STICKER_STORAGE_PATH", tmp_path)
+        mp.setattr(window_sticker_service, "STICKER_STORAGE_PATH", tmp_path)
         old = tmp_path / own_vehicle.vin / "window_sticker_old.pdf"
         old.parent.mkdir()
         old.write_bytes(OLD_BYTES)
@@ -646,7 +644,7 @@ async def test_a_scan_that_read_nothing_keeps_the_values_and_says_so(
     empty instead of swallowing it."""
     vin = own_vehicle.vin
 
-    with caplog_only(ROUTE_LOGGER):
+    with caplog_only(STICKER_LOGGER):
         uploaded = await _upload_with_ocr(client, auth_headers, vin, scan, replace=True)
 
     assert uploaded.status_code == 201, uploaded.text
@@ -658,7 +656,7 @@ async def test_a_scan_that_read_nothing_keeps_the_values_and_says_so(
     assert not sticker_on_file.exists()
     assert uploaded.json().get("scan_read_nothing") is True
     expected = ["OCR extraction failed: tesseract fell over"] if isinstance(scan, Exception) else []
-    assert [r.getMessage() for r in problems(caplog, ROUTE_LOGGER)] == expected
+    assert [r.getMessage() for r in problems(caplog, STICKER_LOGGER)] == expected
 
 
 @pytest.mark.integration
@@ -672,16 +670,21 @@ async def test_a_failed_write_keeps_the_sticker_on_file(
     assert before["msrp_base"] == Decimal("25000")
 
     with (
-        caplog_only(ROUTE_LOGGER),
-        patch("app.routes.window_sticker.open", side_effect=OSError, create=True),
+        caplog_only(STICKER_LOGGER),
+        patch("app.services.window_sticker_service.open", side_effect=OSError, create=True),
     ):
         uploaded = await _upload_with_ocr(client, auth_headers, vin, SCAN, replace=True)
 
     assert uploaded.status_code == 500, uploaded.text
+    # The code tells the drawer nothing was saved, so it can offer a retry.
+    assert uploaded.json()["detail"] == {
+        "code": "sticker_not_saved",
+        "message": "Failed to save file",
+    }
     assert sticker_on_file.exists()
     assert sticker_on_file.read_bytes() == OLD_BYTES
     assert {c: await _stored(test_sessionmaker, vin, c) for c in columns} == before
-    (error,) = problems(caplog, ROUTE_LOGGER)
+    (error,) = problems(caplog, STICKER_LOGGER)
     assert error.getMessage() == f"Failed to save window sticker for {vin}"
     assert error.exc_info is not None and error.exc_info[0] is OSError
 
@@ -699,19 +702,23 @@ async def test_a_failed_commit_keeps_the_sticker_on_file(
         raise SQLAlchemyError("disk I/O error")
 
     # This request only: the fixtures' own commits have to work afterwards.
-    with caplog_only(ROUTE_LOGGER), pytest.MonkeyPatch.context() as mp:
+    with caplog_only(STICKER_LOGGER), pytest.MonkeyPatch.context() as mp:
         mp.setattr(AsyncSession, "commit", refuse)
         uploaded = await _upload_with_ocr(client, auth_headers, vin, SCAN, replace=True)
 
     assert uploaded.status_code == 500, uploaded.text
-    # It was the route's commit that failed, with the new file beside the old.
+    assert uploaded.json()["detail"] == {
+        "code": "sticker_not_saved",
+        "message": "Failed to save window sticker",
+    }
+    # It was the service's commit that failed, with the new file beside the old.
     assert len(on_disk_at_commit) == 1, on_disk_at_commit
     assert len(on_disk_at_commit[0]) == 2, on_disk_at_commit
     assert sticker_on_file.read_bytes() == OLD_BYTES
     assert list(vin_dir.iterdir()) == [sticker_on_file]
     assert await _stored(test_sessionmaker, vin, "window_sticker_file_path") == str(sticker_on_file)
     assert await _stored(test_sessionmaker, vin, "msrp_base") == Decimal("25000")
-    (error,) = problems(caplog, ROUTE_LOGGER)
+    (error,) = problems(caplog, STICKER_LOGGER)
     assert error.getMessage() == f"Window sticker upload failed for {vin}"
     assert error.exc_info is not None and error.exc_info[0] is SQLAlchemyError
 
@@ -793,10 +800,10 @@ async def test_a_scan_that_read_nothing_leaves_the_vehicle_colour_alone(
 def test_an_old_path_unlink_cannot_take_is_a_warning(caplog: pytest.LogCaptureFixture, caplog_only):
     """After the commit the upload has worked; a stored path unlink refuses
     (a NUL raises ValueError, not OSError) must log, not turn it into a 500."""
-    with caplog_only(ROUTE_LOGGER):
-        window_sticker_route._unlink_quietly(Path("window_sticker\x00.pdf"))
+    with caplog_only(STICKER_LOGGER):
+        window_sticker_service._unlink_quietly(Path("window_sticker\x00.pdf"))
 
-    assert [(r.name, r.levelno) for r in caplog.records] == [(ROUTE_LOGGER, logging.WARNING)]
+    assert [(r.name, r.levelno) for r in caplog.records] == [(STICKER_LOGGER, logging.WARNING)]
 
 
 def _a_value_for(column: str) -> Any:
@@ -847,7 +854,7 @@ async def test_delete_keeps_the_file_when_the_commit_fails(
         raise SQLAlchemyError("disk I/O error")
 
     # This request only: the fixtures' own commits have to work afterwards.
-    with caplog_only(ROUTE_LOGGER), pytest.MonkeyPatch.context() as mp:
+    with caplog_only(STICKER_LOGGER), pytest.MonkeyPatch.context() as mp:
         mp.setattr(AsyncSession, "commit", refuse)
         deleted = await client.delete(f"/api/vehicles/{vin}/window-sticker", headers=auth_headers)
 
@@ -856,7 +863,7 @@ async def test_delete_keeps_the_file_when_the_commit_fails(
     assert sticker_on_file.read_bytes() == OLD_BYTES
     assert await _stored(test_sessionmaker, vin, "window_sticker_file_path") == str(sticker_on_file)
     assert await _stored(test_sessionmaker, vin, "msrp_base") == Decimal("25000")
-    (error,) = problems(caplog, ROUTE_LOGGER)
+    (error,) = problems(caplog, STICKER_LOGGER)
     assert error.getMessage() == f"Window sticker delete failed for {vin}"
     assert error.exc_info is not None and error.exc_info[0] is SQLAlchemyError
 
@@ -897,7 +904,7 @@ async def test_delete_survives_an_unlink_failure(
             raise OSError("permission denied")
         real_unlink(self, missing_ok=missing_ok)
 
-    with caplog_only(ROUTE_LOGGER), pytest.MonkeyPatch.context() as mp:
+    with caplog_only(STICKER_LOGGER), pytest.MonkeyPatch.context() as mp:
         mp.setattr(Path, "unlink", refuse)
         deleted = await client.delete(f"/api/vehicles/{vin}/window-sticker", headers=auth_headers)
 
@@ -905,7 +912,7 @@ async def test_delete_survives_an_unlink_failure(
     assert await _stored(test_sessionmaker, vin, "window_sticker_file_path") is None
     assert await _stored(test_sessionmaker, vin, "msrp_base") is None
     assert sticker_on_file.exists()
-    assert [(r.levelno, r.getMessage()) for r in caplog.records if r.name == ROUTE_LOGGER] == [
+    assert [(r.levelno, r.getMessage()) for r in caplog.records if r.name == STICKER_LOGGER] == [
         (
             logging.WARNING,
             f"Failed to delete window sticker file {sticker_on_file}: permission denied",
@@ -916,7 +923,7 @@ async def test_delete_survives_an_unlink_failure(
 def test_the_field_lists_cover_what_upload_and_delete_wrote():
     """The upload fills from the same two lists, so a field missing here
     would silently stop being read off the sticker."""
-    from app.routes.window_sticker import STICKER_DATA_FIELDS, STICKER_SCAN_FIELDS
+    from app.services.window_sticker_service import STICKER_DATA_FIELDS, STICKER_SCAN_FIELDS
 
     fields = (*STICKER_DATA_FIELDS, *STICKER_SCAN_FIELDS)
     assert len(fields) == len(set(fields)) == 26
@@ -950,7 +957,7 @@ async def _test_watching_ocr(
     client: AsyncClient, headers: dict[str, str], vin: str
 ) -> tuple[Response, MagicMock]:
     """POST the dry-run test endpoint with a mocked OCR that would succeed."""
-    with patch("app.routes.window_sticker.WindowStickerOCRService") as ocr_class:
+    with patch("app.services.window_sticker_service.WindowStickerOCRService") as ocr_class:
         ocr = MagicMock()
         ocr.test_extraction = AsyncMock(
             return_value={
@@ -1048,14 +1055,16 @@ async def test_stickers_off_still_shows_edits_and_deletes_the_sticker_on_file(
     assert edited.status_code == 200, edited.text
     assert await _stored(test_sessionmaker, vin, "assembly_location") == "Ohio"
 
-    with patch("app.routes.window_sticker.WindowStickerOCRService") as ocr_class:
-        ocr_class.return_value.list_available_parsers.return_value = []
-        ocr_class.return_value.get_ocr_status.return_value = {
-            "pymupdf_available": True,
-            "tesseract_available": True,
-            "paddleocr_enabled": False,
-            "paddleocr_available": False,
-        }
+    ocr_status = {
+        "pymupdf_available": True,
+        "tesseract_available": True,
+        "paddleocr_enabled": False,
+        "paddleocr_available": False,
+    }
+    with (
+        patch.object(WindowStickerOCRService, "list_available_parsers", return_value=[]),
+        patch.object(WindowStickerOCRService, "get_ocr_status", return_value=ocr_status),
+    ):
         parsers = await client.get("/api/vehicles/window-sticker/parsers", headers=auth_headers)
         status = await client.get("/api/vehicles/window-sticker/ocr-status", headers=auth_headers)
     assert parsers.status_code == 200, parsers.text
@@ -1111,7 +1120,7 @@ async def test_ocr_off_stores_the_file_without_a_scan(
     assert new_path != sticker_on_file
     assert new_path.read_bytes() == NEW_BYTES
     assert not sticker_on_file.exists()
-    for column in window_sticker_route.STICKER_SCAN_FIELDS:
+    for column in window_sticker_service.STICKER_SCAN_FIELDS:
         assert await _stored(test_sessionmaker, vin, column) is None, column
     # Nothing was read, so nothing filled: the empty fields stay empty.
     assert await _stored(test_sessionmaker, vin, "msrp_base") == Decimal("25000")
@@ -1172,4 +1181,213 @@ def test_the_sticker_cap_is_the_documents_limit() -> None:
     (the limit Settings > Files shows) caps it, not a hardcoded 10 MB."""
     from app.config import settings
 
-    assert window_sticker_route.MAX_FILE_SIZE == settings.max_document_size_bytes
+    assert window_sticker_service.MAX_FILE_SIZE == settings.max_document_size_bytes
+
+
+# ---------------------------------------------------------------------------
+# What the routes did inline, pinned so moving it can't change it
+# ---------------------------------------------------------------------------
+
+SIZE_CAP_FOR_TESTS = 1024 * 1024  # 1 MB, small enough to send one byte over
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("endpoint", ["upload", "test"])
+@pytest.mark.parametrize(
+    ("name", "content", "mime", "detail"),
+    [
+        (
+            "sticker.gif",
+            NEW_BYTES,
+            "application/pdf",
+            "Invalid file type. Allowed types: .jpeg, .jpg, .pdf, .png",
+        ),
+        (
+            "sticker.pdf",
+            NEW_BYTES,
+            "image/gif",
+            "Invalid content type. Allowed: application/pdf, image/jpeg, image/png",
+        ),
+        (
+            "sticker.pdf",
+            b"MZ\x90\x00 an exe in a pdf coat",
+            "application/pdf",
+            "File content does not match its declared type",
+        ),
+        (
+            "sticker.pdf",
+            b"%PDF-1.4" + b"x" * (SIZE_CAP_FOR_TESTS + 1 - 8),
+            "application/pdf",
+            "File too large. Maximum size is 1MB",
+        ),
+    ],
+    ids=["extension", "content-type", "magic-bytes", "too-large"],
+)
+async def test_a_refused_file_is_never_written_or_scanned(
+    client,
+    auth_headers,
+    own_vehicle,
+    sticker_on_file,
+    tmp_path,
+    endpoint,
+    name,
+    content,
+    mime,
+    detail,
+):
+    """Both endpoints run the same checks before anything touches the disk."""
+    vin = own_vehicle.vin
+    with (
+        patch("app.services.window_sticker_service.WindowStickerOCRService") as ocr_class,
+        pytest.MonkeyPatch.context() as mp,
+    ):
+        mp.setattr(window_sticker_service, "MAX_FILE_SIZE", SIZE_CAP_FOR_TESTS)
+        ocr = MagicMock()
+        ocr.extract_data_from_file = AsyncMock(return_value={})
+        ocr.test_extraction = AsyncMock(return_value={})
+        ocr_class.return_value = ocr
+        response = await client.post(
+            f"/api/vehicles/{vin}/window-sticker/{endpoint}",
+            files={"file": (name, content, mime)},
+            headers=auth_headers,
+        )
+
+    assert response.status_code == 400, response.text
+    assert response.json()["detail"] == detail
+    ocr.extract_data_from_file.assert_not_awaited()
+    ocr.test_extraction.assert_not_awaited()
+    assert _files_under(tmp_path) == [sticker_on_file]
+
+
+@pytest.mark.integration
+async def test_the_upload_scans_the_stored_file_for_this_vehicle(
+    client, auth_headers, own_vehicle, test_data_dir, test_sessionmaker
+):
+    """The scan gets the saved copy plus the VIN and make, and the copy lands
+    under the VIN in the test storage, never the real documents folder."""
+    vin = own_vehicle.vin
+
+    uploaded, ocr = await _upload_watching_ocr(client, auth_headers, vin, SCAN)
+
+    assert uploaded.status_code == 201, uploaded.text
+    stored = Path(await _stored(test_sessionmaker, vin, "window_sticker_file_path"))
+    assert stored.is_relative_to(test_data_dir)
+    assert stored.parent == test_data_dir / "documents" / vin
+    assert stored.name.startswith("window_sticker_") and stored.suffix == ".pdf"
+    assert stored.read_bytes() == NEW_BYTES
+    ocr.extract_data_from_file.assert_awaited_once_with(str(stored), vin=vin, make="Honda")
+
+
+@pytest.mark.integration
+async def test_the_test_scan_reads_a_temp_copy_and_removes_it(
+    client, auth_headers, own_vehicle, sticker_on_file, tmp_path
+):
+    """The dry run scans a temp copy under temp/, hands the parser choice
+    through, answers with what the scan said and leaves no file behind."""
+    vin = own_vehicle.vin
+    result = {
+        "success": True,
+        "parser_name": "generic",
+        "manufacturer_detected": "Honda",
+        "raw_text": "MSRP 30000",
+        "extracted_data": {"msrp_total": 30000},
+        "validation_warnings": ["check the MSRP"],
+        "error": None,
+    }
+    seen: list[tuple[Path, bytes]] = []
+
+    async def scan(path: str, **_: Any) -> dict[str, Any]:
+        seen.append((Path(path), Path(path).read_bytes()))
+        return result
+
+    with patch("app.services.window_sticker_service.WindowStickerOCRService") as ocr_class:
+        ocr_class.return_value.test_extraction = AsyncMock(side_effect=scan)
+        response = await client.post(
+            f"/api/vehicles/{vin}/window-sticker/test",
+            params={"parser": "toyota"},
+            files={"file": ("sticker.pdf", NEW_BYTES, "application/pdf")},
+            headers=auth_headers,
+        )
+
+    assert response.status_code == 200, response.text
+    assert response.json() == result
+    ((path, read),) = seen
+    assert path.parent == tmp_path / "temp"
+    assert path.name.startswith("temp_test_") and path.suffix == ".pdf"
+    assert read == NEW_BYTES
+    ocr_class.return_value.test_extraction.assert_awaited_once_with(
+        str(path), vin=vin, make="Honda", parser_name="toyota"
+    )
+    assert not path.exists()
+    assert _files_under(tmp_path) == [sticker_on_file]
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    ("suffix", "media_type"),
+    [
+        (".pdf", "application/pdf"),
+        (".PNG", "image/png"),
+        (".jpeg", "image/jpeg"),
+        (".jpg", "image/jpeg"),
+        (".tiff", "application/octet-stream"),
+    ],
+)
+async def test_the_download_is_typed_and_named_by_the_vehicle(
+    client, auth_headers, own_vehicle, sticker_on_file, db_session, suffix, media_type
+):
+    stored = sticker_on_file.with_suffix(suffix)
+    sticker_on_file.rename(stored)
+    own_vehicle.window_sticker_file_path = str(stored)
+    await db_session.commit()
+
+    downloaded = await client.get(
+        f"/api/vehicles/{own_vehicle.vin}/window-sticker/file", headers=auth_headers
+    )
+
+    assert downloaded.status_code == 200, downloaded.text
+    assert downloaded.content == OLD_BYTES
+    assert downloaded.headers["content-type"].split(";")[0] == media_type
+    assert (
+        f'filename="window_sticker_{own_vehicle.vin}{suffix}"'
+        in downloaded.headers["content-disposition"]
+    )
+
+
+@pytest.mark.integration
+async def test_a_download_with_the_file_gone_is_a_404(
+    client, auth_headers, own_vehicle, sticker_on_file
+):
+    sticker_on_file.unlink()
+
+    downloaded = await client.get(
+        f"/api/vehicles/{own_vehicle.vin}/window-sticker/file", headers=auth_headers
+    )
+
+    assert downloaded.status_code == 404, downloaded.text
+    assert downloaded.json()["detail"] == "Window sticker file not found on disk"
+
+
+@pytest.mark.integration
+async def test_the_patch_answers_with_the_saved_row(
+    client, auth_headers, own_vehicle, db_session, test_sessionmaker
+):
+    """Only the fields sent move, and the answer is the row as saved."""
+    vin = own_vehicle.vin
+    own_vehicle.exterior_color = "Blue"
+    await db_session.commit()
+
+    edited = await client.patch(
+        f"/api/vehicles/{vin}/window-sticker/data",
+        json={"msrp_base": "31000.50", "assembly_location": "Ohio"},
+        headers=auth_headers,
+    )
+
+    assert edited.status_code == 200, edited.text
+    body = edited.json()
+    assert Decimal(str(body["msrp_base"])) == Decimal("31000.50")
+    assert body["assembly_location"] == "Ohio"
+    assert body["exterior_color"] == "Blue"
+    assert body["vin"] == vin
+    assert await _stored(test_sessionmaker, vin, "msrp_base") == Decimal("31000.50")
+    assert await _stored(test_sessionmaker, vin, "exterior_color") == "Blue"

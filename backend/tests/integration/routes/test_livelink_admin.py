@@ -167,6 +167,39 @@ class TestLiveLinkDevices:
 
         assert response.status_code == 204
 
+    async def test_a_non_admin_cannot_delete_an_unlinked_device(
+        self, client: AsyncClient, non_admin_headers
+    ):
+        """No vehicle means no owner to check, so an unlinked device is admin only."""
+        with patch("app.routes.livelink_admin.LiveLinkService") as mock_service_class:
+            mock_service = MagicMock()
+            mock_service.get_device_by_id = AsyncMock(return_value=MagicMock(vin=None))
+            mock_service.delete_device = AsyncMock(return_value=True)
+            mock_service_class.return_value = mock_service
+
+            response = await client.delete(
+                "/api/livelink/devices/device_to_delete", headers=non_admin_headers
+            )
+
+        assert response.status_code == 403, response.text
+        mock_service.delete_device.assert_not_awaited()
+
+    async def test_with_auth_off_an_unlinked_device_can_be_deleted(
+        self, client: AsyncClient, set_auth_mode
+    ):
+        """Auth off has nobody to check, so it gets the admin's reach."""
+        await set_auth_mode("none")
+        with patch("app.routes.livelink_admin.LiveLinkService") as mock_service_class:
+            mock_service = MagicMock()
+            mock_service.get_device_by_id = AsyncMock(return_value=MagicMock(vin=None))
+            mock_service.delete_device = AsyncMock(return_value=True)
+            mock_service_class.return_value = mock_service
+
+            response = await client.delete("/api/livelink/devices/device_to_delete")
+
+        assert response.status_code == 204, response.text
+        mock_service.delete_device.assert_awaited_once()
+
 
 @pytest.mark.integration
 @pytest.mark.asyncio

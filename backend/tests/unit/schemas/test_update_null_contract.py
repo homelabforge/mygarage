@@ -54,7 +54,6 @@ from app.models.vehicle_share import VehicleShare
 from app.models.vendor import Vendor
 from app.models.warranty import WarrantyRecord
 from app.routes.oidc import OIDCAdminConfig
-from app.routes.window_sticker import WindowStickerDataUpdate
 from app.schemas.address_book import AddressBookEntryUpdate
 from app.schemas.brake import BrakeAxleUpdate, BrakeJobUpdate, BrakeMeasurementUpdate
 from app.schemas.def_record import DEFRecordUpdate
@@ -100,6 +99,7 @@ from app.schemas.user import (
 from app.schemas.vehicle import TrailerDetailsUpdate, VehicleUpdate
 from app.schemas.vendor import VendorUpdate
 from app.schemas.warranty import WarrantyRecordUpdate
+from app.schemas.window_sticker import WindowStickerDataUpdate
 
 _VIN = "1HGBH41JXMN109186"
 

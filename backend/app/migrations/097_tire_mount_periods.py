@@ -51,8 +51,8 @@ FATAL = True
 
 #: Every CHECK that step 7 restores on `vehicle_reminders`, with the scan that
 #: proves the data can take it. Preflight P2 runs all of them: a violated CHECK
-#: is skipped and logged, because a missing constraint is recoverable and a
-#: crash-looping instance is not.
+#: is skipped and logged, because the app already validates these fields on
+#: write and a crash-looping instance helps nobody.
 #:
 #: Enumerated from the DDL step 7 writes, not from the ones that came to mind.
 #: An earlier draft listed only the two vocabulary CHECKs and missed the range
@@ -134,8 +134,8 @@ def _preflight_reminder_checks(cur: DBAPICursor) -> list[tuple[str, str]]:
         if violations:
             print(
                 f"  → P2: SKIPPING {name}; {len(violations)} row(s) violate it: "
-                f"{violations}. The constraint is not installed. Repair those rows "
-                f"and a later release will add it."
+                f"{violations}. The constraint isn't installed; the app still "
+                f"validates these fields on write."
             )
             continue
         keep.append((name, expression))
@@ -584,7 +584,9 @@ def _run_postgres(engine: Engine) -> None:
             violations = [r[0] for r in conn.execute(text(scan)).fetchall()]
             if violations:
                 print(
-                    f"  → P2: SKIPPING {name}; {len(violations)} row(s) violate it: {violations}."
+                    f"  → P2: SKIPPING {name}; {len(violations)} row(s) violate it: "
+                    f"{violations}. The constraint isn't installed; the app still "
+                    f"validates these fields on write."
                 )
                 continue
             conn.execute(

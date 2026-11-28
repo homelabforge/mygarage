@@ -139,8 +139,11 @@ function ReadingEditor({
       nested
       open={open}
       onClose={onClose}
+      /* The corner the tire had on the reading's date, from the server; null means
+         it was in storage that day. No Literal in the schema, same cast as the
+         period editor. */
       title={t('tireList.editReadingTitle', {
-        position: labelFor(tire.position),
+        position: labelFor((reading.position ?? null) as TirePosition),
         date: formatDateForDisplay(reading.recorded_at),
       })}
       icon={Gauge}

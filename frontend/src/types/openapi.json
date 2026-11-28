@@ -23190,7 +23190,7 @@
       "SupplyLedgerEntry": {
         "properties": {
           "at": {
-            "description": "Effective ledger time on the household clock, with its offset: purchase.date (midnight), a job usage's OWNING VISIT date (midnight), or a standalone adjustment's created_at (R1-H3 ordering)",
+            "description": "Effective ledger time on the household clock, with its offset: purchase.date (midnight), a job usage's OWNING VISIT date (midnight), or a standalone adjustment's created_at",
             "format": "date-time",
             "title": "At",
             "type": "string"
@@ -23245,7 +23245,7 @@
                 "type": "null"
               }
             ],
-            "description": "Receipt metadata for a purchase entry (R1-H4)"
+            "description": "Receipt metadata for a purchase entry"
           },
           "running_balance": {
             "title": "Running Balance",
@@ -23497,6 +23497,32 @@
           "created_at"
         ],
         "title": "SupplyPurchaseResponse",
+        "type": "object"
+      },
+      "SupplyReceiptResponse": {
+        "description": "The receipt a purchase has after an upload.",
+        "properties": {
+          "file_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Type"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "file_type"
+        ],
+        "title": "SupplyReceiptResponse",
         "type": "object"
       },
       "SupplyReceiptSummary": {
@@ -23885,7 +23911,7 @@
                 "type": "null"
               }
             ],
-            "description": "Owning service visit (null for standalone adjustments) \u2014 R1-H3",
+            "description": "Owning service visit (null for standalone adjustments)",
             "title": "Service Visit Id"
           },
           "supply_id": {
@@ -23908,7 +23934,7 @@
             "title": "Unit Cost Snapshot"
           },
           "unit_type": {
-            "description": "Owning supply's unit_type \u2014 lets read-only views convert the canonical quantity to display units (L\u2194qt) instead of showing raw liters",
+            "description": "Owning supply's unit_type, so read-only views can convert the canonical quantity to display units (L\u2194qt) instead of showing raw liters",
             "enum": [
               "volume",
               "count"
@@ -46197,7 +46223,7 @@
     },
     "/api/supplies/{supply_id}": {
       "delete": {
-        "description": "Delete a catalog supply \u2014 hard-delete if unused, soft-archive if it has ledger history.",
+        "description": "Delete a catalog supply: hard-delete if unused, soft-archive if it has ledger history.",
         "operationId": "delete_supply_api_supplies__supply_id__delete",
         "parameters": [
           {
@@ -46705,7 +46731,7 @@
         ]
       },
       "post": {
-        "description": "Upload (or REPLACE) the single receipt for a purchase \u2014 one-per-purchase (R1-H4).",
+        "description": "Upload a purchase's receipt, replacing any it already has.",
         "operationId": "upload_receipt_api_supplies__supply_id__purchases__purchase_id__receipt_post",
         "parameters": [
           {
@@ -46742,9 +46768,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Upload Receipt Api Supplies  Supply Id  Purchases  Purchase Id  Receipt Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/SupplyReceiptResponse"
                 }
               }
             },
@@ -53854,6 +53878,7 @@
             "schema": {
               "anyOf": [
                 {
+                  "minimum": 1,
                   "type": "integer"
                 },
                 {
@@ -53917,6 +53942,7 @@
             "required": true,
             "schema": {
               "description": "Year for cost summary",
+              "minimum": 1,
               "title": "Year",
               "type": "integer"
             }
@@ -54083,6 +54109,7 @@
             "schema": {
               "anyOf": [
                 {
+                  "format": "date",
                   "type": "string"
                 },
                 {
@@ -54101,6 +54128,7 @@
             "schema": {
               "anyOf": [
                 {
+                  "format": "date",
                   "type": "string"
                 },
                 {
@@ -54165,6 +54193,7 @@
             "schema": {
               "anyOf": [
                 {
+                  "format": "date",
                   "type": "string"
                 },
                 {
@@ -54183,6 +54212,7 @@
             "schema": {
               "anyOf": [
                 {
+                  "format": "date",
                   "type": "string"
                 },
                 {
@@ -54289,6 +54319,7 @@
             "required": true,
             "schema": {
               "description": "Tax year",
+              "minimum": 1,
               "title": "Year",
               "type": "integer"
             }
@@ -58411,7 +58442,7 @@
     },
     "/api/vehicles/{vin}/window-sticker/upload": {
       "post": {
-        "description": "Upload a window sticker file and extract data using OCR.\n\nThe scan fills only the sticker fields that are empty. With `replace` and a\nsticker already on file, the old sticker's fields are cleared first. A scan\nthat read nothing changes no field and says so in `scan_read_nothing`.\nExtracted data can be edited via the PATCH endpoint.\n\nWith `window_sticker_enabled` off this is a 409. With\n`window_sticker_ocr_enabled` off the file is stored without a scan: no\nfield is filled or cleared, the scan metadata empties, and the response\nsays so in `ocr_skipped`.",
+        "description": "Upload a window sticker file and extract data using OCR.\n\nThe scan fills only the sticker fields that are empty. With `replace` and a\nsticker already on file, the old sticker's fields are cleared first. A scan\nthat read nothing changes no field and says so in `scan_read_nothing`.\nExtracted data can be edited via the PATCH endpoint.\n\nWith `window_sticker_enabled` off this is a 409. With\n`window_sticker_ocr_enabled` off the file is stored without a scan: no\nfield is filled or cleared, the scan metadata empties, and the response\nsays so in `ocr_skipped`.\n\nA 500 whose detail has `code: sticker_not_saved` saved nothing. Any other\n500 may have, since the sticker commits before the response is built.",
         "operationId": "upload_window_sticker_api_vehicles__vin__window_sticker_upload_post",
         "parameters": [
           {

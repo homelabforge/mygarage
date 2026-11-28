@@ -8,7 +8,7 @@ import i18next from 'i18next'
 import commonEn from '../../locales/en/common.json'
 import { registeredFieldNames, validationError, whereA422Lands, dropQueuedOnces } from '../../__tests__/serverErrors'
 
-// Mock the supplies query hooks so this stays a unit test — no real network
+// Mock the supplies query hooks so this stays a unit test, no real network
 // calls needed. The api layer itself is already mocked globally (setup.ts
 // mocks axios), so any hook we don't mock here still resolves harmlessly.
 const useSuppliesMock = vi.fn()
@@ -47,7 +47,7 @@ vi.mock('../../hooks/queries/useQuickEntryVehicles', () => ({
   useQuickEntryVehicles: () => ({ data: [], isLoading: false }),
 }))
 
-// Same mock pattern as DEFRecordList.test.tsx — these hooks need AuthProvider
+// Same mock pattern as DEFRecordList.test.tsx: these hooks need AuthProvider
 // otherwise, and it's not under test here.
 const unitMock = vi.hoisted(() => ({
   system: 'metric' as 'metric' | 'imperial',
@@ -161,7 +161,7 @@ describe('Supplies page', () => {
   it('opens the form modal when "Add supply" is clicked', () => {
     render(<Supplies />)
 
-    // Select by id, not label text — the global i18n test mock renders keys,
+    // Select by id, not label text: the global i18n test mock renders keys,
     // so the form isn't visible until the click; the name input only exists
     // once the modal has mounted.
     expect(document.getElementById('name')).not.toBeInTheDocument()
@@ -170,7 +170,7 @@ describe('Supplies page', () => {
 
     expect(document.getElementById('name')).toBeInTheDocument()
     expect(document.getElementById('unit_type')).toBeInTheDocument()
-    // unit_type is only disabled in edit mode — create mode leaves it editable
+    // unit_type is only disabled in edit mode; create mode leaves it editable
     expect(document.getElementById('unit_type')).not.toBeDisabled()
   })
 
@@ -545,7 +545,7 @@ describe('SupplyForm category suggestions', () => {
   })
 })
 
-describe('Supplies page — the average unit cost is a rate', () => {
+describe('Supplies page: the average unit cost is a rate', () => {
   it('shows a yen unit cost with its decimals', () => {
     currencyMock.code = 'JPY'
     useSuppliesMock.mockReturnValue({
@@ -795,7 +795,7 @@ describe('SupplyForm: the volume unit picker', () => {
       'common:supplies.volumeUnits.qt_us',
       'settings:units.options.volume.gal_us',
     ])
-    expect(screen.getByText('supplies.volumeUnit')).toBeInTheDocument()
+    expect(screen.getByLabelText('supplies.volumeUnit')).toBe(unitSelect())
     expect(document.getElementById('volume_unit-hint')).toHaveTextContent('supplies.volumeUnitHint')
   })
 

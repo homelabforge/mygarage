@@ -10,12 +10,12 @@ import { readTypedNumber } from '../utils/decimalInput'
 interface SupplyUsedPickerProps {
   value: SupplyUsedEntry[]
   onChange: (next: SupplyUsedEntry[]) => void
-  // The visit's vehicle VIN — scopes the ADDABLE options to shared + this-vehicle
+  // The visit's vehicle VIN. Scopes the ADDABLE options to shared + this-vehicle
   // supplies (an existing hydrated row for any other supply still resolves its
   // name from the full `supplies` list below).
   vin: string
   // Full (active + archived, UNFILTERED by vin) list, resolved once by ServiceVisitForm and
-  // threaded down — NOT fetched here. A second independent useSupplies() call
+  // threaded down, NOT fetched here. A second independent useSupplies() call
   // in this component would race the parent's: a usage added against a supply
   // the parent's own lookup hasn't resolved yet would silently vanish from the
   // submit payload (mapSuppliesUsedForSubmit can't convert what it can't find).
@@ -82,12 +82,12 @@ export default function SupplyUsedPicker({
   const usedSupplyIds = new Set(value.map((row) => row.supply_id))
   // Only ACTIVE supplies can be picked for a NEW usage row. An archived supply
   // already in use (via edit-hydration) stays selectable in its own row below
-  // — see rowOptions — so past usage isn't orphaned, but it's never offered as
+  // (see rowOptions) so past usage isn't orphaned, but it's never offered as
   // a fresh choice.
   // Addable = ACTIVE and shared (vin null) or pinned to THIS vehicle, and not
   // already used. (The full `supplies` list is vin-unfiltered so existing rows
-  // resolve names; but a supply pinned to another vehicle must never be OFFERED
-  // — the backend would reject it — so scope the addable set here.)
+  // resolve names; but a supply pinned to another vehicle must never be OFFERED,
+  // since the backend would reject it, so scope the addable set here.)
   const addableSupplies = supplies.filter(
     (s) => s.is_active && (s.vin == null || s.vin === vin) && !usedSupplyIds.has(s.id),
   )
@@ -134,7 +134,7 @@ export default function SupplyUsedPicker({
             const supplyName = supply?.name ?? `#${row.supply_id}`
             const quantityUnit = unitLabel(unitsBySupplyId.get(row.supply_id) ?? 'count')
             // Row's own select keeps its current supply as an option even if it's
-            // archived (not in addableSupplies) or — defensively — also picked by
+            // archived (not in addableSupplies) or, defensively, also picked by
             // another row (shouldn't happen via handleAddRow, but a hydrated or
             // hand-edited value could carry a duplicate).
             const rowOptions = supplies.filter((s) => s.id === row.supply_id || (s.is_active && !usedSupplyIds.has(s.id)))

@@ -73,7 +73,7 @@ function SupplyHistoryModal({ supply, onClose, initialForm }: SupplyHistoryModal
   const { formatCurrency } = useCurrencyPreference()
   const { data, isLoading, error } = useSupplyHistory(supply.id)
 
-  // Which inline "log" form is expanded — a single field instead of two
+  // Which inline "log" form is expanded. A single field instead of two
   // independent booleans so only one can be open at a time.
   const [activeForm, setActiveForm] = useState<'purchase' | 'adjustment' | null>(initialForm ?? null)
 
@@ -165,7 +165,7 @@ function SupplyHistoryModal({ supply, onClose, initialForm }: SupplyHistoryModal
 }
 
 // ---------------------------------------------------------------------------
-// Ledger rows — each owns its own mutations (mirrors how SupplyForm/
+// Ledger rows. Each owns its own mutations (mirrors how SupplyForm/
 // DEFRecordForm own their create/update mutations locally) rather than
 // threading hoisted mutations + per-row pending flags down as props.
 // ---------------------------------------------------------------------------
@@ -334,9 +334,8 @@ function UsageRow({ entry, supply, unit }: LedgerRowProps) {
   const { formatCurrency } = useCurrencyPreference()
   const deleteAdjustment = useDeleteAdjustment(supply.id)
   const isJob = entry.service_visit_id != null
-  // Owning-vehicle deep-linking for job usages is Task 18's concern — this
-  // shows the visit date as a plain label, not a link (the supply itself
-  // isn't scoped to a single vehicle).
+  // Job usages show the visit date as a plain label, not a link to the
+  // owning vehicle (the supply itself isn't scoped to a single vehicle).
   const isStandaloneAdjustment = entry.service_line_item_id == null
 
   const handleDeleteAdjustment = async (): Promise<void> => {
@@ -395,7 +394,7 @@ function UsageRow({ entry, supply, unit }: LedgerRowProps) {
 /**
  * Neither inline form below has a zod resolver, so RHF's own `min` rule is
  * what normally enforces a positive quantity. But RHF's built-in min/max
- * check coerces the field value with unary `+` to compare it — which throws
+ * check coerces the field value with unary `+` to compare it, which throws
  * a TypeError when the value is the `INVALID_NUMBER` symbol `registerDecimal`
  * emits for unparseable text (e.g. typing "abc"). A `validate` function
  * receives the raw value without that coercion, so it can reject the same
@@ -742,5 +741,5 @@ function AdjustmentForm({
   )
 }
 
-// Pins its units for as long as it is open (R4).
+// Pins its units for as long as it is open.
 export default withUnitSession(SupplyHistoryModal)

@@ -45,6 +45,11 @@ describe('supplyDisplayUnit', () => {
     const stale = { unit_type: 'volume' as const, volume_unit: 'pt_us' as SupplyVolumeUnit }
     expect(supplyDisplayUnit(stale, 'metric')).toBe('L')
   })
+  it('a token that only lives on the prototype is still unknown', () => {
+    // `in` would find toString on Object.prototype and hand back a unit with no factor.
+    const inherited = { unit_type: 'volume' as const, volume_unit: 'toString' as SupplyVolumeUnit }
+    expect(supplyDisplayUnit(inherited, 'metric')).toBe('L')
+  })
 })
 
 it('unitCostToDisplay prices the display unit', () => {
@@ -110,7 +115,7 @@ it('formatSupplyQuantity adds the label, and none for count', () => {
   expect(formatSupplyQuantity(4, 'count', 'en-US')).toBe('4')
 })
 
-// D3: the UK supply units say so. The US and metric ones keep their labels.
+// The UK supply units say so. The US and metric ones keep their labels.
 it.each([
   ['qt_uk', 'qt (UK)'], ['fl_oz_uk', 'fl oz (UK)'], ['gal_uk', 'gal (UK)'],
 ] as [SupplyUnit, string][])('unitLabel(%s) is %s', (unit, label) => {

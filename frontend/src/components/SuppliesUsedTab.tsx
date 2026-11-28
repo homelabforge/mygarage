@@ -61,9 +61,8 @@ export default function SuppliesUsedTab({ vin }: SuppliesUsedTabProps) {
       <div className="mb-6">
         <h2 className="text-2xl font-bold text-text">{t('supplies.usedTab.title')}</h2>
         <p className="text-sm text-text-mute">
-          {/* B9/LD5: the usage-count phrase (translated, key unchanged) is a <Mono> figure. Wrapping the whole
-              resolved phrase leaves the accessible text + the i18n key identical; the maintained test does not
-              assert this line, so it stays green with no edit (B7). */}
+          {/* The usage-count phrase (translated, key unchanged) is a <Mono> figure. Wrapping the whole
+              resolved phrase leaves the accessible text + the i18n key identical. */}
           <Mono size="sm" tone="muted">{t('supplies.usedTab.count', { count: usages.length })}</Mono>
         </p>
       </div>

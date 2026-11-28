@@ -14,9 +14,10 @@ vi.mock('../../services/api', () => ({
   getCSRFToken: vi.fn(),
   clearCSRFToken: vi.fn(),
   setApiAuthMode: vi.fn(),
+  setAuthStaleHandler: vi.fn(),
 }))
 
-import api, { setApiAuthMode } from '../../services/api'
+import api, { setApiAuthMode, setAuthStaleHandler } from '../../services/api'
 
 const mockedApi = vi.mocked(api)
 const ADMIN = { id: 1, username: 'alice', is_admin: true }
@@ -30,6 +31,17 @@ function serve(mode: string): void {
     return Promise.resolve({ data: {} })
   })
 }
+
+// The handler AuthProvider handed the api module last.
+function staleHandler(): () => void {
+  const calls = vi.mocked(setAuthStaleHandler).mock.calls
+  const handler = calls[calls.length - 1]?.[0]
+  if (!handler) throw new Error('AuthProvider has no stale-auth handler registered')
+  return handler
+}
+
+const settingsReads = (): number =>
+  mockedApi.get.mock.calls.filter(([u]) => u === '/settings/public').length
 
 function Probe() {
   const { isAuthenticated, isAdmin, authMode, refreshUser, loading, publicSettingsLoaded } = useAuth()
@@ -134,6 +146,53 @@ describe('AuthContext follows the sign-in mode', () => {
 
     await waitFor(() => expect(screen.getByTestId('state')).toHaveTextContent('local:true:true'))
     expect(screen.getByRole('button')).not.toBeDisabled()
+  })
+
+  it('a write refused with requires_sign_in drops the signed-in user', async () => {
+    serve('local')
+    renderWithQueryClient(<AuthProvider><Probe /></AuthProvider>)
+    await waitFor(() => expect(screen.getByTestId('state')).toHaveTextContent('local:true:true'))
+
+    // Same clock as boot's read, so the visibility throttle would still say no.
+    serve('none')
+    act(() => staleHandler()())
+
+    await waitFor(() => expect(screen.getByTestId('state')).toHaveTextContent('none:false:false'))
+    expect(setApiAuthMode).toHaveBeenLastCalledWith('none')
+  })
+
+  it('refused writes reread the public settings at most once per 10 seconds', async () => {
+    serve('local')
+    renderWithQueryClient(<AuthProvider><Probe /></AuthProvider>)
+    await waitFor(() => expect(screen.getByTestId('state')).toHaveTextContent('local:true:true'))
+    const before = settingsReads()
+
+    serve('none')
+    act(() => {
+      staleHandler()()
+      staleHandler()()
+    })
+    await waitFor(() => expect(screen.getByTestId('state')).toHaveTextContent('none:false:false'))
+    expect(settingsReads()).toBe(before + 1)
+
+    nowSpy.mockReturnValue(1_000_000 + 9_999)
+    await act(async () => staleHandler()())
+    expect(settingsReads()).toBe(before + 1)
+
+    nowSpy.mockReturnValue(1_000_000 + 10_000)
+    await act(async () => staleHandler()())
+    expect(settingsReads()).toBe(before + 2)
+  })
+
+  it('unmounting takes the stale-auth handler back', async () => {
+    serve('local')
+    const { unmount } = renderWithQueryClient(<AuthProvider><Probe /></AuthProvider>)
+    await waitFor(() => expect(screen.getByTestId('state')).toHaveTextContent('local:true:true'))
+    expect(vi.mocked(setAuthStaleHandler).mock.lastCall?.[0]).toBeTypeOf('function')
+
+    unmount()
+
+    expect(setAuthStaleHandler).toHaveBeenLastCalledWith(null)
   })
 
   it('a visibility refresh with the same mode does not ask for the user again', async () => {

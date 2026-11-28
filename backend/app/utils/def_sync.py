@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.constants.fuel import is_diesel_vehicle
 from app.models.def_record import DEFRecord
 from app.models.vehicle import Vehicle
+from app.utils.odometer_sync import remove_synced_odometer
 
 logger = logging.getLogger(__name__)
 
@@ -86,20 +87,23 @@ async def sync_def_from_fuel_record(
 
 async def delete_def_for_fuel_record(
     db: AsyncSession,
+    vin: str,
     fuel_record_id: int,
 ) -> int:
-    """Delete DEF records linked to a fuel record.
+    """Delete the DEF records a fuel record wrote, and the odometer readings they synced.
 
-    Does NOT commit — caller manages the transaction for atomicity
-    with the fuel record delete.
-
-    Args:
-        db: Database session
-        fuel_record_id: ID of the fuel record being deleted
+    One edited through the DEF page syncs its own reading, which has no FK to
+    cascade from, so it goes by marker here. Does NOT commit: the caller owns
+    the transaction, for atomicity with the fuel record write.
 
     Returns:
         Number of DEF records deleted
     """
+    linked = await db.execute(
+        select(DEFRecord.id).where(DEFRecord.origin_fuel_record_id == fuel_record_id)
+    )
+    for def_id in linked.scalars().all():
+        await remove_synced_odometer(db, vin, "def", def_id)
     result = await db.execute(
         delete(DEFRecord).where(DEFRecord.origin_fuel_record_id == fuel_record_id)
     )

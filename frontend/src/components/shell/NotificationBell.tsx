@@ -1,20 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Bell, AlertTriangle, Clock } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { Badge, Drawer, EmptyState, IconButton } from '../ui'
-import api from '../../services/api'
-
-interface InboxItem {
-  id: string
-  kind: 'reminder_overdue' | 'reminder_upcoming'
-  title: string
-  body: string
-  vin: string
-  vehicle_nickname?: string | null
-  href: string
-  severity: 'warning' | 'critical' | 'info'
-}
+import { Badge, Button, Drawer, EmptyState, IconButton } from '../ui'
+import { useNotificationInbox } from '../../hooks/useNotificationInbox'
 
 const DISMISSED_KEY = 'mygarage:notification-inbox-dismissed'
 
@@ -38,48 +27,37 @@ function saveDismissed(ids: Set<string>) {
 }
 
 /**
- * In-app notification bell — overdue and upcoming reminders from the garage.
+ * In-app notification bell: overdue and upcoming reminders from the garage.
  * Dismissals are local (localStorage) so the badge stays calm until new items appear.
  */
 export default function NotificationBell() {
   const { t } = useTranslation('nav')
   const [open, setOpen] = useState(false)
-  const [items, setItems] = useState<InboxItem[]>([])
-  const [loading, setLoading] = useState(false)
   const [dismissed, setDismissed] = useState<Set<string>>(() => loadDismissed())
+  const { data, isSuccess, isPending, isFetching, isLoadingError, dataUpdatedAt, refetch } =
+    useNotificationInbox()
+  // A failed poll keeps the last good list, so the bell doesn't go quiet on a blip.
+  const items = useMemo(() => data ?? [], [data])
 
-  const loadInbox = useCallback(async () => {
-    setLoading(true)
-    try {
-      const res = await api.get('/notifications/inbox')
-      const next: InboxItem[] = res.data?.items ?? []
-      setItems(next)
-      // Prune dismissals to what the inbox still carries, so the set cannot grow
-      // without bound. An alert that leaves and later returns is a NEW alert and
-      // should be shown again. Pruning happens only on a successful response:
-      // doing it in the catch would let one failed poll resurrect everything.
-      setDismissed((prev) => {
-        const live = new Set(next.map((item) => item.id))
-        const pruned = new Set([...prev].filter((id) => live.has(id)))
-        if (pruned.size !== prev.size) saveDismissed(pruned)
-        return pruned.size === prev.size ? prev : pruned
-      })
-    } catch {
-      setItems([])
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
+  // Prune dismissals to what the inbox still carries, so the set can't grow
+  // forever, and an alert that leaves and comes back is new and shows again.
+  // Only off a real answer: pruning against an empty list while the first
+  // fetch is out, or after it failed, would bring back everything.
   useEffect(() => {
-    void loadInbox()
-    const id = window.setInterval(() => void loadInbox(), 60_000)
-    return () => window.clearInterval(id)
-  }, [loadInbox])
+    if (!isSuccess) return
+    const live = new Set(data.map((item) => item.id))
+    setDismissed((prev) => {
+      const pruned = new Set([...prev].filter((id) => live.has(id)))
+      if (pruned.size === prev.size) return prev
+      saveDismissed(pruned)
+      return pruned
+    })
+  }, [isSuccess, dataUpdatedAt, data])
 
+  // Opening the bell asks again rather than showing a minute-old list.
   useEffect(() => {
-    if (open) void loadInbox()
-  }, [open, loadInbox])
+    if (open) void refetch()
+  }, [open, refetch])
 
   const visibleItems = useMemo(
     () => items.filter((item) => !dismissed.has(item.id)),
@@ -133,10 +111,20 @@ export default function NotificationBell() {
               </button>
             </div>
           )}
-          {loading && visibleItems.length === 0 && (
+          {/* Pending covers a first fetch that's parked while the browser is offline. */}
+          {(isPending || isFetching) && visibleItems.length === 0 && (
             <p className="text-sm text-text-mute">{t('notificationsLoading')}</p>
           )}
-          {!loading && visibleItems.length === 0 && (
+          {/* Never had a list, so "all caught up" would be a lie. A retry flips this back to pending. */}
+          {isLoadingError && (
+            <div className="space-y-2">
+              <p className="text-sm text-text-mute">{t('notificationsLoadError')}</p>
+              <Button size="sm" variant="secondary" onClick={() => void refetch()}>
+                {t('common:retry')}
+              </Button>
+            </div>
+          )}
+          {!isFetching && data !== undefined && visibleItems.length === 0 && (
             <EmptyState
               icon={Bell}
               title={t('notificationsEmptyTitle')}

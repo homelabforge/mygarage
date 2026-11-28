@@ -41,12 +41,11 @@ import { withUnitSession } from '../contexts/UnitSession'
 
 // Shared by the edit-hydration effect (canonical -> display, via toDisplay),
 // the parts estimate and mapSuppliesUsedForSubmit (display -> canonical, via
-// toCanonical): same shape, same "drop what can't be resolved" fallback. A
-// miss here almost never means the supply was hard-deleted (delete_supply only
-// allows that for supplies with zero usage history); it's far more likely a
-// vin-repin moved it out of this vehicle's scope. Either way, dropping
-// silently is the least-bad option available without turning a
-// units-conversion helper into a place that also owns user-facing warnings.
+// toCanonical): same shape, same "drop what can't be resolved" fallback. The
+// map comes from the unfiltered list (archived and every vehicle's), so a repin
+// can't cause a miss: a miss is a supply missing from that list, like one
+// hard-deleted (delete_supply only allows that with zero usage history).
+// Dropping it quietly beats a units helper that also owns user-facing warnings.
 function convertSupplyUsages(
   usages: { supply_id: number; quantity: number | string }[],
   unitsBySupplyId: Map<number, SupplyUnit>,
@@ -138,13 +137,13 @@ function ServiceVisitForm({
   const updateMutation = useUpdateServiceVisit(vin)
   const isMotorized = !vehicleType || !NON_MOTORIZED.includes(vehicleType)
   const { data: currentMileage } = useLatestMileage(vin)
-  // Task 14 — which usage dimension(s) this vehicle tracks, driving the
+  // Which usage dimension(s) this vehicle tracks, driving the
   // odometer vs. engine-hours field visibility below. Defaults mirror
   // getUsageTracking's own distance-primary default so the form doesn't
   // flash the wrong field before the vehicle fetch resolves. `vehicleType`
   // arrives as a prop (ServiceTab already fetches the vehicle), but
-  // usage_unit/secondary_usage_enabled don't — mirrors FuelRecordForm's own
-  // independent `/vehicles/{vin}` fetch (Task 13) rather than threading a
+  // usage_unit/secondary_usage_enabled don't. Mirrors FuelRecordForm's own
+  // independent `/vehicles/{vin}` fetch rather than threading a
   // new prop through ServiceTab.
   const [vehicleUsageUnit, setVehicleUsageUnit] = useState<string>('distance')
   const [vehicleSecondaryUsageEnabled, setVehicleSecondaryUsageEnabled] = useState<boolean>(false)
@@ -167,7 +166,7 @@ function ServiceVisitForm({
   })
   // UNFILTERED (include archived, NO vin scope): this lookup backs cost-breakdown,
   // edit-hydration and the submit map, all of which must resolve EVERY consumed
-  // supply — including one later archived OR repinned to a different vehicle. A
+  // supply, including one later archived OR repinned to a different vehicle. A
   // vin-scoped fetch here would drop such a usage on hydrate/submit, and the
   // backend's wholesale-replace would then silently delete the historical row.
   // The picker (SupplyUsedPicker) re-applies the vin scope for its ADDABLE options,
@@ -215,7 +214,7 @@ function ServiceVisitForm({
    * The canonical origin of the odometer reading, seeded once.
    *
    * The reading used to be read and written on `useUnitPreference().system`,
-   * which spec D8 collapses from VOLUME: a `{volume: 'L', distance: 'mi'}`
+   * which follows the VOLUME preference: a `{volume: 'L', distance: 'mi'}`
    * account typed miles into a field labelled `km` and stored them verbatim.
    *
    * The origin is what stops an untouched save from rewriting it: 72420.5 km
@@ -236,7 +235,7 @@ function ServiceVisitForm({
         vendor_id: visit.vendor_id ?? undefined,
         date: visit.date.split('T')[0],
         odometer_km: readNumber(odometerOrigin.display),
-        // Task 14 — dimensionless engine-hours reading. NO unit conversion
+        // Dimensionless engine-hours reading. NO unit conversion
         // regardless of system, unlike odometer_km above.
         engine_hours: visit.engine_hours != null ? Number(visit.engine_hours) : undefined,
         notes: visit.notes || '',
@@ -439,7 +438,7 @@ function ServiceVisitForm({
   }, [subtotal, formData.tax_amount, formData.shop_supplies, formData.misc_fees, partsEstimate])
 
   // Get failed inspections from current line items (for linking repairs)
-  // Use tempId or id as the identifier — NOT array index
+  // Use tempId or id as the identifier, NOT array index
   const failedInspections = useMemo(() => {
     return formData.line_items
       .map((item) => ({
@@ -461,7 +460,7 @@ function ServiceVisitForm({
     return id == null ? undefined : visit?.line_items.find((li) => li.id === id)
   }
 
-  // A recall can only be on one line (D9), so each line's list leaves out the
+  // A recall can only be on one line, so each line's list leaves out the
   // ones the other lines picked, but always keeps its own. While the list is
   // loading (or failed) the stored link comes from the visit's own summary, so
   // the select never reads "No specific recall" over a link it still sends.
@@ -737,7 +736,7 @@ function ServiceVisitForm({
     // On edit, refuse to submit until the supplies list has loaded and hydrated.
     // Otherwise supplies_used is still [] and the backend (which replaces a line
     // item's usages from the submitted list) would silently delete every logged
-    // usage on this visit — the wipe-on-edit failure via a slow/failed fetch.
+    // usage on this visit: the wipe-on-edit failure via a slow/failed fetch.
     if (isEdit && !editHydrated) {
       setError(suppliesError ? t('service.suppliesLoadFailed') : t('service.suppliesLoading'))
       return
@@ -786,7 +785,7 @@ function ServiceVisitForm({
       // below the service it followed.
 
       if (isEdit && visit) {
-        // Diff-based update — include id for existing items, temp_id for new
+        // Diff-based update: include id for existing items, temp_id for new.
         // Null, not undefined, for a blank field: an existing line item keeps
         // any field the request leaves out, so a cleared one is sent as null.
         const updateLineItems: ServiceLineItemUpdate[] = formData.line_items.map((item) => ({
@@ -818,7 +817,7 @@ function ServiceVisitForm({
         }))
 
         // A ref the form never showed stays out of the PUT, so it can't wipe
-        // a stored value. Shown or turned off, it goes out like any field (D6).
+        // a stored value. Shown or turned off, it goes out like any field.
         const updateRefs: Pick<ServiceVisitUpdate, RefField> = {}
         for (const { field } of REF_FIELDS) {
           if (refsOn[field] || refsTouched[field]) updateRefs[field] = refValue(field)
@@ -831,7 +830,7 @@ function ServiceVisitForm({
           vendor_id: formData.vendor_id ?? null,
           date: formData.date,
           odometer_km: odometerKm ?? null,
-          // Dimensionless — submitted verbatim, no canonical conversion
+          // Dimensionless: submitted verbatim, no canonical conversion
           // (mirrors FuelRecordForm's engine_hours submit).
           engine_hours: formData.engine_hours ?? null,
           notes: formData.notes || null,
@@ -843,7 +842,7 @@ function ServiceVisitForm({
         })
         toast.success(t('service.visitUpdated'))
       } else {
-        // Create — map to ServiceLineItemCreate with temp_id + reminder
+        // Create: map to ServiceLineItemCreate with temp_id + reminder
         const createLineItems: ServiceLineItemCreate[] = formData.line_items.map((item) => ({
           description: item.description,
           category: (item.category as ServiceCategory) || undefined,
@@ -869,7 +868,7 @@ function ServiceVisitForm({
           vendor_id: formData.vendor_id,
           date: formData.date,
           odometer_km: odometerKm,
-          // Dimensionless — submitted verbatim, no canonical conversion.
+          // Dimensionless: submitted verbatim, no canonical conversion.
           engine_hours: formData.engine_hours,
           notes: formData.notes || undefined,
           insurance_claim_number: refValue('insurance_claim_number'),
@@ -996,7 +995,7 @@ function ServiceVisitForm({
               )}
             </div>
 
-            {/* Task 14 — engine-hours reading (hour-metered vehicles). Dimensionless:
+            {/* Engine-hours reading (hour-metered vehicles). Dimensionless:
                 NO unit conversion regardless of system, unlike odometer_km above. */}
             {isMotorized && tracksHours && (
               <Field id="service-engine-hours" label={t('common:engineHours')} unit="hr" error={fieldErrors.engine_hours}>
@@ -1211,5 +1210,5 @@ function ServiceVisitForm({
   )
 }
 
-// Pins its units for as long as it is open (R4).
+// Pins its units for as long as it is open.
 export default withUnitSession(ServiceVisitForm)

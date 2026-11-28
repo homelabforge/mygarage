@@ -43,6 +43,7 @@
   "notificationsEmptyTitle": "Aucune notification",
   "notificationsEmptyBody": "Vous êtes à jour. Les nouvelles alertes apparaîtront ici.",
   "notificationsLoading": "Chargement des notifications…",
+  "notificationsLoadError": "Impossible de charger les notifications.",
   "notificationsDismiss": "Ignorer",
   "notificationsDismissAll": "Tout ignorer",
   "notificationsOverdue": "En retard",

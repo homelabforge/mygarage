@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react'
 import { hashKey, useQueryClient } from '@tanstack/react-query'
-import api, { setCSRFToken, getCSRFToken, clearCSRFToken, setApiAuthMode } from '../services/api'
+import api, { setCSRFToken, getCSRFToken, clearCSRFToken, setApiAuthMode, setAuthStaleHandler } from '../services/api'
 import { fetchPublicSettingRows, publicSettingsQuery } from '../hooks/queries/usePublicSettings'
 import type { components } from '../types/api.generated'
 import type { UnitSet } from '../types/units'
@@ -166,7 +166,8 @@ export function AuthProvider({ children }: { children: ReactNode}) {
     ): Promise<void> => {
       // A logout landed since this started, so this answer is about a session that's over.
       if (gen !== authGenRef.current) return
-      await claimOfflineData(owner)
+      // The claim asks too, so a logout that lands mid-sweep doesn't get the marker put back.
+      await claimOfflineData(owner, () => gen === authGenRef.current && current())
       if (gen !== authGenRef.current || !current()) return
       // Another account's pages are still in memory. Drop them before anyone
       // renders. The public settings aren't anyone's, and a mode switch just wrote them.
@@ -375,6 +376,19 @@ export function AuthProvider({ children }: { children: ReactNode}) {
     }
     document.addEventListener('visibilitychange', onVisibilityChange)
     return () => document.removeEventListener('visibilitychange', onVisibilityChange)
+  }, [refreshPublicSettings])
+
+  // A write came back requires_sign_in while we think auth is on, so somebody
+  // turned it off. Reread the public settings, at most once every 10 seconds.
+  const lastStaleRefreshRef = useRef<number | null>(null)
+  useEffect(() => {
+    setAuthStaleHandler(() => {
+      const now = Date.now()
+      if (lastStaleRefreshRef.current !== null && now - lastStaleRefreshRef.current < 10_000) return
+      lastStaleRefreshRef.current = now
+      void refreshPublicSettings()
+    })
+    return () => setAuthStaleHandler(null)
   }, [refreshPublicSettings])
 
   // Login/register deliberately do NOT catch-and-rewrap. The original AxiosError

@@ -78,10 +78,13 @@ then starts depends on:
 ```python
 """Brief description of migration."""
 
+import logging
 import os
 from pathlib import Path
 
 from sqlalchemy import create_engine, inspect, text
+
+logger = logging.getLogger(__name__)
 
 
 def _get_fallback_engine():
@@ -107,7 +110,7 @@ def upgrade(engine=None):
         existing_columns = {col["name"] for col in inspector.get_columns("table_name")}
 
         if "new_column" in existing_columns:
-            print("  → Migration already applied, skipping")
+            logger.info("NNN: already applied, skipping")
             return
 
         # Perform migration
@@ -118,7 +121,7 @@ def upgrade(engine=None):
         """)
         )
 
-        print("✓ Migration completed successfully")
+        logger.info("NNN: added table_name.new_column")
 
 
 if __name__ == "__main__":

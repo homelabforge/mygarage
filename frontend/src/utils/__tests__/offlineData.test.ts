@@ -155,6 +155,23 @@ describe('claimOfflineData', () => {
     expect(localStorage.getItem(MARKER)).toBe('1')
   })
 
+  it('still sweeps but leaves no marker when the claim stops being current mid-sweep', async () => {
+    let answerKeys: () => void = () => {}
+    vi.stubGlobal('caches', {
+      keys: (): Promise<string[]> => new Promise((resolve) => (answerKeys = () => resolve([]))),
+    })
+    let current = true
+    const claim = claimOfflineData('1', () => current)
+    // A logout lands while the sweep is still out.
+    current = false
+    answerKeys()
+    await claim
+
+    // Pins out a claim that only asks before its sweep, or never asks.
+    for (const key of COPIES) expect(localStorage.getItem(key)).toBeNull()
+    expect(localStorage.getItem(MARKER)).toBeNull()
+  })
+
   it('leaves the data and the marker alone with nobody to claim for', async () => {
     localStorage.setItem(MARKER, '1')
     await claimOfflineData(null)

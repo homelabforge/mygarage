@@ -14,10 +14,13 @@ SQLite and PostgreSQL, so there is no per-dialect type.
 
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
 
 from sqlalchemy import Engine, create_engine, inspect, text
+
+logger = logging.getLogger(__name__)
 
 FATAL = True
 
@@ -48,14 +51,14 @@ def upgrade(engine: Engine | None = None) -> None:
         existing = {col["name"] for col in inspect(engine).get_columns("supplies")}
         if "volume_unit" not in existing:
             conn.execute(text("ALTER TABLE supplies ADD COLUMN volume_unit VARCHAR(8)"))
-            print("  ✓ Added supplies.volume_unit (nullable)")
+            logger.info("124: added supplies.volume_unit (nullable)")
         else:
-            print("  → volume_unit already exists, skipping")
+            logger.info("124: supplies.volume_unit already there")
 
 
 def downgrade() -> None:
     """Rollback not supported."""
-    print("Downgrade not supported for ALTER TABLE ADD COLUMN")
+    logger.info("124: downgrade not supported for ALTER TABLE ADD COLUMN")
 
 
 if __name__ == "__main__":

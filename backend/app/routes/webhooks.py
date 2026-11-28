@@ -36,6 +36,7 @@ from app.services.fuel_ingest import (
 )
 from app.services.settings_service import SettingsService
 from app.utils.household_time import household_today
+from app.utils.odometer_sync import without_sync_marker
 
 logger = logging.getLogger(__name__)
 
@@ -105,7 +106,7 @@ async def webhook_odometer(
         vin=vehicle.vin,
         date=payload.date or household_today(),
         odometer_km=payload.odometer_km,
-        notes=payload.notes,
+        notes=without_sync_marker(payload.notes),
         source="webhook",
     )
     db.add(reading)

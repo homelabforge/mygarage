@@ -520,7 +520,8 @@
       "partNumberTooLong": "Номер деталі надто довгий",
       "barcodeTooLong": "Штрихкод надто довгий (макс. 64 символи)",
       "categoryTooLong": "Категорія надто довга",
-      "notesTooLong": "Нотатки надто довгі"
+      "notesTooLong": "Нотатки надто довгі",
+      "volumeUnitInvalid": "Виберіть одиницю зі списку."
     },
     "tollTag": {
       "countryRequired": "Виберіть країну або «Інше», якщо вашої немає у списку",

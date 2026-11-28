@@ -276,10 +276,13 @@ class TestPreflight:
         assert conn.execute("SELECT vin FROM tire_readings").fetchall() == [("VINAAA00000000001",)]
         conn.close()
 
-    def test_p2_skips_a_violated_check_instead_of_crash_looping(self, legacy_db: Path, sync_engine):
+    def test_p2_skips_a_violated_check_instead_of_crash_looping(
+        self, legacy_db: Path, sync_engine, capsys: pytest.CaptureFixture[str]
+    ):
         """A FATAL migration that raises here does not fail once: the app
         crash-loops on every restart until someone with database access repairs
-        the row by hand. A missing constraint is recoverable; that is not.
+        the row by hand. The app still validates the field on write, so a
+        skipped check costs little; a crash loop helps nobody.
 
         The violating value is one the application can actually produce: the
         legacy JSON importer derives `has_miles` from
@@ -325,6 +328,14 @@ class TestPreflight:
             == 1
         )
         conn.close()
+        # The skip says what it did and promises no later fix.
+        [skipped] = [
+            line for line in capsys.readouterr().out.splitlines() if "P2: SKIPPING" in line
+        ]
+        assert skipped.startswith("  → P2: SKIPPING check_due_mileage_km; 1 row(s) violate it: [")
+        assert skipped.endswith(
+            "]. The constraint isn't installed; the app still validates these fields on write."
+        )
 
     def test_all_three_checks_are_installed_when_the_data_is_clean(
         self, legacy_db: Path, sync_engine

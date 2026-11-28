@@ -36,6 +36,24 @@ export const setApiAuthMode = (mode: string | null): void => {
   currentAuthMode = mode
 }
 
+// Called when a write comes back requires_sign_in while this tab still thinks
+// auth is on: somebody turned it off, so AuthContext rereads the public settings.
+let authStaleHandler: (() => void) | null = null
+
+export const setAuthStaleHandler = (handler: (() => void) | null): void => {
+  authStaleHandler = handler
+}
+
+// The server's 400 for a write that needs a signed-in user, with auth off.
+function isRequiresSignIn(data: unknown): boolean {
+  const detail = (data as { detail?: unknown } | null | undefined)?.detail
+  return (
+    typeof detail === 'object' &&
+    detail !== null &&
+    (detail as { detail?: unknown }).detail === 'requires_sign_in'
+  )
+}
+
 /**
  * Decide whether a 401 response should redirect the browser to /login.
  *
@@ -71,6 +89,11 @@ export const clearCSRFToken = () => {
   sessionStorage.removeItem(CSRF_TOKEN_KEY)
 }
 
+// A write waits on this fetch before its own timeout even starts, so an
+// unanswered one held the write (and a drawer waiting on it) forever. Two of
+// these still fit inside the shortest write deadline (30 s).
+const CSRF_TIMEOUT_MS = 10_000
+
 // Track CSRF refresh state to prevent multiple simultaneous refreshes
 let isRefreshingCSRF = false
 let csrfRefreshPromise: Promise<string | null> | null = null
@@ -83,7 +106,10 @@ let csrfRefreshPromise: Promise<string | null> | null = null
 const refreshCSRFToken = async (): Promise<string | null> => {
   try {
     // Use a fresh axios instance to avoid interceptor recursion
-    const response = await axios.get(withBase('/api/auth/csrf-token'), { withCredentials: true })
+    const response = await axios.get(withBase('/api/auth/csrf-token'), {
+      withCredentials: true,
+      timeout: CSRF_TIMEOUT_MS,
+    })
     const token = response.data.csrf_token
     if (token) {
       setCSRFToken(token)
@@ -141,6 +167,20 @@ api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config
+
+    // This tab thinks auth is on, the server says it's off. Let AuthContext catch up.
+    if (
+      error.response?.status === 400 &&
+      currentAuthMode !== 'none' &&
+      isRequiresSignIn(error.response.data)
+    ) {
+      // A broken handler must not swap the caller's 400 for its own error.
+      try {
+        authStaleHandler?.()
+      } catch (handlerError) {
+        console.error('[Auth] Stale-auth handler failed:', handlerError)
+      }
+    }
 
     // Handle 403 CSRF errors with retry
     if (error.response?.status === 403) {

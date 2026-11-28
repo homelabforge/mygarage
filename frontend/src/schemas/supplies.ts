@@ -8,7 +8,7 @@ import { makeVehicleKeySchema } from './shared'
 /**
  * Supply validation schema.
  *
- * Factory, not a constant — see the header of schemas/auth.ts for why.
+ * Factory, not a constant. The header of schemas/auth.ts says why.
  */
 
 export const SUPPLY_UNIT_TYPES = ['volume', 'count'] as const
@@ -22,7 +22,9 @@ export const makeSupplySchema = (t: TFunction) =>
     unit_type: z.enum(SUPPLY_UNIT_TYPES, {
       message: t('common:validation.supply.unitTypeRequired'),
     }),
-    volume_unit: z.enum(SUPPLY_VOLUME_UNITS).optional(),
+    volume_unit: z
+      .enum(SUPPLY_VOLUME_UNITS, { message: t('common:validation.supply.volumeUnitInvalid') })
+      .optional(),
     part_number: z.string().max(60, t('common:validation.supply.partNumberTooLong')).optional(),
     barcode: z.string().max(64, t('common:validation.supply.barcodeTooLong')).optional(),
     category: z.string().max(40, t('common:validation.supply.categoryTooLong')).optional(),

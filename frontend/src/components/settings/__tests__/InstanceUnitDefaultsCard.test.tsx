@@ -50,6 +50,7 @@ vi.mock('@/services/api', () => ({
   getCSRFToken: vi.fn(),
   clearCSRFToken: vi.fn(),
   setApiAuthMode: vi.fn(),
+  setAuthStaleHandler: vi.fn(),
 }))
 
 // Every label on this card is a translation key, and a card whose heading

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import * as ThemeContext from '../../../contexts/ThemeContext'
 import * as AuthContext from '../../../contexts/AuthContext'
 import TopNav from '../TopNav'
@@ -18,9 +19,11 @@ function setup() {
     user: null, isAuthenticated: false, isAdmin: false, logout: vi.fn(), authMode: 'none',
   } as unknown as ReturnType<typeof AuthContext.useAuth>)
   render(
-    <MemoryRouter>
-      <TopNav />
-    </MemoryRouter>
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <MemoryRouter>
+        <TopNav />
+      </MemoryRouter>
+    </QueryClientProvider>
   )
 }
 

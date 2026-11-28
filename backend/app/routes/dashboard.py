@@ -27,7 +27,7 @@ from app.schemas.dashboard import (
     TowVehicleSummary,
     VehicleStatistics,
 )
-from app.services.auth import require_auth
+from app.services.auth import require_auth, restricted_user
 from app.services.fuel_service import (
     average_l_per_100km,
     calculate_average_hours_economy,
@@ -421,11 +421,11 @@ async def get_dashboard(
     """
     vehicle_stats = []
 
-    if current_user and not current_user.is_admin:
+    if (me := restricted_user(current_user)) is not None:
         # Non-admin user: get owned vehicles
         owned_result = await db.execute(
             select(Vehicle).where(
-                Vehicle.user_id == current_user.id,
+                Vehicle.user_id == me.id,
                 (Vehicle.archived_at.is_(None))
                 | ((Vehicle.archived_at.isnot(None)) & (Vehicle.archived_visible.is_(True))),
             )
@@ -443,7 +443,7 @@ async def get_dashboard(
             .join(Vehicle, VehicleShare.vehicle_vin == Vehicle.vin)
             .join(User, Vehicle.user_id == User.id)
             .where(
-                VehicleShare.user_id == current_user.id,
+                VehicleShare.user_id == me.id,
                 (Vehicle.archived_at.is_(None))
                 | ((Vehicle.archived_at.isnot(None)) & (Vehicle.archived_visible.is_(True))),
             )

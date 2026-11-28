@@ -20,7 +20,7 @@ from app.schemas.family import (
     VehicleTransferRequest,
     VehicleTransferResponse,
 )
-from app.services.auth import sign_in_required
+from app.services.auth import acts_as_admin, sign_in_required
 from app.services.insurance_service import InsuranceService
 from app.utils.datetime_utils import utc_now
 from app.utils.logging_utils import sanitize_for_log
@@ -68,7 +68,7 @@ class TransferService:
             raise sign_in_required("Transferring a vehicle")
 
         # Verify admin
-        if not current_user.is_admin:
+        if not acts_as_admin(current_user):
             raise HTTPException(
                 status_code=403,
                 detail="Only admins can transfer vehicles",
@@ -268,8 +268,8 @@ class TransferService:
         Returns:
             List of eligible recipient users
         """
-        # Verify admin. None is auth off, treated like an admin.
-        if current_user is not None and not current_user.is_admin:
+        # Verify admin. Auth off passes like an admin.
+        if not acts_as_admin(current_user):
             raise HTTPException(
                 status_code=403,
                 detail="Only admins can view eligible recipients",

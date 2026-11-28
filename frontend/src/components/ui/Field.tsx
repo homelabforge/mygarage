@@ -3,8 +3,8 @@ import type { FieldError } from 'react-hook-form'
 import { FieldContext } from './fieldContext'
 
 interface FieldProps {
-  /** Must match the control's id. Passed straight through — e2e and unit
-   *  tests select controls by id (see standing instructions G6). */
+  /** Must match the control's id. Passed straight through, since e2e and
+   *  unit tests select controls by id. */
   id: string
   /** Already translated by the caller. */
   label: string
@@ -16,7 +16,7 @@ interface FieldProps {
   /** Rendered as `<p id={`${id}-hint`}>`. */
   hint?: string
   /** The control. If it is a ui primitive (Input/Select/Textarea) the hint↔
-   *  error association is wired automatically via FieldContext — see below. */
+   *  error association is wired automatically via FieldContext (see below). */
   children: ReactNode
 }
 
@@ -29,11 +29,11 @@ interface FieldProps {
  * and findByLabelText('edit.defTankCapacity (L)'), so both strings are part of
  * the accessible name and must stay there.
  *
- * The hint and error nodes carry ids derived from the caller's id —
+ * The hint and error nodes carry ids derived from the caller's id:
  * `${id}-hint` and `${id}-error`. Field publishes those ids on FieldContext,
  * and the ui primitives (Input/Select/Textarea) read them via
  * useFieldDescribedBy and merge them into their own aria-describedby. This wires
- * the association WITHOUT cloneElement — which silently does nothing when the
+ * the association WITHOUT cloneElement, which silently does nothing when the
  * child is a fragment, a wrapper div, or a react-hook-form <Controller> render,
  * all shapes this codebase uses. A control that is not a ui primitive (a raw
  * <input>, a custom component) sees the ids on the context and can still opt in;

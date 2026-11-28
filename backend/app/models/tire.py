@@ -202,8 +202,9 @@ class TireReading(Base):
     vin: Mapped[str] = mapped_column(
         String(17), ForeignKey("vehicles.vin", ondelete="CASCADE"), nullable=False
     )
-    # A SNAPSHOT of where the tire was when the reading was taken, not a live
-    # pointer. Nullable since 097: a stored tire can still be measured.
+    # A snapshot of the tire's corner when the reading was logged, kept as written.
+    # The API shows the corner on the reading's date instead, from the mount periods.
+    # Nullable since 097: a stored tire can still be measured.
     position: Mapped[str | None] = mapped_column(String(10))
     # Unused. No live writer set it after 097's backfill (the JSON backup import
     # put it back until batch 9), so migration 140 cleared it, and readings

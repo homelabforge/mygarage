@@ -55,7 +55,7 @@ from app.schemas.insurance import (
     PolicyVehicleUpdate,
     PolicyVehicleUpsert,
 )
-from app.services.auth import get_vehicle_or_403
+from app.services.auth import get_vehicle_or_403, restricted_user
 from app.services.vehicle_lock import LOCK_BUSY_DETAIL, is_lock_contention
 from app.utils.household_time import household_today
 from app.utils.insurance_coverages import COVERAGE_BY_KEY, COVERAGE_ORDER
@@ -189,26 +189,24 @@ class InsuranceService:
     # ------------------------------------------------------------------ access
 
     async def _resolve_access(self, current_user: User | None) -> _Access:
-        if current_user is None or current_user.is_admin:
+        if (me := restricted_user(current_user)) is None:
             return _Access(everything=True, user_id=getattr(current_user, "id", None))
 
         owned = (
-            (await self.db.execute(select(Vehicle.vin).where(Vehicle.user_id == current_user.id)))
+            (await self.db.execute(select(Vehicle.vin).where(Vehicle.user_id == me.id)))
             .scalars()
             .all()
         )
         shares = (
             await self.db.execute(
                 select(VehicleShare.vehicle_vin, VehicleShare.permission).where(
-                    VehicleShare.user_id == current_user.id
+                    VehicleShare.user_id == me.id
                 )
             )
         ).all()
         read_vins = set(owned) | {vin for vin, _ in shares}
         write_vins = set(owned) | {vin for vin, permission in shares if permission == "write"}
-        return _Access(
-            everything=False, user_id=current_user.id, read_vins=read_vins, write_vins=write_vins
-        )
+        return _Access(everything=False, user_id=me.id, read_vins=read_vins, write_vins=write_vins)
 
     async def _lock(self, policy_id: int | None = None) -> None:
         """Serialise this policy's writers for the rest of the transaction.

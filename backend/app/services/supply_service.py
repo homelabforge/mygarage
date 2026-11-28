@@ -1,6 +1,6 @@
 """Business logic for parts & supplies (light inventory).
 
-On-hand and average cost are always derived from the ledgers — never stored —
+On-hand and average cost are always derived from the ledgers, never stored,
 so editing or deleting a purchase / job self-heals the balance.
 """
 
@@ -8,12 +8,14 @@ import logging
 from collections.abc import Sequence
 from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
+from pathlib import Path
 
-from fastapi import HTTPException
+from fastapi import HTTPException, UploadFile
 from sqlalchemy import ColumnElement, SQLColumnExpression, and_, case, func, or_, select
-from sqlalchemy.exc import OperationalError
+from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.attachment import Attachment
 from app.models.supply import Supply, SupplyPurchase, SupplyUsage
 from app.models.user import User
 from app.schemas._money import MONEY_MAX, UNIT_COST_MAX
@@ -26,6 +28,7 @@ from app.schemas.supply import (
     SupplyUpdate,
     SupplyUsageResponse,
 )
+from app.services.file_upload_service import ATTACHMENT_UPLOAD_CONFIG, FileUploadService
 from app.utils.household_time import household_datetime, household_zone
 from app.utils.logging_utils import sanitize_for_log
 from app.utils.money_fits import ensure_fits
@@ -161,8 +164,8 @@ def price_unsettled_usage(usage: SupplyUsage, found: AsOfPrice | None) -> bool:
 def rerun_fallback(usage: SupplyUsage, found: AsOfPrice | None) -> bool:
     """Re-price an estimate after a costed purchase of its supply is deleted. True if written.
 
-    The one time an estimate moves without a purchase on or before its visit
-    (N-6): a mistyped receipt deleted must not strand the price it set. It
+    The one time an estimate moves without a purchase on or before its visit:
+    a mistyped receipt deleted must not strand the price it set. It
     takes `found` as it is now: a real as-of price settles it, the new
     all-time average keeps it flagged, and with no costed purchase left it
     goes back to unpriced, the state a first pricing starts from.
@@ -189,7 +192,7 @@ def estimate_of(supply_id: int) -> ColumnElement[bool]:
 
 
 def unsettled_usage(visit_date: SQLColumnExpression[date]) -> ColumnElement[bool]:
-    """Where-clause for the usages a pricer may write (D8), ``price_unsettled_usage``'s rule.
+    """Where-clause for the usages a pricer may write, ``price_unsettled_usage``'s rule.
 
     A usage with no cost (always priced), or an estimate that a costed
     purchase dated on or before its visit can settle now. That second half is
@@ -475,6 +478,20 @@ class SupplyService:
     ) -> bool:
         """Delete a purchase and its receipt. True if it had a cost, so the
         supply's estimates need their fallback re-run (``price_after_purchase_delete``)."""
+        purchase = await self.get_purchase(supply_id, purchase_id)
+        # As add_purchase: waits out any usage of it being logged, so the
+        # re-run fallback after this commit sees that usage, or the usage
+        # sees this purchase gone.
+        await self._lock_supply(supply_id, exclusive=True)
+        costed = purchase.total_cost is not None
+        old_files = await self._purge_receipt(purchase_id)  # rows now, files after commit
+        await self.db.delete(purchase)
+        await self.db.commit()
+        self._unlink_files(old_files)
+        return costed
+
+    async def get_purchase(self, supply_id: int, purchase_id: int) -> SupplyPurchase:
+        """A purchase of this supply. 404 if it's missing or belongs to another supply."""
         purchase = (
             await self.db.execute(
                 select(SupplyPurchase)
@@ -484,25 +501,68 @@ class SupplyService:
         ).scalar_one_or_none()
         if not purchase:
             raise HTTPException(status_code=404, detail=f"Purchase {purchase_id} not found")
-        # As add_purchase: waits out any usage of it being logged, so the
-        # re-run fallback after this commit sees that usage, or the usage
-        # sees this purchase gone.
-        await self._lock_supply(supply_id, exclusive=True)
-        costed = purchase.total_cost is not None
-        old_files = await self._purge_receipt(purchase_id)  # rows now, files after commit (R1-H4)
-        await self.db.delete(purchase)
-        await self.db.commit()
+        return purchase
+
+    # ---- purchase receipts --------------------------------------------------
+
+    async def replace_receipt(
+        self, supply_id: int, purchase_id: int, file: UploadFile
+    ) -> Attachment:
+        """Upload a purchase's receipt, replacing any it had. A purchase gets one.
+
+        Losing a race with another upload is a 409. The old file goes only after
+        the commit lands, and the new one goes if the commit fails.
+        """
+        await self.get_purchase(supply_id, purchase_id)
+        old_files = await self._purge_receipt(purchase_id)
+        # Flush the delete before the new row exists. One flush runs INSERTs before
+        # DELETEs, so a plain replace would trip `uq_supply_purchase_receipt`. It's
+        # still one transaction, so a rollback undoes the delete too.
+        await self.db.flush()
+        upload = await FileUploadService.upload_file(
+            file, ATTACHMENT_UPLOAD_CONFIG, subdirectory=f"supply_purchase/{purchase_id}"
+        )
+        attachment = Attachment(
+            record_type="supply_purchase",
+            record_id=purchase_id,
+            file_path=str(upload.file_path),
+            file_type=upload.content_type,
+            file_size=upload.file_size,
+        )
+        self.db.add(attachment)
+        try:
+            await self.db.commit()
+        except IntegrityError:
+            # Another upload for this purchase got there first.
+            await self.db.rollback()
+            self._unlink_files([str(upload.file_path)])
+            raise HTTPException(
+                status_code=409, detail="A receipt for this purchase already exists"
+            ) from None
+        except Exception:
+            # Any other DB failure after the file landed: don't orphan the new file.
+            await self.db.rollback()
+            self._unlink_files([str(upload.file_path)])
+            raise
         self._unlink_files(old_files)
-        return costed
+        await self.db.refresh(attachment)
+        return attachment
+
+    async def delete_receipt(self, supply_id: int, purchase_id: int) -> None:
+        """Delete a purchase's receipt. 404 if the purchase has none."""
+        await self.get_purchase(supply_id, purchase_id)
+        paths = await self._purge_receipt(purchase_id)
+        if not paths:
+            raise HTTPException(status_code=404, detail="No receipt for this purchase")
+        await self.db.commit()
+        self._unlink_files(paths)  # only once the row deletion commits
 
     async def _purge_receipt(self, purchase_id: int) -> list[str]:
         """Delete receipt attachment ROWS for a purchase; return their file paths.
 
         Unlink the returned paths only AFTER the surrounding commit succeeds, so a
-        rollback never loses a still-referenced file (R1-H4).
+        rollback never loses a still-referenced file.
         """
-        from app.models.attachment import Attachment
-
         rows = (
             (
                 await self.db.execute(
@@ -521,8 +581,6 @@ class SupplyService:
 
     @staticmethod
     def _unlink_files(paths: list[str]) -> None:
-        from pathlib import Path
-
         for p in paths:
             try:
                 Path(p).unlink(missing_ok=True)
@@ -636,7 +694,7 @@ class SupplyService:
 
         Callers MUST have ``usage.supply`` eager-loaded or resident in the session
         (this reads ``usage.supply.name``; ``supply_id`` is NOT NULL, so there is NO
-        null short-circuit — an unloaded ``supply`` raises MissingGreenlet under async).
+        null short-circuit and an unloaded ``supply`` raises MissingGreenlet under async).
         For a JOB usage, callers MUST additionally eager-load
         ``usage.line_item → line_item.visit`` (same async rule). A standalone
         adjustment has ``service_line_item_id=None`` → ``line_item`` is None
@@ -668,7 +726,6 @@ class SupplyService:
 
         from sqlalchemy.orm import selectinload
 
-        from app.models.attachment import Attachment
         from app.models.service_line_item import ServiceLineItem
         from app.schemas.supply import SupplyLedgerEntry, SupplyReceiptSummary
 
@@ -696,7 +753,7 @@ class SupplyService:
             .all()
         )
 
-        # Batch-load receipt metadata for these purchases (R1-H4).
+        # Batch-load receipt metadata for these purchases.
         receipts: dict[int, SupplyReceiptSummary] = {}
         if purchases:
             rows = (
@@ -713,7 +770,7 @@ class SupplyService:
             for a in rows:
                 receipts[a.record_id] = SupplyReceiptSummary(id=a.id, file_type=a.file_type)
 
-        # Effective ledger date (R1-H3): purchase.date; job usage → owning visit
+        # Effective ledger date: purchase.date; job usage → owning visit
         # date (real consumption date); standalone adjustment → created_at.
         # Dates are household days but created_at is naive UTC, so everything
         # goes on the household clock first or a near-midnight adjustment
@@ -805,7 +862,7 @@ class SupplyService:
                     .options(
                         selectinload(SupplyUsage.supply),
                         # line_item -> visit needed for to_usage_response's owning-visit fields
-                        # (async: unloaded -> MissingGreenlet). R1-H3.
+                        # (async: unloaded -> MissingGreenlet).
                         selectinload(SupplyUsage.line_item).selectinload(ServiceLineItem.visit),
                     )
                     .order_by(ServiceVisit.date.desc(), SupplyUsage.id.desc())

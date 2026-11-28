@@ -24,6 +24,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Unit conversions in forms and price columns go through one helper, and the units check refuses a `units-exempt` pragma that doesn't name a kind.
 - The LiveLink wiki explains how MyGarage reads the units in a Torque upload.
 - E2E installs no longer stall on font downloads.
+- The notification bell polls only while the tab has focus, and keeps its list when a poll fails.
+- Migration 097 no longer promises a later reminder check: a check it skipped stays off, and writes are still validated.
 
 ### Fixed
 - The top navigation folds into the menu button when its links don't fit, instead of scrolling the page sideways.
@@ -44,6 +46,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The offline copy of Analytics is kept per account and cleared at logout.
 - Offline, the Analytics banner names the range the cached copy covers.
 - Restore refusals at startup read more plainly.
+- Report CSVs and the tax deduction PDF include service visits with no line items; their cost is blank when nothing was recorded.
+- PDF reports accept a lowercase currency code (gbp prints as GBP).
+- Report filters answer a malformed date or year 0 with a 422 naming the field, and an empty date or year means no filter.
+- A tire reading shows the corner the tire had on its date, in the API and the reading editor, where the mount history is dated.
+- The window sticker drawer reloads the vehicle page once, and after an upload it couldn't confirm it reloads on close instead of offering a retry that could race it.
+- A write no longer hangs when fetching the CSRF token stalls.
+- A tab still showing you signed in notices when sign-in was turned off elsewhere.
+- Signing out while a page was loading your account no longer marks this browser's offline data as yours.
+- Editing the note on an odometer or hour meter reading a fill-up, service visit or tire event created no longer detaches it, and a note can't fake that link.
+- Deleting a DEF record removes the odometer reading it synced, never a fill-up's, and editing a fill-up's DEF record no longer adds a second reading.
+- The notification bell says when it couldn't load your notifications, with a retry, instead of showing an empty inbox.
 
 ## [3.11.3] - 2026-11-23
 

@@ -86,10 +86,17 @@ export async function forgetOfflineData(): Promise<void> {
  * (or nobody we know of) left them. Run it before the user gets set.
  *
  * @param owner From `analyticsCacheOwner`; null does nothing.
+ * @param stillCurrent Asked after the sweep. False skips the marker, since a
+ *   logout may have landed while the sweep was out.
  */
-export async function claimOfflineData(owner: AnalyticsCacheOwner): Promise<void> {
+export async function claimOfflineData(
+  owner: AnalyticsCacheOwner,
+  stillCurrent: () => boolean = () => true,
+): Promise<void> {
   if (owner === null) return
   if (readOwner() !== owner) await forgetOfflineData()
+  // Whatever ended this claim gets to decide the marker, not us.
+  if (!stillCurrent()) return
   try {
     localStorage.setItem(OWNER_KEY, owner)
   } catch {

@@ -12,4 +12,11 @@ describe('invalidateReadingViews', () => {
     // The keys it already refreshed stay.
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['hoursRecords', 'V1'] })
   })
+
+  it("refreshes the bell's inbox, since a reading can make a reminder due", () => {
+    const client = new QueryClient()
+    const invalidate = vi.spyOn(client, 'invalidateQueries')
+    invalidateReadingViews(client, 'V1')
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['notifications', 'inbox'] })
+  })
 })

@@ -21,10 +21,11 @@ from sqlalchemy import delete, func, select
 from app.models.hours import HoursRecord
 from app.models.odometer import OdometerRecord
 from app.models.reminder import Reminder
-from app.models.tire import Tire, TireReading
+from app.models.tire import Tire, TireMountPeriod, TireReading
 from app.models.vehicle import Vehicle
 from app.services.tire_service import ODOMETER_SOURCE_TIRE, TireService
 from app.utils.odometer_sync import auto_sync_marker
+from tests.integration.routes._json_backup import export_json
 
 MakeVehicle = Callable[..., Awaitable[str]]
 
@@ -1025,3 +1026,72 @@ class TestTheMountHistory:
         accepted = await _put(client, auth_headers, vehicle, tire_id, reading, odometer_km="11500")
         assert accepted.status_code == 200, accepted.text
         assert calls == ["withdraw", "publish"]
+
+
+def _position_of(body: dict, reading_id: int) -> str | None:
+    return _reading_in(body, reading_id)["position"]
+
+
+@pytest.mark.asyncio
+class TestTheCornerOnTheReadingsDate:
+    async def test_a_backdated_reading_shows_its_old_corner_and_keeps_its_snapshot(
+        self, client: AsyncClient, auth_headers, vehicle, db_session
+    ):
+        """A reading logged after a rotation but dated before it shows the corner
+        the tire had that day. The stored snapshot and the backup keep what was written."""
+        fl = await _tire(client, auth_headers, vehicle, "FL")
+        fr = await _tire(client, auth_headers, vehicle, "FR")
+        rotated = await client.post(
+            f"/api/vehicles/{vehicle}/tires/rotate",
+            headers=auth_headers,
+            json={
+                "rotated_on": "2026-03-01",
+                "odometer_km": "15000",
+                "moves": [{"tire_id": fl, "position": "FR"}, {"tire_id": fr, "position": "FL"}],
+            },
+        )
+        assert rotated.status_code == 200, rotated.text
+
+        logged = await client.post(
+            f"/api/vehicles/{vehicle}/tires/{fl}/readings",
+            headers=auth_headers,
+            json={"recorded_at": "2026-02-01", "tread_depth_mm": "7.0"},
+        )
+        assert logged.status_code == 201, logged.text
+        (reading,) = [r["id"] for r in logged.json()["readings"]]
+        assert _position_of(logged.json(), reading) == "FL"
+        assert _position_of(await _tire_body(client, auth_headers, vehicle, fl), reading) == "FL"
+
+        edited = await _put(client, auth_headers, vehicle, fl, reading, notes="before rotating")
+        assert edited.status_code == 200, edited.text
+        assert _position_of(edited.json(), reading) == "FL"
+
+        # Pull the FL period's end back before the reading: the tire was in the garage that day.
+        db_session.expire_all()
+        first = (
+            await db_session.execute(
+                select(TireMountPeriod).where(
+                    TireMountPeriod.tire_id == fl, TireMountPeriod.position == "FL"
+                )
+            )
+        ).scalar_one()
+        moved = await client.put(
+            f"/api/vehicles/{vehicle}/tires/{fl}/mount-periods/{first.id}",
+            headers=auth_headers,
+            json={"dismounted_on": "2026-01-15"},
+        )
+        assert moved.status_code == 200, moved.text
+        assert _position_of(moved.json(), reading) is None
+        assert _position_of(await _tire_body(client, auth_headers, vehicle, fl), reading) is None
+
+        # The row still holds the corner the tire had when it was logged.
+        db_session.expire_all()
+        stored = (
+            await db_session.execute(select(TireReading.position).where(TireReading.id == reading))
+        ).scalar_one()
+        assert stored == "FR"
+        backup = await export_json(client, auth_headers, vehicle)
+        [exported] = [
+            r for t in backup["tires"] for r in t["readings"] if r["recorded_at"] == "2026-02-01"
+        ]
+        assert exported["position"] == "FR"

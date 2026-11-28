@@ -259,6 +259,7 @@ def test_no_response_constrains_text():
 #: Twins that differ from the field they shadow on purpose: (model, field) -> why.
 DELIBERATE_TWINS: dict[tuple[str, str], str] = {
     ("AddressBookEntryResponse", "email"): "a plain str: EmailStr refuses a local-domain address",
+    ("SupplyReceiptResponse", "file_type"): "required: an upload always says what it stored",
     ("UserResponse", "email"): "a plain str: EmailStr refuses an SSO email at a local domain",
 }
 

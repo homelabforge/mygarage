@@ -7,6 +7,7 @@ extended fuel-tracking flow) can compose this into a single outer
 transaction with other side effects.
 """
 
+import re
 from collections.abc import Iterable, Sequence
 from datetime import date as date_type
 from decimal import Decimal
@@ -32,6 +33,44 @@ TIRE_MARKER_PREFIX = "[AUTO-SYNC from tire"
 #: (issue #171). Tire markers are keyed by tire/period/event and mark one row
 #: per reading date, so they must never get the vin-wide identity lookup.
 SINGLE_ROW_SOURCES = frozenset({"fuel", "service_visit", "def"})
+
+
+#: A note that is exactly one `auto_sync_marker` (the legacy service one included).
+_WHOLE_MARKER = re.compile(r"\[AUTO-SYNC from [a-z_]+ #\d+\]")
+
+
+def is_sync_marked(notes: str | None) -> bool:
+    """Whether a note is a whole sync marker, the thing its source finds the row by.
+
+    Every owner lookup compares the whole note (`_own_records`, the visit and tire
+    deletes), so this does too. A hand-written note that only mentions a marker
+    was never findable, so it stays editable.
+    """
+    return notes is not None and _WHOLE_MARKER.fullmatch(notes) is not None
+
+
+#: A sync marker anywhere in a note, closed or not: the opening is enough. The
+#: create claim and the strip both use this, so whatever the strip leaves can't
+#: make a row claimable.
+_ANY_MARKER = re.compile(r"\[AUTO-SYNC from[^\]]*\]?")
+
+
+def holds_sync_marker(notes: str | None) -> bool:
+    """Whether a note holds a sync marker anywhere, the create claim's test."""
+    return notes is not None and _ANY_MARKER.search(notes) is not None
+
+
+def without_sync_marker(notes: str | None) -> str | None:
+    """A note with every sync marker taken out, None when nothing else is left.
+
+    Only a source writes a marker. A copied one made a reading look owned: the
+    next same-day fill-up took it over, and a delete of the marker's record
+    removed it. An unclosed one goes to the end of the note. A note with no
+    marker comes back untouched.
+    """
+    if notes is None or not holds_sync_marker(notes):
+        return notes
+    return _ANY_MARKER.sub("", notes).strip() or None
 
 
 def is_tire_marked(record: OdometerRecord) -> bool:
@@ -227,7 +266,7 @@ async def sync_odometer_from_record(
                 same_day = await same_day_records(db, vin, date)
                 candidate = next((row for row in same_day if not is_tire_marked(row)), None)
                 if candidate is not None:
-                    is_auto_synced = candidate.notes and "[AUTO-SYNC from" in candidate.notes
+                    is_auto_synced = holds_sync_marker(candidate.notes)
                     is_livelink = candidate.source == "livelink"
                     if not (is_auto_synced or is_livelink):
                         return None

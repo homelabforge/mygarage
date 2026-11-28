@@ -3,7 +3,6 @@
 # pyright: reportPrivateUsage=false, reportUnusedFunction=false, reportUnusedClass=false
 
 import logging
-import re
 from dataclasses import dataclass
 from datetime import date as date_type
 from decimal import Decimal
@@ -14,16 +13,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.utils.hours_sync import same_day_hours, sync_hours_from_record
 from app.utils.hours_tolerance import hours_below
 from app.utils.logging_utils import sanitize_for_log
-from app.utils.odometer_sync import sync_odometer_from_record
+from app.utils.odometer_sync import sync_odometer_from_record, without_sync_marker
 
 logger = logging.getLogger(__name__)
 
-
-#: Every sync marker: `auto_sync_marker` writes `[AUTO-SYNC from <source> #<id>]`
-#: (utils/odometer_sync.py:51-59, utils/hours_sync.py:142), and the odometer
-#: claim rule treats any note containing `[AUTO-SYNC from` as auto-synced
-#: (odometer_sync.py:228).
-_SYNC_MARKER = re.compile(r"\[AUTO-SYNC from [^\]]*\]")
 
 #: The odometer sources a reading keeps through a move. The rest (fuel,
 #: service_visit, def, the legacy service, and tire, tire_rotation, tire_set,
@@ -40,7 +33,7 @@ def _without_sync_marker(notes: Any) -> Any:
     """
     if not isinstance(notes, str):
         return notes
-    return _SYNC_MARKER.sub("", notes).strip() or None
+    return without_sync_marker(notes.strip() or None)
 
 
 def _portable_odometer_source(source: Any) -> str:

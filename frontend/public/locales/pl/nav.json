@@ -43,6 +43,7 @@
   "notificationsEmptyTitle": "Brak powiadomień",
   "notificationsEmptyBody": "Wszystko na bieżąco. Nowe alerty pojawią się tutaj.",
   "notificationsLoading": "Ładowanie powiadomień…",
+  "notificationsLoadError": "Nie udało się załadować powiadomień.",
   "notificationsDismiss": "Odrzuć",
   "notificationsDismissAll": "Odrzuć wszystkie",
   "notificationsOverdue": "Zaległe",

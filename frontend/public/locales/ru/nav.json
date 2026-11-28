@@ -43,6 +43,7 @@
   "notificationsEmptyTitle": "Нет уведомлений",
   "notificationsEmptyBody": "Всё просмотрено. Новые оповещения появятся здесь.",
   "notificationsLoading": "Загрузка уведомлений…",
+  "notificationsLoadError": "Не удалось загрузить уведомления.",
   "notificationsDismiss": "Скрыть",
   "notificationsDismissAll": "Скрыть все",
   "notificationsOverdue": "Просрочено",

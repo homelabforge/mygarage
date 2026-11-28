@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import * as AuthContext from '../../contexts/AuthContext'
 import * as ThemeContext from '../../contexts/ThemeContext'
 import Layout from '../Layout'
@@ -27,13 +28,15 @@ function setup(initialPath = '/supplies') {
   })
 
   return render(
-    <MemoryRouter initialEntries={[initialPath]}>
-      <Routes>
-        <Route path="/" element={<Layout />}>
-          <Route path="supplies" element={<div>Supplies Page</div>} />
-        </Route>
-      </Routes>
-    </MemoryRouter>
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <MemoryRouter initialEntries={[initialPath]}>
+        <Routes>
+          <Route path="/" element={<Layout />}>
+            <Route path="supplies" element={<div>Supplies Page</div>} />
+          </Route>
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>
   )
 }
 
