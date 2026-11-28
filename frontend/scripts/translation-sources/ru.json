@@ -3718,6 +3718,7 @@
   "nav:notificationsEmptyTitle": "cbce2040:4c687999",
   "nav:notificationsEmptyBody": "d7627ba4:afd7f509",
   "nav:notificationsLoading": "eae12e0d:e89645c2",
+  "nav:notificationsLoadError": "25393175:5bf62f75:d",
   "nav:notificationsDismiss": "48845bff:0a2a4b83",
   "nav:notificationsDismissAll": "97fac9e5:0d7ccb23",
   "nav:notificationsOverdue": "d660945b:c2d42e79",

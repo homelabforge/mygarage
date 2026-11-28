@@ -43,6 +43,7 @@
   "notificationsEmptyTitle": "Немає сповіщень",
   "notificationsEmptyBody": "Усе переглянуто. Нові сповіщення з’являться тут.",
   "notificationsLoading": "Завантаження сповіщень…",
+  "notificationsLoadError": "Не вдалося завантажити сповіщення.",
   "notificationsDismiss": "Приховати",
   "notificationsDismissAll": "Приховати всі",
   "notificationsOverdue": "Прострочено",

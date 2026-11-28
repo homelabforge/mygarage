@@ -43,6 +43,7 @@
   "notificationsEmptyTitle": "No notifications",
   "notificationsEmptyBody": "You are all caught up. New alerts will appear here.",
   "notificationsLoading": "Loading notifications…",
+  "notificationsLoadError": "Couldn't load notifications.",
   "notificationsDismiss": "Dismiss",
   "notificationsDismissAll": "Dismiss all",
   "notificationsOverdue": "Overdue",

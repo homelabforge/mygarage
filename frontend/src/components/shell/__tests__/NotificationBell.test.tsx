@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { cleanup, render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-import { QueryClient, QueryClientProvider, focusManager } from '@tanstack/react-query'
+import { QueryClient, QueryClientProvider, focusManager, onlineManager } from '@tanstack/react-query'
 import NotificationBell from '../NotificationBell'
 import api from '../../../services/api'
 
@@ -59,6 +59,7 @@ afterEach(() => {
   vi.useRealTimers()
   // Back to "ask the document", so the focus state can't leak into other suites.
   focusManager.setFocused(undefined)
+  onlineManager.setOnline(true)
   window.localStorage.clear()
 })
 
@@ -105,6 +106,58 @@ describe('NotificationBell', () => {
 
     expect(screen.getByText('Brake inspection')).toBeInTheDocument()
     expect(badge(container)?.textContent).toBe('1')
+    // We have a list, so a blip isn't worth an error line.
+    expect(screen.queryByText('notificationsLoadError')).toBeNull()
+  })
+
+  it('says it could not load when the first fetch fails, not that the inbox is empty', async () => {
+    vi.mocked(api.get).mockRejectedValue(new Error('offline'))
+    const { client } = renderBell()
+    await waitFor(() => expect(client.getQueryState(INBOX_KEY)?.status).toBe('error'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'notifications' }))
+    expect(await screen.findByText('notificationsLoadError')).toBeInTheDocument()
+    expect(screen.queryByText('notificationsEmptyTitle')).toBeNull()
+  })
+
+  it('says loading, not all caught up, while the first fetch waits on the network', async () => {
+    onlineManager.setOnline(false)
+    const { client } = renderBell()
+    fireEvent.click(screen.getByRole('button', { name: 'notifications' }))
+    expect(await screen.findByRole('dialog', { name: 'notifications' })).toBeInTheDocument()
+
+    // Offline, the query parks: still pending, but not fetching either.
+    expect(client.getQueryState(INBOX_KEY)?.fetchStatus).toBe('paused')
+    expect(api.get).not.toHaveBeenCalled()
+    expect(screen.getByText('notificationsLoading')).toBeInTheDocument()
+    expect(screen.queryByText('notificationsEmptyTitle')).toBeNull()
+  })
+
+  it('retries from the error line and shows the list once it loads', async () => {
+    vi.mocked(api.get).mockRejectedValue(new Error('offline'))
+    const { client } = renderBell()
+    await waitFor(() => expect(client.getQueryState(INBOX_KEY)?.status).toBe('error'))
+    fireEvent.click(screen.getByRole('button', { name: 'notifications' }))
+    const retry = await screen.findByRole('button', { name: 'common:retry' })
+    const callsBefore = vi.mocked(api.get).mock.calls.length
+
+    let answer: (value: { data: { items: ReturnType<typeof item>[] } }) => void = () => {}
+    vi.mocked(api.get).mockReturnValue(
+      new Promise((resolve) => {
+        answer = resolve
+      }),
+    )
+    fireEvent.click(retry)
+    // While it's asking again, it says loading rather than the old error.
+    expect(await screen.findByText('notificationsLoading')).toBeInTheDocument()
+    expect(screen.queryByText('notificationsLoadError')).toBeNull()
+
+    await act(async () => {
+      answer({ data: { items: [item('a')] } })
+    })
+    expect(await screen.findByText('Brake inspection')).toBeInTheDocument()
+    expect(vi.mocked(api.get).mock.calls.length).toBe(callsBefore + 1)
+    expect(screen.queryByText('notificationsLoadError')).toBeNull()
   })
 
   // Only intervals are faked, which also stalls RTL's waitFor polling, so these

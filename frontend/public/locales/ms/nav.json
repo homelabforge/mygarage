@@ -43,6 +43,7 @@
   "notificationsEmptyTitle": "Tiada pemberitahuan",
   "notificationsEmptyBody": "Tiada perkara baharu untuk perhatian anda. Makluman baharu akan dipaparkan di sini.",
   "notificationsLoading": "Memuatkan pemberitahuan…",
+  "notificationsLoadError": "Tidak dapat memuatkan pemberitahuan.",
   "notificationsDismiss": "Abaikan",
   "notificationsDismissAll": "Abaikan semua",
   "notificationsOverdue": "Lewat",

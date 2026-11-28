@@ -43,6 +43,7 @@
   "notificationsEmptyTitle": "Keine Benachrichtigungen",
   "notificationsEmptyBody": "Alles erledigt. Neue Hinweise erscheinen hier.",
   "notificationsLoading": "Benachrichtigungen werden geladen…",
+  "notificationsLoadError": "Benachrichtigungen konnten nicht geladen werden.",
   "notificationsDismiss": "Verwerfen",
   "notificationsDismissAll": "Alle verwerfen",
   "notificationsOverdue": "Überfällig",

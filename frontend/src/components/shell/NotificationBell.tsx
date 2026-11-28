@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Bell, AlertTriangle, Clock } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { Badge, Drawer, EmptyState, IconButton } from '../ui'
+import { Badge, Button, Drawer, EmptyState, IconButton } from '../ui'
 import { useNotificationInbox } from '../../hooks/useNotificationInbox'
 
 const DISMISSED_KEY = 'mygarage:notification-inbox-dismissed'
@@ -34,7 +34,8 @@ export default function NotificationBell() {
   const { t } = useTranslation('nav')
   const [open, setOpen] = useState(false)
   const [dismissed, setDismissed] = useState<Set<string>>(() => loadDismissed())
-  const { data, isSuccess, isFetching, dataUpdatedAt, refetch } = useNotificationInbox()
+  const { data, isSuccess, isPending, isFetching, isLoadingError, dataUpdatedAt, refetch } =
+    useNotificationInbox()
   // A failed poll keeps the last good list, so the bell doesn't go quiet on a blip.
   const items = useMemo(() => data ?? [], [data])
 
@@ -110,10 +111,20 @@ export default function NotificationBell() {
               </button>
             </div>
           )}
-          {isFetching && visibleItems.length === 0 && (
+          {/* Pending covers a first fetch that's parked while the browser is offline. */}
+          {(isPending || isFetching) && visibleItems.length === 0 && (
             <p className="text-sm text-text-mute">{t('notificationsLoading')}</p>
           )}
-          {!isFetching && visibleItems.length === 0 && (
+          {/* Never had a list, so "all caught up" would be a lie. A retry flips this back to pending. */}
+          {isLoadingError && (
+            <div className="space-y-2">
+              <p className="text-sm text-text-mute">{t('notificationsLoadError')}</p>
+              <Button size="sm" variant="secondary" onClick={() => void refetch()}>
+                {t('common:retry')}
+              </Button>
+            </div>
+          )}
+          {!isFetching && data !== undefined && visibleItems.length === 0 && (
             <EmptyState
               icon={Bell}
               title={t('notificationsEmptyTitle')}

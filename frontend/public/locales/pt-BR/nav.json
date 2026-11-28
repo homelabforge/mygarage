@@ -43,6 +43,7 @@
   "notificationsEmptyTitle": "Sem notificações",
   "notificationsEmptyBody": "Tudo em dia. Novos alertas aparecerão aqui.",
   "notificationsLoading": "Carregando notificações…",
+  "notificationsLoadError": "Não foi possível carregar as notificações.",
   "notificationsDismiss": "Descartar",
   "notificationsDismissAll": "Descartar todas",
   "notificationsOverdue": "Atrasados",

@@ -43,6 +43,7 @@
   "notificationsEmptyTitle": "Nessuna notifica",
   "notificationsEmptyBody": "Non ci sono nuove notifiche. I nuovi avvisi appariranno qui.",
   "notificationsLoading": "Caricamento notifiche…",
+  "notificationsLoadError": "Impossibile caricare le notifiche.",
   "notificationsDismiss": "Ignora",
   "notificationsDismissAll": "Ignora tutte",
   "notificationsOverdue": "Scadute",
