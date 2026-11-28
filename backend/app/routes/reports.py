@@ -5,7 +5,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
-from pydantic import BeforeValidator
+from pydantic import BeforeValidator, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -27,6 +27,9 @@ def _blank_is_none(value: object) -> object:
 
 # Typed as a date, so a malformed one is a 422 naming the param instead of a 500.
 OptionalDate = Annotated[date | None, BeforeValidator(_blank_is_none)]
+# Same for a year filter: blank is every year. The bound sits on the int, so
+# 0 still fails it and None never meets it.
+OptionalYear = Annotated[Annotated[int, Field(ge=1)] | None, BeforeValidator(_blank_is_none)]
 
 
 @router.get("/{vin}/reports/service-history-pdf")
@@ -205,7 +208,7 @@ async def download_service_history_csv(
 @router.get("/{vin}/reports/all-records-csv")
 async def download_all_records_csv(
     vin: str,
-    year: int | None = Query(None, ge=1, description="Filter by year"),
+    year: Annotated[OptionalYear, Query(description="Filter by year")] = None,
     db: AsyncSession = Depends(get_db),
     current_user: User | None = Depends(require_auth),
 ):

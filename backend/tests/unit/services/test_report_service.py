@@ -728,6 +728,15 @@ class TestBadParams:
         assert (call["start_date"], call["end_date"]) == (None, None)
         assert call["service_records"] == _PAST_WINDOW + _IN_WINDOW + _BEFORE_WINDOW
 
+    async def test_an_empty_year_means_every_year(
+        self, client: AsyncClient, seeded: dict[str, str], frozen_clock: None
+    ) -> None:
+        response = await client.get(
+            f"/api/vehicles/{_VIN}/reports/all-records-csv", headers=seeded, params={"year": ""}
+        )
+        assert response.status_code == 200, response.text
+        _assert_golden("all_records_all.csv", response.content)
+
     @pytest.mark.parametrize("report", ["cost-summary-pdf", "tax-deduction-pdf", "all-records-csv"])
     async def test_year_zero_is_a_422(
         self, client: AsyncClient, seeded: dict[str, str], report: str

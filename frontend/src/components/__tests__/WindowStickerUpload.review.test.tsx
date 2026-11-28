@@ -569,7 +569,7 @@ describe('WindowStickerUpload upload: a lost answer still reloads', () => {
     expect(onClose).toHaveBeenCalledWith(true)
   })
 
-  it('a 500 that says nothing was saved keeps the usual error, allows a retry, and closes without a reload', async () => {
+  it('a 500 that says nothing was saved keeps the usual error and allows a retry, which reloads on close', async () => {
     const user = userEvent.setup({ applyAccept: false })
     apiPost.mockRejectedValueOnce({
       isAxiosError: true,
@@ -590,7 +590,7 @@ describe('WindowStickerUpload upload: a lost answer still reloads', () => {
     expect(apiPost).toHaveBeenCalledTimes(2)
     await user.click(screen.getByRole('button', { name: 'windowSticker.misc.cancel' }))
     expect(onClose).toHaveBeenCalledTimes(1)
-    // The retry landed, so this close reloads; the first answer alone wouldn't have.
+    // The retry landed, so this close reloads. The test below covers no retry.
     expect(onClose).toHaveBeenCalledWith(true)
   })
 
